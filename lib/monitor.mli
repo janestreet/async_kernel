@@ -37,30 +37,34 @@
     this problem. *)
 open Core.Std
 
-type t = Execution_context.t Raw_monitor.t with sexp_of
+type t with sexp_of
 
-(** [create ()] returns a new monitor whose parent is the current monitor *)
-val create : ?name:string -> unit -> t
+type 'a with_optional_monitor_name =
+  ?here : Source_code_position.t
+  -> ?info : Info.t
+  -> ?name : string
+  -> 'a
 
-(** [name t] returns the name of the monitor, or a unique id if no name was
-    supplied to [create]. *)
-val name : t -> string
+(** [create ()] returns a new monitor whose parent is the current monitor. *)
+val create : (unit -> t) with_optional_monitor_name
+
+(** [name t] returns the name of the monitor, or a unique id if no name was supplied to
+    [create]. *)
+val name : t -> Info.t
 
 (** [current ()] returns the current monitor *)
 val current : unit -> t
 
-(** [errors t] returns a stream of all subsequent errors that monitor [t]
-    sees. *)
-val errors : t -> exn Raw_async_stream.t
+(** [errors t] returns a stream of all subsequent errors that monitor [t] sees. *)
+val errors : t -> exn Tail.Stream.t
 
-(** [error t] returns a deferred that becomes defined if the monitor ever
-    sees an error.  Calling [error t] does not count as "listening for errors",
-    and if no one has called [errors t] to listen, then errors will still be
-    raised up the monitor tree. *)
+(** [error t] returns a deferred that becomes defined if the monitor ever sees an error.
+    Calling [error t] does not count as "listening for errors", and if no one has called
+    [errors t] to listen, then errors will still be raised up the monitor tree. *)
 val error : t -> exn Deferred.t
 
-(** [extract_exn exn] extracts the exn from an error exn that comes from a monitor.
-    If it is not supplied such an error exn, it returns the exn itself. *)
+(** [extract_exn exn] extracts the exn from an error exn that comes from a monitor.  If it
+    is not supplied such an error exn, it returns the exn itself. *)
 val extract_exn : exn -> exn
 
 (** [has_seen_error t] returns true iff the monitor has ever seen an error. *)
@@ -73,59 +77,57 @@ val has_seen_error : t -> bool
 val send_exn : t -> ?backtrace:[ `Get | `This of string ] -> exn -> unit
 
 
-(** [try_with f] schedules [f ()] to run in a monitor and returns the result as [Ok x] if
-    [f] finishes normally, or returns [Error e] if there is some error.  Once a result is
-    returned, any subsequent errors raised by [f ()] are ignored.  [try_with] always
-    returns a deferred immediately and does not raise.
+(** [try_with f] runs [f ()] in a monitor and returns the result as [Ok x] if [f] finishes
+    normally, or returns [Error e] if there is some error.  It either runs [f] now, if
+    [run = `Now], or schedules a job to run [f], if [run = `Schedule].  Once a result is
+    returned, the rest of the errors raised by [f] are ignored or re-raised, as per
+    [rest].  [try_with] never raises synchronously, and may only raise asynchronously with
+    [rest = `Raise].
 
     The [name] argument is used to give a name to the monitor the computation will be
     running in.  This name will appear when printing errors. *)
 val try_with
-  :  ?name : string
-  -> (unit -> 'a Deferred.t)
-  -> ('a, exn) Result.t Deferred.t
-
-(** [try_with_raise_rest f] is the same as [try_with f], except that subsequent errors
-    raised by [f ()] are reraised to the monitor that called [try_with_raise_rest]. *)
-val try_with_raise_rest
-  :  ?name : string
-  -> (unit -> 'a Deferred.t)
-  -> ('a, exn) Result.t Deferred.t
+  : (?run : [ `Now | `Schedule ]  (* default is `Schedule *)
+     -> ?rest : [ `Ignore | `Raise ] (* default is `Ignore *)
+     -> (unit -> 'a Deferred.t)
+     -> ('a, exn) Result.t Deferred.t
+  ) with_optional_monitor_name
 
 (** [handle_errors ?name f handler] runs [f ()] inside a new monitor with the optionally
     supplied name, and calls [handler error] on every error raised to that monitor.  Any
     error raised by [handler] goes to the monitor in effect when [handle_errors] was
     called. *)
 val handle_errors
-  :  ?name:string
-  -> (unit -> 'a Deferred.t)
-  -> (exn -> unit)
-  -> 'a Deferred.t
+  : ((unit -> 'a Deferred.t)
+     -> (exn -> unit)
+     -> 'a Deferred.t
+  ) with_optional_monitor_name
 
 (** [catch_stream ?name f] runs [f ()] inside a new monitor [m] and returns the stream of
     errors raised to [m]. *)
-val catch_stream : ?name:string -> (unit -> unit) -> exn Raw_async_stream.t
+val catch_stream : ((unit -> unit) -> exn Tail.Stream.t) with_optional_monitor_name
 
 (** [catch ?name f] runs [f ()] inside a new monitor [m] and returns the first error
     raised to [m]. *)
-val catch : ?name:string -> (unit -> unit) -> exn Deferred.t
+val catch : ((unit -> unit) -> exn Deferred.t) with_optional_monitor_name
 
-(** [protect f ~finally] runs [f ()] and then [finally] regardless of the success
-    or failure of [f].  Re-raises any exception thrown by [f] or returns whatever
-    [f] returned.
+(** [protect f ~finally] runs [f ()] and then [finally] regardless of the success or
+    failure of [f].  It re-raises any exception thrown by [f] or returns whatever [f]
+    returned.
 
-    The [name] argument is used to give a name to the monitor the computation
-    will be running in. This name will appear when printing the errors. *)
+    The [name] argument is used to give a name to the monitor the computation will be
+    running in.  This name will appear when printing the errors. *)
 val protect
-  :  ?name : string
-  -> (unit -> 'a Deferred.t)
-  -> finally:(unit -> unit Deferred.t) -> 'a Deferred.t
+  : ((unit -> 'a Deferred.t)
+     -> finally:(unit -> unit Deferred.t)
+     -> 'a Deferred.t
+  ) with_optional_monitor_name
 
 val main : t
 
 module Exported_for_scheduler : sig
   type 'a with_options =
-    ?block_group:Block_group.t
+    ?work_group:Work_group.t
     -> ?monitor:t
     -> ?priority:Priority.t
     -> 'a

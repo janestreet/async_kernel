@@ -1,47 +1,48 @@
 open Core.Std
+open Import
 open Deferred_std
 
-module Monitor = Raw_monitor
 module Scheduler = Raw_scheduler
-module Stream = Raw_stream
+module Stream = Tail.Stream
 
-type 'execution_context t_ = 'execution_context Monitor.t =
-  { name_opt : string option;
-    id : int;
-    parent : 'execution_context t_ option;
-    errors : (exn, 'execution_context) Raw_tail.t;
-    mutable has_seen_error : bool;
-    mutable someone_is_listening : bool;
-  }
-with fields
+module Monitor = Raw_monitor
+include Monitor
 
-type t = Execution_context.t Monitor.t with sexp_of
+
+type t = Execution_context.t Monitor.t_ with sexp_of
 
 type monitor = t with sexp_of
 
-let debug = Debug.debug
+let debug = Debug.monitor
 
-let current_execution_context () = Scheduler.current_execution_context ()
+let current_execution_context () = Scheduler.(current_execution_context (t ()))
 
-let current () = (current_execution_context ()).Execution_context.monitor
-
-let name t =
-  match t.name_opt with
-  | Some s -> s
-  | None -> Int.to_string (id t)
-;;
+let current () = Execution_context.monitor (current_execution_context ())
 
 let next_id =
   let r = ref 0 in
   fun () -> r := !r + 1; !r
 ;;
 
-let create_with_parent ?name:name_opt parent =
+type 'a with_optional_monitor_name =
+  ?here : Source_code_position.t
+  -> ?info : Info.t
+  -> ?name : string
+  -> 'a
+
+let create_with_parent ?here ?info ?name parent =
+  let id = next_id () in
+  let name =
+    match info, name with
+    | Some i, None   -> i
+    | Some i, Some s -> Info.tag i s
+    | None  , Some s -> Info.of_string s
+    | None  , None   -> Info.create "id" id <:sexp_of< int >>
+  in
   let t =
-    { name_opt;
-      id = next_id ();
-      parent;
-      errors = Tail.create ();
+    { name; here; parent;
+      id;
+      errors = Tail.to_raw (Tail.create ());
       has_seen_error = false;
       someone_is_listening = false;
     }
@@ -52,22 +53,24 @@ let create_with_parent ?name:name_opt parent =
 
 let main = create_with_parent ~name:"main" None
 
+let () = ok_exn (Backpatched.Hole.fill Execution_context.main_monitor_hole main)
+
 let errors t =
   t.someone_is_listening <- true;
-  Tail.collect t.errors;
+  Tail.collect (Tail.of_raw t.errors);
 ;;
 
 let error t =
   let module S = Stream in
-  S.next (Tail.collect t.errors)
+  S.next (Tail.collect (Tail.of_raw t.errors))
   >>| function
   | S.Nil -> assert false
   | S.Cons (error, _) -> error
 ;;
 
-let create ?name () =
+let create ?here ?info ?name () =
   let parent = current () in
-  create_with_parent ?name (Some parent);
+  create_with_parent ?here ?info ?name (Some parent);
 ;;
 
 module Exn_for_monitor = struct
@@ -99,7 +102,6 @@ let send_exn t ?backtrace exn =
   let backtrace_history =
     (current_execution_context ()).Execution_context.backtrace_history
   in
-  let is_shutdown = exn = Monitor.Shutdown in
   let exn =
     match exn with
     | Error_ _ -> exn
@@ -108,77 +110,79 @@ let send_exn t ?backtrace exn =
   t.has_seen_error <- true;
   let rec loop t =
     if t.someone_is_listening then
-      Tail.extend t.errors exn
+      Tail.extend (Tail.of_raw t.errors) exn
     else
       match t.parent with
       | Some t' -> loop t'
       | None ->
         (* Ignore shutdown errors that reach the top. *)
-        if not is_shutdown then
+        if exn <> Shutdown then begin
           (* Do not change this branch to print the exception or to exit.  Having the
              scheduler raise an uncaught exception is the necessary behavior for programs
              that call [Scheduler.go] and want to handle it. *)
-          Scheduler.t.Scheduler.uncaught_exception <-
-            Some (Error.create "unhandled exception" (`Pid (Unix.getpid ()), exn)
-                    (<:sexp_of< [ `Pid of Pid.t ] * exn >>));
+          Scheduler.(got_uncaught_exn (t ()))
+            (Error.create "unhandled exception" (exn, `Pid (Unix.getpid ()))
+               (<:sexp_of< exn * [ `Pid of Pid.t ] >>))
+        end;
   in
   loop t
 ;;
 
 module Exported_for_scheduler = struct
   let within_context context f =
-    Scheduler.with_execution_context context
+    Scheduler.(with_execution_context (t ())) context
       ~f:(fun () ->
         match Result.try_with f with
         | Ok x -> Ok x
         | Error exn ->
-          send_exn context.Execution_context.monitor exn ~backtrace:`Get;
+          send_exn (Execution_context.monitor context) exn ~backtrace:`Get;
           Error ())
   ;;
 
   type 'a with_options =
-    ?block_group:Block_group.t
+    ?work_group:Work_group.t
     -> ?monitor:t
     -> ?priority:Priority.t
     -> 'a
 
-  let within_gen ?block_group ?monitor ?priority f =
+  let within_gen ?work_group ?monitor ?priority f =
     let tmp_context =
       Execution_context.create_like (current_execution_context ())
-        ?block_group ?monitor ?priority
+        ?work_group ?monitor ?priority
     in
     within_context tmp_context f
   ;;
 
-  let within'        ?block_group ?monitor ?priority f =
-    match within_gen ?block_group ?monitor ?priority f with
+  let within'        ?work_group ?monitor ?priority f =
+    match within_gen ?work_group ?monitor ?priority f with
     | Error () -> Deferred.never ()
     | Ok d -> d
   ;;
 
-  let within_v       ?block_group ?monitor ?priority f =
-    match within_gen ?block_group ?monitor ?priority f with
+  let within_v       ?work_group ?monitor ?priority f =
+    match within_gen ?work_group ?monitor ?priority f with
     | Error () -> None
     | Ok x -> Some x
   ;;
 
-  let within         ?block_group ?monitor ?priority f =
-    match within_gen ?block_group ?monitor ?priority f with
+  let within         ?work_group ?monitor ?priority f =
+    match within_gen ?work_group ?monitor ?priority f with
     | Error () -> ()
     | Ok () -> ()
   ;;
 
-  let schedule ?block_group ?monitor ?priority work =
-    Scheduler.add_job
+  let schedule ?work_group ?monitor ?priority work =
+    let scheduler = Scheduler.t () in
+    Scheduler.add_job scheduler
       (Job.create
-         (Execution_context.create_like (current_execution_context ())
-            ?block_group ?monitor ?priority)
+         (Execution_context.create_like (Scheduler.current_execution_context scheduler)
+            ?work_group ?monitor ?priority)
          work ())
   ;;
 
-  let schedule' ?block_group ?monitor ?priority work =
+  let schedule' ?work_group ?monitor ?priority work =
     Deferred.create (fun i ->
-      schedule  ?block_group ?monitor ?priority
+      schedule  ?work_group ?monitor ?priority
         (fun () -> upon (work ()) (fun a -> Ivar.fill i a)))
   ;;
 end
@@ -191,35 +195,39 @@ let stream_iter stream ~f =
     S.next stream
     >>> function
     | S.Nil -> ()
-    | S.Cons (v, stream) -> loop stream; f v
+    | S.Cons (v, stream) -> loop (Stream.of_raw stream); f v
   in
   loop stream
 ;;
 
-let try_with ?(name="try_with") ~reraise f =
+let try_with ?here ?info ?(name = "try_with") ?(run = `Schedule) ?(rest = `Ignore) f =
   let module S = Stream in
   let parent = current () in
-  let monitor = create_with_parent ~name (Some parent) in
+  let monitor = create_with_parent ?here ?info ~name (Some parent) in
   let errors = errors monitor in
-  choose [ choice (schedule' ~monitor f)
-             (fun x -> (Ok x, errors));
+  let f =
+    match run with
+    | `Now      -> within'   ~monitor f
+    | `Schedule -> schedule' ~monitor f
+  in
+  choose [ choice f (fun x -> (Ok x, errors));
            choice (S.next errors)
              (function
              | S.Nil -> assert false
-             | S.Cons (err, errors) -> (Error err, errors));
+             | S.Cons (err, errors) -> (Error err, Stream.of_raw errors));
          ]
   >>| fun (res, errors) ->
-  if reraise then stream_iter errors ~f:(fun e -> send_exn parent e ?backtrace:None);
+  begin match rest with
+  | `Ignore -> ()
+  | `Raise -> stream_iter errors ~f:(fun e -> send_exn parent e ?backtrace:None);
+  end;
   res
 ;;
 
-let try_with_raise_rest ?name f = try_with ?name ~reraise:true  f
-let try_with            ?name f = try_with ?name ~reraise:false f
-
-let protect ?(name = "Monitor.protect") f ~finally =
-  try_with ~name f
+let protect ?here ?info ?(name = "Monitor.protect") f ~finally =
+  try_with ?here ?info ~name f
   >>= fun r ->
-  try_with ~name:(name ^ "::finally") finally
+  try_with ?here ?info ~name:"finally" finally
   >>| fun fr ->
   match r, fr with
   | Error e, Error finally_e  ->
@@ -229,21 +237,21 @@ let protect ?(name = "Monitor.protect") f ~finally =
   | Ok r           , Ok ()   -> r
 ;;
 
-let handle_errors ?name f handler =
-  let monitor = create ?name () in
+let handle_errors ?here ?info ?name f handler =
+  let monitor = create ?here ?info ?name () in
   stream_iter (errors monitor) ~f:handler;
   within' ~monitor f;
 ;;
 
-let catch_stream ?name f =
-  let monitor = create ?name () in
+let catch_stream ?here ?info ?name f =
+  let monitor = create ?here ?info ?name () in
   within ~monitor f;
   errors monitor;
 ;;
 
-let catch ?name f =
+let catch ?here ?info ?name f =
   let module S = Stream in
-  S.next (catch_stream ?name f)
+  S.next (catch_stream ?here ?info ?name f)
   >>| function
   | S.Cons (x, _) -> x
   | S.Nil -> failwith "Monitor.catch got unexpected empty stream"

@@ -5,8 +5,9 @@
 
     The basic primitive operation for getting the next element out of stream is
     Stream.next, which (asynchronously) returns the element and the rest of the stream. *)
+open Import
 
-type 'a t = ('a, Execution_context.t) Raw_stream.t with sexp_of
+type 'a t = 'a Tail.Stream.t with sexp_of
 (** [sexp_of_t t f] returns a sexp of all of the elements currently available in the
     stream.  It is just for display purposes.  There is no [t_of_sexp]. *)
 
@@ -18,8 +19,12 @@ val create : ('a Tail.t -> unit) -> 'a t
 (** [next t] returns a deferred that will become determined when the next part of the
     stream is determined.  This is [Cons (v, t')], where v is the next element of the
     stream and t' is the rest of the stream, or with Nil at the end of the stream. *)
-type ('a, 'execution_context) next_ = Nil | Cons of 'a * ('a, 'execution_context) Raw_stream.t
+type ('a, 'execution_context) next_ =
+| Nil
+| Cons of 'a * ('a, 'execution_context) Raw_stream.t
+
 type 'a next = ('a, Execution_context.t) next_
+
 val next : 'a t -> 'a next Deferred.t
 
 (** [first_exn t] returns a deferred that becomes determined with the first element of
@@ -71,21 +76,19 @@ val concat : 'a t t -> 'a t
     the stream. *)
 val available_now : 'a t -> 'a list * 'a t
 
-(** [filter' s ~f] returns a stream with one element, v, for each v in s such with f v =
-    true. *)
-val filter' : 'a t -> f:('a -> bool Deferred.t) -> 'a t
+(** [filter_deprecated s ~f] returns a stream with one element, v, for each v in s such
+    with f v = true.
 
-(** [filter s ~f] returns a stream with one element, v, for each v in s such with f v =
-    true. *)
-val filter : 'a t -> f:('a -> bool) -> 'a t
+    Using [filter_deprecated] can easily lead to space leaks.  It is better to use
+    [Async.Pipe] than [Async.Stream]. *)
+val filter_deprecated : 'a t -> f:('a -> bool) -> 'a t
 
-(** [filter_map' s ~f] returns a stream with one element, v', for each v in s such with f
-    v = Some v'. *)
-val filter_map' : 'a t -> f:('a -> 'b option Deferred.t) -> 'b t
+(** [filter_map_deprecated s ~f] returns a stream with one element, v', for each v in s
+    such with f v = Some v'.
 
-(** [filter_map s ~f] returns a stream with one element, v', for each v in s such with f v
-    = Some v'. *)
-val filter_map : 'a t -> f:('a -> 'b option) -> 'b t
+    Using [filter_map_deprecated] can easily lead to space leaks.  It is better to use
+    [Async.Pipe] than [Async.Stream]. *)
+val filter_map_deprecated : 'a t -> f:('a -> 'b option) -> 'b t
 
 (** [fold' t ~init ~f] is like list fold, walking over the elements of the stream in
     order, as they become available.  [fold'] returns a deferred that will yield the final
@@ -114,11 +117,13 @@ val take_until : 'a t -> unit Deferred.t -> 'a t
 
 (** [iter_durably' t ~f] is like [iter' t ~f], except if [f] raises an exception it
     continues with the next element of the stream *and* reraises the exception (to the
-    monitor in scope when iter_durably was called). *)
-(** [iter_durably t ~f] is like [iter t ~f], except if [f] raises an exception it
+    monitor in scope when iter_durably was called).
+
+    [iter_durably t ~f] is like [iter t ~f], except if [f] raises an exception it
     continues with the next element of the stream *and* reraises the exception (to the
-    monitor in scope when iter_durably was called). *)
-(** [iter_durably_report_end t ~f] is equivalent to [iter_durably' t ~f:(fun x -> return
+    monitor in scope when iter_durably was called).
+
+    [iter_durably_report_end t ~f] is equivalent to [iter_durably' t ~f:(fun x -> return
     (f x))] but it is more efficient *)
 val iter_durably'           : 'a t -> f:('a -> unit Deferred.t) -> unit Deferred.t
 val iter_durably            : 'a t -> f:('a -> unit           ) -> unit
@@ -192,3 +197,13 @@ val ungroup : 'a list t -> 'a t
     interleaved as they become determined. The interleaved stream will be closed when the
     outer stream and all of the inner streams have been closed. *)
 val interleave : 'a t t -> 'a t
+
+(** The [Raw] interface exposed here is for async's internal use only.  It must be
+    exported here because we want the [Stream.t] type to be abstract, so that is shows up
+    nicely in type errors, yet other async code defined later needs to deal with the raw
+    type. *)
+
+include Raw
+  with type execution_context := Execution_context.t
+  with type ('a, 'b) raw := ('a, 'b) Raw_stream.t
+  with type 'a t := 'a t

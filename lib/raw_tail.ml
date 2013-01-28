@@ -14,5 +14,3 @@ let sexp_of_t _ _ t =
 ;;
 
 let create () = { next = Ivar.create () }
-
-let collect t = Deferred.of_ivar t.next

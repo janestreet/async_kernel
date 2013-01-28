@@ -45,7 +45,7 @@ end
 (** {1 Creation} *)
 
 (** [create ()] creates a new pipe. *)
-val create : unit  -> 'a Reader.t * 'a Writer.t
+val create : unit -> 'a Reader.t * 'a Writer.t
 
 (** [of_list l] returns a closed pipe reader filled with the contents of [l]. *)
 val of_list : 'a list -> 'a Reader.t
@@ -83,18 +83,103 @@ val is_closed : (_, _) t -> bool
     is called. *)
 val closed : (_, _) t -> unit Deferred.t
 
+(** {1 Flushing} *)
+(******************************************************************************)
+
+module Flushed_result : sig
+  type t = [ `Ok | `Reader_closed ] with sexp_of
+end
+
+(** Deferreds returned by [upstream_flushed] and [downstream_flushed] becomes determined
+    when all values written prior to the call have been consumed, or if the reader end of
+    the pipe is closed.  The difference between "upstream" and "downstream" comes if one
+    has a chain of pipes that are linked (e.g. by [Pipe.map]):
+
+    |  P1 --> P2 --> P3
+
+    Calling [downstream_flushed P2] ensures that everything in P2 has made it out of P3.
+    Calling [upstream_flushed P2] ensures that everything in P1 has made it out of P3.
+    More generally, [downstream_flushed] starts at the current pipe and follows the chain
+    to the final downstream consumer(s).  [upstream_flushed] follows the chain to the
+    initial upstream pipe(s), and then calls [downstream_flushed].
+
+    For a pipe in isolation, "consumed" means "read from the pipe".  However, for pipes
+    linked together with [transfer] or any function built from [transfer], "consumed"
+    means "propagated all the way downstream through the chain and read from the final
+    pipe in the chain".  Furthermore, for a pipe ultimately connected to an
+    [Async.Writer], "consumed" means the OS write() system call has completed on the bytes
+    read from the final pipe in the chain.
+
+    The following [Pipe] functions automatically link their input and output pipes
+    together so that [flushed] on upstream pipes will propagate to downstream pipes:
+    [transfer*], [map*], [filter_map*], [filter], [interleave], [concat].  There is *not*
+    automatic linking with [iter*]; however, user code can customize the behavior of
+    flush functions using [Consumer], see below. *)
+val   upstream_flushed : (_, _) t -> Flushed_result.t Deferred.t
+val downstream_flushed : (_, _) t -> Flushed_result.t Deferred.t
+
+module Consumer : sig
+  (** A [Consumer] is used to augment our notion of flushing ([Pipe.flushed]) to include
+      the time spent processing an element once it has been removed from the pipe.  It can
+      be thought of as sitting at the end of a pipe, or between two pipes, and it provides
+      more detailed feedback on the time an element spends outside of the pipe proper.
+      So we have the following two cases:
+
+      Pipe --> Consumer
+      Pipe --> Consumer --> Pipe --> ...
+
+      The time outside of the pipe can be broken down into two parts: a part (probably
+      short lived) during which the consumer processes the elements in some way, and a
+      downstream portion where the consumer acts as a sentinal to report when the element
+      has been fully processed.
+
+      For instance, consider the simple case of a pipe attached to an [Async.Std.Writer]
+      that is writing elements to disk.  Part one would be whatever transform the consumer
+      applies to the elements in the pipe before it hands them off to the writer, and part
+      two would be waiting for the writer to finish writing the transformed element to
+      disk.  A more complex case is chaining two pipes together (maybe with a transform
+      like [map]).  Part one in this case is the transform and the write to the downstream
+      pipe, and part two is waiting for that pipe (and any further pipes in the chain) to
+      flush.
+
+      In each case the consumer is responsible for indicating when:
+
+      - it has finished any local work (by attaching itself to elements via the ~consumer
+      argument to [read] and [read']) and calling [values_sent_downstream] when it has
+      sent the values downstream.
+
+      - when any further processing has been completed (by providing an appropriate
+      function to [~downstream_flushed] when [add_consumer] is called).
+
+      If a reader does not use a consumer to do the reading then an element is considered
+      flushed the moment it leaves the pipe.  This may lead to odd results as entire
+      queues of elements are removed by a call to [read'] but are processed over a long
+      period. *)
+  type t
+
+  val values_sent_downstream : t -> unit
+end
+
+(** [add_consumer reader ~downstream_flushed] creates a new consumer of [reader], and
+    causes future calls to [flushed_downstream reader] to take this consumer into account.
+    Thereafter, [Pipe.flushed_downstream reader] will first ensure that values previously
+    written to [reader] have been read, then that they have been sent downstream by the
+    consumer that read them, and finally that they have been flushed downstream. *)
+val add_consumer
+  :  _ Reader.t
+  -> downstream_flushed:(unit -> Flushed_result.t Deferred.t)
+  -> Consumer.t
+
 (** {1 Generic pipe operations} *)
 (******************************************************************************)
-(** These operations apply to all values of type [(_, _) t], that is, both readers
-    and writers. *)
-
-(** [flushed t] becomes determined when all values written prior to the call to [flushed]
-    have been removed from the pipe and handed to a reader, or if the reader end of the
-    pipe is closed. *)
-val flushed : (_, _) t -> [ `Ok | `Reader_closed ] Deferred.t
+(** These operations apply to all values of type [(_, _) t], that is, both readers and
+    writers. *)
 
 (** [length t] returns the number of elements currently queued in [t] *)
 val length : (_, _) t -> int
+
+(** [is_empty t] is true iff there are no values in the pipe. *)
+val is_empty : (_, _) t -> bool
 
 (** {1 Writing} *)
 (******************************************************************************)
@@ -139,11 +224,20 @@ val pushback : 'a Writer.t -> unit Deferred.t
 val write' : 'a Writer.t -> 'a Queue.t -> unit Deferred.t
 val write  : 'a Writer.t -> 'a         -> unit Deferred.t
 
-(** [with_write writer ~f] waits until there is space available in the pipe, and then
-    calls [f write], where [write] can be used by [f] to write a single value into the
-    pipe at a time.  [with_write] guarantees that the pipe is open when it calls [f], and
-    hence that the writes will succeed, unless [f] itself closes the pipe. *)
-val with_write :
+(** [write_without_pushback'] and [write_without_pushback] are alternatives to [write']
+    and [write] that can be used when you don't care about the resultant deferred. The
+    data is added to the pipe and then we return immediately.
+
+    [write' t values] is equivalent to [write_without_pushback' t values; pushback t] (and
+    similarly for [write]). *)
+val write_without_pushback' : 'a Writer.t -> 'a Queue.t -> unit
+val write_without_pushback  : 'a Writer.t -> 'a         -> unit
+
+(** [write_when_ready writer ~f] waits until there is space available in the pipe, and
+    then calls [f write], where [write] can be used by [f] to write a single value into
+    the pipe at a time.  [with_write] guarantees that the pipe is open when it calls [f],
+    and hence that the writes will succeed, unless [f] itself closes the pipe. *)
+val write_when_ready :
   'a Writer.t
   -> f:(('a -> unit) -> 'b)
   -> [ `Closed | `Ok of 'b ] Deferred.t
@@ -174,25 +268,41 @@ val with_write :
     abandoning the best-effort guarantee of timeliness. *)
 
 (** [read' pipe] reads all of the values available in the pipe, as soon as any value
-    becomes available.  The resulting queue will satisfy [Q.length q > 0]. *)
-val read' : 'a Reader.t -> [ `Eof | `Ok of 'a Queue.t ] Deferred.t
+    becomes available.  The resulting queue will satisfy [Q.length q > 0].  The [consumer]
+    is used to extend the meaning of values being flushed (see the [Consumer] module
+    above). *)
+val read'
+  : ?consumer:Consumer.t
+  -> 'a Reader.t
+  -> [ `Eof | `Ok of 'a Queue.t ] Deferred.t
 
-(** [read pipe] reads a single value from the pipe. *)
-val read : 'a Reader.t -> [ `Eof | `Ok of 'a ] Deferred.t
+(** [read pipe] reads a single value from the pipe.  The [consumer] is used to extend the
+    meaning of values being flushed (see the [Consumer] module above). *)
+val read
+  :  ?consumer:Consumer.t
+  -> 'a Reader.t
+  -> [ `Eof | `Ok of 'a ] Deferred.t
 
 (** [read_at_most r ~num_values] reads up to [num_values] values from the pipe's currently
     available data, blocking if the pipe is empty.  The resulting queue will satisfy [0 <
-    Queue.length q <= num_values].  [read_at_most] raises if [num_values <= 0]. *)
-val read_at_most : 'a Reader.t -> num_values:int -> [ `Eof | `Ok of 'a Queue.t ] Deferred.t
+    Queue.length q <= num_values].  [read_at_most] raises if [num_values <= 0].  The
+    [consumer] is used to extend the meaning of values being flushed (see the [Consumer]
+    module above). *)
+val read_at_most
+  :  ?consumer:Consumer.t
+  -> 'a Reader.t
+  -> num_values:int -> [ `Eof | `Ok of 'a Queue.t ] Deferred.t
 
 (** [read_exactly r ~num_values] reads exactly [num_values] items, unless EOF is
     encountered.  [read_exactly] performs a sequence of [read_at_most] operations, so
     there is no guarantee that the queue of values it returns comprise a contiguous
     segment of the written stream of values -- other readers might pick off elements
     in-between [read_exactly]'s atomic reads.  [read_exactly] raises if [num_values <= 0].
-*)
+    The [consumer] is used to extend the meaning of values being flushed (see the
+    [Consumer] module above). *)
 val read_exactly
-  :  'a Reader.t
+  :  ?consumer:Consumer.t
+  -> 'a Reader.t
   -> num_values:int
   -> [ `Eof
      | `Fewer of 'a Queue.t   (* 0 < Q.length q < num_values *)
@@ -203,8 +313,14 @@ val read_exactly
     available.  The resulting queue will satisfy [Q.length q > 0].  If [reader] is closed,
     [read_now] returns [`Eof].  If [reader] is empty, [read_now] returns
     [`Nothing_available].  [read_now] has the danger of permitting the computation to
-    "spin" doing empty reads; it is only useful in exotic circumstances. *)
-val read_now : 'a Reader.t -> [ `Eof | `Nothing_available | `Ok of 'a Queue.t ]
+    "spin" doing empty reads; it is only useful in exotic circumstances.  The [consumer]
+    is used to extend the meaning of values being flushed (see the [Consumer] module
+    above). *)
+val read_now
+  :  ?consumer:Consumer.t
+  -> 'a Reader.t
+  -> [ `Eof | `Nothing_available | `Ok of 'a Queue.t ]
+
 
 (** [clear reader] consumes all of the values currently in [reader], and all blocked
     flushes become determined with [`Ok]. *)
@@ -237,7 +353,6 @@ val values_available : _ Reader.t -> [ `Eof | `Ok ] Deferred.t
     which handles an element at a time in a non-deferred way.  In the batch version, [f]
     deals with a queue of elements from the pipe at a time, and can block, which will
     cause pushback on writers due to elements not being consumed. }
-
     {- Early-close and functions that copy between pipes
 
     Some functions ([transfer], [map], [filter_map], [filter], [interleave], [concat], and
@@ -261,9 +376,19 @@ val values_available : _ Reader.t -> [ `Eof | `Ok ] Deferred.t
     the final batch of elements from [reader] finishes.
 
     [fold reader ~init ~f] folds over the elements of [reader], consuming them as they
-    come in.  [fold] finishes when the final call to [f] returns. *)
-val fold' : 'a Reader.t -> init:'b -> f:('b -> 'a Queue.t -> 'b Deferred.t) -> 'b Deferred.t
-val fold :  'a Reader.t -> init:'b -> f:('b -> 'a         -> 'b           ) -> 'b Deferred.t
+    come in.  [fold] finishes when the final call to [f] returns.
+
+    The [consumer] is used to extend the meaning of values being flushed (see the
+    [Consumer] module above). *)
+type ('a, 'b, 'c, 'accum) fold =
+  ?consumer:Consumer.t
+  -> 'a Reader.t
+  -> init:'accum
+  -> f:('accum -> 'b -> 'c)
+  -> 'accum Deferred.t
+
+val fold' : ('a, 'a Queue.t, 'accum Deferred.t, 'accum) fold
+val fold  : ('a, 'a        , 'accum           , 'accum) fold
 
 (** [iter' reader ~f] repeatedly applies [f] to batches of elements of [reader], waiting
     for each call to [f] to finish before continuing.  The deferred returned by [iter']
@@ -273,12 +398,23 @@ val fold :  'a Reader.t -> init:'b -> f:('b -> 'a         -> 'b           ) -> '
 
     [iter_without_pushback] is a specialized version that applies [f] to each element
     that arrives on the pipe, without giving [f] a chance to pushback on the iteration
-    continuing. *)
-val iter' : 'a Reader.t -> f:('a Queue.t -> unit Deferred.t) -> unit Deferred.t
-val iter  : 'a Reader.t -> f:('a         -> unit Deferred.t) -> unit Deferred.t
-val iter_without_pushback
-          : 'a Reader.t -> f:('a         -> unit           ) -> unit Deferred.t
+    continuing.
 
+    Supplying [~continue_on_error:true] causes the iteration to continue even if [f]
+    raises.
+
+    The [consumer] is used to extend the meaning of values being flushed (see the
+    [Consumer] module above). *)
+type ('a, 'b, 'c) iter =
+  ?consumer:Consumer.t
+  -> ?continue_on_error:bool (* defaults to false *)
+  -> 'a Reader.t
+  -> f:('b -> 'c)
+  -> unit Deferred.t
+
+val iter'                 : ('a, 'a Queue.t, unit Deferred.t) iter
+val iter                  : ('a, 'a        , unit Deferred.t) iter
+val iter_without_pushback : ('a, 'a        , unit           ) iter
 
 (** [transfer' input output ~f ?stop] repeatedly reads a batch of elements from [input],
     applies [f] to the batch, writes the result as a batch to [output], and then waits on
@@ -337,19 +473,22 @@ val interleave : 'a Reader.t list -> 'a Reader.t
     If [output] is closed, then [concat] closes all its inputs. *)
 val concat : 'a Reader.t list -> 'a Reader.t
 
-(** [to_stream reader] returns a stream that reads everything from the pipe. *)
-val to_stream : 'a Reader.t -> 'a Async_stream.t
+(** [to_stream_deprecated reader] returns a stream that reads everything from the pipe.
+    This function is deprecated because one should change the code that is consuming
+    a stream to instead consume from a pipe reader. *)
+val to_stream_deprecated : 'a Reader.t -> 'a Async_stream.t
 
-(** [of_stream reader] return a pipe that has one element for every element on the
-    stream *)
-val of_stream : 'a Async_stream.t -> 'a Reader.t
+(** [of_stream_deprecated reader] return a pipe that has one element for every element on
+    the stream.  This function is deprecated because one should change the code that is
+    producing a stream to instead produce a pipe reader. *)
+val of_stream_deprecated : 'a Async_stream.t -> 'a Reader.t
 
 (** [drain reader] repeatedly reads values from [reader] and throws them away.
 
     [drain_and_count] is like [drain], except it also counts the number of values it
     has read. *)
 val drain           : 'a Reader.t -> unit Deferred.t
-val drain_and_count : 'a Reader.t ->  int Deferred.t
+val drain_and_count : 'a Reader.t -> int  Deferred.t
 
 (** [to_list input] reads everything from [input]; on EOF, it produces the accumulated
     list of these values. *)

@@ -50,23 +50,33 @@ val with_timeout
 val at       : Time.t -> unit Deferred.t
 val at_event : Time.t -> [ `Happened | `Aborted ] Deferred.t * Event.t
 
-(** [at_varying_intervals ~stop f] returns a stream whose next element becomes determined
+(** [at_varying_intervals f ?stop] returns a stream whose next element becomes determined
     by calling [f ()] and waiting for that amount of time, and then looping to determine
     subsequent elements.  The stream will end after [stop] becomes determined. *)
-val at_varying_intervals :
-  ?stop:unit Deferred.t -> (unit -> Time.Span.t) -> unit Async_stream.t
+val at_varying_intervals
+  : ?stop:unit Deferred.t -> (unit -> Time.Span.t) -> unit Async_stream.t
 
-(** [at_intervals ~stop span] returns a stream whose elements will become determined span
-    time apart.  The stream will end after stop becomes determined.
+(** [at_intervals interval ?start ?stop] returns a stream whose elements will become
+    determined at nonnegative integer multiples of [interval] after the [start] time,
+    until [stop] becomes determined:
 
-    [at_intervals ~stop span] = [at_varying_intervals ~stop (fun () -> span)] *)
-val at_intervals : ?stop:unit Deferred.t -> Time.Span.t -> unit Async_stream.t
+       start + 0 * interval
+       start + 1 * interval
+       start + 2 * interval
+       start + 3 * interval
+       ...
+
+    If the interval is too small or the CPU is too loaded, [at_intervals] will skip
+    until the next upcoming multiple of [interval] after start. *)
+val at_intervals
+  :  ?start:Time.t
+  -> ?stop:unit Deferred.t
+  -> Time.Span.t
+  -> unit Async_stream.t
 
 (** [every' ?start ?stop span f] runs [f()] every [span] amount of time starting when
     [start] becomes determined and stopping when [stop] becomes determined.  [every] waits
     until the result of [f()] becomes determined before waiting for the next [span].
-
-    Note that it has [span] delay even before the first call of [f].
 
     It is guaranteed that if [stop] becomes determined, even during evaluation of [f],
     then [f] will not be called again by a subsequent iteration of the loop.

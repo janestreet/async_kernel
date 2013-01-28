@@ -1,24 +1,21 @@
 open Core.Std
 
-module Deferred  = Raw_deferred
-module Ivar      = Raw_ivar
-module Scheduler = Raw_scheduler
+module Ivar = Raw_ivar
 
-include struct
-  open Ivar
-  let create      = create
-  let create_full = create_full
-  let equal       = equal
-  let is_empty    = is_empty
-  let is_full     = is_full
-  let peek        = peek
+module Deferred = struct
+  type 'a t = ('a, Execution_context.t) Raw_deferred.t with sexp_of
+  let of_ivar = Raw_deferred.of_ivar
+  let of_raw = Fn.id
+  let to_raw = Fn.id
 end
 
-include Ivar.Scheduler_dependent (Scheduler)
+include Ivar.Scheduler_dependent (Raw_scheduler) (struct
+  type 'a t = ('a, Execution_context.t) Ivar.t
+  let of_raw = Fn.id
+  let to_raw = Fn.id
+end)
 
 type 'a ivar = 'a t
-
-type 'a deferred = ('a, Execution_context.t) Raw_deferred.t
 
 let read = Deferred.of_ivar
 

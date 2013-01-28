@@ -4,11 +4,17 @@ open Deferred_std
 module Stream = Async_stream
 module Event = Clock_event
 
+let debug = Debug.clock
+
 open Monitor.Exported_for_scheduler
 
 let can_not_abort (d, _event) = d >>| function `Aborted -> assert false | `Happened -> ()
 
-let at_event time = let (d, e) = Event.at time in (e, d)
+let at_event time =
+  let (event, deferred) = Event.at time in
+  if debug then Debug.log "Clock.at_event" (time, event) <:sexp_of< Time.t * Event.t >>;
+  (deferred, event)
+;;
 
 let at time = can_not_abort (at_event time)
 
@@ -22,25 +28,27 @@ let after_event span =
 
 let after span = can_not_abort (after_event span)
 
-let at_varying_intervals ?(stop = Deferred.never ()) compute_span =
-  let m = Tail.create () in
+let at_times ?(stop = Deferred.never ()) next_time =
+  let tail = Tail.create () in
   let rec loop () =
-    upon
-      (choose
-         [choice stop (fun () -> `Stop);
-          choice (at (Time.add (Time.now ()) (compute_span ())))
-            (fun () -> `Tick)])
-      (function
-        | `Stop -> ()
-        | `Tick ->
-          Tail.extend m ();
-          loop ())
+    choose [ choice stop (fun () -> `Stop);
+             choice (at (next_time ())) (fun () -> `Tick);
+           ]
+    >>> function
+    | `Stop -> Tail.close_exn tail
+    | `Tick -> Tail.extend tail (); loop ()
   in
   loop ();
-  Tail.collect m;
+  Tail.collect tail;
 ;;
 
-let at_intervals ?stop span = at_varying_intervals ?stop (fun () -> span)
+let at_varying_intervals ?stop compute_span =
+  at_times ?stop (fun () -> Time.add (Time.now ()) (compute_span ()))
+;;
+
+let at_intervals ?(start = Time.now ()) ?stop interval =
+  at_times ?stop (fun () -> Time.next_multiple ~base:start ~after:(Time.now ()) ~interval)
+;;
 
 let every' ?(start = Deferred.unit) ?(stop = Deferred.never ())
     ?(continue_on_error = true) span f =
@@ -60,12 +68,12 @@ let every' ?(start = Deferred.unit) ?(stop = Deferred.never ())
         (function
           | `Stop -> ()
           | `Continue ->
-            (* The "raise_rest" part of a prior call to [try_with_raise_rest f] could have
-               raised an error after having returned ok.  We check [saw_error] and don't
-               proceed if it did. *)
+            (* The "raise_rest" part of a prior call to [try_with ~rest:`Raise f] could
+               have raised an error after having returned ok.  We check [saw_error] and
+               don't proceed if it did. *)
             if continue_on_error || not !saw_error then begin
               within' ~monitor (fun () ->
-                Monitor.try_with_raise_rest
+                Monitor.try_with ~rest:`Raise
                   (fun () ->
                     (* We check at the last possible moment before running [f] whether
                        [stop] is determined, and if so, abort the loop. *)

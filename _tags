@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: 4f861f2421134d3d31a68655650d0f3d)
+# DO NOT EDIT (digest: 2acd17c6db032f67084c80b288ed3df4)
 # Ignore VCS directories, you can use the same kind of rule outside 
 # OASIS_START/STOP if you want to exclude directories that contains 
 # useless stuff for the build process
@@ -15,10 +15,13 @@
 "_darcs": not_hygienic
 # Library async_core
 "lib/async_core.cmxs": use_async_core
+"lib/async_condition.cmx": for-pack(Async_core)
+"lib/async_or_error.cmx": for-pack(Async_core)
 "lib/async_stream.cmx": for-pack(Async_core)
-"lib/block_group.cmx": for-pack(Async_core)
+"lib/backpatched.cmx": for-pack(Async_core)
 "lib/clock.cmx": for-pack(Async_core)
 "lib/clock_event.cmx": for-pack(Async_core)
+"lib/config.cmx": for-pack(Async_core)
 "lib/debug.cmx": for-pack(Async_core)
 "lib/deferred.cmx": for-pack(Async_core)
 "lib/deferred_intf.cmx": for-pack(Async_core)
@@ -27,13 +30,14 @@
 "lib/execution_context.cmx": for-pack(Async_core)
 "lib/handler.cmx": for-pack(Async_core)
 "lib/import.cmx": for-pack(Async_core)
+"lib/inline_tests.cmx": for-pack(Async_core)
 "lib/ivar.cmx": for-pack(Async_core)
 "lib/job.cmx": for-pack(Async_core)
 "lib/jobs.cmx": for-pack(Async_core)
+"lib/lazy_deferred.cmx": for-pack(Async_core)
 "lib/monitor.cmx": for-pack(Async_core)
 "lib/pipe.cmx": for-pack(Async_core)
 "lib/priority.cmx": for-pack(Async_core)
-"lib/raw_async_stream.cmx": for-pack(Async_core)
 "lib/raw_clock_event.cmx": for-pack(Async_core)
 "lib/raw_deferred.cmx": for-pack(Async_core)
 "lib/raw_handler.cmx": for-pack(Async_core)
@@ -46,8 +50,10 @@
 "lib/std.cmx": for-pack(Async_core)
 "lib/tail.cmx": for-pack(Async_core)
 "lib/test.cmx": for-pack(Async_core)
+"lib/thread_pool.cmx": for-pack(Async_core)
 "lib/throttle.cmx": for-pack(Async_core)
 "lib/unregister.cmx": for-pack(Async_core)
+"lib/work_group.cmx": for-pack(Async_core)
 <lib/*.ml{,i}>: pkg_sexplib.syntax
 <lib/*.ml{,i}>: pkg_sexplib
 <lib/*.ml{,i}>: pkg_pa_ounit

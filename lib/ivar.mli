@@ -1,13 +1,12 @@
 (** An ivar is a write-once cell that can be empty or full (i.e. hold a single value) that
     one can [read] and to obtain a deferred that becomes determined when the ivar is
-    filled.  An ivar is similar to an [a option ref], except it is an error to fill an
+    filled.  An ivar is similar to an ['a option ref], except it is an error to fill an
     already full ivar. *)
 
 open Core.Std
+open Import
 
-type 'a t = ('a, Execution_context.t) Raw_ivar.t with bin_io, sexp_of
-type 'a detailed = 'a t with sexp_of
-type 'a deferred = ('a, Execution_context.t) Raw_deferred.t
+type 'a t with bin_io, sexp_of
 
 (** [equal t t'] is physical equality of [t] and [t']. *)
 val equal : 'a t -> 'a t -> bool
@@ -29,6 +28,27 @@ val is_empty : 'a t -> bool
 (** [is_full t] returns true if [t] is full *)
 val is_full : 'a t -> bool
 
+(** The [Raw] interface and [Deferred] module exposed here are for async's internal use
+    only.  They must be exported here because we want the [Deferred.t] and [Ivar.t] types
+    to be fully abstract, so that they show up nicely in type errors, yet other async
+    code defined later needs to deal with the raw types. *)
+
+include Raw
+  with type execution_context := Execution_context.t
+  with type ('a, 'b) raw := ('a, 'b) Raw_ivar.t
+  with type 'a t := 'a t
+
+module Deferred : sig
+  type +'a t with sexp_of
+
+  include Raw
+    with type execution_context := Execution_context.t
+    with type ('a, 'b) raw := ('a, 'b) Raw_deferred.t
+    with type 'a t := 'a t
+end
+
 (** [read t] returns a deferred that becomes enabled with value [v] after the ivar is
     filled with [v]. *)
-val read : 'a t -> 'a deferred
+val read : 'a t -> 'a Deferred.t
+
+

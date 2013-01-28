@@ -1,10 +1,12 @@
 open Core.Std
 
+let debug = Debug.clock
+
 module Event = struct
   type 'a t =
     { at : Time.t;
       value : 'a;
-      mutable heap_element : 'a t Heap.heap_el sexp_opaque option;
+      mutable heap_element : 'a t sexp_opaque Heap.heap_el option;
     }
   with fields, sexp_of
 
@@ -12,7 +14,7 @@ module Event = struct
 end
 
 type 'a t =
-  { events : 'a Event.t Heap.t sexp_opaque;
+  { events : 'a Event.t Heap.t;
     mutable now : Time.t;
   }
 with fields, sexp_of
@@ -29,8 +31,8 @@ let invariant t =
       | Some heap_el -> assert (Heap.heap_el_mem t.events heap_el)
       end;
       assert (not (is_ready t event)));
-  with
-  | exn -> failwiths "invariant failed" (exn, t) <:sexp_of< exn * a t >>
+  with exn ->
+    failwiths "invariant failed" (exn, t) <:sexp_of< exn * __ t >>
 ;;
 
 let create ~now =
@@ -44,6 +46,7 @@ let iter t ~f = Heap.iter t.events ~f
 let next_upcoming t = Heap.top t.events
 
 let advance_clock t ~to_ =
+  if debug then Debug.log "Events.advance_clock" (to_, t) <:sexp_of< Time.t * __ t >>;
   if Time.(to_ <= t.now) then
     `Not_in_the_future
   else begin
@@ -60,6 +63,7 @@ let advance_clock t ~to_ =
 ;;
 
 let add t ~at value =
+  if debug then Debug.log "Events.add" (at, t) <:sexp_of< Time.t * __ t >>;
   if Time.(at <= t.now) then
     `Not_in_the_future
   else begin
@@ -76,6 +80,7 @@ let add t ~at value =
 ;;
 
 let remove t event =
+  if debug then Debug.log "Events.remove" (event, t) <:sexp_of< __ Event.t * __ t >>;
   match event.Event.heap_element with
   | None -> `Not_present
   | Some heap_element ->

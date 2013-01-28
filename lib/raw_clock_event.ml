@@ -1,3 +1,5 @@
+open Core.Std
+
 module Ivar = Raw_ivar
 
 (* Clock events start in the [Uninitialized] state just for their creation (because of
@@ -22,7 +24,8 @@ module T = struct
   | Happened
   | Waiting of 'execution_context waiting
   and 'execution_context waiting =
-    { event : 'execution_context t Events.Event.t;
+    { (* The [sexp_opaque] prevents an infinite recursion when converting to a sexp. *)
+      event : 'execution_context t sexp_opaque Events.Event.t;
       ready : ([ `Happened | `Aborted ], 'execution_context) Ivar.t;
     }
   with sexp_of

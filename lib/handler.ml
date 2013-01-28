@@ -11,12 +11,12 @@ include struct
 end
 
 let create run =
-  { execution_context = Scheduler.current_execution_context ();
+  { execution_context = Scheduler.(current_execution_context (t ()));
     run;
   }
 ;;
 
-module Deferred = Raw_deferred.Scheduler_dependent (Raw_scheduler)
+module Deferred = Raw_deferred.Scheduler_dependent (Raw_scheduler) (Ivar.Deferred) (Ivar)
 
 let install t d =
   let u = Deferred.install_removable_handler d t in

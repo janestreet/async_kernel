@@ -1,7 +1,9 @@
 open Core.Std
 open Deferred_std
 
-include Raw_async_stream
+include Tail.Stream
+
+let to_deferred t = Deferred.of_raw (to_raw t)
 
 let first_exn t =
   next t
@@ -16,7 +18,7 @@ let fold' t ~init ~f =
       let rec loop t b =
         upon (next t) (function
         | Nil -> Ivar.fill result b
-        | Cons (v, t) -> upon (f b v) (loop t))
+        | Cons (v, t) -> upon (f b v) (loop (of_raw t)))
       in
       loop t init)
 ;;
@@ -27,13 +29,14 @@ let fold t ~init ~f =
   Deferred.create
     (fun result ->
       let rec loop t b =
+        let t = to_deferred t in
         match Deferred.peek t with
         | None -> upon t (fun next -> loop_next next b)
         | Some next -> loop_next next b
       and loop_next next b =
         match next with
         | Nil -> Ivar.fill result b
-        | Cons (v, t) -> loop t (f b v)
+        | Cons (v, t) -> loop (of_raw t) (f b v)
       in
       loop t init)
 ;;
@@ -44,7 +47,7 @@ let iter' t ~f = fold' t ~init:() ~f:(fun () v -> f v)
 
 let closed t = iter' t ~f:(fun _ -> Deferred.unit)
 
-let iter t ~f = whenever (iter' t ~f:(fun a -> f a; Deferred.unit))
+let iter t ~f = don't_wait_for (iter' t ~f:(fun a -> f a; Deferred.unit))
 
 let create f =
   let tail = Tail.create () in
@@ -95,7 +98,7 @@ let filter' t ~f =
       (fun () -> Tail.close_exn tail))
 ;;
 
-let filter t ~f = filter' t ~f:(fun a -> return (f a))
+let filter_deprecated t ~f = filter' t ~f:(fun a -> return (f a))
 
 let filter_map' t ~f =
   create (fun tail ->
@@ -104,7 +107,7 @@ let filter_map' t ~f =
       (fun () -> Tail.close_exn tail))
 ;;
 
-let filter_map t ~f = filter_map' t ~f:(fun a -> return (f a))
+let filter_map_deprecated t ~f = filter_map' t ~f:(fun a -> return (f a))
 
 let map' t ~f =
   create (fun tail ->
@@ -122,7 +125,7 @@ let first_n s n =
       else
         upon (next s) (function
           | Nil -> Tail.close_exn tail
-          | Cons (x, s) -> Tail.extend tail x; loop s (n - 1))
+          | Cons (x, t) -> Tail.extend tail x; loop (of_raw t) (n - 1))
     in
     loop s n)
 ;;
@@ -131,7 +134,7 @@ let available_now t =
   let rec loop t ac =
     match Deferred.peek (next t) with
     | None | Some Nil -> (List.rev ac, t)
-    | Some (Cons (x, t)) -> loop t (x :: ac)
+    | Some (Cons (x, t)) -> loop (of_raw t) (x :: ac)
   in
   loop t []
 ;;
@@ -150,6 +153,7 @@ let split ?(stop = Deferred.never ()) ?(f = (fun _ -> `Continue)) t =
         match o with
         | Nil -> finish `End_of_stream
         | Cons (a, t) ->
+          let t = of_raw t in
           match f a with
           | `Continue -> Tail.extend prefix a; loop t
           | `Found b -> finish (`Found (b, t))
@@ -199,7 +203,7 @@ let take_until t d =
                     choice (next t) (fun z -> `Next z)])
         (function
           | `Stop | `Next Nil -> Tail.close_exn tail
-          | `Next (Cons (x, t)) -> Tail.extend tail x; loop t)
+          | `Next (Cons (x, t)) -> Tail.extend tail x; loop (of_raw t))
     in
     loop t)
 ;;
@@ -211,9 +215,9 @@ let iter_durably' t ~f =
       >>> function
         | Nil -> Ivar.fill result ()
         | Cons (x, t) ->
-          Monitor.try_with_raise_rest (fun () -> f x)
+          Monitor.try_with ~rest:`Raise (fun () -> f x)
           >>> fun z ->
-          loop t;
+          loop (of_raw t);
           match z with
           | Ok () -> ()
           | Error e -> Monitor.send_exn (Monitor.current ()) e
@@ -231,11 +235,11 @@ let iter_durably_report_end t ~f =
           (* We immediately call [loop], thus making the iter durable.  Any exceptions
              raised by [f] will not prevent the loop from continuing, and will go to the
              monitor of whomever called [iter_durably_report_end]. *)
-          loop t; f x
+          loop (of_raw t); f x
     in
     loop t)
 ;;
 
-let iter_durably t ~f = Deferred.whenever (iter_durably_report_end t ~f)
+let iter_durably t ~f = don't_wait_for (iter_durably_report_end t ~f)
 
 let of_fun f = unfold () ~f:(fun () -> f () >>| fun a -> Some (a, ()))

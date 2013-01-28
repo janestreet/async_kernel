@@ -1,12 +1,12 @@
 open Core.Std
+open Import
 open Deferred_intf
 
 (** A deferred is a value that will become determined asynchronously.  A deferred can be
     "undetermined" or "determined".  A deferred that is undetermined may at some point
     become determined with value v, and will henceforth always be determined with value
     v. *)
-type +'a t = ('a, Execution_context.t) Raw_deferred.t with sexp_of
-type 'a detailed = 'a t with sexp_of
+type +'a t = 'a Ivar.Deferred.t with sexp_of
 
 (** [sexp_of_t t f] returns a sexp of the deferred's value, if it is determined, or an
     informative string otherwise.
@@ -38,18 +38,18 @@ val is_determined : 'a t -> bool
 
     Note that
 
-       upon t f
+    upon t f
 
     is more efficient than
 
-       ignore (t >>= (fun a -> f a; Deferred.unit))
+    ignore (t >>= (fun a -> f a; Deferred.unit))
 
     because [upon], unlike [>>=] does not create a deferred to hold the result.
 
     For example, one can write a loop that has good constant factors with:
 
-      let rec loop () =
-        upon t (fun a -> ... loop () ... )
+    let rec loop () =
+    upon t (fun a -> ... loop () ... )
 
     The same loop written with [>>=] would allocate deferreds that would be immediately
     garbage collected.  (In the past, this loop would have also used linear space in
@@ -69,7 +69,7 @@ end
 val unit : unit t
 
 (** [never ()] returns a deferred that never becomes determined *)
-val never : unit -> 'a t
+val never : unit -> _ t
 
 (** [both t1 t2] becomes determined after both [t1] and [t2] become determined. *)
 val both : 'a t -> 'b t -> ('a * 'b) t
@@ -81,22 +81,39 @@ val all : 'a t list -> 'a list t
 (** Like [all], but ignores results of the component deferreds *)
 val all_unit : unit t list -> unit t
 
-module Array : Deferred_sequence with type 'a t = 'a array
+(** [any ts] returns a deferred that is fulfilled when any of the underlying deferreds is
+    fulfilled *)
+val any : 'a t list -> 'a t
 
-module List : Deferred_sequence with type 'a t = 'a list
+(** [any_unit ts] like [any] but ignores results of the component deferreds *)
+val any_unit : 'a t list -> unit t
 
-module Queue : Deferred_sequence with type 'a t = 'a Queue.t
+module Array : Monad_sequence
+  with type 'a monad := 'a t
+  with type 'a t = 'a array
 
-module Map : Deferred_map with type ('k, 'v) t = ('k, 'v) Map.Poly.t
+module List : Monad_sequence
+  with type 'a monad := 'a t
+  with type 'a t = 'a list
 
-(** [whenever t] ignores t completely.  It is like [Fn.ignore], but is
-    more constrained because it requires a deferred.
+module Queue : Monad_sequence
+  with type 'a monad := 'a t
+  with type 'a t = 'a Queue.t
 
-    If you want to ignore [t : 'a t], then do [whenever (Deferred.ignore t)].
+module Map : Deferred_map
 
-    We chose to give [whenever] type [unit t] rather than ['a t] to catch errors
+module Result : Monad.S2 with type ('a, 'b) t = ('a, 'b) Result.t t
+
+module Option : Monad.S  with type 'a t = 'a option t
+
+(** [don't_wait_for t] ignores t completely.  It is like [Fn.ignore], but is more
+    constrained because it requires a [unit Deferred.t].
+
+    Rather than [ignore (t : _ t)], do [don't_wait_for (Deferred.ignore t)].
+
+    We chose to give [don't_wait_for] type [unit t] rather than [_ t] to catch errors
     where a value is accidentally ignored. *)
-val whenever : unit t -> unit
+val don't_wait_for : unit t -> unit
 
 (** [choice] is used to produce an argument to [enabled] or [choose].  See below. *)
 type 'a choice
@@ -137,10 +154,6 @@ val enabled : 'b choice list -> (unit -> 'b list) t
 *)
 val choose : 'b choice list -> 'b t
 
-(** [choose_ident l] = [choose (List.map l ~f:(fun t -> choice t ident))].  That is,
-    [choose_ident] is a choice among deferreds of the same type.  *)
-val choose_ident : 'a t list -> 'a t
-
 (** [repeat_until_finished initial_state f] repeatedly runs [f] until [f] returns
     [`Finished].  The first call to [f] happens immediately when [repeat_until_finished]
     is called. *)
@@ -151,7 +164,23 @@ val repeat_until_finished
                  ] t)
   -> 'result t
 
+(** [forever initial_state f] repeatedly runs [f], supplying the state returned to the
+    next call to [f]. *)
+val forever
+  :  'state
+  -> ('state -> 'state t)
+  -> unit
+
 (** Set [debug_space_leaks] to [Some n] to trigger assertion failures when single deferred
     has more than [n] handlers waiting for it to be filled.  Note that if [n] is
     less than 2, we may not trigger all assertion failures. *)
 val debug_space_leaks : int option ref
+
+(** The [Raw] interface exposed here is for async's internal use only.  It must be
+    exported here because we want the [Deferred.t] type to be fully abstract, so that they
+    shows up nicely in type errors, yet other async code defined later needs to deal with
+    the raw type. *)
+include Raw
+  with type execution_context := Execution_context.t
+  with type ('a, 'b) raw := ('a, 'b) Raw_deferred.t
+  with type 'a t := 'a t

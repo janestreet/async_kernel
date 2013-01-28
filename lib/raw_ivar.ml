@@ -24,6 +24,7 @@ type ('a, 'execution_context) ivar = ('a, 'execution_context) t
 
 let equal (t : (_, _) t) t' = phys_equal t t'
 
+(*
 (* [Detailed] is used for showing the detailed structure of the ivar graph, including
    indirections.  It is only used for debugging. *)
 module Detailed = struct
@@ -52,6 +53,7 @@ let rec detailed { (* id; *) cell } =
   in
   { D. (* id; *) cell }
 ;;
+*)
 
 (*
 let allowed_transition cell cell' =
@@ -65,12 +67,13 @@ let allowed_transition cell cell' =
 ;;
 *)
 
-include (struct
-  (* let counter = ref 0 *)
-  let create_with_cell cell = (* incr counter; *) { (* id = !counter ; *) cell }
-end : sig
-  val create_with_cell : ('a, 'execution_context) cell -> ('a, 'execution_context) t
-end)
+include (
+  struct
+    (* let counter = ref 0 *)
+    let create_with_cell cell = (* incr counter; *) { (* id = !counter ; *) cell }
+  end : sig
+    val create_with_cell : ('a, 'execution_context) cell -> ('a, 'execution_context) t
+  end)
 
 let create () = create_with_cell Empty
 
@@ -142,26 +145,42 @@ let debug_bag_check bag =
   | Some bound -> assert (Bag.length bag < bound)
 ;;
 
-module Scheduler_dependent (Scheduler : Basic_scheduler) = struct
-  type 'a t = ('a, Scheduler.Execution_context.t) ivar with sexp_of
+module Scheduler_dependent
+  (Scheduler : Basic_scheduler)
+  (Ivar : Raw
+     with type execution_context := Scheduler.Execution_context.t
+     with type ('a, 'execution_context) raw := ('a, 'execution_context) ivar)
+  = struct
 
-  type 'a detailed = 'a t
+  include Ivar
 
-  let sexp_of_detailed sexp_of_a t = Detailed.sexp_of_t sexp_of_a (detailed t)
+  let equal t t' = equal (to_raw t) (to_raw t')
+
+  let create () = of_raw (create ())
+
+  let create_full a = of_raw (create_full a)
+
+  let peek a = peek (to_raw a)
+
+  let is_empty t = is_empty (to_raw t)
+
+  let is_full t = is_full (to_raw t)
 
   let add_jobs_for_handlers handlers v =
-    Bag.iter handlers ~f:(fun handler -> Scheduler.add_job (Handler.create_job handler v))
+    let scheduler = Scheduler.(t ()) in
+    Bag.iter handlers ~f:(fun handler ->
+      Scheduler.add_job scheduler (Handler.create_job handler v))
   ;;
 
   let fill t v =
-    let t = squash t in
+    let t = squash (to_raw t) in
     match t.cell with
     | Indir _ -> assert false (* fulfilled by [squash] *)
-    | Full _ -> failwiths "Ivar.fill of full ivar" t <:sexp_of< a t >>
+    | Full _ -> failwiths "Ivar.fill of full ivar" t <:sexp_of< (__, __) t >>
     | Empty -> t.cell <- Full v;
     | Empty_one_handler (run, execution_context) ->
       t.cell <- Full v;
-      Scheduler.add_job (Job.create execution_context run v);
+      Scheduler.(add_job (t ())) (Job.create execution_context run v);
     | Empty_many_handlers handlers ->
       t.cell <- Full v;
       add_jobs_for_handlers handlers v;
@@ -186,7 +205,7 @@ module Scheduler_dependent (Scheduler : Basic_scheduler) = struct
       );
     in
     fun t handler ->
-      let t = squash t in
+      let t = squash (to_raw t) in
       match t.cell with
       | Indir _ -> assert false (* fulfilled by [squash] *)
       | Empty ->
@@ -201,16 +220,15 @@ module Scheduler_dependent (Scheduler : Basic_scheduler) = struct
       | Empty_many_handlers bag -> add_to_bag t bag handler
       | Full v ->
         let still_installed = ref true in
-        Scheduler.add_job (Handler.create_job
-                             (Handler.filter handler ~f:(fun _ -> !still_installed))
-                             v);
+        Scheduler.(add_job (t ()))
+          (Handler.create_job (Handler.filter handler ~f:(fun _ -> !still_installed)) v);
         Unregister.create (fun () -> still_installed := false);
   ;;
 
   let upon' t run =
     install_removable_handler t
       { Handler.
-        execution_context = Scheduler.current_execution_context ();
+        execution_context = Scheduler.(current_execution_context (t ()));
         run;
       }
   ;;
@@ -225,18 +243,22 @@ module Scheduler_dependent (Scheduler : Basic_scheduler) = struct
      one handler for the deferred. *)
   let upon =
     fun t run ->
-      let execution_context = Scheduler.current_execution_context () in
-      let t = squash t in
+      let scheduler = Scheduler.t () in
+      let execution_context = Scheduler.current_execution_context scheduler in
+      let t = squash (to_raw t) in
       match t.cell with
       | Indir _ -> assert false (* fulfilled by [squash] *)
-      | Full v -> Scheduler.add_job (Job.create execution_context run v)
+      | Full v -> Scheduler.add_job scheduler (Job.create execution_context run v)
       | Empty -> t.cell <- Empty_one_handler (run, execution_context)
       | Empty_many_handlers bag ->
         ignore (Bag.add bag { Handler. run; execution_context })
       | Empty_one_handler (run', execution_context') ->
         let bag = Bag.create () in
         ignore (Bag.add bag { Handler. run; execution_context });
-        ignore (Bag.add bag { Handler. run = run'; execution_context = execution_context' });
+        ignore (Bag.add bag { Handler.
+                              run = run';
+                              execution_context = execution_context' ;
+                            });
         t.cell <- Empty_many_handlers bag;
   ;;
 
@@ -263,6 +285,8 @@ module Scheduler_dependent (Scheduler : Basic_scheduler) = struct
      [connect] works by squashing its arguments so that the [bind_rhs] always points
      at the ultimate result. *)
   let connect ~bind_result ~bind_rhs =
+    let bind_result = to_raw bind_result in
+    let bind_rhs = to_raw bind_rhs in
     if not (phys_equal bind_result bind_rhs) then begin
       let bind_result = squash bind_result in
       let indir = Indir bind_result in
@@ -296,7 +320,7 @@ module Scheduler_dependent (Scheduler : Basic_scheduler) = struct
       | Empty, _ -> bind_result.cell <- bind_rhs_contents;
       | Empty_one_handler (run, execution_context), Full v ->
         bind_result.cell <- bind_rhs_contents;
-        Scheduler.add_job (Job.create execution_context run v);
+        Scheduler.(add_job (t ())) (Job.create execution_context run v);
       | Empty_many_handlers handlers, Full v ->
         bind_result.cell <- bind_rhs_contents;
         add_jobs_for_handlers handlers v;
@@ -323,14 +347,25 @@ module Scheduler_dependent (Scheduler : Basic_scheduler) = struct
         debug_bag_check bag;
     end
   ;;
+
+  let sexp_of_t sexp_of_a t = sexp_of_ivar sexp_of_a () (to_raw t)
+
 end
 
 TEST_MODULE = struct
-  include Scheduler_dependent (struct
-    module Execution_context = Unit
-    let add_job job = Job.run job
-    let current_execution_context () = ()
-  end)
+  include Scheduler_dependent
+    (struct
+      module Execution_context = Unit
+      type t = unit
+      let t () = ()
+      let add_job () job = Job.run job
+      let current_execution_context () = ()
+     end)
+    (struct
+      type 'a t = ('a, unit) ivar
+      let of_raw = Fn.id
+      let to_raw = Fn.id
+     end)
 
   let (-->) i1 i2 =
     match i1.cell with

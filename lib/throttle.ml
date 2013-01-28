@@ -58,6 +58,8 @@ type t =
   }
 with fields, sexp_of
 
+let num_jobs_waiting_to_start t = Pipe.length t.job_reader
+
 let invariant t =
   assert (t.max_concurrent_jobs > 0);
   Pipe.Reader.invariant t.job_reader;
@@ -73,7 +75,7 @@ let kill t =
 ;;
 
 let one_job_runner t =
-  whenever (Deferred.repeat_until_finished () (fun () ->
+  don't_wait_for (Deferred.repeat_until_finished () (fun () ->
     Pipe.read t.job_reader
     >>= function
     | `Eof -> return (`Finished ())
@@ -119,7 +121,7 @@ module Job = struct
   ;;
 end
 
-let enqueue_job t job = whenever (Pipe.write t.job_writer job.Job.internal_job)
+let enqueue_job t job = don't_wait_for (Pipe.write t.job_writer job.Job.internal_job)
 
 let enqueue' t f =
   if Pipe.is_closed t.job_writer then failwith "cannot enqueue to dead throttle";
@@ -143,7 +145,7 @@ let prior_jobs_done t =
   Deferred.create (fun all_dummy_jobs_running ->
     let dummy_jobs_running = ref 0 in
     for _i = 1 to t.max_concurrent_jobs do
-      whenever (enqueue t (fun () ->
+      don't_wait_for (enqueue t (fun () ->
         incr dummy_jobs_running;
         if !dummy_jobs_running = t.max_concurrent_jobs then
           Ivar.fill all_dummy_jobs_running ();
@@ -153,14 +155,20 @@ let prior_jobs_done t =
 
 module Sequencer = struct
   type throttle = t
-  type 'a t = { state : 'a; throttle : throttle }
+  type 'a t =
+    { state : 'a;
+      throttle : throttle;
+    }
 
-  let create ?(continue_on_error=false) a = {
-    state = a;
-    throttle = create ~continue_on_error ~max_concurrent_jobs:1;
-  }
+  let create ?(continue_on_error = false) a =
+    { state = a;
+      throttle = create ~continue_on_error ~max_concurrent_jobs:1;
+    }
+  ;;
 
   let enqueue t f = enqueue t.throttle (fun () -> f t.state)
+
+  let num_jobs_waiting_to_start t = num_jobs_waiting_to_start t.throttle
 end
 
 TEST_MODULE = struct

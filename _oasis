@@ -3,7 +3,7 @@
 OASISFormat:  0.3
 OCamlVersion: >= 3.12.1
 Name:         async_core
-Version:      108.00.02
+Version:      108.07.00
 Synopsis:     Jane Street Capital's asynchronous execution library (core)
 Authors:      Jane street capital
 Copyrights:   (C) 2008-2012 Jane Street Capital LLC
@@ -20,7 +20,7 @@ Library async_core
   Path:               lib
   FindlibName:        async_core
   Pack:               true
-  Modules:            Async_stream,Block_group,Clock,Clock_event,Debug,Deferred,Deferred_intf,Deferred_std,Events,Execution_context,Handler,Import,Ivar,Job,Jobs,Monitor,Pipe,Priority,Raw_async_stream,Raw_clock_event,Raw_deferred,Raw_handler,Raw_ivar,Raw_monitor,Raw_scheduler,Raw_stream,Raw_tail,Scheduler,Std,Tail,Test,Throttle,Unregister
+  Modules:            Async_condition,Async_or_error,Async_stream,Backpatched,Clock,Clock_event,Config,Debug,Deferred,Deferred_intf,Deferred_std,Events,Execution_context,Handler,Import,Inline_tests,Ivar,Job,Jobs,Lazy_deferred,Monitor,Pipe,Priority,Raw_clock_event,Raw_deferred,Raw_handler,Raw_ivar,Raw_monitor,Raw_scheduler,Raw_stream,Raw_tail,Scheduler,Std,Tail,Test,Thread_pool,Throttle,Unregister,Work_group
   BuildDepends:       sexplib.syntax,
                       sexplib,
                       pa_ounit,
@@ -30,4 +30,11 @@ Library async_core
                       bin_prot.syntax,
                       core,
                       threads
+
+Document "async_core"
+  Title:                Jane street's async library (core)
+  Type:                 ocamlbuild (0.3)
+  BuildTools+:          ocamldoc
+  XOCamlbuildPath:      lib
+  XOCamlbuildLibraries: async_core
 

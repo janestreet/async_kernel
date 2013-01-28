@@ -43,6 +43,8 @@ val enqueue  : t -> (unit -> 'a Deferred.t) -> 'a         Deferred.t
    enqueued in [t] have completed. *)
 val prior_jobs_done : t -> unit Deferred.t
 
+val num_jobs_waiting_to_start : t -> int
+
 (** A sequencer is a throttle that is:
 
     1. specialized to only allow one job at a time and to not continue on error, and
@@ -52,8 +54,10 @@ module Sequencer : sig
   type 'a t
 
   (** create a new monitor with the specified initial state *)
-  val create : ?continue_on_error:bool -> 'a -> 'a t
+  val create : ?continue_on_error:bool (* defaults to false *) -> 'a -> 'a t
 
   (** schedule a state-accessing operation *)
   val enqueue : 'a t -> ('a -> 'b Deferred.t) -> 'b Deferred.t
+
+  val num_jobs_waiting_to_start : _ t -> int
 end

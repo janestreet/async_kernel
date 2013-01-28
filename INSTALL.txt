@@ -1,5 +1,5 @@
 (* OASIS_START *)
-(* DO NOT EDIT (digest: 7aa2ffba312e957596a173be4d4d85f7) *)
+(* DO NOT EDIT (digest: bed1490ea3ec3cca036a1fa4ace9f6e2) *)
 This is the INSTALL file for the async_core distribution.
 
 This package uses OASIS to generate its build system. See section OASIS for
@@ -9,7 +9,7 @@ Dependencies
 ============
 
 In order to compile this package, you will need:
-* ocaml (>= 3.12.1)
+* ocaml (>= 3.12.1) for all, doc async_core
 * findlib (>= 1.2.7)
 * sexplib
 * pa_ounit

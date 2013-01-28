@@ -38,29 +38,45 @@ type ('a, 'execution_context) deferred = ('a, 'execution_context) t with sexp_of
 
 let peek t = Ivar.peek (to_ivar t)
 
-let is_determined t = Ivar.is_full (to_ivar t)
+module Scheduler_dependent
+  (Scheduler : Basic_scheduler)
+  (Deferred : Raw
+     with type execution_context := Scheduler.Execution_context.t
+     with type ('a, 'execution_context) raw := ('a, 'execution_context) t)
+  (Raw_ivar : Raw
+     with type execution_context := Scheduler.Execution_context.t
+     with type ('a, 'execution_context) raw := ('a, 'execution_context) Raw_ivar.t)
+  = struct
 
-let create f =
-  let result = Ivar.create () in
-  f result;
-  of_ivar result;
-;;
+  module Ivar = Ivar.Scheduler_dependent (Scheduler) (Raw_ivar)
 
-let return a = of_ivar (Ivar.create_full a)
+  type 'a t = 'a Deferred.t
 
-module Scheduler_dependent (Scheduler : Basic_scheduler) = struct
+  let of_raw = Deferred.of_raw
 
-  module Ivar = Ivar.Scheduler_dependent (Scheduler)
+  let to_raw = Deferred.to_raw
 
-  type 'a t = ('a, Scheduler.Execution_context.t) deferred with sexp_of
+  let of_ivar ivar = Deferred.of_raw (of_ivar (Raw_ivar.to_raw ivar))
 
-  type 'a detailed = 'a t
+  let to_ivar t = Raw_ivar.of_raw (to_ivar (to_raw t))
 
-  let sexp_of_detailed sexp_of_a t = Ivar.sexp_of_detailed sexp_of_a (to_ivar t)
+  let sexp_of_t sexp_of_a t = Ivar.sexp_of_t sexp_of_a (to_ivar t)
+
+  let return a = of_ivar (Ivar.create_full a)
+
+  let is_determined t = Ivar.is_full (to_ivar t)
+
+  let peek t = Ivar.peek (to_ivar t)
 
   let upon t f = Ivar.upon (to_ivar t) f
 
   let upon' t f = Ivar.upon' (to_ivar t) f
+
+  let create f =
+    let result = Ivar.create () in
+    f result;
+    of_ivar result;
+  ;;
 
   let bind t f =
     create (fun bind_result ->

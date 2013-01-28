@@ -6,6 +6,97 @@ module Q = Queue
 let show_debug_messages = ref false
 let check_invariant = ref false
 
+module Flushed_result = struct
+  type t = [ `Ok | `Reader_closed ] with sexp_of
+
+  let combine (l : t Deferred.t list) =
+    Deferred.all l
+    >>| fun l ->
+    match List.mem l `Reader_closed with
+    | true  -> `Reader_closed
+    | false -> `Ok
+  ;;
+end
+
+(* A [Consumer.t] acts as the monitor of some process that reads values from a pipe and
+   processes them, allowing that process:
+     - to communicate that it has taken responsibility for the values
+     - to signal when it has finished with the values to interested parties (via
+       [downstream_flushed])
+
+   It is used in two steps:
+
+     1. calling [Consumer.start] at the point where the consumer takes values out of the
+        Pipe via [read] or [read'].
+     2. calling [Consumer.values_sent_downstream].
+
+   If no [Consumer.t] is supplied when a value is read then the value is defined to be
+   flushed at that time. *)
+module Consumer : sig
+  type t with sexp_of
+
+  val invariant : t -> unit
+  val create    : downstream_flushed:(unit -> Flushed_result.t Deferred.t) -> t
+  val start     : t -> unit
+  val values_sent_downstream : t -> unit
+  val values_sent_downstream_and_flushed : t -> Flushed_result.t Deferred.t
+end = struct
+  type t =
+    { (* [values_read] reflects whether values the consumer has read from the pipe have
+         been sent downstream or if not, holds an ivar that is to be filled when they
+         are. *)
+      mutable values_read : [ `Have_been_sent_downstream
+                            | `Have_not_been_sent_downstream of unit Ivar.t
+                            ];
+      (* [downstream_flushed ()] returns when all prior values that the consumer has
+         passed downstream have been flushed all the way down the chain of pipes. *)
+      downstream_flushed : unit -> Flushed_result.t Deferred.t;
+    }
+  with fields, sexp_of
+
+  let invariant t : unit =
+    try
+      let check f field = f (Field.get field t) in
+      Fields.iter
+        ~values_read:(check (function
+        | `Have_been_sent_downstream -> ()
+        | `Have_not_been_sent_downstream ivar -> assert (Ivar.is_empty ivar)))
+        ~downstream_flushed:ignore;
+    with exn ->
+      failwiths "Pipe.Consumer.invariant failed" (exn, t) <:sexp_of< exn * t >>
+  ;;
+
+  let create ~downstream_flushed =
+    { values_read = `Have_been_sent_downstream;
+      downstream_flushed;
+    }
+  ;;
+
+  let start t =
+    match t.values_read with
+    | `Have_not_been_sent_downstream _ -> ()
+    | `Have_been_sent_downstream ->
+      t.values_read <- `Have_not_been_sent_downstream (Ivar.create ())
+  ;;
+
+  let values_sent_downstream t =
+    match t.values_read with
+    | `Have_been_sent_downstream -> ()
+    | `Have_not_been_sent_downstream ivar ->
+      Ivar.fill ivar ();
+      t.values_read <- `Have_been_sent_downstream;
+  ;;
+
+  let values_sent_downstream_and_flushed t =
+    match t.values_read with
+    | `Have_been_sent_downstream -> t.downstream_flushed ()
+    | `Have_not_been_sent_downstream when_sent_downstream ->
+      Ivar.read when_sent_downstream
+      >>= fun () ->
+      t.downstream_flushed ()
+  ;;
+end
+
 module Blocked_read = struct
   (* A [Blocked_read.t] represents a blocked read attempt.  If someone reads from an empty
      pipe, they enqueue a [Blocked_read.t] in the queue of [blocked_reads].  Later, when
@@ -14,35 +105,50 @@ module Blocked_read = struct
      values a read should consume from the pipe when it gets its turn.
 
      If a pipe is closed, then all blocked reads will be filled with [`Eof]. *)
-  type 'a t =
+  type 'a wants =
   | Zero    of       [ `Eof | `Ok           ] Ivar.t
   | One     of       [ `Eof | `Ok of 'a     ] Ivar.t
   | All     of       [ `Eof | `Ok of 'a Q.t ] Ivar.t
   | At_most of int * [ `Eof | `Ok of 'a Q.t ] Ivar.t
   with sexp_of
 
-  let invariant t =
+  type 'a t =
+    { wants : 'a wants;
+      consumer : Consumer.t option;
+    }
+  with fields, sexp_of
+
+  let invariant t : unit =
     try
-      match t with
-      | Zero _ | All _ | One _ -> ()
-      | At_most (i, _) -> assert (i > 0);
-    with
-    | exn ->
-      failwiths "Pipe.Blocked_read.invariant failed" (exn, t) <:sexp_of< exn * a t >>
+      let check f field = f (Field.get field t) in
+      Fields.iter
+        ~wants:(check (function
+        | Zero _ | All _ | One _ -> ()
+        | At_most (i, _) -> assert (i > 0)))
+        ~consumer:(check (function
+        | None -> ()
+        | Some consumer -> Consumer.invariant consumer));
+    with exn ->
+      failwiths "Pipe.Blocked_read.invariant failed" (exn, t) <:sexp_of< exn * __ t >>
   ;;
 
-  let is_empty = function
+  let create wants consumer = { wants; consumer }
+
+  let is_empty t =
+    match t.wants with
     | Zero        i  -> Ivar.is_empty i
     | One         i  -> Ivar.is_empty i
     | All         i  -> Ivar.is_empty i
     | At_most (_, i) -> Ivar.is_empty i
   ;;
 
-  let fill_with_eof = function
+  let fill_with_eof t =
+    match t.wants with
     | Zero        i  -> Ivar.fill i `Eof
     | One         i  -> Ivar.fill i `Eof
     | All         i  -> Ivar.fill i `Eof
     | At_most (_, i) -> Ivar.fill i `Eof
+  ;;
 end
 
 module Blocked_flush = struct
@@ -102,6 +208,15 @@ type ('a, 'phantom) t =
     blocked_reads : 'a Blocked_read.t Q.t;
     (* [closed] is filled when we close the write end of the pipe. *)
     closed : unit Ivar.t;
+
+    (* [consumers] is a list of all consumers that may be handling values read from the
+       pipe. *)
+    mutable consumers : Consumer.t list;
+    (* [upstream_flusheds] has a function for each pipe immediately upstream of this one.
+       That function walks to the head(s) of the upstream pipe, and calls
+       [downstream_flushed] on the head(s).  See the definition of [upstream_flushed]
+       below. *)
+    mutable upstream_flusheds : (unit -> Flushed_result.t Deferred.t) list;
   }
 with fields, sexp_of
 
@@ -111,8 +226,6 @@ let hash t = Hashtbl.hash t.id
 
 let equal (t1 : (_, _) t) t2 = phys_equal t1 t2
 
-let is_empty t = Q.is_empty t.buffer
-
 let is_closed t = Ivar.is_full t.closed
 
 let closed t = Ivar.read t.closed
@@ -121,27 +234,39 @@ let pushback t = Ivar.read t.pushback
 
 let length t = Q.length t.buffer
 
-let invariant t =
+let is_empty t = Q.is_empty t.buffer
+
+let invariant t : unit =
   try
-    assert (t.size_budget >= 0);
-    assert (Ivar.is_full t.pushback = (length t <= t.size_budget || is_closed t));
-    Q.iter t.blocked_flushes ~f:(fun f ->
-      assert (f.Blocked_flush.fill_when_num_values_read > t.num_values_read));
-    assert (List.is_sorted ~compare
-              (List.map (Q.to_list t.blocked_flushes)
-                 ~f:Blocked_flush.fill_when_num_values_read));
-    if is_empty t then assert (Q.is_empty t.blocked_flushes);
-    (* If data is available, no one is waiting for it.  This would need to change if we
-       ever implement [read_exactly] as an atomic operation. *)
-    if not (is_empty t) then assert (Q.is_empty t.blocked_reads);
-    Q.iter t.blocked_reads ~f:(fun read ->
-      Blocked_read.invariant read;
-      assert (Blocked_read.is_empty read));
-    (* You never block trying to read a closed pipe. *)
-    if is_closed t then assert (Q.is_empty t.blocked_reads);
-  with
-  | exn ->
-    failwiths "Pipe.invariant failed" (exn, t) <:sexp_of< exn * (a, b) t >>
+    let check f = fun field -> f (Field.get field t) in
+    Fields.iter
+      ~id:ignore
+      ~buffer:ignore
+      ~size_budget:(check (fun size_budget -> assert (size_budget >= 0)))
+      ~pushback:(check (fun pushback ->
+        assert (Ivar.is_full pushback = (length t <= t.size_budget || is_closed t))))
+      ~num_values_read:ignore
+      ~blocked_flushes:(check (fun blocked_flushes ->
+        Q.iter blocked_flushes ~f:(fun f ->
+          assert (f.Blocked_flush.fill_when_num_values_read > t.num_values_read));
+        assert (List.is_sorted ~compare
+                  (List.map (Q.to_list blocked_flushes)
+                     ~f:Blocked_flush.fill_when_num_values_read));
+        if is_empty t then assert (Q.is_empty blocked_flushes)))
+      ~blocked_reads:(check (fun blocked_reads ->
+        (* If data is available, no one is waiting for it.  This would need to change if
+           we ever implement [read_exactly] as an atomic operation. *)
+        if not (is_empty t) then assert (Q.is_empty blocked_reads);
+        Q.iter blocked_reads ~f:(fun read ->
+          Blocked_read.invariant read;
+          assert (Blocked_read.is_empty read));
+        (* You never block trying to read a closed pipe. *)
+        if is_closed t then assert (Q.is_empty blocked_reads)))
+      ~closed:ignore
+      ~consumers:(check (fun l -> List.iter l ~f:Consumer.invariant))
+      ~upstream_flusheds:ignore
+  with exn ->
+    failwiths "Pipe.invariant failed" (exn, t) <:sexp_of< exn * (__, __) t >>
 ;;
 
 module Reader = struct
@@ -161,14 +286,16 @@ let id_ref = ref 0
 let create () =
   incr id_ref;
   let t =
-    { id              = !id_ref       ;
-      closed          = Ivar.create ();
-      size_budget     = 0             ;
-      pushback        = Ivar.create ();
-      buffer          = Q.create ()   ;
-      num_values_read = 0             ;
-      blocked_flushes = Q.create ()   ;
-      blocked_reads   = Q.create ()   ;
+    { id                = !id_ref       ;
+      closed            = Ivar.create ();
+      size_budget       = 0             ;
+      pushback          = Ivar.create ();
+      buffer            = Q.create    ();
+      num_values_read   = 0             ;
+      blocked_flushes   = Q.create    ();
+      blocked_reads     = Q.create    ();
+      consumers         = []            ;
+      upstream_flusheds = []            ;
     }
   in
   Ivar.fill t.pushback (); (* initially, the pipe does not pushback *)
@@ -184,7 +311,7 @@ let update_pushback t =
 ;;
 
 let close t =
-  if !show_debug_messages then Debug.log "close" t <:sexp_of< (a, b) t >>;
+  if !show_debug_messages then Debug.log "close" t <:sexp_of< (__, __) t >>;
   if !check_invariant then invariant t;
   if not (is_closed t) then begin
     Ivar.fill t.closed ();
@@ -197,7 +324,7 @@ let close t =
 ;;
 
 let close_read t =
-  if !show_debug_messages then Debug.log "close_read" t <:sexp_of< (a, b) t >>;
+  if !show_debug_messages then Debug.log "close_read" t <:sexp_of< (__, __) t >>;
   if !check_invariant then invariant t;
   Q.iter  t.blocked_flushes ~f:(fun flush -> Blocked_flush.fill flush `Reader_closed);
   Q.clear t.blocked_flushes;
@@ -206,45 +333,54 @@ let close_read t =
   close t;
 ;;
 
-let rec fill_flushes t =
-  match Q.peek t.blocked_flushes with
-  | None -> ()
-  | Some flush ->
-    if t.num_values_read >= flush.Blocked_flush.fill_when_num_values_read then begin
-      Blocked_flush.fill flush `Ok;
-      ignore (Q.dequeue_exn t.blocked_flushes : Blocked_flush.t);
-      fill_flushes t;
-    end
+let values_were_read t consumer =
+  Option.iter consumer ~f:Consumer.start;
+  let rec loop () =
+    match Q.peek t.blocked_flushes with
+    | None -> ()
+    | Some flush ->
+      if t.num_values_read >= flush.Blocked_flush.fill_when_num_values_read then begin
+        ignore (Q.dequeue_exn t.blocked_flushes : Blocked_flush.t);
+        begin match consumer with
+        | None -> Blocked_flush.fill flush `Ok;
+        | Some consumer ->
+          upon (Consumer.values_sent_downstream_and_flushed consumer) (fun flush_result ->
+            Blocked_flush.fill flush flush_result);
+        end;
+        loop ();
+      end
+  in
+  loop ();
 ;;
 
 (* [consume_all t] reads all the elements in [t], in constant time. *)
-let consume_all t =
+let consume_all t consumer =
   let result = Q.create () in
   t.num_values_read <- t.num_values_read + length t;
   Q.transfer ~src:t.buffer ~dst:result;
-  fill_flushes t;
+  values_were_read t consumer;
   update_pushback t;
   result
 ;;
 
-let consume_one t =
+let consume_one t consumer =
   assert (length t >= 1);
   let result = Q.dequeue_exn t.buffer in
   t.num_values_read <- t.num_values_read + 1;
-  fill_flushes t;
+  values_were_read t consumer;
   update_pushback t;
-  result;
+  result
 ;;
 
 (* [consume_at_most t num_values] reads [min num_values (length t)] items.  It is an
    error if [is_empty t] or [num_values < 0]. *)
-let consume_at_most t num_values =
+let consume_at_most t num_values consumer =
   assert (num_values >= 0);
   if num_values >= length t then
-    consume_all t (* fast because it can use [Q.transfer] *)
+    consume_all t consumer (* fast because it can use [Q.transfer] *)
   else begin
     t.num_values_read <- t.num_values_read + num_values;
-    fill_flushes t;
+    values_were_read t consumer;
     let result = Q.create () in
     for _i = 1 to num_values do
       Q.enqueue result (Q.dequeue_exn t.buffer);
@@ -264,20 +400,22 @@ let set_size_budget t size_budget =
 let fill_blocked_reads t =
   while not (Q.is_empty t.blocked_reads) && not (is_empty t) do
     let module R = Blocked_read in
-    match Q.dequeue_exn t.blocked_reads with
+    let blocked_read = Q.dequeue_exn t.blocked_reads in
+    let consumer = blocked_read.R.consumer in
+    match blocked_read.R.wants with
     | R.Zero        ivar  -> Ivar.fill ivar  `Ok
-    | R.One         ivar  -> Ivar.fill ivar (`Ok (consume_one t))
-    | R.All         ivar  -> Ivar.fill ivar (`Ok (consume_all t))
-    | R.At_most (n, ivar) -> Ivar.fill ivar (`Ok (consume_at_most t n))
+    | R.One         ivar  -> Ivar.fill ivar (`Ok (consume_one     t   consumer))
+    | R.All         ivar  -> Ivar.fill ivar (`Ok (consume_all     t   consumer))
+    | R.At_most (n, ivar) -> Ivar.fill ivar (`Ok (consume_at_most t n consumer))
   done;
 ;;
 
 (* checks all invariants, calls a passed in f to handle a write, then updates reads and
    pushback *)
 let start_write t =
-  if !show_debug_messages then Debug.log "write" t <:sexp_of< (a, b) t >>;
+  if !show_debug_messages then Debug.log "write" t <:sexp_of< (__, __) t >>;
   if !check_invariant then invariant t;
-  if is_closed t then failwiths "write to closed pipe" t <:sexp_of< (a, b) t >>;
+  if is_closed t then failwiths "write to closed pipe" t <:sexp_of< (__, __) t >>;
 ;;
 
 let finish_write t =
@@ -285,39 +423,43 @@ let finish_write t =
   update_pushback t;
 ;;
 
-let write' t values =
+let write_without_pushback' t values =
   start_write t;
   Q.transfer ~src:values ~dst:t.buffer;
   finish_write t;
+;;
+
+let write' t values =
+  write_without_pushback' t values;
   pushback t;
 ;;
 
-let write_no_pushback t value =
+let write_without_pushback t value =
   start_write t;
   Q.enqueue t.buffer value;
   finish_write t;
 ;;
 
 let write t value =
-  write_no_pushback t value;
-  pushback t
+  write_without_pushback t value;
+  pushback t;
 ;;
 
-let with_write t ~f =
+let write_when_ready t ~f =
   pushback t
   >>| fun () ->
   if is_closed t then
     `Closed
   else
-    `Ok (f (fun x -> write_no_pushback t x))
+    `Ok (f (fun x -> write_without_pushback t x))
 ;;
 
 let start_read t label =
-  if !show_debug_messages then Debug.log label t <:sexp_of< (a, b) t >>;
+  if !show_debug_messages then Debug.log label t <:sexp_of< (__, __) t >>;
   if !check_invariant then invariant t;
 ;;
 
-let read_now t =
+let read_now ?consumer t =
   start_read t "read_now";
   if is_empty t then begin
     if is_closed t then
@@ -326,7 +468,7 @@ let read_now t =
       `Nothing_available
   end else begin
     assert (Q.is_empty t.blocked_reads);
-    `Ok (consume_all t)
+    `Ok (consume_all t consumer)
   end
 ;;
 
@@ -335,30 +477,30 @@ let clear t =
   | `Eof | `Nothing_available | `Ok _ -> ()
 ;;
 
-let read' t =
+let read' ?consumer t =
   start_read t "read'";
-  match read_now t with
+  match read_now t ?consumer with
   | (`Ok _ | `Eof) as r -> return r
   | `Nothing_available  ->
     Deferred.create (fun ivar ->
-      Q.enqueue t.blocked_reads (Blocked_read.All ivar))
+      Q.enqueue t.blocked_reads (Blocked_read.(create (All ivar)) consumer))
 ;;
 
-let read t =
+let read ?consumer t =
   start_read t "read";
   if is_empty t then begin
     if is_closed t then
       return `Eof
     else
       Deferred.create (fun ivar ->
-        Q.enqueue t.blocked_reads (Blocked_read.One ivar))
+        Q.enqueue t.blocked_reads (Blocked_read.(create (One ivar)) consumer))
   end else begin
     assert (Q.is_empty t.blocked_reads);
-    return (`Ok (consume_one t))
+    return (`Ok (consume_one t consumer))
   end
 ;;
 
-let read_at_most t ~num_values =
+let read_at_most ?consumer t ~num_values =
   start_read t "read_at_most";
   if num_values <= 0
   then failwiths "Pipe.read_at_most num_values < 0" num_values <:sexp_of< int >>;
@@ -368,11 +510,12 @@ let read_at_most t ~num_values =
     then return `Eof
     else
       Deferred.create (fun ivar ->
-        Q.enqueue t.blocked_reads (Blocked_read.At_most (num_values, ivar)))
+        Q.enqueue t.blocked_reads
+          (Blocked_read.(create (At_most (num_values, ivar))) consumer))
   end
   else begin
     assert (Q.is_empty t.blocked_reads);
-    return (`Ok (consume_at_most t num_values))
+    return (`Ok (consume_at_most t num_values consumer))
   end
 ;;
 
@@ -384,11 +527,11 @@ let values_available t =
   then return `Eof
   else
     Deferred.create (fun ivar ->
-      Q.enqueue t.blocked_reads (Blocked_read.Zero ivar))
+      Q.enqueue t.blocked_reads (Blocked_read.(create (Zero ivar)) None))
 ;;
 
 (* [read_exactly t ~num_values] loops, getting you all [num_values] items, up to EOF. *)
-let read_exactly t ~num_values =
+let read_exactly ?consumer t ~num_values =
   start_read t "read_exactly";
   if num_values <= 0 then
     failwiths "Pipe.read_exactly got num_values <= 0" num_values <:sexp_of< int >>;
@@ -400,7 +543,7 @@ let read_exactly t ~num_values =
       if already_read = num_values then
         Ivar.fill finish (`Exactly result)
       else begin
-        read_at_most t ~num_values:(num_values - already_read)
+        read_at_most ?consumer t ~num_values:(num_values - already_read)
         >>> function
         | `Eof -> Ivar.fill finish (if already_read = 0 then `Eof else `Fewer result)
         | `Ok q ->
@@ -411,9 +554,13 @@ let read_exactly t ~num_values =
     loop ())
 ;;
 
-let flushed t =
+let downstream_flushed t =
   if is_empty t then
-    return `Ok
+    if List.is_empty t.consumers then
+      return `Ok
+    else
+      Flushed_result.combine (List.map t.consumers
+        ~f:Consumer.values_sent_downstream_and_flushed)
   else
     (* [t] might be closed.  But the read end can't be closed, because if it were, then
        [t] would be empty.  If the write end is closed but not the read end, then we want
@@ -426,32 +573,98 @@ let flushed t =
         })
 ;;
 
-let fold_gen t ~init ~f =
+(* In practice, along with [link] and [add_upstream_flushed], [upstream_flushed] traverses
+   the graph of linked pipes up to the heads and then calls [downstream_flushed] on
+   them. *)
+let upstream_flushed t =
+  if List.is_empty t.upstream_flusheds then
+    downstream_flushed t
+  else
+    Flushed_result.combine (List.map t.upstream_flusheds ~f:(fun f -> f ()))
+;;
+
+let add_upstream_flushed t upstream_flushed =
+  t.upstream_flusheds <- upstream_flushed :: t.upstream_flusheds;
+;;
+
+let add_consumer t ~downstream_flushed =
+  let consumer = Consumer.create ~downstream_flushed in
+  t.consumers <- consumer :: t.consumers;
+  consumer;
+;;
+
+(* [link ~upstream ~downstream] links flushing of two pipes together. *)
+let link ~upstream ~downstream =
+  add_upstream_flushed downstream (fun () -> upstream_flushed upstream);
+  add_consumer upstream ~downstream_flushed:(fun () -> downstream_flushed downstream);
+;;
+
+type ('a, 'b, 'c, 'accum) fold =
+  ?consumer:Consumer.t
+  -> 'a Reader.t
+  -> init:'accum
+  -> f:('accum -> 'b -> 'c)
+  -> 'accum Deferred.t
+
+let fold_gen ?consumer t ~init ~f =
   if !check_invariant then invariant t;
   Deferred.create (fun finished ->
     let rec loop b =
-      read' t >>> function
+      read' t ?consumer >>> function
       | `Eof  -> Ivar.fill finished b
       | `Ok q -> f b q loop
     in
     loop init)
 ;;
 
-let fold' t ~init ~f = fold_gen t ~init ~f:(fun b q loop -> f b q >>> loop)
+let fold' ?consumer t ~init ~f =
+  fold_gen ?consumer t ~init ~f:(fun b q loop -> f b q >>> loop)
+;;
 
-let fold t ~init ~f = fold_gen t ~init ~f:(fun init q loop -> loop (Q.fold q ~init ~f))
+let fold ?consumer t ~init ~f =
+  fold_gen ?consumer t ~init ~f:(fun init q loop -> loop (Q.fold q ~init ~f))
+;;
 
-let iter_gen t ~f = fold_gen t ~init:() ~f:(fun () q loop -> f q loop)
+let iter_gen ?consumer t ~f =
+  fold_gen ?consumer t ~init:() ~f:(fun () q loop -> f q loop)
+;;
 
 let drain t = iter_gen t ~f:(fun _ loop -> loop ())
 
 let drain_and_count t = fold_gen t ~init:0 ~f:(fun sum q loop -> loop (sum + Q.length q))
 
-let iter' t ~f = fold' t ~init:() ~f:(fun () q -> f q)
+type ('a, 'b, 'c) iter =
+  ?consumer:Consumer.t
+  -> ?continue_on_error:bool (* defaults to false *)
+  -> 'a Reader.t
+  -> f:('b -> 'c)
+  -> unit Deferred.t
 
-let iter t ~f = iter' t ~f:(fun q -> Deferred.Queue.iter q ~f)
+let with_error_to_current_monitor ?(continue_on_error = false) f a =
+  if not continue_on_error
+  then f a
+  else begin
+    Monitor.try_with (fun () -> f a)
+    >>| function
+    | Ok () -> ()
+    | Error exn -> Monitor.send_exn (Monitor.current ()) (Monitor.extract_exn exn)
+  end;
+;;
 
-let iter_without_pushback t ~f = iter_gen t ~f:(fun q loop -> Q.iter q ~f; loop ())
+let iter' ?consumer ?continue_on_error t ~f =
+  fold_gen ?consumer t ~init:() ~f:(fun () q loop ->
+    with_error_to_current_monitor ?continue_on_error f q >>> loop)
+;;
+
+let iter ?consumer ?continue_on_error t ~f =
+  iter' ?consumer t ~f:(fun q ->
+    Deferred.Queue.iter q ~f:(fun a ->
+      with_error_to_current_monitor ?continue_on_error f a))
+;;
+
+let iter_without_pushback ?consumer ?continue_on_error t ~f =
+  iter ?consumer ?continue_on_error t ~f:(fun a -> f a; Deferred.unit)
+;;
 
 let read_all input =
   let result = Q.create () in
@@ -462,17 +675,17 @@ let read_all input =
 
 let to_list r = read_all r >>| Q.to_list
 
-(* CR201206 dpowers: remove this *)
-let to_stream t =
+let to_stream_deprecated t =
   Stream.create (fun tail ->
     iter_without_pushback t ~f:(fun x -> Tail.extend tail x)
     >>> fun () ->
     Tail.close_exn tail)
 ;;
 
-(* The implementation of [of_stream] does as much batching as possible.  It grabs as many
-   items as are available into an internal queue.  Once it has grabbed everything, it
-   writes it to the pipe and then blocks waiting for the next element from the stream.
+(* The implementation of [of_stream_deprecated] does as much batching as possible.  It
+   grabs as many items as are available into an internal queue.  Once it has grabbed
+   everything, it writes it to the pipe and then blocks waiting for the next element from
+   the stream.
 
    There's no possibility that we'll starve the pipe reading an endless stream, just
    accumulating the elements into our private queue forever without ever writing them
@@ -486,14 +699,13 @@ let to_stream t =
    need to be able to stop early when the consumer closes the pipe.  Also, using either
    of those would entail significantly more deferred overhead, whereas the below
    implementation uses a deferred only when it needs to wait for data from the stream. *)
-(* CR201206 dpowers: remove this *)
-let of_stream s =
+let of_stream_deprecated s =
   let r, w = create () in
   let q = Q.create () in
   let transfer () =
     if not (Q.is_empty q) then
       (* Can not pushback on the stream, so ignore the pushback on the pipe. *)
-      whenever (write' w q);
+      don't_wait_for (write' w q);
   in
   let rec loop s =
     assert (not (is_closed w));
@@ -504,7 +716,7 @@ let of_stream s =
   and check_closed_loop_next next = if not (is_closed w) then loop_next next
   and loop_next = function
     | Stream.Nil -> transfer (); close w
-    | Stream.Cons (x, s) -> Q.enqueue q x; loop s
+    | Stream.Cons (x, s) -> Q.enqueue q x; loop (Stream.of_raw s)
   in
   loop s;
   r
@@ -515,6 +727,7 @@ let transfer_gen input output ~f =
     invariant input;
     invariant output;
   end;
+  let consumer = link ~upstream:input ~downstream:output in
   Deferred.create (fun result ->
     let output_closed () =
       close_read input;
@@ -528,14 +741,20 @@ let transfer_gen input output ~f =
       | `Output_closed -> output_closed ()
       | `Eof -> Ivar.fill result ()
       | `Ok ->
-        match read_now input with
+        match read_now input ~consumer with
         | `Eof -> Ivar.fill result ()
         | `Nothing_available -> loop ()
         | `Ok inq -> f inq continue
     and continue outq =
       if is_closed output
       then output_closed ()
-      else write' output outq >>> loop
+      else begin
+        let pushback = write' output outq in
+        Consumer.values_sent_downstream consumer;
+        pushback
+        >>> fun () ->
+        loop ()
+      end
     in
     loop ())
 ;;
@@ -560,7 +779,7 @@ let filter input ~f = filter_map input ~f:(fun x -> if f x then Some x else None
 
 let of_list l =
   let reader, writer = create () in
-  whenever (write' writer (Q.of_list l));
+  don't_wait_for (write' writer (Q.of_list l));
   close writer;
   reader
 ;;
@@ -596,11 +815,10 @@ TEST_MODULE = struct
       ~f:(fun l ->
         let reader = of_list l in
         upon (read_all reader) (fun q -> assert (Q.to_list q = l)));
-  stabilize ();
+    stabilize ();
   ;;
 
   (* ==================== close, close_read ==================== *)
-
   TEST_UNIT =
     let (reader, writer) = create () in
     assert (not (is_closed writer));
@@ -641,7 +859,7 @@ TEST_MODULE = struct
   TEST_UNIT =
     let check_read read get_values =
       let (reader, writer) = create () in
-      whenever (write writer 13);
+      don't_wait_for (write writer 13);
       close writer;
       let d = read reader in
       stabilize ();
@@ -662,9 +880,9 @@ TEST_MODULE = struct
 
   TEST_UNIT =
     let (reader, writer) = create () in
-    let f1 = flushed writer in
-    whenever (write writer 13);
-    let f2 = flushed writer in
+    let f1 = downstream_flushed writer in
+    don't_wait_for (write writer 13);
+    let f2 = downstream_flushed writer in
     close_read reader;
     stabilize ();
     assert (Deferred.peek f1 = Some `Ok);
@@ -729,7 +947,7 @@ TEST_MODULE = struct
 
   TEST_UNIT =
     let (reader, writer) = create () in
-    whenever (write writer 13);
+    don't_wait_for (write writer 13);
     close writer;
     let d = read_all reader in
     stabilize ();
@@ -740,7 +958,7 @@ TEST_MODULE = struct
 
   TEST_UNIT =
     let (reader, writer) = create () in
-    whenever (write' writer (Q.of_list [12; 13; 14]));
+    don't_wait_for (write' writer (Q.of_list [12; 13; 14]));
     close writer;
     let d =
       read_at_most reader ~num_values:2
@@ -754,7 +972,7 @@ TEST_MODULE = struct
 
   TEST_UNIT =
     let (reader, writer) = create () in
-    whenever (write' writer (Q.of_list [12; 13; 14]));
+    don't_wait_for (write' writer (Q.of_list [12; 13; 14]));
     close writer;
     let d =
       read_at_most reader ~num_values:4
@@ -776,7 +994,7 @@ TEST_MODULE = struct
     stabilize ();
     assert (Deferred.peek p = Some ());
     assert (length reader = 0);
-    whenever (write' writer (Q.of_list l));
+    don't_wait_for (write' writer (Q.of_list l));
     close writer;
     let d = read_all reader in
     stabilize ();
@@ -788,7 +1006,7 @@ TEST_MODULE = struct
   TEST_UNIT =
     let (reader, writer) = create () in
     let reader = map reader ~f:(fun x -> x + 13) in
-    whenever (write' writer (Q.of_list [ 1; 2; 3 ]));
+    don't_wait_for (write' writer (Q.of_list [ 1; 2; 3 ]));
     let d =
       read_at_most reader ~num_values:2
       >>| function
@@ -800,11 +1018,11 @@ TEST_MODULE = struct
     assert (read_result d = [ 14; 15 ]);
   ;;
 
-  (* ==================== of_stream ==================== *)
+  (* ==================== of_stream_deprecated ==================== *)
 
   TEST_UNIT =
     let tail = Tail.create () in
-    let pipe = of_stream (Tail.collect tail) in
+    let pipe = of_stream_deprecated (Tail.collect tail) in
     stabilize ();
     assert (length pipe = 0);
     Tail.extend tail 13;
@@ -845,6 +1063,249 @@ TEST_MODULE = struct
     assert (List.length (read_result d) = 2 * List.length l);
   ;;
 
-end
-;;
+  (* ==================== iter' ==================== *)
 
+  TEST_UNIT =
+    let r = ref 0 in
+    let l = [ 1; 2; 3 ] in
+    let t = of_list l in
+    let iter_finished = ref false in
+    upon (iter' t ~f:(fun q -> Queue.iter q ~f:(fun i -> r := !r + i); Deferred.unit))
+      (fun () -> iter_finished := true);
+    stabilize ();
+    assert (!r = 6);
+    assert !iter_finished;
+  ;;
+
+  TEST_UNIT =
+    let count = ref 0 in
+    let r, w = create () in
+    write_without_pushback w 13;
+    let iter_finished = ref false in
+    ignore
+      (Monitor.try_with
+         (fun () ->
+           let finished =
+             iter' r ~f:(fun q ->
+               Queue.iter q ~f:(fun i ->
+                 if i = 17 then failwith "" else count := !count + i);
+               Deferred.unit)
+           in
+           upon finished (fun () -> iter_finished := true);
+           finished));
+    stabilize ();
+    write_without_pushback w 17;
+    stabilize ();
+    assert (!count = 13);
+    assert (not !iter_finished);
+  ;;
+
+  TEST_UNIT =
+    let count = ref 0 in
+    let r, w = create () in
+    write_without_pushback w 13;
+    let iter_finished = ref false in
+    ignore
+      (Monitor.try_with
+         (fun () ->
+           let finished =
+             iter' r ~continue_on_error:true ~f:(fun q ->
+               Queue.iter q ~f:(fun i ->
+                 if i = 17 then failwith "" else count := !count + i);
+               Deferred.unit)
+           in
+           upon finished (fun () -> iter_finished := true);
+           finished));
+    stabilize ();
+    assert (not !iter_finished);
+    write_without_pushback w 17;
+    stabilize ();
+    assert (not !iter_finished);
+    write_without_pushback w 19;
+    stabilize ();
+    assert (!count = 32);
+    assert (not !iter_finished);
+    close w;
+    stabilize ();
+    assert (!iter_finished);
+  ;;
+
+  (* ==================== iter ==================== *)
+
+  TEST_UNIT =
+    let r = ref 0 in
+    let l = [ 1; 2; 3 ] in
+    let t = of_list l in
+    let iter_finished = ref false in
+    upon (iter t ~f:(fun i -> r := !r + i; Deferred.unit))
+      (fun () -> iter_finished := true);
+    stabilize ();
+    assert (!r = 6);
+    assert !iter_finished;
+  ;;
+
+  TEST_UNIT =
+    let r = ref 0 in
+    let l = [ 13; 17 ] in
+    let t = of_list l in
+    let iter_finished = ref false in
+    ignore
+      (Monitor.try_with
+         (fun () ->
+           let finished =
+             iter t ~f:(fun i ->
+               if i = 17 then failwith "" else r := !r + i;
+               Deferred.unit)
+           in
+           upon finished (fun () -> iter_finished := true);
+           finished));
+    stabilize ();
+    assert (!r = 13);
+    assert (not !iter_finished);
+  ;;
+
+  TEST_UNIT =
+    let r = ref 0 in
+    let l = [ 1; 2; 3 ] in
+    let t = of_list l in
+    let iter_finished = ref false in
+    ignore
+      (Monitor.try_with
+         (fun () ->
+           let finished =
+             iter t ~continue_on_error:true ~f:(fun i ->
+               if i = 2 then failwith "" else r := !r + i;
+               Deferred.unit)
+           in
+           upon finished (fun () -> iter_finished := true);
+           finished));
+    stabilize ();
+    assert (!r = 4);
+    assert !iter_finished;
+  ;;
+
+  (* ==================== iter_without_pushback ==================== *)
+
+  TEST_UNIT =
+    let r = ref 0 in
+    let l = [ 1; 2; 3 ] in
+    let t = of_list l in
+    let iter_finished = ref false in
+    upon (iter_without_pushback t ~f:(fun i -> r := !r + i))
+      (fun () -> iter_finished := true);
+    stabilize ();
+    assert (!r = 6);
+    assert !iter_finished;
+  ;;
+
+  TEST_UNIT =
+    let r = ref 0 in
+    let l = [ 13; 17 ] in
+    let t = of_list l in
+    let iter_finished = ref false in
+    ignore
+      (Monitor.try_with
+         (fun () ->
+           let finished =
+             iter_without_pushback t ~f:(fun i ->
+               if i = 17 then failwith "" else r := !r + i)
+           in
+           upon finished (fun () -> iter_finished := true);
+           finished));
+    stabilize ();
+    assert (!r = 13);
+    assert (not !iter_finished);
+  ;;
+
+  TEST_UNIT =
+    let r = ref 0 in
+    let l = [ 1; 2; 3 ] in
+    let t = of_list l in
+    let iter_finished = ref false in
+    ignore
+      (Monitor.try_with
+         (fun () ->
+           let finished =
+             iter_without_pushback t ~continue_on_error:true ~f:(fun i ->
+               if i = 2 then failwith "" else r := !r + i)
+           in
+           upon finished (fun () -> iter_finished := true);
+           finished));
+    stabilize ();
+    assert (!r = 4);
+    assert !iter_finished;
+  ;;
+
+  (* ==================== flush chaining ==================== *)
+  TEST_UNIT =
+    let flushed f = match Deferred.peek f with Some `Ok -> true | _ -> false in
+    let r, w = create () in
+    assert (Deferred.peek (downstream_flushed w) = Some `Ok);
+    let flushed_downstream = ref (return `Ok) in
+    let consumer = add_consumer r ~downstream_flushed:(fun () -> !flushed_downstream) in
+    let f1 = downstream_flushed w in
+    stabilize ();
+    assert (Deferred.peek f1 = Some `Ok);
+    write_without_pushback w ();
+    let f2 = downstream_flushed w in
+    assert (Deferred.peek (read r ~consumer) = Some (`Ok ()));
+    let f3 = downstream_flushed w in
+    assert (not (flushed f2));
+    assert (not (flushed f3));
+    Consumer.values_sent_downstream consumer;
+    let flushed_downstream_ivar = Ivar.create () in
+    flushed_downstream := Ivar.read flushed_downstream_ivar;
+    let f4 = downstream_flushed w in
+    stabilize ();
+    let f5 = downstream_flushed w in
+    assert (not (flushed f2));
+    assert (not (flushed f3));
+    assert (not (flushed f4));
+    assert (not (flushed f5));
+    Ivar.fill flushed_downstream_ivar `Ok;
+    let f6 = downstream_flushed w in
+    write_without_pushback w ();
+    let f7 = downstream_flushed w in
+    stabilize ();
+    assert (flushed f2);
+    assert (flushed f3);
+    assert (flushed f4);
+    assert (flushed f5);
+    assert (flushed f6);
+    assert (not (flushed f7));
+  ;;
+
+  TEST_UNIT =
+    let flushed f = match Deferred.peek f with Some `Ok -> true | _ -> false in
+    let r_, w = create () in
+    let r = map r_ ~f:Fn.id in
+    let f1 = downstream_flushed r in
+    stabilize ();
+    assert (Deferred.peek f1 = Some `Ok);
+    write_without_pushback w ();
+    let f2 = downstream_flushed w in
+    let f3 = upstream_flushed r in
+    stabilize ();
+    assert (is_empty w);
+    assert (not (is_empty r));
+    assert (not (flushed f2));
+    assert (not (flushed f3));
+    let f4 = downstream_flushed w in
+    let f5 = upstream_flushed r in
+    assert (Deferred.peek (read r) = Some (`Ok ()));
+    let f6 = downstream_flushed w in
+    let f7 = upstream_flushed r in
+    write_without_pushback w ();
+    let f8 = downstream_flushed w in
+    let f9 = upstream_flushed r in
+    stabilize ();
+    assert (flushed f2);
+    assert (flushed f3);
+    assert (flushed f4);
+    assert (flushed f5);
+    assert (flushed f6);
+    assert (flushed f7);
+    assert (not (flushed f8));
+    assert (not (flushed f9));
+  ;;
+end

@@ -1,22 +1,12 @@
 open Core.Std
 
-module Deferred = Raw_deferred
 module Scheduler = Raw_scheduler
 
-open Deferred
-
-module T = struct
-  include Raw_deferred.Scheduler_dependent (Scheduler)
-  let return = return
-end
+module T = Raw_deferred.Scheduler_dependent (Scheduler) (Ivar.Deferred) (Ivar)
 
 include T
 
 let create = create
-
-let peek = peek
-
-let is_determined = is_determined
 
 let debug_space_leaks = Raw_ivar.debug_space_leaks
 
@@ -27,7 +17,7 @@ include (Monad.Make (T))
 (* We shadow [all] on-purpose here, since the default definition introduces a chain of
    binds as long as the list. *)
 let all = `Make_sure_to_define_all_elsewhere
-let _ = all  (* Avoid unused value warnings *)
+let _ = all
 
 (* We shadow [map] from Monad with a more efficient implementation *)
 let map t ~f = create (fun i -> upon t (fun a -> Ivar.fill i (f a)))
@@ -45,12 +35,19 @@ end
 
 open Infix
 
+module Deferred = struct
+  type 'a t = 'a T.t
+  let bind = bind
+  let map = map
+  let return = return
+end
+
 let both t1 t2 =
   create (fun result ->
     upon t1 (fun a1 -> upon t2 (fun a2 -> Ivar.fill result (a1, a2))))
 ;;
 
-let whenever _ = ()
+let don't_wait_for (_ : unit t) = ()
 
 type 'a choice =
   { register : ready:(unit -> unit) -> Unregister.t;
@@ -104,7 +101,9 @@ let choose choices =
   | Some f -> f ()
 ;;
 
-let choose_ident choices = choose (List.map choices ~f:(fun t -> choice t ident))
+let any_f ts f = choose (List.map ts ~f:(fun t -> choice t f))
+let any      ts = any_f ts Fn.id
+let any_unit ts = any_f ts Fn.ignore
 
 let repeat_until_finished state f =
   create (fun finished ->
@@ -115,6 +114,12 @@ let repeat_until_finished state f =
         | `Finished result -> Ivar.fill finished result
     in
     loop state)
+;;
+
+let forever state f =
+  repeat_until_finished state (fun state -> f state >>| fun state -> `Repeat state)
+  >>> fun () ->
+  assert false
 ;;
 
 module List = struct
@@ -151,6 +156,8 @@ module List = struct
     | `Parallel -> all (List.map t ~f)
     | `Sequential -> seqmap t ~f
   ;;
+
+  let init ?how n ~f = map ?how (List.init n ~f:Fn.id) ~f
 
   let filter ?how t ~f =
     map t ?how ~f
@@ -204,6 +211,8 @@ module Array = struct
     | `Sequential -> seqmap t ~f
   ;;
 
+  let init ?how n ~f = map ?how (Array.init n ~f:Fn.id) ~f
+
   let filter ?how t ~f =
     map t ?how ~f
     >>| fun bools ->
@@ -230,20 +239,132 @@ module Queue = struct
 
   let map ?how t ~f = Array.map ?how (Queue.to_array t) ~f >>| Queue.of_array
 
+  let init ?how n ~f = Array.init ?how n ~f >>| Queue.of_array
+
   let filter ?how t ~f = Array.filter ?how (Queue.to_array t) ~f >>| Queue.of_array
 
-  let filter_map ?how t ~f = Array.filter_map ?how (Queue.to_array t) ~f >>| Queue.of_array
+  let filter_map ?how t ~f =
+    Array.filter_map ?how (Queue.to_array t) ~f >>| Queue.of_array
+  ;;
 
 end
 
 module Map = struct
 
-  type ('a, 'b) t = ('a, 'b) Map.Poly.t
+  type ('a, 'b, 'c) t = ('a, 'b, 'c) Map.t
 
-  let filter_mapi t ~f =
-    List.fold (Map.to_alist t) ~init:Map.Poly.empty ~f:(fun map (key, data) ->
+  let change t k f = f (Map.find t k) >>| fun opt -> Map.change t k (fun _ -> opt)
+
+  let iter ?how t ~f =
+    List.iter ?how (Map.to_alist t) ~f:(fun (key, data) -> f ~key ~data)
+  ;;
+
+  let fold t ~init ~f =
+    let alist_in_increasing_key_order =
+      Map.fold_right t ~init:[] ~f:(fun ~key ~data alist -> (key, data) :: alist)
+    in
+    List.fold alist_in_increasing_key_order ~init
+      ~f:(fun ac (key, data) -> f ~key ~data ac)
+  ;;
+
+  let fold_right t ~init ~f =
+    let alist_in_decreasing_key_order =
+      Map.fold t ~init:[] ~f:(fun ~key ~data alist -> (key, data) :: alist)
+    in
+    List.fold alist_in_decreasing_key_order ~init
+      ~f:(fun ac (key, data) -> f ~key ~data ac)
+  ;;
+
+  module Job = struct
+    type ('a, 'b, 'c) t =
+      { key : 'a;
+        data : 'b;
+        mutable result : 'c option;
+      }
+    with fields
+  end
+
+  let filter_mapi ?how t ~f =
+    let jobs = ref [] in
+    let job_map =
+      Map.mapi t ~f:(fun ~key ~data ->
+        let job = { Job.key; data; result = None } in
+        jobs := job :: !jobs;
+        job)
+    in
+    List.iter ?how !jobs ~f:(function { Job.key; data; _ } as job ->
+      f ~key ~data >>| fun x -> job.Job.result <- x)
+    >>| fun () ->
+    Map.filter_map job_map ~f:Job.result
+  ;;
+
+  let filter_map ?how t ~f = filter_mapi ?how t ~f:(fun ~key:_ ~data -> f data)
+
+  let filter ?how t ~f =
+    filter_mapi ?how t ~f:(fun ~key ~data ->
       f ~key ~data
-      >>| function
-      | Some data -> Map.add map ~key ~data
-      | None -> map)
+      >>| fun b ->
+      if b then Some data else None)
+  ;;
+
+  let mapi ?how t ~f =
+    filter_mapi ?how t ~f:(fun ~key ~data -> f ~key ~data >>| fun z -> Some z)
+  ;;
+
+  let map ?how t ~f = mapi ?how t ~f:(fun ~key:_ ~data -> f data)
+
+  let merge ?how t1 t2 ~f =
+    filter_map ?how (Map.merge t1 t2 ~f:(fun ~key z -> Some (fun () -> f ~key z)))
+      ~f:(fun thunk -> thunk ())
+  ;;
+
 end
+
+module Result = struct
+  module T = struct
+    type ('a, 'error) t = ('a, 'error) Result.t Deferred.t
+  end
+
+  include T
+
+  include Monad.Make2 (struct
+    include T
+
+    let return a = Deferred.return (Ok a)
+
+    let bind t f =
+      Deferred.bind t (function
+      | Ok a -> f a
+      | Error _ as error -> Deferred.return error)
+    ;;
+  end)
+
+  let map t ~f = Deferred.map t ~f:(fun r -> Result.map r ~f)
+
+  let (>>|) t f = map t ~f
+end
+
+module Option = struct
+  module T = struct
+    type 'a t = 'a Option.t Deferred.t
+  end
+
+  include T
+
+  include Monad.Make (struct
+    include T
+
+    let return a = Deferred.return (Some a)
+
+    let bind t f =
+      Deferred.bind t (function
+      | Some a -> f a
+      | None -> Deferred.return None)
+    ;;
+  end)
+
+  let map t ~f = Deferred.map t ~f:(fun r -> Option.map r ~f)
+
+  let (>>|) t f = map t ~f
+end
+
