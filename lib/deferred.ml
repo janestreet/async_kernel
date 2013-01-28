@@ -292,7 +292,7 @@ module Map = struct
         jobs := job :: !jobs;
         job)
     in
-    List.iter ?how !jobs ~f:(function { Job.key; data; _ } as job ->
+    List.iter ?how !jobs ~f:(function { Job.key; data; result=_ } as job ->
       f ~key ~data >>| fun x -> job.Job.result <- x)
     >>| fun () ->
     Map.filter_map job_map ~f:Job.result

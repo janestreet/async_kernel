@@ -746,7 +746,7 @@ finish_with_work_group called on work group with unfinished work"
       error "add_work_for_helper_thread called on finished helper thread"
         (helper_thread, t) <:sexp_of< Helper_thread.t * t >>
     else begin
-      let { Helper_thread.thread; work_group; _ } = helper_thread in
+      let { Helper_thread. thread; work_group; _ } = helper_thread in
       inc_unfinished_work t work_group;
       Thread.enqueue_work thread
         { Work.
