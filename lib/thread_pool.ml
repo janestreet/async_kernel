@@ -1,6 +1,28 @@
 open Core.Std
 open Import
 
+module Priority = Linux_ext.Priority
+
+let priority_zero = Priority.of_int 0
+
+let getpriority =
+  match Linux_ext.getpriority with
+  | Error _ -> const priority_zero
+  | Ok f -> f
+;;
+
+let setpriority =
+  match Linux_ext.setpriority with
+  | Error _ -> Fn.ignore
+  | Ok f -> f
+;;
+
+let set_thread_name =
+  match Linux_ext.pr_set_name_first16 with
+  | Ok f -> f
+  | Error _ -> Fn.ignore
+;;
+
 (* We define everything in an [Internal] module, and then wrap in a
    [Mutex.critical_section] each thread-safe function exposed in the mli. *)
 module Internal = struct
@@ -17,10 +39,11 @@ module Internal = struct
     (* [work] is polymorphic in ['work_group] because of a type cycle. *)
     type 'work_group t_ =
       { (* When this work starts running, the name of the thread will be set
-           (via [Linux_ext.pr_set_name]) to [name], if provided. *)
-        name : string option;
+           (via [Linux_ext.pr_set_name]) to [name]. *)
+        name : string;
         work_group : 'work_group;
         doit : unit -> unit;
+        priority : Priority.t;
       }
     with sexp_of
   end
@@ -139,7 +162,9 @@ module Internal = struct
 
   module Thread = struct
     type t =
-      { mutable name : string;
+      { (* [name] is the name of the thread that the OS knows, i.e. the argument supplied
+           to the most recent call to [set_thread_name] by the thread. *)
+        mutable name : string;
         (* [thread_id] is the OCaml thread id of the OCaml thread that this corresponds
            to.  It is an option only because we create this object before creating the
            thread.  We set it to [Some] as soon as we create the thread, and then never
@@ -148,6 +173,9 @@ module Internal = struct
         (* [is_assigned] is true iff this thread is assigned to a work group.  If a thread
            is not assigned, it is "available". *)
         mutable is_assigned : bool;
+        (* [priority] is the priority of the thread that the OS knows, i.e. the argument
+           supplied in the most recent call to [setpriority] by the thread. *)
+        mutable priority : Priority.t;
         mutable kind : [ `General | `Helper ];
         (* [unfinished_work] is the amount of work remaining for this thread to do.  It
            includes all the work in [work_queue], plus perhaps an additional work that
@@ -166,6 +194,7 @@ module Internal = struct
           ~name:ignore
           ~thread_id:(check (fun o -> assert (is_some o)))
           ~is_assigned:ignore
+          ~priority:ignore
           ~kind:ignore
           ~unfinished_work:(check (fun unfinished_work ->
             assert (unfinished_work = Squeue.length t.work_queue
@@ -175,12 +204,11 @@ module Internal = struct
         failwiths "Thread.invariant failed" (exn, t) <:sexp_of< exn * t >>
     ;;
 
-    let default_name = "thread-pool thread"
-
-    let create () =
-      { name = default_name;
+    let create priority =
+      { name = "";
         thread_id = None;
         is_assigned = false;
+        priority;
         kind = `General;
         unfinished_work = 0;
         work_queue = Work_queue.create ();
@@ -193,6 +221,32 @@ module Internal = struct
     ;;
 
     let stop t = Work_queue.enqueue t.work_queue Work_queue.Stop
+
+    let initialize_ocaml_thread t =
+      set_thread_name t.name;
+      (* We call [getpriority] to see whether we need to set the priority.  This is only
+         used for initialization, not for ongoing work.  This is not a performance
+         optimization.  It is done so that in programs that don't use priorities, we never
+         call [setpriority], and thus prevent problems due to the user's "ulimit -e" being
+         too restrictive. *)
+      if not (Priority.equal (getpriority ()) t.priority) then
+        setpriority t.priority;
+    ;;
+
+    let set_name t name =
+      if String.(<>) name t.name then begin
+        set_thread_name name;
+        t.name <- name;
+      end;
+    ;;
+
+    let set_priority t priority =
+      if not (Priority.equal t.priority priority) then begin
+        setpriority priority;
+        t.priority <- priority;
+      end;
+    ;;
+
   end
 
   module Helper_thread = struct
@@ -204,8 +258,14 @@ module Internal = struct
         mutable is_in_use : bool;
         thread : Thread.t;
         work_group : Work_group.t;
+        (* [default_name] will be used as the name of work run by the helper thread,
+           unless that work is added with an overriding name. *)
+        default_name : string;
+        (* [default_priority] will be used as the priority of work run by the helper
+           thread, unless that work is added with an overriding priority. *)
+        default_priority : Priority.t;
       }
-    with sexp_of
+    with fields, sexp_of
   end
 
   (* [Thread_pool.t] *)
@@ -215,6 +275,7 @@ module Internal = struct
       (* [mutex] is used to protect all access to [t] and its substructures, since the
          threads actually doing the work need to access [t]. *)
       mutex : Mutex.t;
+      default_priority : Priority.t;
       (* [max_num_threads] is the maximum number of threads that the thread pool is
          allowed to create.  The thread pool guarantees the thread requirements
          of work groups by maintaing the invariant that:
@@ -266,6 +327,7 @@ module Internal = struct
             assert (t.num_threads = 0)
           end))
         ~mutex:(check Mutex.invariant)
+        ~default_priority:ignore
         ~max_num_threads:(check (fun max_num_threads ->
           assert (max_num_threads >= 1);
           assert (t.num_assigned_threads + t.num_reserved_threads <= max_num_threads)))
@@ -322,6 +384,7 @@ module Internal = struct
         { id = Pool_id.create ();
           is_in_use = true;
           mutex = Mutex.create ();
+          default_priority = getpriority ();
           max_num_threads;
           num_assigned_threads = 0;
           num_reserved_threads = 0;
@@ -534,9 +597,10 @@ finish_with_work_group called on work group with unfinished work"
 
   let create_thread t =
     if debug then Debug.log "create_thread" t <:sexp_of< t >>;
-    let thread = Thread.create () in
+    let thread = Thread.create t.default_priority in
     let ocaml_thread =
       Core.Std.Thread.create (fun () ->
+        Thread.initialize_ocaml_thread thread;
         let rec loop () =
           match Squeue.pop thread.Thread.work_queue with
           | Work_queue.Stop -> ()
@@ -544,14 +608,11 @@ finish_with_work_group called on work group with unfinished work"
             if debug then
               Debug.log "thread got work" (work, thread, t)
                 (<:sexp_of< Work.t * Thread.t * t >>);
-            let thread_name = Option.value work.Work.name ~default:thread.Thread.name in
-            if String.(<>) thread_name thread.Thread.name then begin
-              thread.Thread.name <- thread_name;
-              match Linux_ext.pr_set_name_first16 with
-              | Ok f -> f thread_name
-              | Error _ -> ()
-            end;
-            (try work.Work.doit () with _ -> ()); (* the actual work *)
+            Thread.set_name thread work.Work.name;
+            Thread.set_priority thread work.Work.priority;
+            (try
+               work.Work.doit () (* the actual work *)
+             with _ -> ());
             if debug then Debug.log "thread finished with work" (work, thread, t)
               (<:sexp_of< Work.t * Thread.t * t >>);
             Mutex.critical_section t.mutex ~f:(fun () ->
@@ -605,7 +666,9 @@ finish_with_work_group called on work group with unfinished work"
     work_group.Work_group.unfinished_work <- work_group.Work_group.unfinished_work + 1;
   ;;
 
-  let add_work_for_group ?name t work_group doit =
+  let default_thread_name = "thread-pool thread"
+
+  let add_work_for_group ?priority ?name t work_group doit =
     if debug then
       Debug.log "add_work_for_group" (work_group, t) <:sexp_of< Work_group.t * t >>;
     let module W = Work_group in
@@ -618,7 +681,14 @@ finish_with_work_group called on work group with unfinished work"
       error "add_work_for_group called on finished work group" (work_group, t)
         (<:sexp_of< Work_group.t * t >>)
     else begin
-      let work = { Work. name; doit; work_group } in
+      let work =
+        { Work.
+          doit;
+          work_group;
+          name = Option.value name ~default:default_thread_name;
+          priority = Option.value priority ~default:t.default_priority;
+        }
+      in
       inc_unfinished_work t work_group;
       let work_queue = work_group.W.work_queue in
       if not (Queue.is_empty work_queue) then
@@ -636,7 +706,7 @@ finish_with_work_group called on work group with unfinished work"
     end
   ;;
 
-  let create_helper_thread ?name t work_group =
+  let create_helper_thread ?priority ?name t work_group =
     if debug then
       Debug.log "create_helper_thread" (work_group, t) <:sexp_of< Work_group.t * t >>;
     if not (Pool_id.equal t.id work_group.Work_group.in_pool) then
@@ -650,12 +720,18 @@ finish_with_work_group called on work group with unfinished work"
         error "create_helper_thread could not get a thread" (work_group, t)
           (<:sexp_of< Work_group.t * t >>);
       | `Ok thread ->
-        thread.Thread.name <- Option.value name ~default:"helper thread";
         thread.Thread.kind <- `Helper;
-        Ok { Helper_thread. in_pool = t.id; is_in_use = true; thread; work_group }
+        Ok { Helper_thread.
+             default_name = Option.value name ~default:"helper_thread";
+             default_priority = Option.value priority ~default:t.default_priority;
+             in_pool = t.id;
+             is_in_use = true;
+             thread;
+             work_group;
+           }
   ;;
 
-  let add_work_for_helper_thread ?name t helper_thread doit =
+  let add_work_for_helper_thread ?priority ?name t helper_thread doit =
     if debug then
       Debug.log "add_work_for_helper_thread" (helper_thread, t)
         (<:sexp_of< Helper_thread.t * t >>);
@@ -672,7 +748,13 @@ finish_with_work_group called on work group with unfinished work"
     else begin
       let { Helper_thread.thread; work_group; _ } = helper_thread in
       inc_unfinished_work t work_group;
-      Thread.enqueue_work thread { Work. name; work_group; doit };
+      Thread.enqueue_work thread
+        { Work.
+          name = Option.value name ~default:(Helper_thread.default_name helper_thread);
+          work_group;
+          doit;
+          priority = Option.value priority ~default:(Helper_thread.default_priority helper_thread);
+        };
       Ok ();
     end
   ;;
@@ -696,7 +778,6 @@ finish_with_work_group called on work group with unfinished work"
 finished_with_helper_thread called on helper thread with unfinished work"
           (helper_thread, t) <:sexp_of< Helper_thread.t * t >>
       else begin
-        thread.Thread.name <- Thread.default_name;
         thread.Thread.kind <- `General;
         maybe_reassign_thread t thread helper_thread.H.work_group;
         Ok ();
@@ -730,6 +811,8 @@ let max_num_threads = max_num_threads
 
 let num_threads = num_threads
 
+let default_priority = default_priority
+
 module Work_group = struct
   module Work_group = Internal.Work_group
 
@@ -741,7 +824,12 @@ module Work_group = struct
 end
 
 module Helper_thread = struct
+  open Helper_thread
+
   type t = Helper_thread.t with sexp_of
+
+  let default_name = default_name
+  let default_priority = default_priority
 end
 
 let create_work_group ?min_assignable_threads ?max_assigned_threads t =
@@ -751,9 +839,9 @@ let create_work_group ?min_assignable_threads ?max_assigned_threads t =
     | Ok work_group -> Ok { Work_group. work_group })
 ;;
 
-let add_work_for_group ?name t work_group doit =
+let add_work_for_group ?priority ?name t work_group doit =
   critical_section t ~f:(fun () ->
-    add_work_for_group ?name t (Work_group.work_group work_group) doit);
+    add_work_for_group ?priority ?name t (Work_group.work_group work_group) doit);
 ;;
 
 let finished_with_work_group t work_group =
@@ -761,14 +849,14 @@ let finished_with_work_group t work_group =
     finished_with_work_group t (Work_group.work_group work_group));
 ;;
 
-let create_helper_thread ?name t work_group =
+let create_helper_thread ?priority ?name t work_group =
   critical_section t ~f:(fun () ->
-    create_helper_thread ?name t (Work_group.work_group work_group));
+    create_helper_thread ?priority ?name t (Work_group.work_group work_group));
 ;;
 
-let add_work_for_helper_thread ?name t helper_thread doit =
+let add_work_for_helper_thread ?priority ?name t helper_thread doit =
   critical_section t ~f:(fun () ->
-    add_work_for_helper_thread ?name t helper_thread doit);
+    add_work_for_helper_thread ?priority ?name t helper_thread doit);
 ;;
 
 let finished_with_helper_thread t helper_thread =
@@ -1124,4 +1212,63 @@ TEST_MODULE = struct
     ok_exn (finished_with t);
   ;;
 
+  (* Setting thread name and priority. *)
+  TEST_UNIT =
+    Result.iter Core.Std.Unix.RLimit.nice ~f:(fun rlimit_nice ->
+      let test_parameters =
+        let open Core.Std.Unix.RLimit in
+        let nice_limit = get rlimit_nice in
+        match nice_limit.max with
+        | Infinity ->
+          let max = 40 in
+          `Test ({ nice_limit with cur = Limit (Int64.of_int_exn max) }, max)
+        | Limit max ->
+          if Int64.( < ) max (Int64.of_int 2)
+          then `Cannot_test
+          else `Test ({ nice_limit with cur = Limit max }, (Int64.to_int_exn max))
+      in
+      match test_parameters with
+      | `Cannot_test -> ()
+      | `Test (nice_limit, cur_limit) ->
+        Core.Std.Unix.RLimit.set rlimit_nice nice_limit;
+        for priority = 20 - cur_limit to 20 do
+          let initial_priority = Priority.of_int priority in
+          match Linux_ext.getpriority, Linux_ext.pr_get_name with
+          | Error _, _ | _, Error _ -> ()
+          | Ok getpriority, Ok get_name ->
+            let t = ok_exn (create ~max_num_threads:2) in
+            let work_group = ok_exn (create_work_group t) in
+            let check4 ~name ~priority
+                (check : ?name:string -> ?priority:Priority.t -> unit -> unit Or_error.t) =
+              ok_exn (check ());
+              ok_exn (check ~name ());
+              ok_exn (check ~priority ());
+              ok_exn (check ~name ~priority ());
+              wait_until_no_unfinished_work t;
+            in
+            check4 ~name:"new name" ~priority:(Priority.decr initial_priority)
+              (fun ?name ?priority () ->
+                add_work_for_group ?priority ?name t work_group (fun () ->
+                  assert (get_name () = Option.value name ~default:default_thread_name);
+                  assert (getpriority ()
+                          = Option.value priority ~default:(default_priority t))));
+            check4 ~name:"new name" ~priority:(Priority.decr initial_priority)
+              (fun ?name ?priority () ->
+                let helper_thread =
+                  ok_exn (create_helper_thread t work_group ?priority ?name)
+                in
+                let default_thread_name = Option.value name ~default:default_thread_name in
+                let default_priority =
+                  Option.value priority ~default:(default_priority t)
+                in
+                check4 ~name:"new name 2" ~priority:(Priority.decr initial_priority)
+                  (fun ?name ?priority () ->
+                    add_work_for_helper_thread ?priority ?name t helper_thread (fun () ->
+                      assert (get_name () = Option.value name ~default:default_thread_name);
+                      assert (getpriority ()
+                              = Option.value priority ~default:default_priority)));
+                finished_with_helper_thread t helper_thread);
+            ok_exn (finished_with t);
+        done)
+  ;;
 end

@@ -52,16 +52,23 @@ let set_max_num_jobs_per_priority_per_cycle t int =
   t.max_num_jobs_per_priority_per_cycle <- int;
 ;;
 
+let debug_run_job = debug || Debug.run_job
+
 let run_cycle t =
   let do_one job =
     let execution_context = Job.execution_context job in
-    if debug then
-      Debug.log "running job" execution_context.Execution_context.backtrace_history
+    if debug_run_job then
+      Debug.log "running job"
+        execution_context.Execution_context.backtrace_history
         (<:sexp_of< Backtrace.t list >>);
     t.num_jobs_run <- t.num_jobs_run + 1;
     set_execution_context t execution_context;
     (* [Job.run] may raise, in which case the exn is handled by [Jobs.run_all]. *)
     Job.run job;
+    if debug_run_job then
+      Debug.log "finished running job"
+        execution_context.Execution_context.backtrace_history
+        (<:sexp_of< Backtrace.t list >>);
   in
   if debug then Debug.log "run_cycle starting" t <:sexp_of< t >>;
   let now = Time.now () in

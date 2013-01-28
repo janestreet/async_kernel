@@ -1,4 +1,4 @@
-open Core.Std;;
+open Core.Std
 
 module type Basic_scheduler = sig
   module Execution_context : sig type t with sexp_of end

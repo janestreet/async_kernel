@@ -17,10 +17,23 @@
     this.  To do this, use [Helper_thread], see below.
 
     All of the functions exposed by this module are thread safe; they synchronize using
-    a mutex on the thread pool. *)
+    a mutex on the thread pool.
+
+    One can control the priority of threads in the pool (in the sense of
+    [Linux_ext.setpriority]).  Work added to the pool can optionally be given a priority,
+    and the pool will set the priority of the thread that runs it for the duration of the
+    work.  Helper threads can also be given a priority, which will be used for all work
+    run by the helper thread, unless the work has an overriding priority.  The thread pool
+    has a "default" priority that will be used for all work and helper threads that have
+    no specified priority.  The default is simply the priority in effect when [create] is
+    called.
+
+    Behavior is unspecified if work calls [setpriority] directly. *)
 
 open Core.Std
 open Import
+
+module Priority : module type of Linux_ext.Priority with type t = Linux_ext.Priority.t
 
 type t with sexp_of
 
@@ -43,6 +56,10 @@ val max_num_threads : t -> int
 
 (** [num_threads t] returns the number of threads that the pool [t] has created. *)
 val num_threads : t -> int
+
+(** [default_priority t] returns the priority that will be used for work performed by
+    [t], unless that work is added with an overriding priority. *)
+val default_priority : t -> Priority.t
 
 module Work_group : sig
   (** Each piece of work in the thread pool is associated with a "work group", which is
@@ -92,13 +109,20 @@ val create_work_group
   -> t
   -> Work_group.t Or_error.t
 
-(** [add_work_for_group t work_group f] enqueues [f] to be done by some thread in the
-    pool, subject to the thread-usage limits of [work_group].
+(** [add_work_for_group ?priority ?name t work_group f] enqueues [f] to be done by some
+    thread in the pool, subject to the thread-usage limits of [work_group].
+
+    Exceptions raised by [f] are silently ignored.
 
     It is an error to call [add_work_for_group t work_group] after having called
-    [finished_with_work_group t work_group]. *)
+    [finished_with_work_group t work_group].
+
+    While the work is run, the name of the thread running the work will be set (via
+    [Linux_ext.pr_set_name]) to [name] and the priority of the thread will be set
+    to [priority]. *)
 val add_work_for_group
-  :  ?name:string
+  :  ?priority:Priority.t (* default is [default_priority t] *)
+  -> ?name:string         (* default is "thread-pool thread" *)
   -> t
   -> Work_group.t
   -> (unit -> unit)
@@ -117,28 +141,47 @@ module Helper_thread : sig
       helper thread is guaranteed to be run by that thread.  The helper thread only runs
       work explicitly supplied to it. *)
   type t
+
+  (** [default_name t] returns the name that will be used for work performed by [t],
+      unless that work is added with an overriding name *)
+  val default_name : t -> string
+
+  (** [default_priority t] returns the priority that will be used for work performed by
+      [t], unless that work is added with an overriding priority. *)
+  val default_priority : t -> Priority.t
 end
 
-(** [create_helper_thread ?name t work_group] creates a new helper thread that is part of
-    [work_group], i.e. until [finished_with_helper_thread] is called, the helper thread
-    counts as one of the threads assigned to the [work_group].
+(** [create_helper_thread ?priority ?name t work_group] creates a new helper thread that
+    is part of [work_group], i.e. until [finished_with_helper_thread] is called, the
+    helper thread counts as one of the threads assigned to the [work_group].
 
     The thread pool does not internally refer to the [Helper_thread.t] it returns.  So, it
     is OK for client code to use a finalizer to detect it becoming unused.
 
-    It is an error if no threads are available. *)
+    It is an error if no threads are available.
+
+    When the helper thread runs work, it will be at the helper thread's name and priority,
+    except for work that is added with an overriding priority or name. *)
 val create_helper_thread
-  :  ?name:string
+  :  ?priority:Priority.t (* default is [default_priority t] *)
+  -> ?name:string         (* default is "helper thread" *)
   -> t
   -> Work_group.t
   -> Helper_thread.t Or_error.t
 
-(** [add_work_for_helper_thread t f] enqueues [f] on helper thread [t]'s work queue.
+(** [add_work_for_helper_thread ?priority ?name t helper_thread f] enqueues [f] on
+    [helper_thread]'s work queue.
+
+    Exceptions raised by [f] are silently ignored.
 
     It is an error to call [add_work_for_helper_thread t] after
-    [finished_with_helper_thread t]. *)
+    [finished_with_helper_thread t].
+
+    When the helper thread runs [f], it will be at the helper thread's name and priority,
+    unless overriden by [name] or [priority]. *)
 val add_work_for_helper_thread
-  :  ?name:string
+  :  ?priority:Priority.t (* default is [Helper_thread.default_priority helper_thread] *)
+  -> ?name:string         (* default is [Helper_thread.name helper_thread] *)
   -> t
   -> Helper_thread.t
   -> (unit -> unit)

@@ -108,7 +108,7 @@ val iter' : 'a t -> f:('a -> unit Deferred.t) -> unit Deferred.t
     reached.  *)
 val closed : 'a t -> unit Deferred.t
 
-(** [iter t ~f] = [whenever (iter' t ~f:(fun a -> f a; Deferred.unit))] *)
+(** [iter t ~f] = [don't_wait_for (iter' t ~f:(fun a -> f a; Deferred.unit))] *)
 val iter : 'a t -> f:('a -> unit) -> unit
 
 (** [take_until t d] returns a stream [t'] that has the same elements as [t] up until [d]

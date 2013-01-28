@@ -234,7 +234,7 @@ let pushback t = Ivar.read t.pushback
 
 let length t = Q.length t.buffer
 
-let is_empty t = Q.is_empty t.buffer
+let is_empty t = length t = 0
 
 let invariant t : unit =
   try
@@ -472,6 +472,8 @@ let read_now ?consumer t =
   end
 ;;
 
+let peek t = Queue.peek t.buffer
+
 let clear t =
   match read_now t with
   | `Eof | `Nothing_available | `Ok _ -> ()
@@ -662,8 +664,20 @@ let iter ?consumer ?continue_on_error t ~f =
       with_error_to_current_monitor ?continue_on_error f a))
 ;;
 
-let iter_without_pushback ?consumer ?continue_on_error t ~f =
-  iter ?consumer ?continue_on_error t ~f:(fun a -> f a; Deferred.unit)
+let iter_without_pushback ?consumer ?(continue_on_error = false) t ~f =
+  if continue_on_error then
+    iter ?consumer ~continue_on_error t ~f:(fun a -> f a; Deferred.unit)
+  else
+    (* [iter_without_pushback] is a common case, and the below optimized version can
+       have substantially better performance than using [iter]. *)
+    Deferred.create (fun finished ->
+      let rec loop () =
+        read' t ?consumer
+        >>> function
+        | `Eof -> Ivar.fill finished ()
+        | `Ok q -> Queue.iter q ~f; loop ()
+      in
+      loop ())
 ;;
 
 let read_all input =

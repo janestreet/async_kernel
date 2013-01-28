@@ -235,8 +235,8 @@ val write_without_pushback  : 'a Writer.t -> 'a         -> unit
 
 (** [write_when_ready writer ~f] waits until there is space available in the pipe, and
     then calls [f write], where [write] can be used by [f] to write a single value into
-    the pipe at a time.  [with_write] guarantees that the pipe is open when it calls [f],
-    and hence that the writes will succeed, unless [f] itself closes the pipe. *)
+    the pipe at a time.  [write_when_ready] guarantees that the pipe is open when it calls
+    [f], and hence that the writes will succeed, unless [f] itself closes the pipe. *)
 val write_when_ready :
   'a Writer.t
   -> f:(('a -> unit) -> 'b)
@@ -321,6 +321,7 @@ val read_now
   -> 'a Reader.t
   -> [ `Eof | `Nothing_available | `Ok of 'a Queue.t ]
 
+val peek : 'a Reader.t -> 'a option
 
 (** [clear reader] consumes all of the values currently in [reader], and all blocked
     flushes become determined with [`Ok]. *)
