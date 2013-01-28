@@ -1,5 +1,3 @@
-open Core.Std
-
 type 'execution_context t
 
 val create : 'execution_context -> ('a -> unit) -> 'a -> 'execution_context t

@@ -1,4 +1,3 @@
-open Core.Std
 open Import
 
 type (+'a, 'execution_context) t

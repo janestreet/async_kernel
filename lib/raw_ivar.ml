@@ -53,6 +53,7 @@ let rec detailed { (* id; *) cell } =
   { D. (* id; *) cell }
 ;;
 
+(*
 let allowed_transition cell cell' =
   match cell, cell' with
   | Indir _              , (Indir _ | Empty | Empty_one_handler _ | Empty_many_handlers _ | Full _)
@@ -62,9 +63,10 @@ let allowed_transition cell cell' =
     -> true
   | _, _ -> false
 ;;
+*)
 
 include (struct
-  let counter = ref 0
+  (* let counter = ref 0 *)
   let create_with_cell cell = (* incr counter; *) { (* id = !counter ; *) cell }
 end : sig
   val create_with_cell : ('a, 'execution_context) cell -> ('a, 'execution_context) t
@@ -462,7 +464,7 @@ TEST_MODULE = struct
     let t = create () in
     r := 1;
     let num_handlers = 1000 in
-    for i = 1 to num_handlers do
+    for _i = 1 to num_handlers do
       upon t (fun i -> r := !r + i);
     done;
     assert (!r = 1);

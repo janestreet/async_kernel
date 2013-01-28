@@ -1,6 +1,3 @@
-open Core.Std
-open Import
-
 module T = struct
   type ('a, 'execution_context) t =
     { execution_context : 'execution_context;

@@ -1,5 +1,4 @@
 open Core.Std
-open Import
 
 module Tail = Raw_tail
 

@@ -1,5 +1,4 @@
 open Core.Std
-open Import
 
 module Deferred = Raw_deferred
 module Ivar = Raw_ivar

@@ -1,5 +1,4 @@
 open Core.Std
-open Import
 
 module Scheduler = Raw_scheduler
 

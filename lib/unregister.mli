@@ -1,5 +1,3 @@
-open Core.Std
-
 type t
 
 val noop : t

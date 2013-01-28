@@ -1,5 +1,4 @@
 open Core.Std
-open Import
 open Deferred_std
 module Stream = Async_stream
 module Q = Queue
@@ -247,7 +246,7 @@ let consume_at_most t num_values =
     t.num_values_read <- t.num_values_read + num_values;
     fill_flushes t;
     let result = Q.create () in
-    for i = 1 to num_values do
+    for _i = 1 to num_values do
       Q.enqueue result (Q.dequeue_exn t.buffer);
     done;
     update_pushback t;

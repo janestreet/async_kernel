@@ -1,5 +1,4 @@
 open Core.Std
-open Import
 
 module Execution_context = Execution_context
 module Clock_event = Raw_clock_event

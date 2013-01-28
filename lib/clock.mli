@@ -87,5 +87,3 @@ val every
   -> ?continue_on_error : bool
   -> Time.Span.t
   -> (unit -> unit) -> unit
-
-val with_timeout : Time.Span.t -> 'a Deferred.t -> [ `Timeout | `Result of 'a ] Deferred.t

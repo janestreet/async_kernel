@@ -1,6 +1,3 @@
-open Core.Std
-open Import
-
 module Ivar = Raw_ivar
 
 (* Clock events start in the [Uninitialized] state just for their creation (because of

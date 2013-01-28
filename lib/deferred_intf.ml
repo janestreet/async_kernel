@@ -1,5 +1,3 @@
-open Core.Std
-
 module Deferred = struct
   type 'a t = ('a, Execution_context.t) Raw_deferred.t
 end

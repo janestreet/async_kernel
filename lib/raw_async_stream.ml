@@ -1,5 +1,3 @@
-open Core.Std
-
 (* This module exists to break a dependency cycle when building with ocamlbuild,
    which considers both the '.ml' and the '.mli' as part of a single compilation
    unit. It is referenced directly by monitor.mli. *)

@@ -1,5 +1,4 @@
 open Core.Std
-open Import
 open Deferred_std
 
 module Monitor = Raw_monitor

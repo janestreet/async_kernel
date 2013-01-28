@@ -1,5 +1,3 @@
-open Core.Std
-
 (* We use a first class module to represent a job because it allows us to use a single
    4-word block to represent the job.  Without a first-class module, we would need to
    hide the [a] type using a closure, e.g.:

@@ -1,5 +1,4 @@
 open Core.Std
-open Import
 
 module Deferred = Raw_deferred
 module Scheduler = Raw_scheduler
@@ -23,13 +22,12 @@ let debug_space_leaks = Raw_ivar.debug_space_leaks
 
 let never () = Ivar.read (Ivar.create ())
 
-let (>>>) = upon
-
 include (Monad.Make (T))
 
 (* We shadow [all] on-purpose here, since the default definition introduces a chain of
    binds as long as the list. *)
 let all = `Make_sure_to_define_all_elsewhere
+let _ = all  (* Avoid unused value warnings *)
 
 (* We shadow [map] from Monad with a more efficient implementation *)
 let map t ~f = create (fun i -> upon t (fun a -> Ivar.fill i (f a)))

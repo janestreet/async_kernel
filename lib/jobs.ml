@@ -25,9 +25,11 @@ end = struct
     }
   with sexp_of
 
+(*
   let invariant t =
     assert (t.jobs_left_this_cycle >= 0);
   ;;
+*)
 
   let create () =
     { jobs = Queue.create ();

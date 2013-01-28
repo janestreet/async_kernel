@@ -1,5 +1,4 @@
 open Core.Std
-open Import
 open Raw_scheduler.T
 
 let debug = Debug.debug
@@ -23,15 +22,6 @@ let add_job execution_context f a =
 let uncaught_exception () = t.uncaught_exception
 
 let main_execution_context () = t.main_execution_context
-
-let set_main_execution_context execution_context =
-  t.main_execution_context <- execution_context;
-;;
-
-let set_block_group block_group =
-  set_execution_context
-    { current_execution_context () with Execution_context. block_group };
-;;
 
 let initialize_execution_context block_group =
   set_execution_context

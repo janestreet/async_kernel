@@ -1,6 +1,3 @@
-open Core.Std
-open Import
-
 module Stream = Raw_stream
 module Tail = Raw_tail
 

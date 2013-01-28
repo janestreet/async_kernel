@@ -10,9 +10,6 @@
 
     A throttle is essentially a pipe to which one can feed jobs. *)
 
-open Core.Std
-open Import
-
 type t with sexp_of
 
 val invariant : t -> unit

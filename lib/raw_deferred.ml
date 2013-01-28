@@ -1,4 +1,3 @@
-open Core.Std
 open Import
 
 module Ivar = Raw_ivar
@@ -13,6 +12,7 @@ module Ivar = Raw_ivar
    always just an ivar, and the covariance follows from the fact that all the deferred
    operations are equivalent to those implemented directly on top of the
    [essence_of_deferred]. *)
+(*
 type (+'a, 'execution_context) essence_of_deferred =
   { peek : unit -> 'a option;
     is_determined : unit -> bool;
@@ -20,6 +20,7 @@ type (+'a, 'execution_context) essence_of_deferred =
     upon' : ('a -> unit) -> Unregister.t;
     install_removable_handler : ('a, 'execution_context) Raw_handler.t -> Unregister.t;
   }
+*)
 
 type (+'a, 'execution_context) t  (* the abstract covariant type, equivalent to ivar *)
 
@@ -53,7 +54,7 @@ module Scheduler_dependent (Scheduler : Basic_scheduler) = struct
 
   type 'a t = ('a, Scheduler.Execution_context.t) deferred with sexp_of
 
-  type 'a detailed = 'a t with sexp_of
+  type 'a detailed = 'a t
 
   let sexp_of_detailed sexp_of_a t = Ivar.sexp_of_detailed sexp_of_a (to_ivar t)
 

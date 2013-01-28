@@ -1,5 +1,4 @@
 open Core.Std
-open Import
 open Deferred_std
 
 include Raw_async_stream

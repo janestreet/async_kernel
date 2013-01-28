@@ -1,5 +1,3 @@
-open Core.Std
-
 module Priority : sig
   type t with sexp_of
 

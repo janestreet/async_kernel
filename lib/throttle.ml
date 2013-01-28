@@ -1,5 +1,4 @@
 open Core.Std
-open Import
 open Deferred_std
 
 type 'a outcome = [ `Ok of 'a | `Aborted | `Raised of exn ]
@@ -100,7 +99,7 @@ let create ~continue_on_error ~max_concurrent_jobs =
       job_writer;
     }
   in
-  for i = 1 to max_concurrent_jobs; do
+  for _i = 1 to max_concurrent_jobs; do
     one_job_runner t;
   done;
   t

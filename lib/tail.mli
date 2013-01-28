@@ -1,7 +1,5 @@
 (** A tail is a pointer to the end of a stream that can be used to extend the stream. *)
 
-open Core.Std
-
 type 'a t = ('a, Execution_context.t) Raw_tail.t with sexp_of
 
 (** [create ()] returns a new tail. *)
