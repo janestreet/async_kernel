@@ -88,17 +88,11 @@ val any : 'a t list -> 'a t
 (** [any_unit ts] like [any] but ignores results of the component deferreds *)
 val any_unit : 'a t list -> unit t
 
-module Array : Monad_sequence
-  with type 'a monad := 'a t
-  with type 'a t = 'a array
+module type Monad_sequence = Monad_sequence with type 'a monad := 'a t
 
-module List : Monad_sequence
-  with type 'a monad := 'a t
-  with type 'a t = 'a list
-
-module Queue : Monad_sequence
-  with type 'a monad := 'a t
-  with type 'a t = 'a Queue.t
+module Array : Monad_sequence with type 'a t = 'a array
+module List  : Monad_sequence with type 'a t = 'a list
+module Queue : Monad_sequence with type 'a t = 'a Queue.t
 
 module Map : Deferred_map
 

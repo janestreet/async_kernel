@@ -27,13 +27,15 @@ let try_with_join ?(name = default_name) ~f arg =
 ;;
 
 module List = struct
-  let fold list ~init:acc ~f =
-    let rec loop acc = function
+  let foldi list ~init:acc ~f =
+    let rec loop i acc = function
       | [] -> return acc
-      | hd :: tl -> f acc hd >>= fun acc -> loop acc tl
+      | hd :: tl -> f i acc hd >>= fun acc -> loop (i + 1) acc tl
     in
-    loop acc list
+    loop 0 acc list
   ;;
+
+  let fold t ~init ~f = foldi t ~init ~f:(fun _ a -> f a)
 
   let seqmap t ~f =
     fold t ~init:[] ~f:(fun bs a -> f a >>| fun b -> b :: bs)
@@ -44,11 +46,14 @@ module List = struct
 
   let all_unit list = fold list ~init:() ~f:(fun () d -> d)
 
-  let iter ?(how=`Sequential) t ~f =
+  let iteri ?(how = `Sequential) t ~f =
     match how with
-    | `Parallel -> all_unit (List.map t ~f)
-    | `Sequential -> fold t ~init:() ~f:(fun () a -> f a)
+    | `Parallel -> all_unit (List.mapi t ~f)
+    | `Sequential ->
+      foldi t ~init:() ~f:(fun i () x -> f i x)
   ;;
+
+  let iter ?how t ~f = iteri ?how t ~f:(fun _ a -> f a)
 
   let map ?(how=`Sequential) t ~f =
     match how with
@@ -172,5 +177,19 @@ TEST_MODULE = struct
     let def = Seqlist.all list in
     stabilize ();
     assert(determined def [ 0 ; 1 ; 2 ]);
+  ;;
+
+  TEST_UNIT =
+    let f _ = Deferred.return (Error (Error.of_string "error")) in
+    let def = try_with ~f:(fun () -> Seqlist.iter ~f [0]) () in
+    stabilize ();
+    assert(match Deferred.peek def with Some (Ok (Error _)) -> true | _ -> false);
+  ;;
+
+  TEST_UNIT =
+    let f _ = raise Not_found in
+    let def = try_with ~f:(fun () -> Seqlist.iter ~f [0]) () in
+    stabilize ();
+    assert(match Deferred.peek def with Some (Error _) -> true | _ -> false);
   ;;
 end

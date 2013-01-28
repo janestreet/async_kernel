@@ -179,4 +179,33 @@ TEST_MODULE = struct
     ;;
   end
 
+  (* [Deferred.{Array,List,Queue}.{init,foldi}] *)
+  module F (M : Deferred.Monad_sequence) = struct
+    TEST_UNIT =
+      List.iter
+        [ [];
+          [ 13 ];
+          [ 13; 15 ];
+        ]
+        ~f:(fun l ->
+          let finish = Ivar.create () in
+          let d =
+            M.init (List.length l) ~f:(fun i -> return (List.nth_exn l i))
+            >>= fun t ->
+            M.foldi t ~init:[] ~f:(fun i ac n ->
+              Ivar.read finish >>| fun () -> (i, n) :: ac)
+          in
+          stabilize ();
+          if not (List.is_empty l) then assert (is_none (Deferred.peek d));
+          Ivar.fill finish ();
+          stabilize ();
+          let expected = List.foldi l ~init:[] ~f:(fun i ac n -> (i, n) :: ac) in
+          assert (Deferred.peek d = Some expected))
+    ;;
+  end
+
+  TEST_MODULE = F (Deferred.Array)
+  TEST_MODULE = F (Deferred.List)
+  TEST_MODULE = F (Deferred.Queue)
+
 end

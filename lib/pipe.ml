@@ -323,6 +323,13 @@ let close t =
   end;
 ;;
 
+let init f =
+  let r, w = create () in
+  don't_wait_for (Monitor.protect (fun () -> f w)
+                    ~finally:(fun () -> close w; Deferred.unit));
+  r
+;;
+
 let close_read t =
   if !show_debug_messages then Debug.log "close_read" t <:sexp_of< (__, __) t >>;
   if !check_invariant then invariant t;
@@ -660,24 +667,35 @@ let iter' ?consumer ?continue_on_error t ~f =
 
 let iter ?consumer ?continue_on_error t ~f =
   iter' ?consumer t ~f:(fun q ->
-    Deferred.Queue.iter q ~f:(fun a ->
-      with_error_to_current_monitor ?continue_on_error f a))
-;;
-
-let iter_without_pushback ?consumer ?(continue_on_error = false) t ~f =
-  if continue_on_error then
-    iter ?consumer ~continue_on_error t ~f:(fun a -> f a; Deferred.unit)
-  else
-    (* [iter_without_pushback] is a common case, and the below optimized version can
-       have substantially better performance than using [iter]. *)
     Deferred.create (fun finished ->
       let rec loop () =
-        read' t ?consumer
-        >>> function
-        | `Eof -> Ivar.fill finished ()
-        | `Ok q -> Queue.iter q ~f; loop ()
+        match Queue.dequeue q with
+        | None -> Ivar.fill finished ()
+        | Some a ->
+          with_error_to_current_monitor ?continue_on_error f a
+          >>> fun () ->
+          loop ()
       in
-      loop ())
+      loop ()))
+;;
+
+(* [iter_without_pushback] is a common case, so we implement it in an optimized
+   manner, rather than via [iter]. *)
+let iter_without_pushback ?consumer ?(continue_on_error = false) t ~f =
+  let f =
+    if not continue_on_error then
+      f
+    else
+      (fun a -> try f a with exn -> Monitor.send_exn (Monitor.current ()) exn)
+  in
+  Deferred.create (fun finished ->
+    let rec loop () =
+      read' t ?consumer
+      >>> function
+      | `Eof -> Ivar.fill finished ()
+      | `Ok q -> Queue.iter q ~f; loop ()
+    in
+    loop ())
 ;;
 
 let read_all input =
@@ -901,6 +919,39 @@ TEST_MODULE = struct
     stabilize ();
     assert (Deferred.peek f1 = Some `Ok);
     assert (Deferred.peek f2 = Some `Reader_closed);
+  ;;
+
+  (* ==================== init ==================== *)
+  TEST_UNIT =
+    let reader = init (fun _ -> Deferred.never ()) in
+    stabilize ();
+    assert (not (is_closed reader));
+    assert (Option.is_none (peek reader));
+  ;;
+
+  TEST_UNIT =
+    let reader = init (fun writer ->
+      write_without_pushback writer ();
+      Deferred.unit) in
+    stabilize ();
+    assert (is_closed reader);
+    assert (Option.is_some (peek reader));
+  ;;
+
+  TEST_UNIT =
+    let finish = Ivar.create () in
+    let reader = init (fun writer ->
+      write_without_pushback writer ();
+      Ivar.read finish)
+    in
+    stabilize ();
+    assert (not (is_closed reader));
+    assert (Option.is_some (peek reader));
+    Ivar.fill finish ();
+    let d = to_list reader in
+    stabilize ();
+    assert (is_closed reader);
+    assert (Deferred.peek d = Some [ () ]);
   ;;
 
   (* ==================== pushback ==================== *)

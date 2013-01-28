@@ -300,7 +300,7 @@ module Scheduler_dependent
         match cell with
         | Indir ivar' -> ivar.cell <- indir; repoint_indirs ivar'
         | Full _ -> cell
-        | Empty _ | Empty_one_handler _ | Empty_many_handlers _ ->
+        | Empty | Empty_one_handler _ | Empty_many_handlers _ ->
           (* It is possible that [bind_result] and [bind_rhs] are not equal, but their
              chains of indirs lead to the same non-[Indir] cell, in which case we cannot
              set that cell to point to itself, because that would introduce a cycle. *)

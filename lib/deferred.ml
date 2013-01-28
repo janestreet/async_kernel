@@ -1,4 +1,5 @@
 open Core.Std
+open Deferred_intf
 
 module Scheduler = Raw_scheduler
 
@@ -122,19 +123,23 @@ let forever state f =
   assert false
 ;;
 
+module type Monad_sequence = Monad_sequence with type 'a monad := 'a t
+
 module List = struct
   type 'a t = 'a List.t
 
-  let fold t ~init ~f =
+  let foldi t ~init ~f =
     create
       (fun result ->
-        let rec loop t b =
+        let rec loop t i b =
           match t with
           | [] -> Ivar.fill result b
-          | x :: xs -> f b x >>> fun b -> loop xs b
+          | x :: xs -> f i b x >>> fun b -> loop xs (i + 1) b
         in
-        loop t init)
+        loop t 0 init)
   ;;
+
+  let fold t ~init ~f = foldi t ~init ~f:(fun _ a -> f a)
 
   let seqmap t ~f =
     fold t ~init:[] ~f:(fun bs a -> f a >>| fun b -> b :: bs)
@@ -145,11 +150,13 @@ module List = struct
 
   let all_unit ds = ignore (fold ds ~init:() ~f:(fun () d -> d))
 
-  let iter ?(how = `Sequential) t ~f =
+  let iteri ?(how = `Sequential) t ~f =
     match how with
-    | `Parallel -> all_unit (List.map t ~f)
-    | `Sequential -> fold t ~init:() ~f:(fun () a -> f a)
+    | `Parallel -> all_unit (List.mapi t ~f)
+    | `Sequential -> foldi t ~init:() ~f:(fun i () x -> f i x)
   ;;
+
+  let iter ?how t ~f = iteri ?how t ~f:(fun _ a -> f a)
 
   let map ?(how = `Sequential) t ~f =
     match how with
@@ -178,17 +185,19 @@ let all_unit = List.all_unit
 module Array = struct
   type 'a t = 'a Array.t
 
-  let fold t ~init ~f =
+  let foldi t ~init ~f =
     create
       (fun result ->
         let rec loop i b =
           if i = Array.length t then
             Ivar.fill result b
           else
-            f b t.(i) >>> fun b -> loop (i + 1) b
+            f i b t.(i) >>> fun b -> loop (i + 1) b
         in
         loop 0 init)
   ;;
+
+  let fold t ~init ~f = foldi t ~init ~f:(fun _ a -> f a)
 
   let seqmap t ~f =
     fold t ~init:[] ~f:(fun bs a -> f a >>| fun b -> b :: bs)
@@ -199,11 +208,13 @@ module Array = struct
 
   let all_unit ds = ignore (fold ds ~init:() ~f:(fun () d -> d))
 
-  let iter ?(how = `Sequential) t ~f =
+  let iteri ?(how = `Sequential) t ~f =
     match how with
-    | `Parallel -> all_unit (Array.map t ~f)
-    | `Sequential -> fold t ~init:() ~f:(fun () a -> f a)
+    | `Parallel -> all_unit (Array.mapi t ~f)
+    | `Sequential -> foldi t ~init:() ~f:(fun i () x -> f i x)
   ;;
+
+  let iter ?how t ~f = iteri ?how t ~f:(fun _ a -> f a)
 
   let map ?(how = `Sequential) t ~f =
     match how with
@@ -236,6 +247,8 @@ module Queue = struct
 
   type 'a t = 'a Queue.t
 
+  let foldi t ~init ~f = List.foldi (Queue.to_list t) ~init ~f
+
   let fold t ~init ~f = List.fold (Queue.to_list t) ~init ~f
 
   let all t = List.all (Queue.to_list t) >>| Queue.of_list
@@ -243,6 +256,8 @@ module Queue = struct
   let all_unit t = List.all_unit (Queue.to_list t)
 
   let iter ?how t ~f = List.iter ?how (Queue.to_list t) ~f
+
+  let iteri ?how t ~f = List.iteri ?how (Queue.to_list t) ~f
 
   let map ?how t ~f = List.map ?how (Queue.to_list t) ~f >>| Queue.of_list
 
@@ -372,4 +387,3 @@ module Option = struct
 
   let (>>|) t f = map t ~f
 end
-

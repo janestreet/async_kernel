@@ -30,6 +30,11 @@ val clear : _ t -> unit
     run up to [max_num_jobs_per_priority] jobs of each priority level. *)
 val start_cycle : _ t -> max_num_jobs_per_priority:int -> unit
 
+(** [force_current_cycle_to_end] sets the number of normal jobs allowed to run in this
+    cycle to zero.  Thus, after the currently running job completes, the scheduler will
+    switch to low priority jobs and then end the current cycle. *)
+val force_current_cycle_to_end : _ t -> unit
+
 (** [run_all t f] removes jobs from [t] one at a time and applies [f] to them, stopping as
     soon as an unhandled exception is raised, or when no more jobs can be run at any
     priority, as per [~max_num_jobs_per_priority]. *)

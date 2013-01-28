@@ -99,6 +99,8 @@ let schedule_finalizers t =
     (fun job -> Raw_scheduler.add_job t job)
 ;;
 
+let force_current_cycle_to_end t = Jobs.force_current_cycle_to_end t.jobs
+
 let run_cycle t =
   let do_one job =
     let execution_context = Job.execution_context job in

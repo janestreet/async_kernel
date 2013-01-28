@@ -19,7 +19,7 @@ module Jobs_at_priority : sig
   val create : dummy:'a -> 'a t
   val add : 'job t -> 'job -> unit
   val clear : _ t -> unit
-  val start_cycle : _ t -> max_num_jobs:int -> unit
+  val set_jobs_left_this_cycle : _ t -> int -> unit
   val is_empty : _ t -> bool
   val can_run_a_job : _ t -> bool
   val length : _ t -> int
@@ -49,7 +49,12 @@ end = struct
 
   let clear t = Q.clear t.jobs
 
-  let start_cycle t ~max_num_jobs = t.jobs_left_this_cycle <- max_num_jobs
+  let set_jobs_left_this_cycle t n =
+    if t.jobs_left_this_cycle < 0 then
+      failwiths "Jobs.set_jobs_left_this_cycle got negative number" (n, t)
+        (<:sexp_of< int * __ t >>);
+    t.jobs_left_this_cycle <- n
+  ;;
 
   let can_run_a_job t = Q.length t.jobs > 0 && t.jobs_left_this_cycle > 0
 
@@ -106,11 +111,13 @@ let clear t = List.iter [ t.normal; t.low ] ~f:Jobs_at_priority.clear
 
 let start_cycle t ~max_num_jobs_per_priority =
   let doit jobs_at_priority =
-    Jobs_at_priority.start_cycle jobs_at_priority ~max_num_jobs:max_num_jobs_per_priority
+    Jobs_at_priority.set_jobs_left_this_cycle jobs_at_priority max_num_jobs_per_priority
   in
   doit t.normal;
   doit t.low;
 ;;
+
+let force_current_cycle_to_end t = Jobs_at_priority.set_jobs_left_this_cycle t.normal 0
 
 let is_empty t =
   Jobs_at_priority.is_empty t.normal
