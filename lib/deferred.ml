@@ -226,26 +226,31 @@ module Array = struct
 end
 
 module Queue = struct
+  (* We implement all of the [Queue] operations by converting the queue to a list and then
+     using the corresponding [List] operation.  We use lists rather than arrays because
+     arrays longer than a certain length are allocated in the major heap, which can cause
+     unnecessary promotion of the elements in the queue.  Also, when one is folding or
+     iterating over an array, the entire array must be kept alive.  When folding or
+     iterating over a list, only the remaining tail of the list is kept alive.  So, using
+     arrays rather than lists would increase the live-space needed by the program. *)
 
   type 'a t = 'a Queue.t
 
-  let fold t ~init ~f = Array.fold (Queue.to_array t) ~init ~f
+  let fold t ~init ~f = List.fold (Queue.to_list t) ~init ~f
 
-  let all t = Array.all (Queue.to_array t) >>| Queue.of_array
+  let all t = List.all (Queue.to_list t) >>| Queue.of_list
 
-  let all_unit t = Array.all_unit (Queue.to_array t)
+  let all_unit t = List.all_unit (Queue.to_list t)
 
-  let iter ?how t ~f = Array.iter ?how (Queue.to_array t) ~f
+  let iter ?how t ~f = List.iter ?how (Queue.to_list t) ~f
 
-  let map ?how t ~f = Array.map ?how (Queue.to_array t) ~f >>| Queue.of_array
+  let map ?how t ~f = List.map ?how (Queue.to_list t) ~f >>| Queue.of_list
 
-  let init ?how n ~f = Array.init ?how n ~f >>| Queue.of_array
+  let init ?how n ~f = List.init ?how n ~f >>| Queue.of_list
 
-  let filter ?how t ~f = Array.filter ?how (Queue.to_array t) ~f >>| Queue.of_array
+  let filter ?how t ~f = List.filter ?how (Queue.to_list t) ~f >>| Queue.of_list
 
-  let filter_map ?how t ~f =
-    Array.filter_map ?how (Queue.to_array t) ~f >>| Queue.of_array
-  ;;
+  let filter_map ?how t ~f = List.filter_map ?how (Queue.to_list t) ~f >>| Queue.of_list
 
 end
 

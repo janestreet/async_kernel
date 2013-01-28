@@ -7,6 +7,12 @@ val t : unit -> t
 val invariant : t -> unit
 val current_execution_context  : t -> Execution_context.t
 val with_execution_context     : t -> Execution_context.t -> f:(unit -> 'a) -> 'a
+
+(** [preserve_execution_context f] saves the current execution context and returns a
+    function [g] such that [g a] adds a job that runs [f a] in the saved execution
+    context. *)
+val preserve_execution_context : t -> ('a -> unit) -> ('a -> unit) Staged.t
+
 val add_job                    : Execution_context.t -> ('a -> unit) -> 'a -> unit
 val main_execution_context     : Execution_context.t
 val cycle_start : t -> Time.t
@@ -23,6 +29,10 @@ val set_max_num_jobs_per_priority_per_cycle : t -> int -> unit
 val set_check_access : t -> (unit -> unit) -> unit
 val check_access : t -> unit
 
+val add_finalizer     : t -> 'a Heap_block.t -> ('a Heap_block.t -> unit) -> unit
+val add_finalizer_exn : t -> 'a              -> ('a              -> unit) -> unit
+
+val set_thread_safe_finalizer_hook : t -> (unit -> unit) -> unit
 
 type 'a with_options =
   ?work_group:Work_group.t

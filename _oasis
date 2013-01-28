@@ -3,7 +3,7 @@
 OASISFormat:  0.3
 OCamlVersion: >= 3.12.1
 Name:         async_core
-Version:      109.05.00
+Version:      109.06.00
 Synopsis:     Jane Street Capital's asynchronous execution library (core)
 Authors:      Jane street capital
 Copyrights:   (C) 2008-2012 Jane Street Capital LLC
@@ -20,7 +20,7 @@ Library async_core
   Path:               lib
   FindlibName:        async_core
   Pack:               true
-  Modules:            Async_condition,Async_or_error,Async_stream,Backpatched,Clock,Clock_event,Config,Debug,Deferred,Deferred_intf,Deferred_std,Events,Execution_context,Handler,Import,Inline_tests,Ivar,Job,Jobs,Lazy_deferred,Monitor,Pipe,Priority,Raw_clock_event,Raw_deferred,Raw_handler,Raw_ivar,Raw_monitor,Raw_scheduler,Raw_stream,Raw_tail,Scheduler,Std,Tail,Test,Thread_pool,Throttle,Unregister,Work_group
+  Modules:            Async_condition,Async_gc,Async_or_error,Async_stream,Backpatched,Clock,Clock_event,Config,Debug,Deferred,Deferred_intf,Deferred_std,Events,Execution_context,Handler,Import,Inline_tests,Ivar,Job,Jobs,Lazy_deferred,Monitor,Pipe,Priority,Raw_clock_event,Raw_deferred,Raw_handler,Raw_ivar,Raw_monitor,Raw_scheduler,Raw_stream,Raw_tail,Scheduler,Std,Tail,Test,Thread_pool,Throttle,Unregister,Work_group
   BuildDepends:       sexplib.syntax,
                       sexplib,
                       pa_ounit,

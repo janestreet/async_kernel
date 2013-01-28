@@ -31,6 +31,14 @@ module T = struct
       mutable last_cycle_num_jobs : int;
       cycle_num_jobs : int tail;
       events : Execution_context.t Clock_event.t Events.t;
+
+      (* OCaml finalizers can run at any time and in any thread.  When an OCaml finalizer
+         fires, we have it put a job that runs the async finalizer in the thread-safe
+         queue of [finalizer_jobs], and call [thread_safe_finalizer_hook].  In
+         [run_cycle], we pull the jobs off [finalizer_jobs] and add them to the
+         scheduler. *)
+      finalizer_jobs : Execution_context.t Job.t Thread_safe_queue.t sexp_opaque;
+      mutable thread_safe_finalizer_hook : (unit -> unit);
     }
   with fields, sexp_of
 end
@@ -71,7 +79,10 @@ let invariant t : unit =
             | _ -> assert false);
         with exn ->
           failwiths "events problem" (exn, events)
-            (<:sexp_of< exn * Execution_context.t Clock_event.t Events.t >>)));
+            (<:sexp_of< exn * Execution_context.t Clock_event.t Events.t >>)))
+      ~finalizer_jobs:ignore
+      ~thread_safe_finalizer_hook:ignore
+    ;
   with exn ->
     failwiths "Scheduler.invariant failed" (exn, t) <:sexp_of< exn * t >>
 ;;
@@ -92,6 +103,8 @@ let create () =
     last_cycle_num_jobs = 0;
     cycle_num_jobs = Tail.create ();
     events = Events.create ~now;
+    finalizer_jobs = Thread_safe_queue.create ();
+    thread_safe_finalizer_hook = ignore;
   }
 ;;
 

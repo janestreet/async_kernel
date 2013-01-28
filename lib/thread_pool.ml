@@ -1214,60 +1214,61 @@ TEST_MODULE = struct
 
   (* Setting thread name and priority. *)
   TEST_UNIT =
-    let test_parameters =
-      let open Core.Std.Unix.RLimit in
-      let nice_limit = get `Nice in
-      match nice_limit.max with
-      | Infinity ->
-        let max = 40 in
-        `Test ({ nice_limit with cur = Limit (Int64.of_int_exn max) }, max)
-      | Limit max ->
-        if Int64.( < ) max (Int64.of_int 2)
-        then `Cannot_test
-        else `Test ({ nice_limit with cur = Limit max }, (Int64.to_int_exn max))
-    in
-    match test_parameters with
-    | `Cannot_test -> ()
-    | `Test (nice_limit, cur_limit) ->
-      Core.Std.Unix.RLimit.set `Nice nice_limit;
-      for priority = 20 - cur_limit to 20 do
-        let initial_priority = Priority.of_int priority in
-        match Linux_ext.getpriority, Linux_ext.pr_get_name with
-        | Error _, _ | _, Error _ -> ()
-        | Ok getpriority, Ok get_name ->
-          let t = ok_exn (create ~max_num_threads:2) in
-          let work_group = ok_exn (create_work_group t) in
-          let check4 ~name ~priority
-              (check : ?name:string -> ?priority:Priority.t -> unit -> unit Or_error.t) =
-            ok_exn (check ());
-            ok_exn (check ~name ());
-            ok_exn (check ~priority ());
-            ok_exn (check ~name ~priority ());
-            wait_until_no_unfinished_work t;
-          in
-          check4 ~name:"new name" ~priority:(Priority.decr initial_priority)
-            (fun ?name ?priority () ->
-              add_work_for_group ?priority ?name t work_group (fun () ->
-                assert (get_name () = Option.value name ~default:default_thread_name);
-                assert (getpriority ()
-                        = Option.value priority ~default:(default_priority t))));
-          check4 ~name:"new name" ~priority:(Priority.decr initial_priority)
-            (fun ?name ?priority () ->
-              let helper_thread =
-                ok_exn (create_helper_thread t work_group ?priority ?name)
-              in
-              let default_thread_name = Option.value name ~default:default_thread_name in
-              let default_priority =
-                Option.value priority ~default:(default_priority t)
-              in
-              check4 ~name:"new name 2" ~priority:(Priority.decr initial_priority)
-                (fun ?name ?priority () ->
-                  add_work_for_helper_thread ?priority ?name t helper_thread (fun () ->
-                    assert (get_name () = Option.value name ~default:default_thread_name);
-                    assert (getpriority ()
-                            = Option.value priority ~default:default_priority)));
-              finished_with_helper_thread t helper_thread);
-          ok_exn (finished_with t);
-      done
+    Result.iter Core.Std.Unix.RLimit.nice ~f:(fun rlimit_nice ->
+      let test_parameters =
+        let open Core.Std.Unix.RLimit in
+        let nice_limit = get rlimit_nice in
+        match nice_limit.max with
+        | Infinity ->
+          let max = 40 in
+          `Test ({ nice_limit with cur = Limit (Int64.of_int_exn max) }, max)
+        | Limit max ->
+          if Int64.( < ) max (Int64.of_int 2)
+          then `Cannot_test
+          else `Test ({ nice_limit with cur = Limit max }, (Int64.to_int_exn max))
+      in
+      match test_parameters with
+      | `Cannot_test -> ()
+      | `Test (nice_limit, cur_limit) ->
+        Core.Std.Unix.RLimit.set rlimit_nice nice_limit;
+        for priority = 20 - cur_limit to 20 do
+          let initial_priority = Priority.of_int priority in
+          match Linux_ext.getpriority, Linux_ext.pr_get_name with
+          | Error _, _ | _, Error _ -> ()
+          | Ok getpriority, Ok get_name ->
+            let t = ok_exn (create ~max_num_threads:2) in
+            let work_group = ok_exn (create_work_group t) in
+            let check4 ~name ~priority
+                (check : ?name:string -> ?priority:Priority.t -> unit -> unit Or_error.t) =
+              ok_exn (check ());
+              ok_exn (check ~name ());
+              ok_exn (check ~priority ());
+              ok_exn (check ~name ~priority ());
+              wait_until_no_unfinished_work t;
+            in
+            check4 ~name:"new name" ~priority:(Priority.decr initial_priority)
+              (fun ?name ?priority () ->
+                add_work_for_group ?priority ?name t work_group (fun () ->
+                  assert (get_name () = Option.value name ~default:default_thread_name);
+                  assert (getpriority ()
+                          = Option.value priority ~default:(default_priority t))));
+            check4 ~name:"new name" ~priority:(Priority.decr initial_priority)
+              (fun ?name ?priority () ->
+                let helper_thread =
+                  ok_exn (create_helper_thread t work_group ?priority ?name)
+                in
+                let default_thread_name = Option.value name ~default:default_thread_name in
+                let default_priority =
+                  Option.value priority ~default:(default_priority t)
+                in
+                check4 ~name:"new name 2" ~priority:(Priority.decr initial_priority)
+                  (fun ?name ?priority () ->
+                    add_work_for_helper_thread ?priority ?name t helper_thread (fun () ->
+                      assert (get_name () = Option.value name ~default:default_thread_name);
+                      assert (getpriority ()
+                              = Option.value priority ~default:default_priority)));
+                finished_with_helper_thread t helper_thread);
+            ok_exn (finished_with t);
+        done)
   ;;
 end

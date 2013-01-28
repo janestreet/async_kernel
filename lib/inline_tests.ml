@@ -2,6 +2,7 @@
 
 let tests () = OUnit.TestList [
     Async_condition.ounit_tests ();
+    Async_gc.ounit_tests ();
     Async_or_error.ounit_tests ();
     Async_stream.ounit_tests ();
     Backpatched.ounit_tests ();

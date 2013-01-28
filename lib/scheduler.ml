@@ -20,6 +20,11 @@ include Monitor.Exported_for_scheduler
 
 let invariant = Raw_scheduler.invariant
 
+let preserve_execution_context t f =
+  let execution_context = current_execution_context t in
+  stage (fun a -> Raw_scheduler.add_job t (Job.create execution_context f a))
+;;
+
 let add_job execution_context f a =
   Raw_scheduler.(add_job (t ())) (Job.create execution_context f a)
 ;;
@@ -54,6 +59,46 @@ let set_max_num_jobs_per_priority_per_cycle t int =
 
 let debug_run_job = debug || Debug.run_job
 
+let set_thread_safe_finalizer_hook t f = t.thread_safe_finalizer_hook <- f
+
+let add_finalizer t heap_block f =
+  let execution_context = current_execution_context t in
+  let finalizer heap_block =
+    (* Here we can be in any thread, and may not be holding the async lock.  So, we
+       can only do thread-safe things.
+
+       By putting [heap_block] in [finalizer_jobs], we are keeping it alive until the next
+       time the async scheduler gets around to calling [schedule_finalizers].  Calling
+       [t.thread_safe_finalizer_hook] ensures that will happen in short order.  Thus, we
+       are not dramatically increasing the lifetime of [heap_block], since the OCaml
+       runtime already resurrected [heap_block] so that we could refer to it here.  The
+       OCaml runtime already removed the finalizer function when it noticed [heap_block]
+       could be finalized, so there is no infinite loop in which we are causing the
+       finalizer to run again.  Also, OCaml does not impose any requirement on finalizer
+       functions that they need to dispose of the block, so it's fine that we keep
+       [heap_block] around until later. *)
+    if Debug.finalizers then Debug.log_string "enqueueing finalizer";
+    Thread_safe_queue.enqueue t.finalizer_jobs
+      (Job.create execution_context f heap_block);
+    t.thread_safe_finalizer_hook ();
+  in
+  if Debug.finalizers then Debug.log_string "adding finalizer";
+  (* We use [Caml.Gc.finalise] instead of [Core.Std.Gc.add_finalizer] because the latter
+     has its own wrapper around [Caml.Gc.finalise] to run finalizers synchronously. *)
+  Caml.Gc.finalise finalizer heap_block;
+;;
+
+let add_finalizer_exn t x f =
+  add_finalizer t (Heap_block.create_exn x)
+    (fun heap_block -> f (Heap_block.value heap_block))
+;;
+
+let schedule_finalizers t =
+  if Debug.finalizers then Debug.log_string "scheduling finalizers";
+  Thread_safe_queue.dequeue_until_empty t.finalizer_jobs
+    (fun job -> Raw_scheduler.add_job t job)
+;;
+
 let run_cycle t =
   let do_one job =
     let execution_context = Job.execution_context job in
@@ -84,6 +129,7 @@ let run_cycle t =
     ()
   | `Ok events -> List.iter events ~f:Clock_event.fire
   end;
+  schedule_finalizers t;
   Jobs.start_cycle t.jobs
     ~max_num_jobs_per_priority:t.max_num_jobs_per_priority_per_cycle;
   let rec run_jobs () =

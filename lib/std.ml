@@ -8,6 +8,7 @@ module Deferred          = struct
   module Or_error = Async_or_error
 end
 module Execution_context = Execution_context
+module Gc                = Async_gc
 module Handler           = Handler
 module Ivar              = Ivar
 module Lazy_deferred     = Lazy_deferred

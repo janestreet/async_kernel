@@ -12,6 +12,7 @@ module Print_debug_messages_for : sig
   val clock              : bool
   val fd                 : bool
   val file_descr_watcher : bool
+  val finalizers         : bool
   val interruptor        : bool
   val monitor            : bool
   val parallel           : bool

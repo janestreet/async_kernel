@@ -10,6 +10,7 @@ module Debug_tag = struct
     | Clock
     | Fd
     | File_descr_watcher
+    | Finalizers
     | Interruptor
     | Monitor
     | Parallel
@@ -31,6 +32,7 @@ module Debug_tag = struct
       Clock;
       Fd;
       File_descr_watcher;
+      Finalizers;
       Interruptor;
       Monitor;
       Parallel;
@@ -241,6 +243,7 @@ module Print_debug_messages_for = struct
   let clock              = debug Debug_tag.Clock
   let fd                 = debug Debug_tag.Fd
   let file_descr_watcher = debug Debug_tag.File_descr_watcher
+  let finalizers         = debug Debug_tag.Finalizers
   let interruptor        = debug Debug_tag.Interruptor
   let monitor            = debug Debug_tag.Monitor
   let parallel           = debug Debug_tag.Parallel
