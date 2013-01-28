@@ -264,3 +264,15 @@ let file_descr_watcher                = default Fields.file_descr_watcher
 let max_num_open_file_descrs          = default Fields.max_num_open_file_descrs
 let max_num_threads                   = default Fields.max_num_threads
 let record_backtraces                 = default Fields.record_backtraces
+
+let t =
+  { check_invariants                  = Some check_invariants                 ;
+    detect_invalid_access_from_thread = Some detect_invalid_access_from_thread;
+    epoll_max_ready_events            = Some epoll_max_ready_events           ;
+    file_descr_watcher                = Some file_descr_watcher               ;
+    max_num_open_file_descrs          = Some max_num_open_file_descrs         ;
+    max_num_threads                   = Some max_num_threads                  ;
+    print_debug_messages_for          = t.print_debug_messages_for            ;
+    record_backtraces                 = Some record_backtraces                ;
+  }
+;;

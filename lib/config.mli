@@ -2,6 +2,10 @@
     set by setting an environment variable to a sexp representation of the config. *)
 open Core.Std
 
+type t with sexp_of
+
+val t : t
+
 val environment_variable : string
 
 module Print_debug_messages_for : sig

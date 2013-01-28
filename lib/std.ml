@@ -1,3 +1,4 @@
+module Async_config      = Config
 module Backpatched       = Backpatched
 module Clock             = Clock
 module Condition         = Async_condition
@@ -31,3 +32,6 @@ let try_with     = Monitor  .try_with
 let with_timeout = Clock    .with_timeout
 let within       = Scheduler.within
 let within'      = Scheduler.within'
+
+let (>>=?) = Deferred.Or_error.(>>=)
+let (>>|?) = Deferred.Or_error.(>>|)

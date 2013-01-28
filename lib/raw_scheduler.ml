@@ -97,7 +97,13 @@ let create () =
 
 let set_check_access t f = t.check_access <- Some f
 
-let t_ref = ref (create ())
+let t_ref =
+  match Result.try_with create with
+  | Ok t -> ref t
+  | Error exn ->
+    eprintf "%s\n" (Exn.to_string exn);
+    exit 1;
+;;
 
 let check_access t =
   match t.check_access with
@@ -139,6 +145,7 @@ let add_job t job =
 ;;
 
 let got_uncaught_exn t error =
+  if debug then Debug.log "got_uncaught_exn" error <:sexp_of< Error.t >>;
   Jobs.clear t.jobs;
   t.uncaught_exn <- Some error;
 ;;
