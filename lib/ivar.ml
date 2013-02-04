@@ -17,6 +17,8 @@ end)
 
 type 'a ivar = 'a t
 
+let invariant a_invariant t = Raw_ivar.invariant a_invariant ignore t
+
 let read = Deferred.of_ivar
 
 let fill_if_empty t v = if is_empty t then fill t v

@@ -37,7 +37,7 @@ module Priority : module type of Linux_ext.Priority with type t = Linux_ext.Prio
 
 type t with sexp_of
 
-val invariant : t -> unit
+include Invariant.S with type t := t
 
 (** [create ~max_num_threads] returns a new thread pool.  It is an error if
     [max_num_threads < 1]. *)

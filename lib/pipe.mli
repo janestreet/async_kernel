@@ -101,7 +101,9 @@ end
     the pipe is closed.  The difference between "upstream" and "downstream" comes if one
     has a chain of pipes that are linked (e.g. by [Pipe.map]):
 
-    |  P1 --> P2 --> P3
+    {v
+      P1 --> P2 --> P3
+    v}
 
     Calling [downstream_flushed P2] ensures that everything in P2 has made it out of P3.
     Calling [upstream_flushed P2] ensures that everything in P1 has made it out of P3.
@@ -131,8 +133,10 @@ module Consumer : sig
       more detailed feedback on the time an element spends outside of the pipe proper.
       So we have the following two cases:
 
-      Pipe --> Consumer
-      Pipe --> Consumer --> Pipe --> ...
+      {v
+        Pipe --> Consumer
+        Pipe --> Consumer --> Pipe --> ...
+      v}
 
       The time outside of the pipe can be broken down into two parts: a part (probably
       short lived) during which the consumer processes the elements in some way, and a

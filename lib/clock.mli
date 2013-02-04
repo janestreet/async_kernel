@@ -60,11 +60,13 @@ val at_varying_intervals
     determined at nonnegative integer multiples of [interval] after the [start] time,
     until [stop] becomes determined:
 
+    {v
        start + 0 * interval
        start + 1 * interval
        start + 2 * interval
        start + 3 * interval
        ...
+    v}
 
     If the interval is too small or the CPU is too loaded, [at_intervals] will skip
     until the next upcoming multiple of [interval] after start. *)

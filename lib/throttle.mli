@@ -10,9 +10,11 @@
 
     A throttle is essentially a pipe to which one can feed jobs. *)
 
+open Core.Std
+
 type t with sexp_of
 
-val invariant : t -> unit
+include Invariant.S with type t := t
 
 (** [create ~continue_on_error ~max_concurrent_jobs] returns a throttle that will runs up
     to [max_concurrent_jobs] concurrently.
@@ -39,16 +41,16 @@ val enqueue_job : t -> _ Job.t -> unit
 val enqueue' : t -> (unit -> 'a Deferred.t) -> 'a outcome Deferred.t
 val enqueue  : t -> (unit -> 'a Deferred.t) -> 'a         Deferred.t
 
-(* [prior_jobs_done t] becomes determined when all of the jobs that were previously
-   enqueued in [t] have completed. *)
+(** [prior_jobs_done t] becomes determined when all of the jobs that were previously
+    enqueued in [t] have completed. *)
 val prior_jobs_done : t -> unit Deferred.t
 
 val num_jobs_waiting_to_start : t -> int
 
 (** A sequencer is a throttle that is:
 
-    1. specialized to only allow one job at a time and to not continue on error, and
-    2. generalized to carry its own state, and enforce mutually exclusive access to that
+    - specialized to only allow one job at a time and to not continue on error, and
+    - generalized to carry its own state, and enforce mutually exclusive access to that
       state by the jobs *)
 module Sequencer : sig
   type 'a t

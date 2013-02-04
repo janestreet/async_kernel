@@ -17,16 +17,20 @@
     **************** NOTE ABOUT THE TOPLEVEL MONITOR ****************
 
     It is important to note that in the toplevel monitor, exceptions will only be caught
-    in the async part of a computation.  For example, in
+    in the async part of a computation.  For example, in:
 
-    upon (f ()) g
+    {[
+      upon (f ()) g
+    ]}
 
     if [f] raises, the exception will not go to a monitor; it will go to the next caml
     exception handler on the stack.  Any exceptions raised by [g] will be caught by the
     scheduler and propagated to the toplevel monitor.  Because of this it is advised to
-    always use [Scheduler.schedule] or [Scheduler.within].  For example,
+    always use [Scheduler.schedule] or [Scheduler.within].  For example:
 
-    Scheduler.within (fun () -> upon (f ()) g)
+    {[
+      Scheduler.within (fun () -> upon (f ()) g)
+    ]}
 
     This code will catch an exception in either [f] or [g], and propagate it to the
     monitor.

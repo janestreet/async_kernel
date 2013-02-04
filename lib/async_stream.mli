@@ -45,19 +45,22 @@ val to_list : 'a t -> 'a list Deferred.t
 val of_fun : (unit -> 'a Deferred.t) -> 'a t
 
 (** [copy_to_tail t tail] reads elements from [t] and puts them in [tail], until
-    the end of [t] is reached.
-*)
+    the end of [t] is reached. *)
 val copy_to_tail : 'a t -> 'a Tail.t -> unit Deferred.t
 
 (** Sequence operations
     ----------------------------------------------------------------------
     There are the usual sequence operations:
 
+    {v
       append, fold, iter, map, filter_map, take
+    v}
 
     There are also deferred variants:
 
+    {v
       iter', map', filter_map'
+    v}
 
     These take anonymous functions that return deferreds generalizing the usual sequence
     operation and allowing the client to control the rate at which the sequence is
@@ -95,8 +98,7 @@ val filter_map_deprecated : 'a t -> f:('a -> 'b option) -> 'b t
     value of the accumulator, if the end of the stream is reached. *)
 val fold' : 'a t -> init:'b -> f:('b -> 'a -> 'b Deferred.t) -> 'b Deferred.t
 
-(** [fold t ~init ~f] is a variant of [fold'] in which [f] does not return a deferred.
-*)
+(** [fold t ~init ~f] is a variant of [fold'] in which [f] does not return a deferred. *)
 val fold : 'a t -> init:'b -> f:('b -> 'a -> 'b) -> 'b Deferred.t
 
 (** [iter' t ~f] applies [f] to each element of the stream in turn, as they become
@@ -153,11 +155,13 @@ val first_n : 'a t -> int -> 'a t
 
 (** [unfold b f] returns a stream [a1; a2; ...; an] whose elements are
     determined by the equations:
+    {v
       b0 = b
       Some (a1, b1) = f b0
       Some (a2, b2) = f b1
       ...
       None = f bn
+    v}
 *)
 val unfold : 'b -> f:('b -> ('a * 'b) option Deferred.t) -> 'a t
 
@@ -166,13 +170,15 @@ val unfold : 'b -> f:('b -> ('a * 'b) option Deferred.t) -> 'a t
     ----------------------------------------------------------------------
 *)
 
-(** [split ~stop ~f t] returns a pair (p, d), where p is a prefix of t that ends
-   for one of three reasons:
-   1. t ends
-   2. stop becomes determined
-   3. f returns `Found
-   The deferred d describes why the prefix ended, and returns the suffix of the
-   stream in case (2) or (3).
+(** [split ~stop ~f t] returns a pair [(p, d)], where [p] is a prefix of [t] that ends
+    for one of three reasons:
+    {v
+      1. [t] ends
+      2. stop becomes determined
+      3. f returns `Found
+    v}
+    The deferred [d] describes why the prefix ended, and returns the suffix of the
+    stream in case (2) or (3).
 *)
 val split :
   ?stop:unit Deferred.t

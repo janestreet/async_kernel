@@ -109,6 +109,18 @@ let squash =
       t
 ;;
 
+let invariant a_invariant execution_context_invariant t =
+  let t = squash t in
+  match t.cell with
+  | Indir _ -> assert false (* fulfilled by [squash] *)
+  | Full a -> a_invariant a
+  | Empty -> ()
+  | Empty_one_handler (_, execution_context) ->
+    execution_context_invariant execution_context
+  | Empty_many_handlers bag ->
+    Bag.invariant (* (Handler.invariant a_invariant execution_context_invariant) *) bag
+;;
+
 let sexp_of_t sexp_of_a _ t =
   let t = squash t in
   match t.cell with

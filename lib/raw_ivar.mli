@@ -1,3 +1,4 @@
+open Core.Std
 open Import
 
 module Handler : sig
@@ -6,6 +7,8 @@ end
 
 type ('a, 'execution_context) t with sexp_of
 type ('a, 'execution_context) ivar = ('a, 'execution_context) t
+
+include Invariant.S2 with type ('a, 'b) t := ('a, 'b) t
 
 val create      : unit -> ('a, _) t
 

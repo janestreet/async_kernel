@@ -1,5 +1,5 @@
-(** Events is for keeping a set of events that need to happen in the future.  One
-    can add and remove events, and update the time to find out the events that need to
+(** [Events] is for keeping a set of events that need to happen in the future.  One can
+    add and remove events, and update the time to find out the events that need to
     happen. *)
 open Core.Std
 

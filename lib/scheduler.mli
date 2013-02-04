@@ -4,7 +4,8 @@ type t with sexp_of
 
 val t : unit -> t
 
-val invariant : t -> unit
+include Invariant.S with type t := t
+
 val current_execution_context  : t -> Execution_context.t
 val with_execution_context     : t -> Execution_context.t -> f:(unit -> 'a) -> 'a
 

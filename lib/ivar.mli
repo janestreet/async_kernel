@@ -8,6 +8,8 @@ open Import
 
 type 'a t with bin_io, sexp_of
 
+include Invariant.S1 with type 'a t := 'a t
+
 (** [equal t t'] is physical equality of [t] and [t']. *)
 val equal : 'a t -> 'a t -> bool
 

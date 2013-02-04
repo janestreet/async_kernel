@@ -38,18 +38,24 @@ val is_determined : 'a t -> bool
 
     Note that
 
-    upon t f
+    {[
+      upon t f
+    ]}
 
     is more efficient than
 
-    ignore (t >>= (fun a -> f a; Deferred.unit))
+    {[
+      ignore (t >>= (fun a -> f a; Deferred.unit))
+    ]}
 
     because [upon], unlike [>>=] does not create a deferred to hold the result.
 
     For example, one can write a loop that has good constant factors with:
 
-    let rec loop () =
-    upon t (fun a -> ... loop () ... )
+    {[
+      let rec loop () =
+        upon t (fun a -> ... loop () ... )
+    ]}
 
     The same loop written with [>>=] would allocate deferreds that would be immediately
     garbage collected.  (In the past, this loop would have also used linear space in
@@ -125,7 +131,9 @@ val enabled : 'b choice list -> (unit -> 'b list) t
 (** [choose choices] is [enabled choices >>| (fun f -> List.hd_exn (f ()))].
     That is:
 
-    [choose [choice t1 f1; ...; choice tn fn]]
+    {[
+      choose [choice t1 f1; ...; choice tn fn]
+    ]}
 
     returns a deferred [t] that becomes determined with value [fi ai] after some
     [ti] becomes determined with value [ai].  There is no guarantee that the [ti]
@@ -134,14 +142,16 @@ val enabled : 'b choice list -> (unit -> 'b list) t
     first value (in place order) from [choices] that is determined at the time [t]
     is examined.
 
-    For example, if you write
+    For example, if you write:
 
-    choose [choice t1 (fun () -> `X1);
-    choice t2 (fun () -> `X2);
-    ]
-    >>> function
-    | `X1 -> e1
-    | `X2 -> e2
+    {[
+      choose [choice t1 (fun () -> `X1);
+              choice t2 (fun () -> `X2);
+             ]
+      >>> function
+      | `X1 -> e1
+      | `X2 -> e2
+    ]}
 
     It may be the case that both [d1] and [d2] become determined, yet the code
     [e2] actually runs.

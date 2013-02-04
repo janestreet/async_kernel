@@ -35,7 +35,8 @@ end
 module Consumer : sig
   type t with sexp_of
 
-  val invariant : t -> unit
+  include Invariant.S with type t := t
+
   val create    : downstream_flushed:(unit -> Flushed_result.t Deferred.t) -> t
   val start     : t -> unit
   val values_sent_downstream : t -> unit
