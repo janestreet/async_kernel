@@ -188,7 +188,7 @@ module Scheduler_dependent
     let t = squash (to_raw t) in
     match t.cell with
     | Indir _ -> assert false (* fulfilled by [squash] *)
-    | Full _ -> failwiths "Ivar.fill of full ivar" t <:sexp_of< (__, __) t >>
+    | Full _ -> failwiths "Ivar.fill of full ivar" t <:sexp_of< (_, _) t >>
     | Empty -> t.cell <- Full v;
     | Empty_one_handler (run, execution_context) ->
       t.cell <- Full v;

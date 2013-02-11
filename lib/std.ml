@@ -34,5 +34,5 @@ let with_timeout = Clock    .with_timeout
 let within       = Scheduler.within
 let within'      = Scheduler.within'
 
-let (>>=?) = Deferred.Or_error.(>>=)
-let (>>|?) = Deferred.Or_error.(>>|)
+let (>>=?) = Deferred.Result.(>>=)
+let (>>|?) = Deferred.Result.(>>|)

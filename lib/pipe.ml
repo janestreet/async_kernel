@@ -130,7 +130,7 @@ module Blocked_read = struct
         | None -> ()
         | Some consumer -> Consumer.invariant consumer));
     with exn ->
-      failwiths "Pipe.Blocked_read.invariant failed" (exn, t) <:sexp_of< exn * __ t >>
+      failwiths "Pipe.Blocked_read.invariant failed" (exn, t) <:sexp_of< exn * _ t >>
   ;;
 
   let create wants consumer = { wants; consumer }
@@ -267,7 +267,7 @@ let invariant t : unit =
       ~consumers:(check (fun l -> List.iter l ~f:Consumer.invariant))
       ~upstream_flusheds:ignore
   with exn ->
-    failwiths "Pipe.invariant failed" (exn, t) <:sexp_of< exn * (__, __) t >>
+    failwiths "Pipe.invariant failed" (exn, t) <:sexp_of< exn * (_, _) t >>
 ;;
 
 module Reader = struct
@@ -312,7 +312,7 @@ let update_pushback t =
 ;;
 
 let close t =
-  if !show_debug_messages then Debug.log "close" t <:sexp_of< (__, __) t >>;
+  if !show_debug_messages then Debug.log "close" t <:sexp_of< (_, _) t >>;
   if !check_invariant then invariant t;
   if not (is_closed t) then begin
     Ivar.fill t.closed ();
@@ -332,7 +332,7 @@ let init f =
 ;;
 
 let close_read t =
-  if !show_debug_messages then Debug.log "close_read" t <:sexp_of< (__, __) t >>;
+  if !show_debug_messages then Debug.log "close_read" t <:sexp_of< (_, _) t >>;
   if !check_invariant then invariant t;
   Q.iter  t.blocked_flushes ~f:(fun flush -> Blocked_flush.fill flush `Reader_closed);
   Q.clear t.blocked_flushes;
@@ -421,9 +421,9 @@ let fill_blocked_reads t =
 (* checks all invariants, calls a passed in f to handle a write, then updates reads and
    pushback *)
 let start_write t =
-  if !show_debug_messages then Debug.log "write" t <:sexp_of< (__, __) t >>;
+  if !show_debug_messages then Debug.log "write" t <:sexp_of< (_, _) t >>;
   if !check_invariant then invariant t;
-  if is_closed t then failwiths "write to closed pipe" t <:sexp_of< (__, __) t >>;
+  if is_closed t then failwiths "write to closed pipe" t <:sexp_of< (_, _) t >>;
 ;;
 
 let finish_write t =
@@ -463,7 +463,7 @@ let write_when_ready t ~f =
 ;;
 
 let start_read t label =
-  if !show_debug_messages then Debug.log label t <:sexp_of< (__, __) t >>;
+  if !show_debug_messages then Debug.log label t <:sexp_of< (_, _) t >>;
   if !check_invariant then invariant t;
 ;;
 

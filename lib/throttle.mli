@@ -1,14 +1,19 @@
 (** Throttles for simultaneous computations.
 
+    A throttle is essentially a pipe to which one can feed jobs.
+
     A throttle schedules asynchronous jobs so that at any given point in time no more than
     [max_concurrent_jobs] jobs are running.  A job [f] is considered to be running from
     the time [f ()] is executed until the deferred returned by [f ()] becomes determined,
-    or [f ()] throws an exception.
+    or [f ()] raises.
 
-    A throttle becomes "dead" if one of its jobs throws an exception, and the throttle is
-    not set to continue on error.
-
-    A throttle is essentially a pipe to which one can feed jobs. *)
+    A throttle "dies" if one of its jobs throws an exception, and the throttle has
+    [continue_on_error = false].  If a throttle dies, then all jobs in it that haven't yet
+    started will be aborted, i.e. they will not start and will become determined with
+    [`Aborted].  Jobs that had already started will continue, and return [`Ok] or
+    [`Raised] as usual when they finish.  Attempts to enqueue a job into a dead throttle
+    will fail.
+*)
 
 open Core.Std
 
@@ -21,7 +26,10 @@ include Invariant.S with type t := t
 
     If some job raises an exception, then the throttle will stop, unless
     [continue_on_error] is true. *)
-val create : continue_on_error:bool -> max_concurrent_jobs:int -> t
+val create
+  :  continue_on_error:bool
+  -> max_concurrent_jobs:int
+  -> t
 
 type 'a outcome = [ `Ok of 'a | `Aborted | `Raised of exn ]
 
@@ -34,8 +42,8 @@ end
 
 val enqueue_job : t -> _ Job.t -> unit
 
-(** [enqueue t ~monitor job] schedules [job] to be run as soon as possible.  Jobs are
-    guaranteed to be started in the order they are [enqueue]d.
+(** [enqueue t job] schedules [job] to be run as soon as possible.  Jobs are guaranteed to
+    be started in the order they are [enqueue]d.
 
     [enqueue] raises an exception if the throttle is dead. *)
 val enqueue' : t -> (unit -> 'a Deferred.t) -> 'a outcome Deferred.t

@@ -52,7 +52,7 @@ end = struct
   let set_jobs_left_this_cycle t n =
     if t.jobs_left_this_cycle < 0 then
       failwiths "Jobs.set_jobs_left_this_cycle got negative number" (n, t)
-        (<:sexp_of< int * __ t >>);
+        (<:sexp_of< int * _ t >>);
     t.jobs_left_this_cycle <- n
   ;;
 

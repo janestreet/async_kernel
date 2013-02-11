@@ -7,6 +7,8 @@ module Internal_job : sig
   type t with sexp_of
 
   val create : (unit -> 'a Deferred.t) -> t * 'a outcome Deferred.t
+
+  (* Every internal job will eventually be either [run] or [abort]ed, but not both. *)
   val run : t -> [ `Ok | `Raised ] Deferred.t
   val abort : t -> unit
 end  = struct
@@ -51,22 +53,46 @@ end  = struct
 end
 
 type t =
-  { max_concurrent_jobs : int;
-    continue_on_error : bool;
+  { continue_on_error : bool;
+    max_concurrent_jobs : int;
+    (* [0 <= num_jobs_running <= max_concurrent_jobs]. *)
+    mutable num_jobs_running : int;
+    (* [job_reader] and [job_writer] are the two ends of the pipe of jobs that the
+       throttle hasn't yet started. *)
     job_reader : Internal_job.t Pipe.Reader.t;
     job_writer : Internal_job.t Pipe.Writer.t;
+    (* The throttle has background uthreads running [job_runner], which reads jobs from
+       [job_reader] and runs them.  [am_reading_job] reflects whether [job_runner] is
+       currently in the middle of a [Pipe.read] call.  This is used to ensure that at most
+       one [job_runner] has an active [Pipe.read]. *)
+    mutable am_reading_job : bool;
+    mutable is_dead : bool;
   }
 with fields, sexp_of
 
 let num_jobs_waiting_to_start t = Pipe.length t.job_reader
 
-let invariant t =
-  assert (t.max_concurrent_jobs > 0);
-  Pipe.Reader.invariant t.job_reader;
-  Pipe.Writer.invariant t.job_writer;
+let invariant t : unit =
+  try
+    let check f field = f (Field.get field t) in
+    Fields.iter
+      ~continue_on_error:ignore
+      ~max_concurrent_jobs:(check (fun max_concurrent_jobs ->
+        assert (max_concurrent_jobs > 0)))
+      ~num_jobs_running:(check (fun num_jobs_running ->
+        assert (num_jobs_running >= 0);
+        assert (num_jobs_running <= t.max_concurrent_jobs)))
+      ~am_reading_job:(check (fun am_reading_job ->
+        if t.is_dead then assert (not am_reading_job)))
+      ~is_dead:ignore
+      ~job_reader:(check Pipe.Reader.invariant)
+      ~job_writer:(check Pipe.Writer.invariant)
+  with exn ->
+    failwiths "Throttle.invariant failed" (exn, t) <:sexp_of< exn * t >>
 ;;
 
 let kill t =
+  t.is_dead <- true;
   begin match Pipe.read_now t.job_reader with
   | `Eof | `Nothing_available -> ()
   | `Ok q -> Queue.iter q ~f:Internal_job.abort
@@ -74,19 +100,33 @@ let kill t =
   Pipe.close_read t.job_reader;
 ;;
 
-let one_job_runner t =
-  don't_wait_for (Deferred.repeat_until_finished () (fun () ->
+let rec job_runner t =
+  if not t.is_dead
+    && not t.am_reading_job
+    && t.num_jobs_running < t.max_concurrent_jobs
+  then begin
+    t.am_reading_job <- true;
     Pipe.read t.job_reader
-    >>= function
-    | `Eof -> return (`Finished ())
-    | `Ok job ->
-      Internal_job.run job
-      >>| function
-      | `Ok -> `Repeat ()
-      | `Raised ->
-        if t.continue_on_error
-        then `Repeat ()
-        else (kill t; `Finished ())))
+    >>> fun res ->
+    t.am_reading_job <- false;
+    match res with
+     | `Eof ->
+       (* There is nothing in the API allowing [t.job_writer] to be closed.  However, the
+          the throttle may, via [kill], close [t.job_reader], which would cause a
+          [job_runner] that reads from the pipe to end up here. *)
+       ()
+     | `Ok job ->
+       t.num_jobs_running <- t.num_jobs_running + 1;
+       job_runner t;
+       Internal_job.run job
+       >>> fun res ->
+       t.num_jobs_running <- t.num_jobs_running - 1;
+       begin match res with
+       | `Ok -> ()
+       | `Raised -> if not t.continue_on_error then kill t
+       end;
+       job_runner t;
+  end;
 ;;
 
 let create ~continue_on_error ~max_concurrent_jobs =
@@ -97,13 +137,14 @@ let create ~continue_on_error ~max_concurrent_jobs =
   let t =
     { max_concurrent_jobs;
       continue_on_error;
+      am_reading_job = false;
+      num_jobs_running = 0;
+      is_dead = false;
       job_reader;
       job_writer;
     }
   in
-  for _i = 1 to max_concurrent_jobs; do
-    one_job_runner t;
-  done;
+  job_runner t;
   t
 ;;
 
@@ -121,10 +162,12 @@ module Job = struct
   ;;
 end
 
-let enqueue_job t job = don't_wait_for (Pipe.write t.job_writer job.Job.internal_job)
+let enqueue_job t job =
+  if t.is_dead then failwith "cannot enqueue a job in dead throttle";
+  don't_wait_for (Pipe.write t.job_writer job.Job.internal_job);
+;;
 
 let enqueue' t f =
-  if Pipe.is_closed t.job_writer then failwith "cannot enqueue to dead throttle";
   let job = Job.create f in
   enqueue_job t job;
   Job.result job;
@@ -199,6 +242,17 @@ TEST_MODULE = struct
     stabilize ();
     assert (match Deferred.peek d1 with Some (`Raised _) -> true | _ -> false);
     assert (match Deferred.peek d2 with Some (`Ok 13) -> true | _ -> false);
+  ;;
+
+  TEST_UNIT =
+    (* Check that jobs are started in the order they are enqueued. *)
+    let t = create ~continue_on_error:false ~max_concurrent_jobs:2 in
+    let r = ref [] in
+    for i = 0 to 99 do
+      don't_wait_for (enqueue t (fun () -> r := i :: !r; Deferred.unit));
+    done;
+    stabilize ();
+    assert (!r = List.rev (List.init 100 ~f:Fn.id));
   ;;
 
   TEST_UNIT =

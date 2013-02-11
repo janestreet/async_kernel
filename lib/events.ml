@@ -32,7 +32,7 @@ let invariant t =
       end;
       assert (not (is_ready t event)));
   with exn ->
-    failwiths "invariant failed" (exn, t) <:sexp_of< exn * __ t >>
+    failwiths "invariant failed" (exn, t) <:sexp_of< exn * _ t >>
 ;;
 
 let create ~now =
@@ -46,7 +46,7 @@ let iter t ~f = Heap.iter t.events ~f
 let next_upcoming t = Heap.top t.events
 
 let advance_clock t ~to_ =
-  if debug then Debug.log "Events.advance_clock" (to_, t) <:sexp_of< Time.t * __ t >>;
+  if debug then Debug.log "Events.advance_clock" (to_, t) <:sexp_of< Time.t * _ t >>;
   if Time.(to_ <= t.now) then
     `Not_in_the_future
   else begin
@@ -63,7 +63,7 @@ let advance_clock t ~to_ =
 ;;
 
 let add t ~at value =
-  if debug then Debug.log "Events.add" (at, t) <:sexp_of< Time.t * __ t >>;
+  if debug then Debug.log "Events.add" (at, t) <:sexp_of< Time.t * _ t >>;
   if Time.(at <= t.now) then
     `Not_in_the_future
   else begin
@@ -80,7 +80,7 @@ let add t ~at value =
 ;;
 
 let remove t event =
-  if debug then Debug.log "Events.remove" (event, t) <:sexp_of< __ Event.t * __ t >>;
+  if debug then Debug.log "Events.remove" (event, t) <:sexp_of< _ Event.t * _ t >>;
   match event.Event.heap_element with
   | None -> `Not_present
   | Some heap_element ->
