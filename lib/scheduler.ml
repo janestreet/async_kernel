@@ -129,7 +129,7 @@ let run_cycle t =
     (* This could conceivably happen with NTP tweaking the clock.  There's no reason
        to do anything other than press on. *)
     ()
-  | `Ok events -> List.iter events ~f:Clock_event.fire
+  | `Ok jobs -> List.iter jobs ~f:(fun job -> Jobs.add t.jobs Priority.normal job)
   end;
   schedule_finalizers t;
   Jobs.start_cycle t.jobs

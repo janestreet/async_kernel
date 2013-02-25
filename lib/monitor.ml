@@ -200,21 +200,27 @@ let stream_iter stream ~f =
   loop stream
 ;;
 
-let try_with ?here ?info ?(name = "try_with") ?(run = `Schedule) ?(rest = `Ignore) f =
+let try_with ?here ?info
+    ?(name = "try_with")
+    ?extract_exn:(do_extract_exn = false)
+    ?(run = `Schedule)
+    ?(rest = `Ignore) fct =
   let module S = Stream in
   let parent = current () in
   let monitor = create_with_parent ?here ?info ~name (Some parent) in
   let errors = errors monitor in
   let f =
     match run with
-    | `Now      -> within'   ~monitor f
-    | `Schedule -> schedule' ~monitor f
+    | `Now      -> within'   ~monitor fct
+    | `Schedule -> schedule' ~monitor fct
   in
   choose [ choice f (fun x -> (Ok x, errors));
            choice (S.next errors)
              (function
              | S.Nil -> assert false
-             | S.Cons (err, errors) -> (Error err, Stream.of_raw errors));
+             | S.Cons (err, errors) ->
+               let err = if do_extract_exn then extract_exn err else err in
+               (Error err, Stream.of_raw errors));
          ]
   >>| fun (res, errors) ->
   begin match rest with

@@ -12,7 +12,7 @@ end
 
 type 'a t with sexp_of
 
-val invariant : _ t -> unit
+include Invariant.S1 with type 'a t := 'a t
 
 val create : now:Time.t -> _ t
 

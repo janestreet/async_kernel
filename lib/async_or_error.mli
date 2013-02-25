@@ -1,9 +1,10 @@
+
 (** This module is the deferred analog of [Core.Or_error]. It is exposed in std.ml as
     [Deferred.Or_error].
 
     The mental model for a function returning an ['a Deferred.Or_error.t] is that the
-    function never raises. All error cases are caught and expressed as an [Error _]
-    result. This module preserves that property.
+    function never raises.  All error cases are caught and expressed as an [Error _]
+    result.  This module preserves that property.
 
     Unfortunately, there is no way to enforce this property using the type system, so it
     is more like a convention, or idiom.  A function whose type ends with [... -> 'a
@@ -25,36 +26,44 @@ open Core.Std
 
 type 'a t = 'a Or_error.t Deferred.t
 
+(** [return x = Deferred.return (Ok x)] **)
 include Monad.S with type 'a t := 'a t
 
-val return : 'ok -> 'ok t
+(** [fail error = Deferred.return (Error error)] **)
 val fail : Error.t -> _ t
+
+(** These functions are direct analogs of the corresponding [Core.Or_error] functions. *)
+val ok_exn : 'a t -> 'a Deferred.t
 val of_exn : exn -> _ t
+val of_exn_result : ('a, exn) Result.t Deferred.t -> 'a t
+val error : string -> 'a -> ('a -> Sexp.t) -> _ t
+val error_string : string -> _ t
+val unimplemented : string -> _ t
+val combine_errors : 'a t list -> 'a list t
+val combine_errors_unit : unit t list -> unit t
 
-val failwith : string -> _ t
-
+(** [ok_unit = return ()] *)
 val ok_unit : unit t
 
-val never : unit -> _ t
+(** [try_with f] catches exceptions thrown by [f] and returns them in the Result.t as an
+    Error.t.  [try_with_join] is like [try_with], except that [f] can throw exceptions or
+    return an [Error] directly, without ending up with a nested error; it is equivalent to
+    [try_with f >>| Result.join].
 
-
-(** This interface is more generic than [unit -> 'a Deferred.t].  Various use cases:
-
-    {[
-      Or_error.try_with ~f:fct arg
-    ]}
-    {[
-      Or_error.try_with () ~f:(fun () -> ...)
-    ]}
-    {[
-      let f_or_exn = Or_error.try_with ~f
-    ]}
-
-    The label is essentially there to inverse the order with unit if the body
-    of the function is big. *)
-val try_with      : ?name:string -> f:('arg -> 'a Deferred.t) -> 'arg -> 'a t
-val try_with_join : ?name:string -> f:('arg -> 'a          t) -> 'arg -> 'a t
+    The option [extract_exn] is passed along to [Monitor.try_with ?extract_exn] and
+    specifies whether or not the monitor exn wrapper should be skipped ([extract_exn:true]
+    or kept ([extract_exn:false]). *)
+val try_with
+  :  ?extract_exn:bool (* default is [false] *)
+  -> ?name:string
+  -> (unit -> 'a Deferred.t)
+  -> 'a t
+val try_with_join
+  : ?extract_exn:bool (* default is [false] *)
+  -> ?name:string
+  -> (unit -> 'a t)
+  -> 'a t
 
 module List : Deferred_intf.Monad_sequence
   with type 'a monad := 'a t
-  with type 'a t := 'a list
+    with type 'a t := 'a list

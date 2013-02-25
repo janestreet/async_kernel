@@ -343,7 +343,7 @@ val read_all : 'a Reader.t -> 'a Queue.t Deferred.t
 
 (** [values_available reader] returns a deferred that becomes determined when there are
     values in the pipe.  If there are multiple readers (a rare situation), there is no
-    guarantee, that some other reader hasn't become active because of ordinary async
+    guarantee that some other reader hasn't become active because of ordinary async
     scheduling and removed some or all of the values between the time the result of
     [values_available] becomes determined and the time something waiting [upon] that
     result runs.

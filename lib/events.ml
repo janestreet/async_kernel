@@ -23,14 +23,15 @@ let is_empty t = Heap.is_empty t.events
 
 let is_ready t event = Time.(event.Event.at <= t.now)
 
-let invariant t =
+let invariant invariant_a t =
   try
     Heap.iter t.events ~f:(fun event ->
       begin match event.Event.heap_element with
       | None -> assert false
       | Some heap_el -> assert (Heap.heap_el_mem t.events heap_el)
       end;
-      assert (not (is_ready t event)));
+      assert (not (is_ready t event));
+      invariant_a (Event.value event))
   with exn ->
     failwiths "invariant failed" (exn, t) <:sexp_of< exn * _ t >>
 ;;

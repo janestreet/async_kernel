@@ -11,7 +11,7 @@ end
 
 type 'job t with sexp_of
 
-val invariant : _ t -> unit
+include Invariant.S1 with type 'a t := 'a t
 
 val create : dummy:'a -> 'a t
 

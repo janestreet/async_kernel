@@ -1,7 +1,6 @@
 open Core.Std
 
 module Execution_context = Execution_context
-module Clock_event = Raw_clock_event
 module Ivar = Raw_ivar
 module Tail = Raw_tail
 
@@ -30,8 +29,7 @@ module T = struct
       cycle_times : Time.Span.t tail;
       mutable last_cycle_num_jobs : int;
       cycle_num_jobs : int tail;
-      events : Execution_context.t Clock_event.t Events.t;
-
+      events : Execution_context.t Job.t Events.t;
       (* OCaml finalizers can run at any time and in any thread.  When an OCaml finalizer
          fires, we have it put a job that runs the async finalizer in the thread-safe
          queue of [finalizer_jobs], and call [thread_safe_finalizer_hook].  In
@@ -50,7 +48,7 @@ let invariant t : unit =
     let check f field = f (Field.get field t) in
     Fields.iter
       ~check_access:ignore
-      ~jobs:(check Jobs.invariant)
+      ~jobs:(check (Jobs.invariant (Job.invariant Execution_context.invariant)))
       ~main_execution_context:(check Execution_context.invariant)
       ~current_execution_context:(check Execution_context.invariant)
       ~max_num_jobs_per_priority_per_cycle:
@@ -66,20 +64,7 @@ let invariant t : unit =
       ~last_cycle_num_jobs:(check (fun last_cycle_num_jobs ->
         assert (last_cycle_num_jobs >= 0)))
       ~cycle_num_jobs:ignore
-      ~events:(check (fun events ->
-        Events.invariant events;
-        try
-          Events.iter events ~f:(fun events_event ->
-            let event = Events.Event.value events_event in
-            let module E = Clock_event in
-            match event.E.state with
-            | E.Waiting { E. event = events_event'; ready } ->
-              assert (phys_equal events_event events_event');
-              assert (Ivar.is_empty ready);
-            | _ -> assert false);
-        with exn ->
-          failwiths "events problem" (exn, events)
-            (<:sexp_of< exn * Execution_context.t Clock_event.t Events.t >>)))
+      ~events:(check (Events.invariant (Job.invariant Execution_context.invariant)))
       ~finalizer_jobs:ignore
       ~thread_safe_finalizer_hook:ignore
     ;
@@ -90,7 +75,7 @@ let invariant t : unit =
 let create () =
   let now = Time.epoch in
   { check_access = None;
-    jobs = Jobs.create ~dummy:(Job.create Execution_context.main Fn.ignore ());
+    jobs = Jobs.create ~dummy:(Job.do_nothing Execution_context.main);
     current_execution_context = Execution_context.main;
     main_execution_context = Execution_context.main;
     max_num_jobs_per_priority_per_cycle = 500;

@@ -1,34 +1,35 @@
-(** Clock includes functions to create deferreds that become determined at a certain time.
+(** Schedule jobs to run at a time in the future.
 
-    The underlying implementation uses a heap of events, one for each deferred that needs
-    to be determined at some time in the future.  It uses the timeout argument to select()
-    in the core select loop to wake up and fill in the deferreds. *)
+    The underlying implementation uses a heap of events, one for each job that needs to
+    run in the future.  The async scheduler is responsible for waking up at the right time
+    to run the jobs.
+*)
 
 open Core.Std
 
-(** Events provide a way to "abort" [at] and [after] requests. *)
-module Event: sig
-  type t
+(** [run_at time f a] runs [f a] as soon as possible after [time].  If [time] is in the
+    past, then [run_at] will immediately schedule a job t that will run [f a].  In no
+    situation will [run_at] actually call [f] itself.  The call to [f] will always be in
+    another job.
 
-  val status : t -> [ `Happened | `Waiting | `Aborted ]
-  val abort : t -> [ `Ok | `Previously_aborted | `Previously_happened ]
-end
+    [run_after] is like [run_at], except that one specifies a time span rather than an
+    absolute time. *)
+val run_at    : Time.t      -> ('a -> unit) -> 'a -> unit
+val run_after : Time.Span.t -> ('a -> unit) -> 'a -> unit
 
-(** [after span] returns a deferred [d] that will become determined after the span of time
-    passes.  If the [span] is nonpositive, then the deferred will be immediately
-    determined.
+(** [at time] returns a deferred [d] that will become determined as soon as possible after
+    [time]
+
+    [after] is like [at], except that one specifies a time span rather than an absolute
+    time.
 
     If you set up a lot of [after] events at the beginning of your program they will
-    trigger at the same time.  Use [Time.Span.randomize] to even that out.
+    trigger at the same time.  Use [Time.Span.randomize] to even that out. *)
+val at    : Time.t      -> unit Deferred.t
+val after : Time.Span.t -> unit Deferred.t
 
-    For [after_event], if the event is aborted and [d] is not yet determined, then
-    [d] will never become determined, and no more space will be required for tracking the
-    event, i.e. the corresponding element will be removed from the heap. *)
-val after       : Time.Span.t -> unit Deferred.t
-val after_event : Time.Span.t -> [ `Happened | `Aborted ] Deferred.t * Event.t
-
-(** [with_timeout span d] does pretty much what one can expect.  Note that at the point of
-    checking, if [d] is determined and the timeout has expired, the resulting deferred
+(** [with_timeout span d] does pretty much what one would expect.  Note that at the point
+    of checking if [d] is determined and the timeout has expired, the resulting deferred
     will be determined with [`Result].  In other words, since there is inherent race
     between [d] and the timeout, the preference is given to [d]. *)
 val with_timeout
@@ -38,17 +39,27 @@ val with_timeout
      | `Result of 'a
      ] Deferred.t
 
-(** [at time] returns a deferred [d] that will become determined as soon as possible after
-    the specified time.  Of course, it can't become determined before [at] is called, so
-    calling [at] on a time not in the future will return a deferred that is immediately
-    determined.
+(** Events provide abortable versions of [at] and [after]. *)
+module Event: sig
+  type t with sexp_of
 
-    For [at_event], if the event is aborted and the result of [at] is not yet determined,
-    then the result will never become determined, and no more space will be required by
-    async for tracking the [at], i.e. the corresponding element will be removed from the
-    heap. *)
-val at       : Time.t -> unit Deferred.t
-val at_event : Time.t -> [ `Happened | `Aborted ] Deferred.t * Event.t
+  include Invariant.S with type t := t
+
+  val status : t -> [ `Happened | `Waiting | `Aborted ]
+  val abort : t -> [ `Ok | `Previously_aborted | `Previously_happened ]
+
+  (* [at time] returns a pair [d, e], where [d] is like [at time], except that if
+     one calls [abort e] prior to [d] becoming determined, then [d] will become determined
+     with [`Aborted].
+
+     [after] is like [at], except that one specifies a time span rather than an absolute
+     time.
+
+     For both [at] and [after], once an event is aborted, async doesn't use any space for
+     tracking it. *)
+  val at    : Time.t      -> t * [ `Happened | `Aborted ] Deferred.t
+  val after : Time.Span.t -> t * [ `Happened | `Aborted ] Deferred.t
+end
 
 (** [at_varying_intervals f ?stop] returns a stream whose next element becomes determined
     by calling [f ()] and waiting for that amount of time, and then looping to determine

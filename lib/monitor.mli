@@ -89,9 +89,16 @@ val send_exn : t -> ?backtrace:[ `Get | `This of string ] -> exn -> unit
     [rest = `Raise].
 
     The [name] argument is used to give a name to the monitor the computation will be
-    running in.  This name will appear when printing errors. *)
+    running in.  This name will appear when printing errors.
+
+    If [extract_exn = true], then in an [Error exn] result, the [exn] will be the actual
+    exception raised by the computation.  If [extract_exn = false], then the [exn] will
+    include additional information, like the monitor and backtrace.  One typically wants
+    [extract_exn = false] due to the additional information.  However, sometimes one wants
+    the concision of [extract_exn = true]. *)
 val try_with
-  : (?run : [ `Now | `Schedule ]  (* default is `Schedule *)
+  : (?extract_exn : bool (* default is false *)
+     -> ?run : [ `Now | `Schedule ]  (* default is `Schedule *)
      -> ?rest : [ `Ignore | `Raise ] (* default is `Ignore *)
      -> (unit -> 'a Deferred.t)
      -> ('a, exn) Result.t Deferred.t

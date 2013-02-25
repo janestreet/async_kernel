@@ -14,7 +14,7 @@ end
 module Jobs_at_priority : sig
   type 'job t with sexp_of
 
-  val invariant : _ t -> unit
+  include Invariant.S1 with type 'a t := 'a t
 
   val create : dummy:'a -> 'a t
   val add : 'job t -> 'job -> unit
@@ -31,8 +31,9 @@ end = struct
     }
   with sexp_of
 
-  let invariant t =
+  let invariant job_invariant t =
     assert (t.jobs_left_this_cycle >= 0);
+    Q.iter t.jobs ~f:job_invariant;
   ;;
 
   let create ~dummy =
@@ -82,11 +83,12 @@ type 'job t =
   }
 with fields, sexp_of
 
-let invariant t : unit =
+let invariant job_invariant t : unit =
   let check invariant field = invariant (Field.get field t) in
+  let jap_invariant = Jobs_at_priority.invariant job_invariant in
   Fields.iter
-    ~normal:(check Jobs_at_priority.invariant)
-    ~low:   (check Jobs_at_priority.invariant)
+    ~normal:(check jap_invariant)
+    ~low:   (check jap_invariant)
 ;;
 
 let create ~dummy =
