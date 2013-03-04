@@ -1,5 +1,15 @@
-(** [Config] has various settings that globally affect the behavior of async.  These are
-    set by setting an environment variable to a sexp representation of the config. *)
+(** Settings that globally affect the behavior of async.
+
+    These can be set by setting an environment variable, {v ASYNC_CONFIG}, to a sexp
+    representation of the config.  Also, setting {v ASYNC_CONFIG} to an invalid sexp
+    (e.g. the empty string), will cause your program to print to stderr a usage message
+    describing how to configure {v ASYNC_CONFIG}, and exit nonzero.  For example, the
+    following shell command should print the usage message:
+
+    {v
+      ASYNC_CONFIG= foo.exe
+    v}
+*)
 open Core.Std
 
 type t with sexp_of
