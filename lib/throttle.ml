@@ -93,7 +93,7 @@ let invariant t : unit =
 
 let kill t =
   t.is_dead <- true;
-  begin match Pipe.read_now t.job_reader with
+  begin match Pipe.read_now' t.job_reader with
   | `Eof | `Nothing_available -> ()
   | `Ok q -> Queue.iter q ~f:Internal_job.abort
   end;

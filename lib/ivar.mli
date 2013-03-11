@@ -17,7 +17,10 @@ val equal : 'a t -> 'a t -> bool
 val create : unit -> 'a t
 
 (** [fill t v] fills [t] with value [v] if [t] was empty.  If [t] was full, fill raises
-    an exception. *)
+    an exception.
+
+    It is guaranteed that immediately after calling [fill t],
+    [is_some (Deferred.peek (read t))]. *)
 val fill : 'a t -> 'a -> unit
 
 (** [fill_if_empty t v] fills [t] with [v] if [t] is currently empty.  If [t] is full,
@@ -52,5 +55,3 @@ end
 (** [read t] returns a deferred that becomes enabled with value [v] after the ivar is
     filled with [v]. *)
 val read : 'a t -> 'a Deferred.t
-
-

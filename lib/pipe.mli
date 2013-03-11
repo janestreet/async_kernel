@@ -319,17 +319,24 @@ val read_exactly
      | `Exactly of 'a Queue.t (* Q.length q = num_values *)
      ] Deferred.t
 
-(** [read_now reader] reads all of the values from [reader] that are immediately
+(** [read_now' reader] reads all of the values from [reader] that are immediately
     available.  The resulting queue will satisfy [Q.length q > 0].  If [reader] is closed,
-    [read_now] returns [`Eof].  If [reader] is empty, [read_now] returns
-    [`Nothing_available].  [read_now] has the danger of permitting the computation to
+    [read_now'] returns [`Eof].  If [reader] is empty, [read_now'] returns
+    [`Nothing_available].  [read_now'] has the danger of permitting the computation to
     "spin" doing empty reads; it is only useful in exotic circumstances.  The [consumer]
     is used to extend the meaning of values being flushed (see the [Consumer] module
-    above). *)
-val read_now
+    above).
+
+    [read_now] is like [read_now'], except that it reads a single value rather than
+    everything that is available. *)
+val read_now'
   :  ?consumer:Consumer.t
   -> 'a Reader.t
   -> [ `Eof | `Nothing_available | `Ok of 'a Queue.t ]
+val read_now
+  :  ?consumer:Consumer.t
+  -> 'a Reader.t
+  -> [ `Eof | `Nothing_available | `Ok of 'a ]
 
 val peek : 'a Reader.t -> 'a option
 

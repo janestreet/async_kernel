@@ -467,7 +467,7 @@ let start_read t label =
   if !check_invariant then invariant t;
 ;;
 
-let read_now ?consumer t =
+let gen_read_now ?consumer t consume =
   start_read t "read_now";
   if is_empty t then begin
     if is_closed t then
@@ -475,21 +475,24 @@ let read_now ?consumer t =
     else
       `Nothing_available
   end else begin
-    assert (Q.is_empty t.blocked_reads);
-    `Ok (consume_all t consumer)
+    assert (Q.is_empty t.blocked_reads); (* from [invariant] and [not (is_empty t)] *)
+    `Ok (consume t consumer)
   end
 ;;
+
+let read_now' ?consumer t = gen_read_now t ?consumer consume_all
+let read_now  ?consumer t = gen_read_now t ?consumer consume_one
 
 let peek t = Queue.peek t.buffer
 
 let clear t =
-  match read_now t with
+  match read_now' t with
   | `Eof | `Nothing_available | `Ok _ -> ()
 ;;
 
 let read' ?consumer t =
   start_read t "read'";
-  match read_now t ?consumer with
+  match read_now' t ?consumer with
   | (`Ok _ | `Eof) as r -> return r
   | `Nothing_available  ->
     Deferred.create (fun ivar ->
@@ -534,7 +537,8 @@ let values_available t =
   if not (is_empty t)
   then return `Ok
   else if is_closed t
-  then return `Eof
+  then
+    return `Eof
   else
     Deferred.create (fun ivar ->
       Q.enqueue t.blocked_reads (Blocked_read.(create (Zero ivar)) None))
@@ -616,11 +620,11 @@ type ('a, 'b, 'c, 'accum) fold =
   -> f:('accum -> 'b -> 'c)
   -> 'accum Deferred.t
 
-let fold_gen ?consumer t ~init ~f =
+let fold_gen (read : ?consumer:Consumer.t -> _ Reader.t -> _) ?consumer t ~init ~f =
   if !check_invariant then invariant t;
   Deferred.create (fun finished ->
     let rec loop b =
-      read' t ?consumer >>> function
+      read t ?consumer >>> function
       | `Eof  -> Ivar.fill finished b
       | `Ok q -> f b q loop
     in
@@ -628,20 +632,12 @@ let fold_gen ?consumer t ~init ~f =
 ;;
 
 let fold' ?consumer t ~init ~f =
-  fold_gen ?consumer t ~init ~f:(fun b q loop -> f b q >>> loop)
+  fold_gen read' ?consumer t ~init ~f:(fun b q loop -> f b q >>> loop)
 ;;
 
 let fold ?consumer t ~init ~f =
-  fold_gen ?consumer t ~init ~f:(fun init q loop -> loop (Q.fold q ~init ~f))
+  fold_gen read ?consumer t ~init ~f:(fun init a loop -> loop (f init a))
 ;;
-
-let iter_gen ?consumer t ~f =
-  fold_gen ?consumer t ~init:() ~f:(fun () q loop -> f q loop)
-;;
-
-let drain t = iter_gen t ~f:(fun _ loop -> loop ())
-
-let drain_and_count t = fold_gen t ~init:0 ~f:(fun sum q loop -> loop (sum + Q.length q))
 
 type ('a, 'b, 'c) iter =
   ?consumer:Consumer.t
@@ -662,22 +658,15 @@ let with_error_to_current_monitor ?(continue_on_error = false) f a =
 ;;
 
 let iter' ?consumer ?continue_on_error t ~f =
-  fold_gen ?consumer t ~init:() ~f:(fun () q loop ->
-    with_error_to_current_monitor ?continue_on_error f q >>> loop)
+  fold' ?consumer t ~init:() ~f:(fun () q ->
+    with_error_to_current_monitor ?continue_on_error f q)
 ;;
 
 let iter ?consumer ?continue_on_error t ~f =
-  iter' ?consumer t ~f:(fun q ->
-    Deferred.create (fun finished ->
-      let rec loop () =
-        match Queue.dequeue q with
-        | None -> Ivar.fill finished ()
-        | Some a ->
-          with_error_to_current_monitor ?continue_on_error f a
-          >>> fun () ->
-          loop ()
-      in
-      loop ()))
+  fold_gen read ?consumer t ~init:() ~f:(fun () a loop ->
+    with_error_to_current_monitor ?continue_on_error f a
+    >>> fun () ->
+    loop ())
 ;;
 
 (* [iter_without_pushback] is a common case, so we implement it in an optimized
@@ -691,17 +680,25 @@ let iter_without_pushback ?consumer ?(continue_on_error = false) t ~f =
   in
   Deferred.create (fun finished ->
     let rec loop () =
-      read' t ?consumer
-      >>> function
+      match read_now t ?consumer with
       | `Eof -> Ivar.fill finished ()
-      | `Ok q -> Queue.iter q ~f; loop ()
+      | `Ok a -> f a; loop ()
+      | `Nothing_available ->
+        read t ?consumer
+        >>> function
+        | `Eof -> Ivar.fill finished ()
+        | `Ok a -> f a; loop ()
     in
     loop ())
 ;;
 
+let drain t = iter' t ~f:(fun _ -> Deferred.unit)
+
+let drain_and_count t = fold' t ~init:0 ~f:(fun sum q -> return (sum + Q.length q))
+
 let read_all input =
   let result = Q.create () in
-  iter_gen input ~f:(fun q loop -> Q.transfer ~src:q ~dst:result; loop ());
+  iter' input ~f:(fun q -> Q.transfer ~src:q ~dst:result; Deferred.unit)
   >>| fun () ->
   result
 ;;
@@ -755,7 +752,8 @@ let of_stream_deprecated s =
   r
 ;;
 
-let transfer_gen input output ~f =
+let transfer_gen
+    (read : ?consumer:Consumer.t -> _ Reader.t -> _) write input output ~f =
   if !check_invariant then begin
     invariant input;
     invariant output;
@@ -774,15 +772,15 @@ let transfer_gen input output ~f =
       | `Output_closed -> output_closed ()
       | `Eof -> Ivar.fill result ()
       | `Ok ->
-        match read_now input ~consumer with
+        match read input ~consumer with
         | `Eof -> Ivar.fill result ()
         | `Nothing_available -> loop ()
-        | `Ok inq -> f inq continue
-    and continue outq =
+        | `Ok x -> f x continue
+    and continue y =
       if is_closed output
       then output_closed ()
       else begin
-        let pushback = write' output outq in
+        let pushback = write output y in
         Consumer.values_sent_downstream consumer;
         pushback
         >>> fun () ->
@@ -792,21 +790,37 @@ let transfer_gen input output ~f =
     loop ())
 ;;
 
-let transfer'   input output ~f = transfer_gen input output ~f:(fun q k -> f q >>> k)
-let transfer    input output ~f = transfer_gen input output ~f:(fun q k -> k (Q.map q ~f))
-let transfer_id input output    = transfer_gen input output ~f:(fun q k -> k q)
+let transfer' input output ~f =
+  transfer_gen read_now' write' input output ~f:(fun q k -> f q >>> k)
+;;
 
-let map_gen input ~f =
-  let (result, output) = create () in
-  upon (transfer_gen input output ~f) (fun () -> close output);
+let transfer input output ~f =
+  transfer_gen read_now write input output ~f:(fun a k -> k (f a))
+;;
+
+let transfer_id input output =
+  transfer_gen read_now' write' input output ~f:(fun q k -> k q)
+;;
+
+let map_gen read write input ~f =
+  let result, output = create () in
+  upon (transfer_gen read write input output ~f) (fun () -> close output);
   result
 ;;
 
-let map' input ~f = map_gen input ~f:(fun q k -> f q >>> k)
-let map  input ~f = map_gen input ~f:(fun q k -> k (Q.map q ~f))
+let map' input ~f = map_gen read_now' write' input ~f:(fun q k -> f q >>> k)
+let map  input ~f = map_gen read_now  write  input ~f:(fun a k -> k (f a))
 
-let filter_map' input ~f = map'    input ~f:(fun q -> Deferred.Queue.filter_map q ~f)
-let filter_map  input ~f = map_gen input ~f:(fun q k -> k (Q.filter_map q ~f))
+let filter_map' input ~f = map' input ~f:(fun q -> Deferred.Queue.filter_map q ~f)
+
+let filter_map input ~f =
+  let write t a_option =
+    match a_option with
+    | None -> pushback t
+    | Some a -> write t a
+  in
+  map_gen read_now write input ~f:(fun a k -> k (f a))
+;;
 
 let filter input ~f = filter_map input ~f:(fun x -> if f x then Some x else None)
 
@@ -906,7 +920,7 @@ TEST_MODULE = struct
       (function `Ok q -> Q.to_list q | _ -> assert false);
     check_read (fun r -> read_exactly r ~num_values:1)
       (function `Exactly q -> Q.to_list q | _ -> assert false);
-    check_read (fun r -> return (read_now r))
+    check_read (fun r -> return (read_now' r))
       (function `Ok q -> Q.to_list q | _ -> assert false);
     check_read read_all Q.to_list;
   ;;
@@ -978,7 +992,7 @@ TEST_MODULE = struct
     let p = write writer () in
     stabilize ();
     assert (Deferred.peek p = None);
-    ignore (read_now reader);
+    ignore (read_now' reader);
     stabilize ();
     assert (Deferred.peek p = Some ());
   ;;
@@ -1074,10 +1088,10 @@ TEST_MODULE = struct
     let reader = map reader ~f:(fun x -> x + 13) in
     don't_wait_for (write' writer (Q.of_list [ 1; 2; 3 ]));
     let d =
-      read_at_most reader ~num_values:2
+      read_exactly reader ~num_values:2
       >>| function
-      | `Eof -> assert false
-      | `Ok q -> close_read reader; q
+      | `Eof | `Fewer _ -> assert false
+      | `Exactly q -> close_read reader; q
     in
     stabilize ();
     assert (is_closed writer);
@@ -1373,5 +1387,60 @@ TEST_MODULE = struct
     assert (flushed f7);
     assert (not (flushed f8));
     assert (not (flushed f9));
+  ;;
+
+  (* ==================== close_read and single-item processors ==================== *)
+  TEST_UNIT =
+    let i = ref 0 in
+    let r = of_list [ (); () ] in
+    don't_wait_for (fold r ~init:() ~f:(fun () () -> incr i; close_read r));
+    stabilize ();
+    assert (!i = 1);
+  ;;
+
+  TEST_UNIT =
+    let i = ref 0 in
+    let r = of_list [ (); () ] in
+    don't_wait_for (iter r ~f:(fun () -> incr i; close_read r; Deferred.unit));
+    stabilize ();
+    assert (!i = 1);
+  ;;
+
+  TEST_UNIT =
+    let i = ref 0 in
+    let r = of_list [ (); () ] in
+    don't_wait_for (iter_without_pushback r ~f:(fun () -> incr i; close_read r));
+    stabilize ();
+    assert (!i = 1);
+  ;;
+
+  TEST_UNIT =
+    let r = of_list [ (); () ] in
+    let r2, w2 = create () in
+    upon (transfer r w2 ~f:(fun () -> close_read r)) (fun () -> close w2);
+    let res = to_list r2 in
+    stabilize ();
+    assert (Deferred.peek res = Some [ () ]);
+  ;;
+
+  TEST_UNIT =
+    let r = of_list [ (); () ] in
+    let res = to_list (map r ~f:(fun () -> close_read r)) in
+    stabilize ();
+    assert (Deferred.peek res = Some [ () ]);
+  ;;
+
+  TEST_UNIT =
+    let r = of_list [ (); () ] in
+    let res = to_list (filter_map r ~f:(fun () -> close_read r; Some ())) in
+    stabilize ();
+    assert (Deferred.peek res = Some [ () ]);
+  ;;
+
+  TEST_UNIT =
+    let r = of_list [ (); () ] in
+    let res = to_list (filter r ~f:(fun () -> close_read r; true)) in
+    stabilize ();
+    assert (Deferred.peek res = Some [ () ]);
   ;;
 end
