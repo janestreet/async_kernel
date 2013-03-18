@@ -25,6 +25,12 @@ type t =
     monitor : t Monitor.t_ Backpatched.t;
     priority : Priority.t;
     backtrace_history : Backtrace.t list;
+    (* [kill_index] is a "cached" copy of [monitor]'s [kill_index].  This allows the
+       scheduler, when deciding whether to run a job, to do a fast check in the common
+       case that the execution context's [kill_index] is up to date, i.e. equal to the
+       scheduler's [global_kill_index].  If it's not, then the scheduler will update the
+       [kill_index] for itself and [monitor] (and [monitor]'s ancestors). *)
+    mutable kill_index : Kill_index.t;
   }
 with fields, sexp_of
 
@@ -39,6 +45,7 @@ let main =
     monitor = Backpatched.of_hole main_monitor_hole;
     priority = Priority.normal;
     backtrace_history = [];
+    kill_index = Kill_index.initial;
   }
 ;;
 
@@ -53,10 +60,12 @@ let create_like ?work_group ?monitor ?priority t =
     | Some a -> Backpatched.create a
   in
   let get o z = match o with None -> z | Some x -> x in
+  let monitor = backpatched monitor t.monitor in
   { work_group        = backpatched work_group t.work_group;
-    monitor           = backpatched monitor t.monitor;
+    monitor;
     priority          = get priority t.priority ;
     backtrace_history = t.backtrace_history;
+    kill_index        = Monitor.kill_index (Backpatched.get_exn monitor);
   }
 ;;
 

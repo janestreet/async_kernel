@@ -104,18 +104,25 @@ let force_current_cycle_to_end t = Jobs.force_current_cycle_to_end t.jobs
 let run_cycle t =
   let do_one job =
     let execution_context = Job.execution_context job in
-    if debug_run_job then
-      Debug.log "running job"
-        execution_context.Execution_context.backtrace_history
-        (<:sexp_of< Backtrace.t list >>);
-    t.num_jobs_run <- t.num_jobs_run + 1;
-    set_execution_context t execution_context;
-    (* [Job.run] may raise, in which case the exn is handled by [Jobs.run_all]. *)
-    Job.run job;
-    if debug_run_job then
-      Debug.log "finished running job"
-        execution_context.Execution_context.backtrace_history
-        (<:sexp_of< Backtrace.t list >>);
+    if not (Raw_scheduler.execution_context_is_alive t execution_context) then begin
+      if debug_run_job then
+        Debug.log "dropping job due to dead monitor"
+          execution_context.Execution_context.backtrace_history
+          (<:sexp_of< Backtrace.t list >>);
+    end else begin
+      if debug_run_job then
+        Debug.log "running job"
+          execution_context.Execution_context.backtrace_history
+          (<:sexp_of< Backtrace.t list >>);
+      t.num_jobs_run <- t.num_jobs_run + 1;
+      set_execution_context t execution_context;
+      (* [Job.run] may raise, in which case the exn is handled by [Jobs.run_all]. *)
+      Job.run job;
+      if debug_run_job then
+        Debug.log "finished running job"
+          execution_context.Execution_context.backtrace_history
+          (<:sexp_of< Backtrace.t list >>);
+    end
   in
   if debug then Debug.log "run_cycle starting" t <:sexp_of< t >>;
   let now = Time.now () in
@@ -160,6 +167,9 @@ let run_cycles_until_no_jobs_remain () =
     if not (Jobs.is_empty t.jobs) then loop ();
   in
   loop ();
+  (* Reset [current_execution_context] to maintain the invariant that when we're not in
+     a job, [current_execution_context = main_execution_context]. *)
+  set_execution_context t t.main_execution_context;
   if debug then Debug.log_string "run_cycles_until_no_jobs_remain finished";
 ;;
 
@@ -169,3 +179,51 @@ let reset_in_forked_process () =
   Backpatched.Hole.empty Execution_context.main_work_group_hole;
   Raw_scheduler.(t_ref := create ());
 ;;
+
+TEST_MODULE = struct
+  (* [Monitor.kill] *)
+  TEST_UNIT =
+    let m = Monitor.create ~name:"m" () in
+    assert (Monitor.is_alive m);
+    Monitor.kill m;
+    assert (not (Monitor.is_alive m));
+    assert Monitor.(is_alive main);
+    let r = ref true in
+    schedule ~monitor:m (fun () -> r := false);
+    run_cycles_until_no_jobs_remain ();
+    assert !r;
+    assert Monitor.(is_alive main);
+  ;;
+
+  (* [Monitor.kill] -- killing parent also kills child. *)
+  TEST_UNIT =
+    let m = Monitor.create ~name:"parent" () in
+    let r = ref true in
+    schedule ~monitor:m (fun () ->
+      schedule ~monitor:(Monitor.create ~name:"child" ()) (fun () -> r := false);
+      Monitor.kill m);
+    run_cycles_until_no_jobs_remain ();
+    assert !r;
+    assert Monitor.(is_alive main);
+  ;;
+
+  (* [Monitor.kill] -- killing child does not kill parent. *)
+  TEST_UNIT =
+    let m = Monitor.create ~name:"parent 2" () in
+    let r = ref false in
+    let r' = ref true in
+    let m' =
+      Option.value_exn (within_v ~monitor:m (fun () -> Monitor.create ~name:"child" ()))
+    in
+    Monitor.kill m';
+    schedule ~monitor:m  (fun () -> r  := true );
+    schedule ~monitor:m' (fun () -> r' := false);
+    run_cycles_until_no_jobs_remain ();
+    assert (Monitor.is_alive m);
+    assert (not (Monitor.is_alive m'));
+    assert Monitor.(is_alive main);
+    assert !r ;
+    assert !r';
+  ;;
+
+end

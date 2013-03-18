@@ -45,6 +45,7 @@ let create_with_parent ?here ?info ?name parent =
       errors = Tail.to_raw (Tail.create ());
       has_seen_error = false;
       someone_is_listening = false;
+      kill_index = Kill_index.initial;
     }
   in
   if debug then Debug.log "created monitor" t <:sexp_of< t >>;
@@ -262,3 +263,7 @@ let catch ?here ?info ?name f =
   | S.Cons (x, _) -> x
   | S.Nil -> failwith "Monitor.catch got unexpected empty stream"
 ;;
+
+let is_alive t = Scheduler.monitor_is_alive (Scheduler.t ()) t
+
+let kill t = Scheduler.kill_monitor (Scheduler.t ()) t

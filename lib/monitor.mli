@@ -136,6 +136,12 @@ val protect
 
 val main : t
 
+(** [kill t] causes [t] and all of [t]'s descendants to never run another job. *)
+val kill : t -> unit
+
+(** [is_alive t] returns [true] iff none of [t] or its ancestors have been killed. *)
+val is_alive : t -> bool
+
 module Exported_for_scheduler : sig
   type 'a with_options =
     ?work_group:Work_group.t

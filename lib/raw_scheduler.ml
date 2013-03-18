@@ -2,6 +2,7 @@ open Core.Std
 
 module Execution_context = Execution_context
 module Ivar = Raw_ivar
+module Monitor = Raw_monitor
 module Tail = Raw_tail
 
 let debug = Debug.scheduler
@@ -22,6 +23,7 @@ module T = struct
          of the monitor tree without being handled.  We guarantee to never run another job
          after this by clearing [jobs] and never adding another job. *)
       mutable uncaught_exn : Error.t option;
+      mutable global_kill_index : Kill_index.t;
       mutable num_jobs_run : int;
       mutable cycle_count : int;
       mutable cycle_start : Time.t;
@@ -56,6 +58,9 @@ let invariant t : unit =
         assert (max_num_jobs_per_priority_per_cycle > 0)))
       ~uncaught_exn:(check (fun uncaught_exn ->
         if is_some uncaught_exn then assert (Jobs.is_empty t.jobs)))
+      ~global_kill_index:(check (fun kill_index ->
+        Kill_index.invariant kill_index;
+        assert (not (Kill_index.equal kill_index Kill_index.dead))))
       ~num_jobs_run:(check (fun num_jobs_run -> assert (num_jobs_run >= 0)))
       ~cycle_count:(check (fun cycle_count -> assert (cycle_count >= 0)))
       ~cycle_start:ignore
@@ -80,6 +85,7 @@ let create () =
     main_execution_context = Execution_context.main;
     max_num_jobs_per_priority_per_cycle = 500;
     uncaught_exn = None;
+    global_kill_index = Kill_index.initial;
     num_jobs_run = 0;
     cycle_start = now;
     cycle_count = 0;
@@ -146,4 +152,26 @@ let got_uncaught_exn t error =
   if debug then Debug.log "got_uncaught_exn" error <:sexp_of< Error.t >>;
   Jobs.clear t.jobs;
   t.uncaught_exn <- Some error;
+;;
+
+let monitor_is_alive t monitor =
+  Monitor.update_kill_index monitor ~global_kill_index:t.global_kill_index;
+  Kill_index.equal monitor.Monitor.kill_index t.global_kill_index
+;;
+
+let execution_context_is_alive t execution_context =
+  let module E = Execution_context in
+  Kill_index.equal execution_context.E.kill_index t.global_kill_index
+  || (not (Kill_index.equal execution_context.E.kill_index Kill_index.dead)
+      && let monitor = Backpatched.get_exn execution_context.E.monitor in
+         let b = monitor_is_alive t monitor in
+         execution_context.E.kill_index <- monitor.Monitor.kill_index;
+         b)
+;;
+
+let kill_monitor t monitor =
+  if Debug.monitor then
+    Debug.log "kill_monitor" monitor <:sexp_of< _ Monitor.t_ >>;
+  monitor.Monitor.kill_index <- Kill_index.dead;
+  t.global_kill_index <- Kill_index.next t.global_kill_index;
 ;;
