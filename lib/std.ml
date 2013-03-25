@@ -17,7 +17,6 @@ module Pipe              = Pipe
 module Priority          = Priority
 module Stream            = Async_stream
 module Tail              = Tail
-module Thread_pool       = Thread_pool
 module Throttle          = Throttle
 module Sequencer         = Throttle.Sequencer
 

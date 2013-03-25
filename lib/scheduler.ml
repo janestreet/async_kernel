@@ -176,7 +176,6 @@ let run_cycles_until_no_jobs_remain () =
 let reset_in_forked_process () =
   if debug then Debug.log_string "reset_in_forked_process";
   (* There is no need to empty [main_monitor_hole]. *)
-  Backpatched.Hole.empty Execution_context.main_work_group_hole;
   Raw_scheduler.(t_ref := create ());
 ;;
 

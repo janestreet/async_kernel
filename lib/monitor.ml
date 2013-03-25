@@ -141,49 +141,48 @@ module Exported_for_scheduler = struct
   ;;
 
   type 'a with_options =
-    ?work_group:Work_group.t
-    -> ?monitor:t
+    ?monitor:t
     -> ?priority:Priority.t
     -> 'a
 
-  let within_gen ?work_group ?monitor ?priority f =
+  let within_gen ?monitor ?priority f =
     let tmp_context =
       Execution_context.create_like (current_execution_context ())
-        ?work_group ?monitor ?priority
+        ?monitor ?priority
     in
     within_context tmp_context f
   ;;
 
-  let within'        ?work_group ?monitor ?priority f =
-    match within_gen ?work_group ?monitor ?priority f with
+  let within'        ?monitor ?priority f =
+    match within_gen ?monitor ?priority f with
     | Error () -> Deferred.never ()
     | Ok d -> d
   ;;
 
-  let within_v       ?work_group ?monitor ?priority f =
-    match within_gen ?work_group ?monitor ?priority f with
+  let within_v       ?monitor ?priority f =
+    match within_gen ?monitor ?priority f with
     | Error () -> None
     | Ok x -> Some x
   ;;
 
-  let within         ?work_group ?monitor ?priority f =
-    match within_gen ?work_group ?monitor ?priority f with
+  let within         ?monitor ?priority f =
+    match within_gen ?monitor ?priority f with
     | Error () -> ()
     | Ok () -> ()
   ;;
 
-  let schedule ?work_group ?monitor ?priority work =
+  let schedule ?monitor ?priority work =
     let scheduler = Scheduler.t () in
     Scheduler.add_job scheduler
       (Job.create
          (Execution_context.create_like (Scheduler.current_execution_context scheduler)
-            ?work_group ?monitor ?priority)
+            ?monitor ?priority)
          work ())
   ;;
 
-  let schedule' ?work_group ?monitor ?priority work =
+  let schedule' ?monitor ?priority work =
     Deferred.create (fun i ->
-      schedule  ?work_group ?monitor ?priority
+      schedule  ?monitor ?priority
         (fun () -> upon (work ()) (fun a -> Ivar.fill i a)))
   ;;
 end

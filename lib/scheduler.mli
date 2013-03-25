@@ -38,8 +38,7 @@ val set_thread_safe_finalizer_hook : t -> (unit -> unit) -> unit
 val force_current_cycle_to_end : t -> unit
 
 type 'a with_options =
-  ?work_group:Work_group.t
-  -> ?monitor:Monitor.t
+  ?monitor:Monitor.t
   -> ?priority:Priority.t
   -> 'a
 val within'   : ((unit -> 'a Deferred.t) -> 'a Deferred.t) with_options

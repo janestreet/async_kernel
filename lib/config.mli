@@ -35,7 +35,7 @@ module Print_debug_messages_for : sig
 end
 
 module File_descr_watcher : sig
-  type t = Epoll | Select
+  type t = Epoll | Select with sexp_of
 end
 
 val check_invariants                  : bool

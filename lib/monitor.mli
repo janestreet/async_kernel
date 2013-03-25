@@ -136,7 +136,12 @@ val protect
 
 val main : t
 
-(** [kill t] causes [t] and all of [t]'s descendants to never run another job. *)
+(** [kill t] causes [t] and all of [t]'s descendants to never start another job.  The job
+    that calls [kill] will complete, even if it is a descendant of [t].
+
+    [kill] can break user expectations.  For example, users expect in [protect f ~finally]
+    that [finally] will eventually run.  However, if the monitor in which [finally] would
+    run is killed, then [finally] will never run. *)
 val kill : t -> unit
 
 (** [is_alive t] returns [true] iff none of [t] or its ancestors have been killed. *)
@@ -144,8 +149,7 @@ val is_alive : t -> bool
 
 module Exported_for_scheduler : sig
   type 'a with_options =
-    ?work_group:Work_group.t
-    -> ?monitor:t
+    ?monitor:t
     -> ?priority:Priority.t
     -> 'a
   val within'   : ((unit -> 'a Deferred.t) -> 'a Deferred.t) with_options
