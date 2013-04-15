@@ -169,7 +169,7 @@ let field_descriptions () : string =
                                     concat (List.map Debug_tag.list ~f:(fun d ->
                                       concat ["    "; Debug_tag.to_string d; "\n"]));
                                     "\
-\  Turning on debug messages will substantially slow down most programs.
+  Turning on debug messages will substantially slow down most programs.
 "
                                    ])
       ~record_backtraces:(field <:sexp_of< bool >>

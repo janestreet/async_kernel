@@ -2,7 +2,7 @@ OASISFormat:      0.3
 OCamlVersion:     >= 4.00.0
 FindlibVersion:   >= 1.3.2
 Name:             async_core
-Version:          109.15.00
+Version:          109.19.00
 Synopsis:         Jane Street Capital's asynchronous execution library (core)
 Authors:          Jane Street Capital LLC <opensource@janestreet.com>
 Copyrights:       (C) 2008-2013 Jane Street Capital LLC <opensource@janestreet.com>
@@ -14,7 +14,12 @@ Plugins:          StdFiles (0.3), DevFiles (0.3), META (0.3)
 XStdFilesAUTHORS: false
 XStdFilesREADME:  false
 BuildTools:       ocamlbuild, camlp4o
-Description:      Jane Street Capital's asynchronous execution library
+Description:
+  Part of Jane Street’s Core library.
+  .
+  The Core suite of libraries is an industrial strength alternative to
+  OCaml's standard library that was developed by Jane Street, the
+  largest industrial user of OCaml.
 
 Library async_core
   Path:               lib
@@ -56,15 +61,15 @@ Library async_core
                       Test,
                       Throttle,
                       Unregister
-  BuildDepends:       sexplib.syntax,
-                      sexplib,
-                      pa_ounit,
-                      pa_ounit.syntax,
-                      fieldslib.syntax,
-                      fieldslib,
-                      bin_prot,
+  BuildDepends:       bin_prot (>= 109.15.00),
                       bin_prot.syntax,
-                      core,
+                      core (>= 109.19.00),
+                      fieldslib (>= 109.19.00),
+                      fieldslib.syntax,
+                      pa_ounit (>= 109.18.00),
+                      pa_ounit.syntax,
+                      sexplib (>= 109.17.00),
+                      sexplib.syntax,
                       threads
   XMETARequires:      sexplib,
                       pa_ounit,
