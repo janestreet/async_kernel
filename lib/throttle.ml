@@ -4,16 +4,16 @@ open Deferred_std
 type 'a outcome = [ `Ok of 'a | `Aborted | `Raised of exn ]
 
 module Internal_job : sig
-  type t with sexp_of
+  type 'a t with sexp_of
 
-  val create : (unit -> 'a Deferred.t) -> t * 'a outcome Deferred.t
+  val create : ('a -> 'b Deferred.t) -> 'a t * 'b outcome Deferred.t
 
   (* Every internal job will eventually be either [run] or [abort]ed, but not both. *)
-  val run : t -> [ `Ok | `Raised ] Deferred.t
-  val abort : t -> unit
+  val run : 'a t -> 'a -> [ `Ok | `Raised ] Deferred.t
+  val abort : _ t -> unit
 end  = struct
-  type t =
-    { start : [ `Abort | `Start ] Ivar.t;
+  type 'a t =
+    { start : [ `Abort | `Start of 'a ] Ivar.t;
       outcome : [ `Ok | `Aborted | `Raised ] Deferred.t;
     }
   with sexp_of
@@ -24,8 +24,8 @@ end  = struct
       Ivar.read start
       >>= function
       | `Abort -> return `Aborted
-      | `Start ->
-        Monitor.try_with work
+      | `Start a ->
+        Monitor.try_with (fun () -> work a)
         >>| function
         | Ok a -> `Ok a
         | Error exn -> `Raised exn
@@ -41,8 +41,8 @@ end  = struct
     (t, result)
   ;;
 
-  let run t =
-    Ivar.fill t.start `Start;
+  let run t a =
+    Ivar.fill t.start (`Start a);
     t.outcome
     >>| function
     | `Aborted -> assert false
@@ -52,15 +52,16 @@ end  = struct
   let abort t = Ivar.fill t.start `Abort
 end
 
-type t =
+type 'a t =
   { continue_on_error : bool;
     max_concurrent_jobs : int;
+    job_resources : 'a Queue.t;
     (* [0 <= num_jobs_running <= max_concurrent_jobs]. *)
     mutable num_jobs_running : int;
     (* [job_reader] and [job_writer] are the two ends of the pipe of jobs that the
        throttle hasn't yet started. *)
-    job_reader : Internal_job.t Pipe.Reader.t;
-    job_writer : Internal_job.t Pipe.Writer.t;
+    job_reader : 'a Internal_job.t Pipe.Reader.t;
+    job_writer : 'a Internal_job.t Pipe.Writer.t;
     (* The throttle has background uthreads running [job_runner], which reads jobs from
        [job_reader] and runs them.  [am_reading_job] reflects whether [job_runner] is
        currently in the middle of a [Pipe.read] call.  This is used to ensure that at most
@@ -72,13 +73,16 @@ with fields, sexp_of
 
 let num_jobs_waiting_to_start t = Pipe.length t.job_reader
 
-let invariant t : unit =
+let invariant invariant_a t : unit =
   try
     let check f field = f (Field.get field t) in
     Fields.iter
       ~continue_on_error:ignore
       ~max_concurrent_jobs:(check (fun max_concurrent_jobs ->
         assert (max_concurrent_jobs > 0)))
+      ~job_resources:(check (fun job_resources ->
+        Queue.iter job_resources ~f:invariant_a;
+        assert (Queue.length job_resources = t.max_concurrent_jobs - t.num_jobs_running)))
       ~num_jobs_running:(check (fun num_jobs_running ->
         assert (num_jobs_running >= 0);
         assert (num_jobs_running <= t.max_concurrent_jobs)))
@@ -88,7 +92,7 @@ let invariant t : unit =
       ~job_reader:(check Pipe.Reader.invariant)
       ~job_writer:(check Pipe.Writer.invariant)
   with exn ->
-    failwiths "Throttle.invariant failed" (exn, t) <:sexp_of< exn * t >>
+    failwiths "Throttle.invariant failed" (exn, t) <:sexp_of< exn * _ t >>
 ;;
 
 let kill t =
@@ -117,10 +121,12 @@ let rec job_runner t =
        ()
      | `Ok job ->
        t.num_jobs_running <- t.num_jobs_running + 1;
+       let job_resource = Queue.dequeue_exn t.job_resources in
        job_runner t;
-       Internal_job.run job
+       Internal_job.run job job_resource
        >>> fun res ->
        t.num_jobs_running <- t.num_jobs_running - 1;
+       Queue.enqueue t.job_resources job_resource;
        begin match res with
        | `Ok -> ()
        | `Raised -> if not t.continue_on_error then kill t
@@ -129,13 +135,11 @@ let rec job_runner t =
   end;
 ;;
 
-let create ~continue_on_error ~max_concurrent_jobs =
-  if max_concurrent_jobs <= 0 then
-    failwiths "Throttle.create requires positive max_concurrent_jobs, but got"
-      max_concurrent_jobs <:sexp_of< int >>;
+let create_with ~continue_on_error job_resources =
   let (job_reader, job_writer) = Pipe.create () in
   let t =
-    { max_concurrent_jobs;
+    { max_concurrent_jobs = List.length job_resources;
+      job_resources = Queue.of_list job_resources;
       continue_on_error;
       am_reading_job = false;
       num_jobs_running = 0;
@@ -148,10 +152,17 @@ let create ~continue_on_error ~max_concurrent_jobs =
   t
 ;;
 
+let create ~continue_on_error ~max_concurrent_jobs =
+  if max_concurrent_jobs <= 0 then
+    failwiths "Throttle.create requires positive max_concurrent_jobs, but got"
+      max_concurrent_jobs <:sexp_of< int >>;
+  create_with ~continue_on_error (List.init max_concurrent_jobs ~f:ignore)
+;;
+
 module Job = struct
-  type 'a t =
-    { internal_job : Internal_job.t;
-      result : [ `Ok of 'a | `Aborted | `Raised of exn ] Deferred.t;
+  type ('a, 'b) t =
+    { internal_job : 'a Internal_job.t;
+      result : [ `Ok of 'b | `Aborted | `Raised of exn ] Deferred.t;
     }
 
   let result t = t.result
@@ -188,7 +199,7 @@ let prior_jobs_done t =
   Deferred.create (fun all_dummy_jobs_running ->
     let dummy_jobs_running = ref 0 in
     for _i = 1 to t.max_concurrent_jobs do
-      don't_wait_for (enqueue t (fun () ->
+      don't_wait_for (enqueue t (fun _ ->
         incr dummy_jobs_running;
         if !dummy_jobs_running = t.max_concurrent_jobs then
           Ivar.fill all_dummy_jobs_running ();
@@ -197,21 +208,13 @@ let prior_jobs_done t =
 ;;
 
 module Sequencer = struct
-  type throttle = t
-  type 'a t =
-    { state : 'a;
-      throttle : throttle;
-    }
+  type nonrec 'a t = 'a t
 
-  let create ?(continue_on_error = false) a =
-    { state = a;
-      throttle = create ~continue_on_error ~max_concurrent_jobs:1;
-    }
-  ;;
+  let create ?(continue_on_error = false) a = create_with [a] ~continue_on_error
 
-  let enqueue t f = enqueue t.throttle (fun () -> f t.state)
+  let enqueue t f = enqueue t f
 
-  let num_jobs_waiting_to_start t = num_jobs_waiting_to_start t.throttle
+  let num_jobs_waiting_to_start t = num_jobs_waiting_to_start t
 end
 
 TEST_MODULE = struct
@@ -257,12 +260,13 @@ TEST_MODULE = struct
 
   TEST_UNIT =
     (* Check that [max_concurrent_jobs] limit works, and is fully utilized. *)
-    List.iter [ 1; 10; 100; 1000] ~f:(fun num_jobs ->
-      List.iter [ 1; 10; 100; 1000] ~f:(fun max_concurrent_jobs ->
+    List.iter [ 1; 10; 100; 1000 ] ~f:(fun num_jobs ->
+      List.iter [ 1; 10; 100; 1000 ] ~f:(fun max_concurrent_jobs ->
+        let resources = List.init max_concurrent_jobs ~f:(fun _ -> ref false) in
         let max_observed_concurrent_jobs = ref 0 in
         let num_concurrent_jobs = ref 0 in
         let job_starts = ref [] in
-        let t = create ~continue_on_error:false ~max_concurrent_jobs in
+        let t = create_with ~continue_on_error:false resources in
         let d = prior_jobs_done t in
         stabilize ();
         assert (Deferred.is_determined d);
@@ -270,7 +274,9 @@ TEST_MODULE = struct
         let jobs = ref [] in
         for i = 0 to num_jobs - 1; do
           let job =
-            enqueue t (fun () ->
+            enqueue t (fun r ->
+              assert (not !r); (* ensure no one else is accessing the resource *)
+              r := true;
               job_starts := i :: !job_starts;
               incr num_concurrent_jobs;
               max_observed_concurrent_jobs :=
@@ -278,7 +284,8 @@ TEST_MODULE = struct
               assert (!num_concurrent_jobs <= max_concurrent_jobs);
               Ivar.read continue
               >>| fun () ->
-              decr num_concurrent_jobs)
+              decr num_concurrent_jobs;
+              r := false)
           in
           jobs := job :: !jobs
         done;
