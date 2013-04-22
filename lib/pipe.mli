@@ -405,6 +405,8 @@ type ('a, 'b, 'c, 'accum) fold =
   -> f:('accum -> 'b -> 'c)
   -> 'accum Deferred.t
 
+(* CR-someday sweeks: Rename [fold] as [fold_without_pushback], and add [fold] with an
+   analogous type to [iter]. *)
 val fold' : ('a, 'a Queue.t, 'accum Deferred.t, 'accum) fold
 val fold  : ('a, 'a        , 'accum           , 'accum) fold
 
