@@ -11,6 +11,7 @@
     v}
 *)
 open Core.Std
+open Import
 
 type t with sexp_of
 
@@ -38,6 +39,7 @@ module File_descr_watcher : sig
   type t = Epoll | Select with sexp_of
 end
 
+val alarm_precision                   : Time.Span.t
 val check_invariants                  : bool
 val detect_invalid_access_from_thread : bool
 val epoll_max_ready_events            : int
@@ -45,3 +47,4 @@ val file_descr_watcher                : File_descr_watcher.t
 val max_num_open_file_descrs          : int
 val max_num_threads                   : int
 val record_backtraces                 : bool
+val timing_wheel_level_bits           : Timing_wheel.Level_bits.t

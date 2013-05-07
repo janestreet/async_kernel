@@ -1,4 +1,5 @@
 open Core.Std
+open Import
 
 let concat = String.concat
 
@@ -62,19 +63,22 @@ module File_descr_watcher = struct
 end
 
 type t =
-  { check_invariants                  : bool                 sexp_option;
-    detect_invalid_access_from_thread : bool                 sexp_option;
-    epoll_max_ready_events            : int                  sexp_option;
-    file_descr_watcher                : File_descr_watcher.t sexp_option;
-    max_num_open_file_descrs          : int                  sexp_option;
-    max_num_threads                   : int                  sexp_option;
-    print_debug_messages_for          : Debug_tag.t list     sexp_option;
-    record_backtraces                 : bool                 sexp_option;
+  { alarm_precision                   : Time.Span.t               sexp_option;
+    check_invariants                  : bool                      sexp_option;
+    detect_invalid_access_from_thread : bool                      sexp_option;
+    epoll_max_ready_events            : int                       sexp_option;
+    file_descr_watcher                : File_descr_watcher.t      sexp_option;
+    max_num_open_file_descrs          : int                       sexp_option;
+    max_num_threads                   : int                       sexp_option;
+    print_debug_messages_for          : Debug_tag.t list          sexp_option;
+    record_backtraces                 : bool                      sexp_option;
+    timing_wheel_level_bits           : Timing_wheel.Level_bits.t sexp_option;
   }
 with fields, sexp
 
 let empty =
-  { check_invariants                  = None;
+  { alarm_precision                   = None;
+    check_invariants                  = None;
     detect_invalid_access_from_thread = None;
     epoll_max_ready_events            = None;
     file_descr_watcher                = None;
@@ -82,30 +86,70 @@ let empty =
     max_num_threads                   = None;
     print_debug_messages_for          = None;
     record_backtraces                 = None;
+    timing_wheel_level_bits           = None;
   }
 ;;
 
+let default_alarm_precision_and_level_bits word_size =
+  let module W = Word_size in
+  match word_size with
+  | W.W32 -> Time.Span.of_ms 1.,  Timing_wheel.Level_bits.create_exn [ 10; 10; 9;   ]
+  | W.W64 -> Time.Span.of_ms 0.1, Timing_wheel.Level_bits.create_exn [ 15; 15; 9; 6 ]
+;;
+
+TEST_UNIT =
+  let module L = Timing_wheel.Level_bits in
+  let module W = Word_size in
+  List.iter [ W.W32; W.W64 ] ~f:(fun word_size ->
+    let alarm_precision, level_bits = default_alarm_precision_and_level_bits word_size in
+    let actual_durations =
+      Timing_wheel.Level_bits.durations level_bits ~alarm_precision
+    in
+    let year = Time.Span.(scale day) 365. in
+    let lower_bounds =
+      match word_size with
+      | W.W32 -> Time.Span.([ 1., second;
+                              17., minute;
+                              6.2, day;
+                            ])
+      | W.W64 -> Time.Span.([ 3.2, second;
+                              1.2, day;
+                              1.7, year;
+                              111., year;
+                            ])
+    in
+    let lower_bounds =
+      List.map lower_bounds ~f:(fun (scale, span) -> Time.Span.scale span scale)
+    in
+    try
+      List.iter2_exn actual_durations lower_bounds ~f:(fun actual bound ->
+        assert (Time.Span.(>=) actual bound))
+    with exn ->
+      failwiths "lower bound violated" (exn, actual_durations, lower_bounds)
+        <:sexp_of< exn * Time.Span.t list * Time.Span.t list >>)
+;;
+
+let default_alarm_precision, default_timing_wheel_level_bits =
+  default_alarm_precision_and_level_bits Word_size.word_size
+;;
+
 let default =
-  { check_invariants                  = Some false                    ;
-    detect_invalid_access_from_thread = Some false                    ;
-    epoll_max_ready_events            = Some 256                      ;
-    file_descr_watcher                = Some File_descr_watcher.Select;
-    max_num_open_file_descrs          = Some 1024                     ;
-    max_num_threads                   = Some 50                       ;
-    print_debug_messages_for          = Some []                       ;
-    record_backtraces                 = Some false                    ;
+  { alarm_precision                   = Some default_alarm_precision        ;
+    check_invariants                  = Some false                          ;
+    detect_invalid_access_from_thread = Some false                          ;
+    epoll_max_ready_events            = Some 256                            ;
+    file_descr_watcher                = Some File_descr_watcher.Select      ;
+    max_num_open_file_descrs          = Some 1024                           ;
+    max_num_threads                   = Some 50                             ;
+    print_debug_messages_for          = Some []                             ;
+    record_backtraces                 = Some false                          ;
+    timing_wheel_level_bits           = Some default_timing_wheel_level_bits;
   }
 ;;
 
 let example =
-  { check_invariants                  = Some true                         ;
-    detect_invalid_access_from_thread = Some true                         ;
-    epoll_max_ready_events            = Some 256                          ;
-    file_descr_watcher                = Some File_descr_watcher.Select    ;
-    max_num_open_file_descrs          = Some 1024                         ;
-    max_num_threads                   = Some 50                           ;
-    print_debug_messages_for          = Some Debug_tag.([ Fd; Scheduler ]);
-    record_backtraces                 = Some false                        ;
+  { default with
+    print_debug_messages_for = Some Debug_tag.([ Fd; Scheduler ]);
   }
 ;;
 
@@ -120,6 +164,12 @@ let field_descriptions () : string =
   in
   let fields =
     Fields.fold ~init:[]
+      ~alarm_precision:(field <:sexp_of< Time.Span.t >>
+                          ["
+  The precision of alarms in Async's clock.  Time is split into intervals of this size,
+  and alarms with times in the same interval fire in the same cycle.
+"
+                          ])
       ~check_invariants:(field <:sexp_of< bool >>
                            ["
   If true, causes async to regularly check invariants of its internal data structures.
@@ -182,6 +232,13 @@ let field_descriptions () : string =
   space usage.
 "
                             ])
+      ~timing_wheel_level_bits:(field <:sexp_of< Timing_wheel.Level_bits.t >>
+                                  ["
+  This is used to adjust the time/space tradeoff in the timing wheel used to implement
+  async's clock.  Level [i] in the timing wheel has an array of size [2^b], where [b] is
+  the [i]'th entry in [timing_wheel_level_bits].
+"
+                                  ])
   in
   concat
     (List.map
@@ -260,6 +317,7 @@ let default field =
   Option.value (Field.get field t) ~default:(Option.value_exn (Field.get field default))
 ;;
 
+let alarm_precision                   = default Fields.alarm_precision
 let check_invariants                  = default Fields.check_invariants
 let detect_invalid_access_from_thread = default Fields.detect_invalid_access_from_thread
 let epoll_max_ready_events            = default Fields.epoll_max_ready_events
@@ -267,9 +325,11 @@ let file_descr_watcher                = default Fields.file_descr_watcher
 let max_num_open_file_descrs          = default Fields.max_num_open_file_descrs
 let max_num_threads                   = default Fields.max_num_threads
 let record_backtraces                 = default Fields.record_backtraces
+let timing_wheel_level_bits           = default Fields.timing_wheel_level_bits
 
 let t =
-  { check_invariants                  = Some check_invariants                 ;
+  { alarm_precision                   = Some alarm_precision                  ;
+    check_invariants                  = Some check_invariants                 ;
     detect_invalid_access_from_thread = Some detect_invalid_access_from_thread;
     epoll_max_ready_events            = Some epoll_max_ready_events           ;
     file_descr_watcher                = Some file_descr_watcher               ;
@@ -277,5 +337,6 @@ let t =
     max_num_threads                   = Some max_num_threads                  ;
     print_debug_messages_for          = t.print_debug_messages_for            ;
     record_backtraces                 = Some record_backtraces                ;
+    timing_wheel_level_bits           = Some timing_wheel_level_bits          ;
   }
 ;;

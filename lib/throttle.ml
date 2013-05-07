@@ -214,6 +214,8 @@ module Sequencer = struct
 
   let enqueue t f = enqueue t f
 
+  let prior_jobs_done t = prior_jobs_done t
+
   let num_jobs_waiting_to_start t = num_jobs_waiting_to_start t
 end
 

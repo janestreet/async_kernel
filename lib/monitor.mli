@@ -35,7 +35,7 @@
     This code will catch an exception in either [f] or [g], and propagate it to the
     monitor.
 
-    This is only relevent to the toplevel monitor because if you create another monitor
+    This is only relevant to the toplevel monitor because if you create another monitor
     and you wish to run code within it you have no choice but to use [Scheduler.within].
     [try_with] creates its own monitor and uses [Scheduler.within], so it does not have
     this problem. *)

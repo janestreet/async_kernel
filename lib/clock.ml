@@ -1,11 +1,10 @@
 open Core.Std
+open Import
 open Deferred_std
 
 module Stream = Async_stream
 
 let debug = Debug.clock
-
-let events () = Raw_scheduler.((t ()).events)
 
 (* We use [Time.now ()] rather than [cycle_start] for the base time.  There can be
    substantial difference between the two when people do long running computations or
@@ -15,10 +14,11 @@ let span_to_time span = Time.add (Time.now ()) span
 
 let run_at time f a =
   let scheduler = Raw_scheduler.t () in
+  let events = scheduler.Raw_scheduler.events in
   let job = Job.create (Raw_scheduler.current_execution_context scheduler) f a in
-  match Events.add (events ()) ~at:time job with
-  | `Ok _ -> ()
-  | `Not_in_the_future -> Raw_scheduler.add_job scheduler job
+  if Time.(<) time (Timing_wheel.now events)
+  then Raw_scheduler.add_job scheduler job
+  else ignore (Timing_wheel.add events ~at:time job : _ Timing_wheel.Alarm.t)
 ;;
 
 let run_after span f a = run_at (span_to_time span) f a
@@ -47,7 +47,7 @@ module Event = struct
      v
      Aborted *)
   type waiting =
-    { event : Execution_context.t Job.t Events.Event.t;
+    { event : Execution_context.t Job.t Timing_wheel.Alarm.t;
       ready : [ `Happened | `Aborted ] Ivar.t;
     }
   with sexp_of
@@ -88,10 +88,8 @@ module Event = struct
     | Happened -> `Previously_happened
     | Waiting waiting ->
       t := Aborted;
-      begin match Events.remove (events ()) waiting.event with
-      | `Removed -> ()
-      | `Not_present -> failwiths "Clock.Event.abort failed" t <:sexp_of< t >>
-      end;
+      let events = Scheduler.(events (t ())) in
+      Timing_wheel.remove events waiting.event;
       `Ok
   ;;
 
@@ -99,16 +97,18 @@ module Event = struct
     if debug then Debug.log "Clock.Event.at" time <:sexp_of< Time.t >>;
     let ready = Ivar.create () in
     let t = ref Uninitialized in
-    let events = events () in
     let scheduler = Scheduler.t () in
+    let events = Scheduler.events scheduler in
     let fire () =
       t := Happened;
       Ivar.fill ready `Happened;
     in
     let job = Job.create (Scheduler.current_execution_context scheduler) fire () in
-    begin match Events.add events ~at:time job with
-    | `Ok event -> t := Waiting { event; ready };
-    | `Not_in_the_future -> fire ()
+    if Time.(<) time (Timing_wheel.now events)
+    then fire ()
+    else begin
+      let event = Timing_wheel.add events ~at:time job in
+      t := Waiting { event; ready };
     end;
     t, Ivar.read ready
   ;;

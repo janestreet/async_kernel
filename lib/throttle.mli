@@ -81,5 +81,7 @@ module Sequencer : sig
   (** schedule a state-accessing operation *)
   val enqueue : 'a t -> ('a -> 'b Deferred.t) -> 'b Deferred.t
 
+  val prior_jobs_done : _ t -> unit Deferred.t
+
   val num_jobs_waiting_to_start : _ t -> int
 end

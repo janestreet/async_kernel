@@ -1,5 +1,7 @@
 open Core.Std
 
+module Timing_wheel = Zero.Timing_wheel
+
 module type Basic_scheduler = sig
   module Execution_context : sig type t with sexp_of end
   type t

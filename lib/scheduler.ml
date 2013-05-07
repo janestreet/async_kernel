@@ -1,4 +1,5 @@
 open Core.Std
+open Import
 open Raw_scheduler.T
 
 let debug = Debug.scheduler
@@ -14,6 +15,7 @@ include struct
   let with_execution_context    = with_execution_context
   let set_check_access          = set_check_access
   let check_access              = check_access
+  let events                    = events
 end
 
 include Monitor.Exported_for_scheduler
@@ -35,11 +37,7 @@ let main_execution_context = (t ()).main_execution_context
 
 let num_pending_jobs t = Jobs.length t.jobs
 
-let next_upcoming_event t =
-  match Events.next_upcoming t.events with
-  | None -> None
-  | Some events_event -> Some (Events.Event.at events_event)
-;;
+let next_upcoming_event t = Timing_wheel.next_alarm_fires_at t.events
 
 let cycle_start t = t.cycle_start
 
@@ -131,13 +129,8 @@ let run_cycle t =
   let num_jobs_run_at_start_of_cycle = t.num_jobs_run in
   Tail.extend (Tail.of_raw t.cycle_times) t.last_cycle_time;
   Tail.extend (Tail.of_raw t.cycle_num_jobs) t.last_cycle_num_jobs;
-  begin match Events.advance_clock t.events ~to_:now with
-  | `Not_in_the_future ->
-    (* This could conceivably happen with NTP tweaking the clock.  There's no reason
-       to do anything other than press on. *)
-    ()
-  | `Ok jobs -> List.iter jobs ~f:(fun job -> Jobs.add t.jobs Priority.normal job)
-  end;
+  Timing_wheel.advance_clock t.events ~to_:now ~handle_fired:(fun alarm ->
+    Jobs.add t.jobs Priority.normal (Timing_wheel.Alarm.value t.events alarm));
   schedule_finalizers t;
   Jobs.start_cycle t.jobs
     ~max_num_jobs_per_priority:t.max_num_jobs_per_priority_per_cycle;
@@ -155,7 +148,7 @@ let run_cycle t =
   t.last_cycle_num_jobs <- t.num_jobs_run - num_jobs_run_at_start_of_cycle;
   if debug then
     Debug.log "run_cycle finished"
-      (t.uncaught_exn, is_some (Events.next_upcoming t.events))
+      (t.uncaught_exn, is_some (Timing_wheel.next_alarm_fires_at t.events))
       (<:sexp_of< Error.t option * bool >>);
 ;;
 

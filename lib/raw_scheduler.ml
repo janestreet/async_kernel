@@ -1,4 +1,5 @@
 open Core.Std
+open Import
 
 module Execution_context = Execution_context
 module Ivar = Raw_ivar
@@ -31,7 +32,7 @@ module T = struct
       cycle_times : Time.Span.t tail;
       mutable last_cycle_num_jobs : int;
       cycle_num_jobs : int tail;
-      events : Execution_context.t Job.t Events.t;
+      events : Execution_context.t Job.t Timing_wheel.t;
       (* OCaml finalizers can run at any time and in any thread.  When an OCaml finalizer
          fires, we have it put a job that runs the async finalizer in the thread-safe
          queue of [finalizer_jobs], and call [thread_safe_finalizer_hook].  In
@@ -69,7 +70,7 @@ let invariant t : unit =
       ~last_cycle_num_jobs:(check (fun last_cycle_num_jobs ->
         assert (last_cycle_num_jobs >= 0)))
       ~cycle_num_jobs:ignore
-      ~events:(check (Events.invariant (Job.invariant Execution_context.invariant)))
+      ~events:(check (Timing_wheel.invariant (Job.invariant Execution_context.invariant)))
       ~finalizer_jobs:ignore
       ~thread_safe_finalizer_hook:ignore
     ;
@@ -79,8 +80,17 @@ let invariant t : unit =
 
 let create () =
   let now = Time.epoch in
+  let dummy_job = Job.do_nothing Execution_context.main in
+  let events =
+    Timing_wheel.create
+      ~start:now
+      ~alarm_precision:Config.alarm_precision
+      ~level_bits:Config.timing_wheel_level_bits
+      ~dummy:dummy_job
+      ()
+  in
   { check_access = None;
-    jobs = Jobs.create ~dummy:(Job.do_nothing Execution_context.main);
+    jobs = Jobs.create ~dummy:dummy_job;
     current_execution_context = Execution_context.main;
     main_execution_context = Execution_context.main;
     max_num_jobs_per_priority_per_cycle = 500;
@@ -93,7 +103,7 @@ let create () =
     cycle_times = Tail.create ();
     last_cycle_num_jobs = 0;
     cycle_num_jobs = Tail.create ();
-    events = Events.create ~now;
+    events;
     finalizer_jobs = Thread_safe_queue.create ();
     thread_safe_finalizer_hook = ignore;
   }
