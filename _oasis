@@ -76,6 +76,7 @@ Library async_core
                       fieldslib,
                       bin_prot,
                       core,
+                      zero,
                       threads
 
 Document "async_core"
