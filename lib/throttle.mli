@@ -1,4 +1,4 @@
-(** Throttles for simultaneous computations.
+(** Throttles to limit the number of concurrent computations.
 
     A throttle is essentially a pipe to which one can feed jobs.
 
@@ -21,7 +21,14 @@
 
 open Core.Std
 
-type 'a t with sexp_of
+(** We use a phantom type to distinguish between throttles, which have
+    [max_concurrent_jobs >= 1], and sequencers, which have [max_concurrent_jobs = 1].  All
+    operations are available on both.  We make the distinction because it is sometimes
+    useful to know from the type of a throttle that it is a sequencer and that at most one
+    job can be running at a time. *)
+type ('a, 'kind) t_ with sexp_of
+
+type 'a t = ('a, [`throttle]) t_ with sexp_of
 
 include Invariant.S1 with type 'a t := 'a t
 
@@ -45,43 +52,40 @@ val create_with
 
 type 'a outcome = [ `Ok of 'a | `Aborted | `Raised of exn ]
 
-module Job : sig
-  (** An [('a, 'b) Job.t] expects a resource of type ['a] and returns a result of type
-      ['b]. *)
-  type ('a, 'b) t
-
-  val create : ('a -> 'b Deferred.t) -> ('a, 'b) t
-  val result : (_, 'b) t -> 'b outcome Deferred.t
-end
-
-val enqueue_job : 'a t -> ('a, _) Job.t -> unit
-
 (** [enqueue t job] schedules [job] to be run as soon as possible.  Jobs are guaranteed to
     be started in the order they are [enqueue]d.
 
     [enqueue] raises an exception if the throttle is dead. *)
-val enqueue' : 'a t -> ('a -> 'b Deferred.t) -> 'b outcome Deferred.t
-val enqueue  : 'a t -> ('a -> 'b Deferred.t) -> 'b         Deferred.t
+val enqueue' : ('a, _) t_ -> ('a -> 'b Deferred.t) -> 'b outcome Deferred.t
+val enqueue  : ('a, _) t_ -> ('a -> 'b Deferred.t) -> 'b         Deferred.t
 
 (** [prior_jobs_done t] becomes determined when all of the jobs that were previously
     enqueued in [t] have completed. *)
-val prior_jobs_done : _ t -> unit Deferred.t
+val prior_jobs_done : (_, _) t_ -> unit Deferred.t
 
-val num_jobs_waiting_to_start : _ t -> int
+(** [max_concurrent_jobs t] returns the maximum number of jobs that [t] will run
+    concurrently. *)
+val max_concurrent_jobs : (_, _) t_ -> int
 
-(** A sequencer is a throttle that is:
+(** [num_jobs_running t] returns the number of jobs that [t] is currently running.  It
+    is guaranteed that if [num_jobs_running t < max_concurrent_jobs t] then
+    [num_jobs_waiting_to_start t = 0].  That is, the throttle always uses its maximum
+    concurrency if possible. *)
+val num_jobs_running : (_, _) t_ -> int
 
-    - specialized to only allow one job at a time and to not continue on error *)
+(** [num_jobs_waiting_to_start t] returns the number of jobs that have been [enqueue]d but
+    have not yet started. *)
+val num_jobs_waiting_to_start : (_ , _) t_ -> int
+
+(** [capacity_available t] becomes determined the next time that [t] has fewer than
+    [max_concurrent_jobs t] running, and hence an [enqueue]d job would start
+    immediately. *)
+val capacity_available : (_, _) t_ -> unit Deferred.t
+
+(** A sequencer is a throttle that is specialized to only allow one job at a time and to,
+    by default, not continue on error. *)
 module Sequencer : sig
-  type 'a t
+  type 'a t = ('a, [`sequencer]) t_ with sexp_of
 
-  (** create a new monitor with the specified initial state *)
   val create : ?continue_on_error:bool (* defaults to false *) -> 'a -> 'a t
-
-  (** schedule a state-accessing operation *)
-  val enqueue : 'a t -> ('a -> 'b Deferred.t) -> 'b Deferred.t
-
-  val prior_jobs_done : _ t -> unit Deferred.t
-
-  val num_jobs_waiting_to_start : _ t -> int
 end

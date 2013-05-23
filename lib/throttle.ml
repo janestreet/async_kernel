@@ -55,23 +55,23 @@ end
 type 'a t =
   { continue_on_error : bool;
     max_concurrent_jobs : int;
-    job_resources : 'a Queue.t;
+    (* [job_resources] holds resources that are not currently in use by a running
+       job. *)
+    job_resources : 'a Stack.t;
+    (* [jobs_waiting_to_start] is the queue of jobs that haven't yet started. *)
+    jobs_waiting_to_start : 'a Internal_job.t Queue.t;
     (* [0 <= num_jobs_running <= max_concurrent_jobs]. *)
     mutable num_jobs_running : int;
-    (* [job_reader] and [job_writer] are the two ends of the pipe of jobs that the
-       throttle hasn't yet started. *)
-    job_reader : 'a Internal_job.t Pipe.Reader.t;
-    job_writer : 'a Internal_job.t Pipe.Writer.t;
-    (* The throttle has background uthreads running [job_runner], which reads jobs from
-       [job_reader] and runs them.  [am_reading_job] reflects whether [job_runner] is
-       currently in the middle of a [Pipe.read] call.  This is used to ensure that at most
-       one [job_runner] has an active [Pipe.read]. *)
-    mutable am_reading_job : bool;
+    (* [capacity_available] is [Some ivar] if user code has called [capacity_available
+       t] and is waiting to be notified when capacity is available in the throttle.
+       [maybe_start_job] will fill [ivar] when capacity becomes available, i.e. when
+       [jobs_waiting_to_start] is empty and [num_jobs_running < max_concurrent_jobs]. *)
+    mutable capacity_available : unit Ivar.t option;
     mutable is_dead : bool;
   }
 with fields, sexp_of
 
-let num_jobs_waiting_to_start t = Pipe.length t.job_reader
+type ('a, 'kind) t_ = 'a t with sexp_of
 
 let invariant invariant_a t : unit =
   try
@@ -81,76 +81,72 @@ let invariant invariant_a t : unit =
       ~max_concurrent_jobs:(check (fun max_concurrent_jobs ->
         assert (max_concurrent_jobs > 0)))
       ~job_resources:(check (fun job_resources ->
-        Queue.iter job_resources ~f:invariant_a;
-        assert (Queue.length job_resources = t.max_concurrent_jobs - t.num_jobs_running)))
+        Stack.iter job_resources ~f:invariant_a;
+        assert (Stack.length job_resources = t.max_concurrent_jobs - t.num_jobs_running)))
+      ~jobs_waiting_to_start:ignore
       ~num_jobs_running:(check (fun num_jobs_running ->
         assert (num_jobs_running >= 0);
-        assert (num_jobs_running <= t.max_concurrent_jobs)))
-      ~am_reading_job:(check (fun am_reading_job ->
-        if t.is_dead then assert (not am_reading_job)))
-      ~is_dead:ignore
-      ~job_reader:(check Pipe.Reader.invariant)
-      ~job_writer:(check Pipe.Writer.invariant)
+        assert (num_jobs_running <= t.max_concurrent_jobs);
+        if num_jobs_running < t.max_concurrent_jobs then
+          assert (Queue.is_empty t.jobs_waiting_to_start)))
+      ~capacity_available:(check (function
+        | None -> ()
+        | Some ivar -> assert (Ivar.is_empty ivar)))
+      ~is_dead:(check (function is_dead ->
+        if is_dead then assert (Queue.is_empty t.jobs_waiting_to_start)))
   with exn ->
     failwiths "Throttle.invariant failed" (exn, t) <:sexp_of< exn * _ t >>
 ;;
 
+let num_jobs_waiting_to_start t = Queue.length t.jobs_waiting_to_start
+
 let kill t =
   t.is_dead <- true;
-  begin match Pipe.read_now' t.job_reader with
-  | `Eof | `Nothing_available -> ()
-  | `Ok q -> Queue.iter q ~f:Internal_job.abort
-  end;
-  Pipe.close_read t.job_reader;
+  Queue.iter t.jobs_waiting_to_start ~f:Internal_job.abort;
+  Queue.clear t.jobs_waiting_to_start;
 ;;
 
-let rec job_runner t =
-  if not t.is_dead
-    && not t.am_reading_job
-    && t.num_jobs_running < t.max_concurrent_jobs
-  then begin
-    t.am_reading_job <- true;
-    Pipe.read t.job_reader
-    >>> fun res ->
-    t.am_reading_job <- false;
-    match res with
-     | `Eof ->
-       (* There is nothing in the API allowing [t.job_writer] to be closed.  However, the
-          the throttle may, via [kill], close [t.job_reader], which would cause a
-          [job_runner] that reads from the pipe to end up here. *)
-       ()
-     | `Ok job ->
-       t.num_jobs_running <- t.num_jobs_running + 1;
-       let job_resource = Queue.dequeue_exn t.job_resources in
-       job_runner t;
-       Internal_job.run job job_resource
-       >>> fun res ->
-       t.num_jobs_running <- t.num_jobs_running - 1;
-       Queue.enqueue t.job_resources job_resource;
-       begin match res with
-       | `Ok -> ()
-       | `Raised -> if not t.continue_on_error then kill t
-       end;
-       job_runner t;
+let rec start_job t =
+  assert (not t.is_dead);
+  assert (t.num_jobs_running < t.max_concurrent_jobs);
+  assert (not (Queue.is_empty t.jobs_waiting_to_start));
+  let job = Queue.dequeue_exn t.jobs_waiting_to_start in
+  t.num_jobs_running <- t.num_jobs_running + 1;
+  let job_resource = Stack.pop_exn t.job_resources in
+  Internal_job.run job job_resource
+  >>> fun res ->
+  t.num_jobs_running <- t.num_jobs_running - 1;
+  Stack.push t.job_resources job_resource;
+  begin match res with
+  | `Ok -> ()
+  | `Raised -> if not t.continue_on_error then kill t
+  end;
+  if not t.is_dead then begin
+    if not (Queue.is_empty t.jobs_waiting_to_start) then
+      start_job t
+    else
+      match t.capacity_available with
+      | None -> ()
+      | Some ivar -> Ivar.fill ivar (); t.capacity_available <- None;
   end;
 ;;
 
 let create_with ~continue_on_error job_resources =
-  let (job_reader, job_writer) = Pipe.create () in
-  let t =
-    { max_concurrent_jobs = List.length job_resources;
-      job_resources = Queue.of_list job_resources;
-      continue_on_error;
-      am_reading_job = false;
-      num_jobs_running = 0;
-      is_dead = false;
-      job_reader;
-      job_writer;
-    }
-  in
-  job_runner t;
-  t
+  { continue_on_error;
+    max_concurrent_jobs = List.length job_resources;
+    job_resources = Stack.of_list job_resources;
+    jobs_waiting_to_start = Queue.create ();
+    num_jobs_running = 0;
+    capacity_available = None;
+    is_dead = false;
+  }
 ;;
+
+module Sequencer = struct
+  type nonrec 'a t = 'a t with sexp_of
+
+  let create ?(continue_on_error = false) a = create_with ~continue_on_error [a]
+end
 
 let create ~continue_on_error ~max_concurrent_jobs =
   if max_concurrent_jobs <= 0 then
@@ -173,14 +169,11 @@ module Job = struct
   ;;
 end
 
-let enqueue_job t job =
-  if t.is_dead then failwith "cannot enqueue a job in dead throttle";
-  don't_wait_for (Pipe.write t.job_writer job.Job.internal_job);
-;;
-
 let enqueue' t f =
+  if t.is_dead then failwith "cannot enqueue a job in dead throttle";
   let job = Job.create f in
-  enqueue_job t job;
+  Queue.enqueue t.jobs_waiting_to_start job.Job.internal_job;
+  if t.num_jobs_running < t.max_concurrent_jobs then start_job t;
   Job.result job;
 ;;
 
@@ -207,17 +200,14 @@ let prior_jobs_done t =
     done)
 ;;
 
-module Sequencer = struct
-  type nonrec 'a t = 'a t
-
-  let create ?(continue_on_error = false) a = create_with [a] ~continue_on_error
-
-  let enqueue t f = enqueue t f
-
-  let prior_jobs_done t = prior_jobs_done t
-
-  let num_jobs_waiting_to_start t = num_jobs_waiting_to_start t
-end
+let capacity_available t =
+  if num_jobs_running t < max_concurrent_jobs t
+  then return ()
+  else
+    match t.capacity_available with
+    | Some ivar -> Ivar.read ivar
+    | None -> Deferred.create (fun ivar -> t.capacity_available <- Some ivar)
+;;
 
 TEST_MODULE = struct
   let stabilize = Scheduler.run_cycles_until_no_jobs_remain
@@ -235,6 +225,7 @@ TEST_MODULE = struct
     let d1 = enqueue' t (fun () -> failwith "") in
     let d2 = enqueue' t (fun () -> assert false) in
     stabilize ();
+    assert (num_jobs_waiting_to_start t = 0);
     assert (match Deferred.peek d1 with Some (`Raised _) -> true | _ -> false);
     assert (match Deferred.peek d2 with Some `Aborted -> true | _ -> false);
   ;;
@@ -258,6 +249,58 @@ TEST_MODULE = struct
     done;
     stabilize ();
     assert (!r = List.rev (List.init 100 ~f:Fn.id));
+  ;;
+
+  (* [num_jobs_waiting_to_start], [num_jobs_running] *)
+  TEST_UNIT =
+    let t = create ~continue_on_error:false ~max_concurrent_jobs:2 in
+    assert (num_jobs_waiting_to_start t = 0);
+    let add_job () =
+      let ivar = Ivar.create () in
+      don't_wait_for (enqueue t (fun () -> Ivar.read ivar));
+      ivar;
+    in
+    let i1 = add_job () in
+    assert (num_jobs_waiting_to_start t + num_jobs_running t = 1);
+    stabilize ();
+    assert (num_jobs_waiting_to_start t = 0);
+    assert (num_jobs_running t = 1);
+    let _i2 = add_job () in
+    assert (num_jobs_waiting_to_start t + num_jobs_running t = 2);
+    stabilize ();
+    assert (num_jobs_waiting_to_start t = 0);
+    assert (num_jobs_running t = 2);
+    let _i3 = add_job () in
+    assert (num_jobs_waiting_to_start t = 1);
+    assert (num_jobs_running t = 2);
+    stabilize ();
+    assert (num_jobs_waiting_to_start t = 1);
+    assert (num_jobs_running t = 2);
+    Ivar.fill i1 ();
+    stabilize ();
+    assert (num_jobs_waiting_to_start t = 0);
+    assert (num_jobs_running t = 2);
+  ;;
+
+  TEST_UNIT =
+    (* Check [capacity_available] *)
+    let t = create ~continue_on_error:false ~max_concurrent_jobs:2 in
+    let r = capacity_available t in
+    stabilize ();
+    assert (Option.is_some (Deferred.peek r));
+    let i1 = Ivar.create () in
+    don't_wait_for (enqueue t (fun () -> Ivar.read i1));
+    let r = capacity_available t in
+    stabilize ();
+    assert (Option.is_some (Deferred.peek r));
+    let i2 = Ivar.create () in
+    don't_wait_for (enqueue t (fun () -> Ivar.read i2));
+    let r = capacity_available t in
+    stabilize ();
+    assert (Option.is_none (Deferred.peek r));
+    Ivar.fill i1 ();
+    stabilize ();
+    assert (Option.is_some (Deferred.peek r));
   ;;
 
   TEST_UNIT =

@@ -15,10 +15,10 @@ module Lazy_deferred     = Lazy_deferred
 module Monitor           = Monitor
 module Pipe              = Pipe
 module Priority          = Priority
+module Sequencer         = Throttle.Sequencer
 module Stream            = Async_stream
 module Tail              = Tail
 module Throttle          = Throttle
-module Sequencer         = Throttle.Sequencer
 
 include Deferred_std
 
