@@ -16,7 +16,7 @@ module Jobs_at_priority : sig
 
   include Invariant.S1 with type 'a t := 'a t
 
-  val create : dummy:'a -> 'a t
+  val create : unit -> 'a t
   val add : 'job t -> 'job -> unit
   val clear : _ t -> unit
   val set_jobs_left_this_cycle : _ t -> int -> unit
@@ -36,13 +36,13 @@ end = struct
     Q.iter t.jobs ~f:job_invariant;
   ;;
 
-  let create ~dummy =
-    { jobs = Q.create ~dummy ~never_shrink:true ();
+  let create () =
+    { jobs = Q.create ~never_shrink:true ();
       jobs_left_this_cycle = 0;
     }
   ;;
 
-  let add t job = Q.push_back t.jobs job
+  let add t job = Q.enqueue_back t.jobs job
 
   let length t = Q.length t.jobs
 
@@ -64,7 +64,7 @@ end = struct
        a [try-with] for each job. *)
     try
       while can_run_a_job t do
-        let job = Q.take_front_exn t.jobs in
+        let job = Q.dequeue_front_exn t.jobs in
         t.jobs_left_this_cycle <- t.jobs_left_this_cycle - 1;
         (* [f] may raise, but this is OK because the only side effects we have done are to
            take [job] out of the queue and decrement [jobs_left_this_cycle].
@@ -91,9 +91,9 @@ let invariant job_invariant t : unit =
     ~low:   (check jap_invariant)
 ;;
 
-let create ~dummy =
-  { normal = Jobs_at_priority.create ~dummy;
-    low    = Jobs_at_priority.create ~dummy;
+let create () =
+  { normal = Jobs_at_priority.create ();
+    low    = Jobs_at_priority.create ();
   }
 ;;
 
