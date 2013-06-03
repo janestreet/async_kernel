@@ -251,8 +251,9 @@ let handle_errors ?here ?info ?name f handler =
 
 let catch_stream ?here ?info ?name f =
   let monitor = create ?here ?info ?name () in
+  let stream = errors monitor in
   within ~monitor f;
-  errors monitor;
+  stream
 ;;
 
 let catch ?here ?info ?name f =

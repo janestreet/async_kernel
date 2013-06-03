@@ -2,6 +2,8 @@ open Core.Std
 open Import
 open Raw_scheduler.T
 
+module Stream = Async_stream
+
 let debug = Debug.scheduler
 
 type t = Raw_scheduler.t with sexp_of
@@ -216,6 +218,20 @@ TEST_MODULE = struct
     assert Monitor.(is_alive main);
     assert !r ;
     assert !r';
+  ;;
+
+  (* [Monitor.catch_stream]. *)
+  TEST_UNIT =
+    let d = Stream.next (Monitor.catch_stream (fun () -> failwith "")) in
+    run_cycles_until_no_jobs_remain ();
+    assert (is_some (Deferred.peek d));
+  ;;
+
+  (* [Monitor.catch]. *)
+  TEST_UNIT =
+    let d = Monitor.catch (fun () -> failwith "") in
+    run_cycles_until_no_jobs_remain ();
+    assert (is_some (Deferred.peek d));
   ;;
 
 end

@@ -13,7 +13,7 @@ type 'job t with sexp_of
 
 include Invariant.S1 with type 'a t := 'a t
 
-val create : dummy:'a -> 'a t
+val create : unit -> 'a t
 
 (** [length t] returns the number of waiting jobs *)
 val length : _ t -> int

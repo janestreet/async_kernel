@@ -79,7 +79,7 @@ let invariant t : unit =
 ;;
 
 let create () =
-  let now = Time.epoch in
+  let now = Time.now () in
   let dummy_job = Job.do_nothing Execution_context.main in
   let events =
     Timing_wheel.create
@@ -90,7 +90,7 @@ let create () =
       ()
   in
   { check_access = None;
-    jobs = Jobs.create ~dummy:dummy_job;
+    jobs = Jobs.create ();
     current_execution_context = Execution_context.main;
     main_execution_context = Execution_context.main;
     max_num_jobs_per_priority_per_cycle = 500;
