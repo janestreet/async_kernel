@@ -1,11 +1,13 @@
 open Core.Std
 
-type 'execution_context t_ =
+let debug = Debug.monitor
+
+type t =
   { name : Info.t;
     here : Source_code_position.t option;
     id : int;
-    parent : 'execution_context t_ option;
-    errors : (exn, 'execution_context) Raw_tail.t;
+    parent : t option;
+    mutable error_handlers : (exn -> unit) list;
     mutable has_seen_error : bool;
     mutable someone_is_listening : bool;
     mutable kill_index : Kill_index.t;
@@ -29,7 +31,7 @@ end
 
 let to_pretty =
   let rec loop
-      { name; here; id; parent; errors = _; has_seen_error; someone_is_listening;
+      { name; here; id; parent; error_handlers = _; has_seen_error; someone_is_listening;
         kill_index;
       }
       ac =
@@ -43,7 +45,36 @@ let to_pretty =
   fun t -> loop t [];
 ;;
 
-let sexp_of_t_ _ t = Pretty.sexp_of_t (to_pretty t)
+let sexp_of_t t = Pretty.sexp_of_t (to_pretty t)
+
+let next_id =
+  let r = ref 0 in
+  fun () -> incr r; !r
+;;
+
+let create_with_parent ?here ?info ?name parent =
+  let id = next_id () in
+  let name =
+    match info, name with
+    | Some i, None   -> i
+    | Some i, Some s -> Info.tag i s
+    | None  , Some s -> Info.of_string s
+    | None  , None   -> Info.create "id" id <:sexp_of< int >>
+  in
+  let t =
+    { name; here; parent;
+      id;
+      error_handlers = [];
+      has_seen_error = false;
+      someone_is_listening = false;
+      kill_index = Kill_index.initial;
+    }
+  in
+  if debug then Debug.log "created monitor" t <:sexp_of< t >>;
+  t
+;;
+
+let main = create_with_parent ~name:"main" None
 
 exception Shutdown
 

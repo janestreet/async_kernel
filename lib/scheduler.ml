@@ -43,9 +43,19 @@ let next_upcoming_event t = Timing_wheel.next_alarm_fires_at t.events
 
 let cycle_start t = t.cycle_start
 
-let cycle_times t = Tail.collect (Tail.of_raw t.cycle_times)
+let run_every_cycle_start t ~f =
+  t.run_every_cycle_start <- f :: t.run_every_cycle_start;
+;;
 
-let cycle_num_jobs t = Tail.collect (Tail.of_raw t.cycle_num_jobs)
+let cycle_times t =
+  Stream.create (fun tail ->
+    run_every_cycle_start t ~f:(fun () -> Tail.extend tail t.last_cycle_time));
+;;
+
+let cycle_num_jobs t =
+  Stream.create (fun tail ->
+    run_every_cycle_start t ~f:(fun () -> Tail.extend tail t.last_cycle_num_jobs));
+;;
 
 let cycle_count t = t.cycle_count
 
@@ -129,8 +139,7 @@ let run_cycle t =
   t.cycle_count <- t.cycle_count + 1;
   t.cycle_start <- now;
   let num_jobs_run_at_start_of_cycle = t.num_jobs_run in
-  Tail.extend (Tail.of_raw t.cycle_times) t.last_cycle_time;
-  Tail.extend (Tail.of_raw t.cycle_num_jobs) t.last_cycle_num_jobs;
+  List.iter t.run_every_cycle_start ~f:(fun f -> f ());
   Timing_wheel.advance_clock t.events ~to_:now ~handle_fired:(fun alarm ->
     Jobs.add t.jobs Priority.normal (Timing_wheel.Alarm.value t.events alarm));
   schedule_finalizers t;

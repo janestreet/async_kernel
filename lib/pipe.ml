@@ -746,7 +746,7 @@ let of_stream_deprecated s =
   and check_closed_loop_next next = if not (is_closed w) then loop_next next
   and loop_next = function
     | Stream.Nil -> transfer (); close w
-    | Stream.Cons (x, s) -> Q.enqueue q x; loop (Stream.of_raw s)
+    | Stream.Cons (x, s) -> Q.enqueue q x; loop s
   in
   loop s;
   r

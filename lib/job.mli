@@ -1,13 +1,13 @@
 open Core.Std
 
-type 'execution_context t with sexp_of
+type t with sexp_of
 
-include Invariant.S1 with type 'a t := 'a t
+include Invariant.S with type t := t
 
-val create : 'execution_context -> ('a -> unit) -> 'a -> 'execution_context t
+val create : Execution_context.t -> ('a -> unit) -> 'a -> t
 
-val do_nothing : 'execution_context -> 'execution_context t
+val do_nothing : t
 
-val execution_context : 'execution_context t -> 'execution_context
+val execution_context : t -> Execution_context.t
 
-val run : _ t -> unit
+val run : t -> unit

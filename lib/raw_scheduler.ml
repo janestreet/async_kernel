@@ -1,14 +1,9 @@
 open Core.Std
 open Import
 
-module Execution_context = Execution_context
-module Ivar = Raw_ivar
 module Monitor = Raw_monitor
-module Tail = Raw_tail
 
 let debug = Debug.scheduler
-
-type 'a tail = ('a, Execution_context.t) Tail.t with sexp_of
 
 module T = struct
   type t =
@@ -16,7 +11,7 @@ module T = struct
         is currently allowed.  It is used to detect invalid access to the scheduler from a
         thread. *)
       mutable check_access : (unit -> unit) option;
-      jobs : Execution_context.t Job.t Jobs.t sexp_opaque;
+      jobs : Jobs.t;
       mutable main_execution_context    : Execution_context.t;
       mutable current_execution_context : Execution_context.t;
       mutable max_num_jobs_per_priority_per_cycle : int;
@@ -28,17 +23,16 @@ module T = struct
       mutable num_jobs_run : int;
       mutable cycle_count : int;
       mutable cycle_start : Time.t;
+      mutable run_every_cycle_start : (unit -> unit) list;
       mutable last_cycle_time : Time.Span.t;
-      cycle_times : Time.Span.t tail;
       mutable last_cycle_num_jobs : int;
-      cycle_num_jobs : int tail;
-      events : Execution_context.t Job.t Timing_wheel.t;
+      events : Job.t Timing_wheel.t;
       (* OCaml finalizers can run at any time and in any thread.  When an OCaml finalizer
          fires, we have it put a job that runs the async finalizer in the thread-safe
          queue of [finalizer_jobs], and call [thread_safe_finalizer_hook].  In
          [run_cycle], we pull the jobs off [finalizer_jobs] and add them to the
          scheduler. *)
-      finalizer_jobs : Execution_context.t Job.t Thread_safe_queue.t sexp_opaque;
+      finalizer_jobs : Job.t Thread_safe_queue.t sexp_opaque;
       mutable thread_safe_finalizer_hook : (unit -> unit);
     }
   with fields, sexp_of
@@ -51,7 +45,7 @@ let invariant t : unit =
     let check f field = f (Field.get field t) in
     Fields.iter
       ~check_access:ignore
-      ~jobs:(check (Jobs.invariant (Job.invariant Execution_context.invariant)))
+      ~jobs:(check Jobs.invariant)
       ~main_execution_context:(check Execution_context.invariant)
       ~current_execution_context:(check Execution_context.invariant)
       ~max_num_jobs_per_priority_per_cycle:
@@ -65,12 +59,11 @@ let invariant t : unit =
       ~num_jobs_run:(check (fun num_jobs_run -> assert (num_jobs_run >= 0)))
       ~cycle_count:(check (fun cycle_count -> assert (cycle_count >= 0)))
       ~cycle_start:ignore
+      ~run_every_cycle_start:ignore
       ~last_cycle_time:ignore
-      ~cycle_times:ignore
       ~last_cycle_num_jobs:(check (fun last_cycle_num_jobs ->
         assert (last_cycle_num_jobs >= 0)))
-      ~cycle_num_jobs:ignore
-      ~events:(check (Timing_wheel.invariant (Job.invariant Execution_context.invariant)))
+      ~events:(check (Timing_wheel.invariant Job.invariant))
       ~finalizer_jobs:ignore
       ~thread_safe_finalizer_hook:ignore
     ;
@@ -80,13 +73,12 @@ let invariant t : unit =
 
 let create () =
   let now = Time.now () in
-  let dummy_job = Job.do_nothing Execution_context.main in
   let events =
     Timing_wheel.create
       ~start:now
       ~alarm_precision:Config.alarm_precision
       ~level_bits:Config.timing_wheel_level_bits
-      ~dummy:dummy_job
+      ~dummy:Job.do_nothing
       ()
   in
   { check_access = None;
@@ -99,10 +91,9 @@ let create () =
     num_jobs_run = 0;
     cycle_start = now;
     cycle_count = 0;
+    run_every_cycle_start = [];
     last_cycle_time = sec 0.;
-    cycle_times = Tail.create ();
     last_cycle_num_jobs = 0;
-    cycle_num_jobs = Tail.create ();
     events;
     finalizer_jobs = Thread_safe_queue.create ();
     thread_safe_finalizer_hook = ignore;
@@ -173,7 +164,7 @@ let execution_context_is_alive t execution_context =
   let module E = Execution_context in
   Kill_index.equal execution_context.E.kill_index t.global_kill_index
   || (not (Kill_index.equal execution_context.E.kill_index Kill_index.dead)
-      && let monitor = Backpatched.get_exn execution_context.E.monitor in
+      && let monitor = execution_context.E.monitor in
          let b = monitor_is_alive t monitor in
          execution_context.E.kill_index <- monitor.Monitor.kill_index;
          b)
@@ -181,7 +172,13 @@ let execution_context_is_alive t execution_context =
 
 let kill_monitor t monitor =
   if Debug.monitor then
-    Debug.log "kill_monitor" monitor <:sexp_of< _ Monitor.t_ >>;
+    Debug.log "kill_monitor" monitor <:sexp_of< Monitor.t >>;
   monitor.Monitor.kill_index <- Kill_index.dead;
   t.global_kill_index <- Kill_index.next t.global_kill_index;
+;;
+
+let stabilize t =
+  let jobs = t.jobs in
+  Jobs.start_cycle jobs ~max_num_jobs_per_priority:Int.max_value;
+  Jobs.run_all jobs Job.run;
 ;;

@@ -22,67 +22,35 @@ type (+'a, 'execution_context) essence_of_deferred =
   }
 *)
 
-type (+'a, 'execution_context) t  (* the abstract covariant type, equivalent to ivar *)
+type +'a t  (* the abstract covariant type, equivalent to ivar *)
 
-let of_ivar (type a) (type execution_context) (ivar : (a, execution_context) Ivar.t) =
-  (Obj.magic ivar : (a, execution_context) t)
-;;
+type 'a deferred = 'a t
 
-let to_ivar (type a) (type execution_context) (t : (a, execution_context) t) =
-  (Obj.magic t : (a, execution_context) Ivar.t)
-;;
+let of_ivar (type a) (ivar : a Ivar.t) = (Obj.magic ivar : a t)
 
-let sexp_of_t sexp_of_a sexp_of_b t = Ivar.sexp_of_t sexp_of_a sexp_of_b (to_ivar t)
+let to_ivar (type a) (t : a t) = (Obj.magic t : a Ivar.t)
 
-type ('a, 'execution_context) deferred = ('a, 'execution_context) t with sexp_of
+let sexp_of_t sexp_of_a t = Ivar.sexp_of_t sexp_of_a (to_ivar t)
 
 let peek t = Ivar.peek (to_ivar t)
 
-module Scheduler_dependent
-  (Scheduler : Basic_scheduler)
-  (Deferred : Raw
-     with type execution_context := Scheduler.Execution_context.t
-     with type ('a, 'execution_context) raw := ('a, 'execution_context) t)
-  (Raw_ivar : Raw
-     with type execution_context := Scheduler.Execution_context.t
-     with type ('a, 'execution_context) raw := ('a, 'execution_context) Raw_ivar.t)
-  = struct
+let return a = of_ivar (Ivar.create_full a)
 
-  module Ivar = Ivar.Scheduler_dependent (Scheduler) (Raw_ivar)
+let is_determined t = Ivar.is_full (to_ivar t)
 
-  type 'a t = 'a Deferred.t
+let upon t f = Ivar.upon (to_ivar t) f
 
-  let of_raw = Deferred.of_raw
+let upon' t f = Ivar.upon' (to_ivar t) f
 
-  let to_raw = Deferred.to_raw
+let create f =
+  let result = Ivar.create () in
+  f result;
+  of_ivar result;
+;;
 
-  let of_ivar ivar = Deferred.of_raw (of_ivar (Raw_ivar.to_raw ivar))
+let bind t f =
+  create (fun bind_result ->
+    upon t (fun a -> Ivar.connect ~bind_result ~bind_rhs:(to_ivar (f a))))
+;;
 
-  let to_ivar t = Raw_ivar.of_raw (to_ivar (to_raw t))
-
-  let sexp_of_t sexp_of_a t = Ivar.sexp_of_t sexp_of_a (to_ivar t)
-
-  let return a = of_ivar (Ivar.create_full a)
-
-  let is_determined t = Ivar.is_full (to_ivar t)
-
-  let peek t = Ivar.peek (to_ivar t)
-
-  let upon t f = Ivar.upon (to_ivar t) f
-
-  let upon' t f = Ivar.upon' (to_ivar t) f
-
-  let create f =
-    let result = Ivar.create () in
-    f result;
-    of_ivar result;
-  ;;
-
-  let bind t f =
-    create (fun bind_result ->
-      upon t (fun a -> Ivar.connect ~bind_result ~bind_rhs:(to_ivar (f a))))
-  ;;
-
-  let install_removable_handler t f = Ivar.install_removable_handler (to_ivar t) f
-
-end
+let install_removable_handler t f = Ivar.install_removable_handler (to_ivar t) f

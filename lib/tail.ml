@@ -1,33 +1,33 @@
 open Core.Std
 
-module Tail = Raw_tail
-
 module Stream = struct
-  type 'a t = ('a, Execution_context.t) Raw_stream.next Deferred.t
+  type 'a t = 'a next Deferred.t
+  and 'a next = Nil | Cons of 'a * 'a t
 
-  let sexp_of_t sexp_of_a t = Raw_stream.sexp_of_t sexp_of_a () (Deferred.to_raw t)
+  let sexp_of_t sexp_of_a t =
+    let rec loop d ac =
+      match Deferred.peek d with
+      | None -> Sexp.List (List.rev (Sexp.Atom "..." :: ac))
+      | Some Nil -> Sexp.List (List.rev ac)
+      | Some (Cons (a, t)) -> loop t (sexp_of_a a :: ac)
+    in
+    loop t []
+  ;;
 
-  let of_raw = Deferred.of_raw
-  let to_raw = Deferred.to_raw
-
-  type ('a, 'execution_context) next_
-  = ('a, 'execution_context) Raw_stream.next
-  = Nil
-  | Cons of 'a * ('a, 'execution_context) Raw_stream.t
-
-  type 'a next = ('a, Execution_context.t) next_
-
-  let next t = Deferred.of_raw (to_raw t)
+  let next t = t
 end
 
-type 'a t = ('a, Execution_context.t) Tail.t with sexp_of
+type 'a t =
+  { (* [next] points at the tail of the stream *)
+    mutable next: 'a Stream.next Ivar.t;
+  }
+with fields
 
-let of_raw = Fn.id
-let to_raw = Fn.id
+let sexp_of_t _ t =
+  Sexp.Atom (if Ivar.is_empty t.next then "<open tail>" else "<closed tail>")
+;;
 
-let create = Tail.create
-
-let next t = Ivar.of_raw t.Tail.next
+let create () = { next = Ivar.create () }
 
 let collect t = Ivar.read (next t)
 
@@ -40,12 +40,12 @@ let fill_exn t v =
     Ivar.fill (next t) v
 ;;
 
-let close_exn t = fill_exn t Raw_stream.Nil
+let close_exn t = fill_exn t Stream.Nil
 
 let close_if_open t = if not (is_closed t) then Ivar.fill (next t) Stream.Nil
 
 let extend t v =
   let next = Ivar.create () in
-  fill_exn t (Stream.Cons (v, Deferred.to_raw (Ivar.read next)));
-  t.Tail.next <- Ivar.to_raw next;
+  fill_exn t (Stream.Cons (v, Ivar.read next));
+  t.next <- next;
 ;;

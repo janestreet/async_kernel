@@ -179,12 +179,3 @@ val forever
     has more than [n] handlers waiting for it to be filled.  Note that if [n] is
     less than 2, we may not trigger all assertion failures. *)
 val debug_space_leaks : int option ref
-
-(** The [Raw] interface exposed here is for async's internal use only.  It must be
-    exported here because we want the [Deferred.t] type to be fully abstract, so that they
-    shows up nicely in type errors, yet other async code defined later needs to deal with
-    the raw type. *)
-include Raw
-  with type execution_context := Execution_context.t
-  with type ('a, 'b) raw := ('a, 'b) Raw_deferred.t
-  with type 'a t := 'a t

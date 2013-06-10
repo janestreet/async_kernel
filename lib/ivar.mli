@@ -8,6 +8,8 @@ open Import
 
 type 'a t with bin_io, sexp_of
 
+type 'a ivar = 'a t
+
 include Invariant.S1 with type 'a t := 'a t
 
 (** [equal t t'] is physical equality of [t] and [t']. *)
@@ -33,23 +35,18 @@ val is_empty : 'a t -> bool
 (** [is_full t] returns true if [t] is full *)
 val is_full : 'a t -> bool
 
-(** The [Raw] interface and [Deferred] module exposed here are for async's internal use
-    only.  They must be exported here because we want the [Deferred.t] and [Ivar.t] types
-    to be fully abstract, so that they show up nicely in type errors, yet other async
-    code defined later needs to deal with the raw types. *)
-
-include Raw
-  with type execution_context := Execution_context.t
-  with type ('a, 'b) raw := ('a, 'b) Raw_ivar.t
-  with type 'a t := 'a t
-
+(** The [Deferred] module exposed here is for async's internal use only. *)
 module Deferred : sig
   type +'a t with sexp_of
 
-  include Raw
-    with type execution_context := Execution_context.t
-    with type ('a, 'b) raw := ('a, 'b) Raw_deferred.t
-    with type 'a t := 'a t
+  val create : ('a ivar -> unit) -> 'a t
+  val peek : 'a t -> 'a option
+  val is_determined : _ t -> bool
+  val return : 'a -> 'a t
+  val upon  : 'a t -> ('a -> unit) -> unit
+  val upon' : 'a t -> ('a -> unit) -> Unregister.t
+  val bind  : 'a t -> ('a -> 'b t) -> 'b t
+  val install_removable_handler : 'a t -> 'a Raw_handler.t -> Unregister.t
 end
 
 (** [read t] returns a deferred that becomes enabled with value [v] after the ivar is

@@ -31,7 +31,7 @@ val set_max_num_jobs_per_priority_per_cycle : t -> int -> unit
 val set_check_access : t -> (unit -> unit) -> unit
 val check_access : t -> unit
 
-val events : t -> Execution_context.t Job.t Timing_wheel.t
+val events : t -> Job.t Timing_wheel.t
 
 val add_finalizer     : t -> 'a Heap_block.t -> ('a Heap_block.t -> unit) -> unit
 val add_finalizer_exn : t -> 'a              -> ('a              -> unit) -> unit

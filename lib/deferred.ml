@@ -3,17 +3,13 @@ open Deferred_intf
 
 module Scheduler = Raw_scheduler
 
-module T = Raw_deferred.Scheduler_dependent (Scheduler) (Ivar.Deferred) (Ivar)
-
-include T
-
-let create = create
+include Ivar.Deferred
 
 let debug_space_leaks = Raw_ivar.debug_space_leaks
 
 let never () = Ivar.read (Ivar.create ())
 
-include (Monad.Make (T))
+include Monad.Make (Ivar.Deferred)
 
 (* We shadow [all] on-purpose here, since the default definition introduces a chain of
    binds as long as the list. *)
@@ -37,7 +33,7 @@ end
 open Infix
 
 module Deferred = struct
-  type 'a t = 'a T.t
+  type nonrec 'a t = 'a t
   let bind = bind
   let map = map
   let return = return

@@ -1,4 +1,7 @@
-type t = Jobs.Priority.t with sexp_of
+open Core.Std
+open Import
+
+type t = Normal | Low with sexp_of
 
 val normal : t
 val low    : t

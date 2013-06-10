@@ -1,6 +1,6 @@
 module T = struct
-  type ('a, 'execution_context) t =
-    { execution_context : 'execution_context;
+  type 'a t =
+    { execution_context : Execution_context.t;
       run : 'a -> unit;
     }
 end

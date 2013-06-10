@@ -2,38 +2,29 @@ open Core.Std
 
 module Q = Dequeue
 
-module Priority = struct
-  type t = Normal | Low with sexp_of
-
-  let normal = Normal
-  let low = Low
-
-  let to_string t = Sexp.to_string (sexp_of_t t)
-end
-
 module Jobs_at_priority : sig
-  type 'job t with sexp_of
+  type t with sexp_of
 
-  include Invariant.S1 with type 'a t := 'a t
+  include Invariant.S with type t := t
 
-  val create : unit -> 'a t
-  val add : 'job t -> 'job -> unit
-  val clear : _ t -> unit
-  val set_jobs_left_this_cycle : _ t -> int -> unit
-  val is_empty : _ t -> bool
-  val can_run_a_job : _ t -> bool
-  val length : _ t -> int
-  val run_all : 'job t -> ('job -> unit) -> (unit, exn) Result.t
+  val create : unit -> t
+  val add : t -> Job.t -> unit
+  val clear : t -> unit
+  val set_jobs_left_this_cycle : t -> int -> unit
+  val is_empty : t -> bool
+  val can_run_a_job : t -> bool
+  val length : t -> int
+  val run_all : t -> (Job.t -> unit) -> (unit, exn) Result.t
 end = struct
-  type 'job t =
-    { jobs : 'job Q.t;
+  type t =
+    { jobs : Job.t Q.t;
       mutable jobs_left_this_cycle : int;
     }
   with sexp_of
 
-  let invariant job_invariant t =
+  let invariant t =
     assert (t.jobs_left_this_cycle >= 0);
-    Q.iter t.jobs ~f:job_invariant;
+    Q.iter t.jobs ~f:Job.invariant;
   ;;
 
   let create () =
@@ -53,7 +44,7 @@ end = struct
   let set_jobs_left_this_cycle t n =
     if t.jobs_left_this_cycle < 0 then
       failwiths "Jobs.set_jobs_left_this_cycle got negative number" (n, t)
-        (<:sexp_of< int * _ t >>);
+        (<:sexp_of< int * t >>);
     t.jobs_left_this_cycle <- n
   ;;
 
@@ -77,18 +68,17 @@ end = struct
   ;;
 end
 
-type 'job t =
-  { normal : 'job Jobs_at_priority.t;
-    low : 'job Jobs_at_priority.t;
+type t =
+  { normal : Jobs_at_priority.t;
+    low    : Jobs_at_priority.t;
   }
 with fields, sexp_of
 
-let invariant job_invariant t : unit =
+let invariant t : unit =
   let check invariant field = invariant (Field.get field t) in
-  let jap_invariant = Jobs_at_priority.invariant job_invariant in
   Fields.iter
-    ~normal:(check jap_invariant)
-    ~low:   (check jap_invariant)
+    ~normal:(check Jobs_at_priority.invariant)
+    ~low:   (check Jobs_at_priority.invariant)
 ;;
 
 let create () =

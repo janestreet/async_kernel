@@ -1,5 +1,5 @@
 open Core.Std
-open Import
+open Import  let _ = _squelch_unused_module_warning_
 open Deferred_std
 
 module Scheduler = Raw_scheduler
@@ -8,21 +8,11 @@ module Stream = Tail.Stream
 module Monitor = Raw_monitor
 include Monitor
 
-
-type t = Execution_context.t Monitor.t_ with sexp_of
-
 type monitor = t with sexp_of
-
-let debug = Debug.monitor
 
 let current_execution_context () = Scheduler.(current_execution_context (t ()))
 
 let current () = Execution_context.monitor (current_execution_context ())
-
-let next_id =
-  let r = ref 0 in
-  fun () -> r := !r + 1; !r
-;;
 
 type 'a with_optional_monitor_name =
   ?here : Source_code_position.t
@@ -30,43 +20,19 @@ type 'a with_optional_monitor_name =
   -> ?name : string
   -> 'a
 
-let create_with_parent ?here ?info ?name parent =
-  let id = next_id () in
-  let name =
-    match info, name with
-    | Some i, None   -> i
-    | Some i, Some s -> Info.tag i s
-    | None  , Some s -> Info.of_string s
-    | None  , None   -> Info.create "id" id <:sexp_of< int >>
-  in
-  let t =
-    { name; here; parent;
-      id;
-      errors = Tail.to_raw (Tail.create ());
-      has_seen_error = false;
-      someone_is_listening = false;
-      kill_index = Kill_index.initial;
-    }
-  in
-  if debug then Debug.log "created monitor" t <:sexp_of< t >>;
-  t
-;;
-
-let main = create_with_parent ~name:"main" None
-
-let () = ok_exn (Backpatched.Hole.fill Execution_context.main_monitor_hole main)
+let add_error_handler t f = t.error_handlers <- f :: t.error_handlers
 
 let errors t =
   t.someone_is_listening <- true;
-  Tail.collect (Tail.of_raw t.errors);
+  let tail = Tail.create () in
+  add_error_handler t (fun exn -> Tail.extend tail exn);
+  Tail.collect tail
 ;;
 
 let error t =
   let module S = Stream in
-  S.next (Tail.collect (Tail.of_raw t.errors))
-  >>| function
-  | S.Nil -> assert false
-  | S.Cons (error, _) -> error
+  Deferred.create (fun ivar ->
+    add_error_handler t (fun exn -> Ivar.fill_if_empty ivar exn));
 ;;
 
 let create ?here ?info ?name () =
@@ -111,7 +77,7 @@ let send_exn t ?backtrace exn =
   t.has_seen_error <- true;
   let rec loop t =
     if t.someone_is_listening then
-      Tail.extend (Tail.of_raw t.errors) exn
+      List.iter t.error_handlers ~f:(fun f -> f exn)
     else
       match t.parent with
       | Some t' -> loop t'
@@ -195,7 +161,7 @@ let stream_iter stream ~f =
     S.next stream
     >>> function
     | S.Nil -> ()
-    | S.Cons (v, stream) -> loop (Stream.of_raw stream); f v
+    | S.Cons (v, stream) -> loop stream; f v
   in
   loop stream
 ;;
@@ -220,7 +186,7 @@ let try_with ?here ?info
              | S.Nil -> assert false
              | S.Cons (err, errors) ->
                let err = if do_extract_exn then extract_exn err else err in
-               (Error err, Stream.of_raw errors));
+               (Error err, errors));
          ]
   >>| fun (res, errors) ->
   begin match rest with

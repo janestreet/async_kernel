@@ -1,5 +1,5 @@
 open Core.Std
-open Import
+open Import  let _ = _squelch_unused_module_warning_
 open Deferred_std
 
 module Stream = Async_stream
@@ -47,7 +47,7 @@ module Event = struct
      v
      Aborted *)
   type waiting =
-    { event : Execution_context.t Job.t Timing_wheel.Alarm.t;
+    { event : Job.t Timing_wheel.Alarm.t;
       ready : [ `Happened | `Aborted ] Ivar.t;
     }
   with sexp_of

@@ -19,11 +19,7 @@ val create : ('a Tail.t -> unit) -> 'a t
 (** [next t] returns a deferred that will become determined when the next part of the
     stream is determined.  This is [Cons (v, t')], where v is the next element of the
     stream and t' is the rest of the stream, or with Nil at the end of the stream. *)
-type ('a, 'execution_context) next_ =
-| Nil
-| Cons of 'a * ('a, 'execution_context) Raw_stream.t
-
-type 'a next = ('a, Execution_context.t) next_
+type 'a next = Nil | Cons of 'a * 'a t
 
 val next : 'a t -> 'a next Deferred.t
 
@@ -203,13 +199,3 @@ val ungroup : 'a list t -> 'a t
     interleaved as they become determined. The interleaved stream will be closed when the
     outer stream and all of the inner streams have been closed. *)
 val interleave : 'a t t -> 'a t
-
-(** The [Raw] interface exposed here is for async's internal use only.  It must be
-    exported here because we want the [Stream.t] type to be abstract, so that is shows up
-    nicely in type errors, yet other async code defined later needs to deal with the raw
-    type. *)
-
-include Raw
-  with type execution_context := Execution_context.t
-  with type ('a, 'b) raw := ('a, 'b) Raw_stream.t
-  with type 'a t := 'a t

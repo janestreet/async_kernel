@@ -3,8 +3,6 @@ open Deferred_std
 
 include Tail.Stream
 
-let to_deferred t = Deferred.of_raw (to_raw t)
-
 let first_exn t =
   next t
   >>| function
@@ -18,7 +16,7 @@ let fold' t ~init ~f =
       let rec loop t b =
         upon (next t) (function
         | Nil -> Ivar.fill result b
-        | Cons (v, t) -> upon (f b v) (loop (of_raw t)))
+        | Cons (v, t) -> upon (f b v) (loop t))
       in
       loop t init)
 ;;
@@ -29,14 +27,13 @@ let fold t ~init ~f =
   Deferred.create
     (fun result ->
       let rec loop t b =
-        let t = to_deferred t in
-        match Deferred.peek t with
-        | None -> upon t (fun next -> loop_next next b)
+        match Deferred.peek (next t) with
+        | None -> upon (next t) (fun next -> loop_next next b)
         | Some next -> loop_next next b
       and loop_next next b =
         match next with
         | Nil -> Ivar.fill result b
-        | Cons (v, t) -> loop (of_raw t) (f b v)
+        | Cons (v, t) -> loop t (f b v)
       in
       loop t init)
 ;;
@@ -125,7 +122,7 @@ let first_n s n =
       else
         upon (next s) (function
           | Nil -> Tail.close_exn tail
-          | Cons (x, t) -> Tail.extend tail x; loop (of_raw t) (n - 1))
+          | Cons (x, t) -> Tail.extend tail x; loop t (n - 1))
     in
     loop s n)
 ;;
@@ -134,7 +131,7 @@ let available_now t =
   let rec loop t ac =
     match Deferred.peek (next t) with
     | None | Some Nil -> (List.rev ac, t)
-    | Some (Cons (x, t)) -> loop (of_raw t) (x :: ac)
+    | Some (Cons (x, t)) -> loop t (x :: ac)
   in
   loop t []
 ;;
@@ -153,7 +150,6 @@ let split ?(stop = Deferred.never ()) ?(f = (fun _ -> `Continue)) t =
         match o with
         | Nil -> finish `End_of_stream
         | Cons (a, t) ->
-          let t = of_raw t in
           match f a with
           | `Continue -> Tail.extend prefix a; loop t
           | `Found b -> finish (`Found (b, t))
@@ -203,7 +199,7 @@ let take_until t d =
                     choice (next t) (fun z -> `Next z)])
         (function
           | `Stop | `Next Nil -> Tail.close_exn tail
-          | `Next (Cons (x, t)) -> Tail.extend tail x; loop (of_raw t))
+          | `Next (Cons (x, t)) -> Tail.extend tail x; loop t)
     in
     loop t)
 ;;
@@ -217,7 +213,7 @@ let iter_durably' t ~f =
         | Cons (x, t) ->
           Monitor.try_with ~rest:`Raise (fun () -> f x)
           >>> fun z ->
-          loop (of_raw t);
+          loop t;
           match z with
           | Ok () -> ()
           | Error e -> Monitor.send_exn (Monitor.current ()) e
@@ -235,7 +231,7 @@ let iter_durably_report_end t ~f =
           (* We immediately call [loop], thus making the iter durable.  Any exceptions
              raised by [f] will not prevent the loop from continuing, and will go to the
              monitor of whomever called [iter_durably_report_end]. *)
-          loop (of_raw t); f x
+          loop t; f x
     in
     loop t)
 ;;
