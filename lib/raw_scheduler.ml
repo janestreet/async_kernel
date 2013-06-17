@@ -100,6 +100,8 @@ let create () =
   }
 ;;
 
+let is_dead t = is_some t.uncaught_exn
+
 let set_check_access t f = t.check_access <- Some f
 
 let t_ref =

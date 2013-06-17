@@ -13,6 +13,7 @@ let t = Raw_scheduler.t
 include struct
   open Raw_scheduler
   let current_execution_context = current_execution_context
+  let is_dead                   = is_dead
   let set_execution_context     = set_execution_context
   let with_execution_context    = with_execution_context
   let set_check_access          = set_check_access
@@ -23,11 +24,6 @@ end
 include Monitor.Exported_for_scheduler
 
 let invariant = Raw_scheduler.invariant
-
-let preserve_execution_context t f =
-  let execution_context = current_execution_context t in
-  stage (fun a -> Raw_scheduler.add_job t (Job.create execution_context f a))
-;;
 
 let add_job execution_context f a =
   Raw_scheduler.(add_job (t ())) (Job.create execution_context f a)
@@ -166,6 +162,9 @@ let run_cycle t =
 let run_cycles_until_no_jobs_remain () =
   if debug then Debug.log_string "run_cycles_until_no_jobs_remain starting";
   let t = t () in
+  if is_dead t then
+    failwiths "run_cycles_until_no_jobs_remain cannot proceed -- scheduler is dead" t
+      <:sexp_of< t >>;
   let rec loop () =
     run_cycle t;
     if not (Jobs.is_empty t.jobs) then loop ();

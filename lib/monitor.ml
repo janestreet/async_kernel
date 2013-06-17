@@ -74,11 +74,16 @@ let send_exn t ?backtrace exn =
     | Error_ _ -> exn
     | _ -> Error_ { Exn_for_monitor. exn; backtrace; backtrace_history; monitor = t }
   in
+  if Debug.monitor_send_exn then
+    Debug.log "Monitor.send_exn" (t, exn) <:sexp_of< t * exn >>;
   t.has_seen_error <- true;
   let rec loop t =
-    if t.someone_is_listening then
+    if t.someone_is_listening then begin
+      if Debug.monitor_send_exn then
+        Debug.log "Monitor.send_exn found listening monitor" (t, exn)
+          <:sexp_of< t * exn >>;
       List.iter t.error_handlers ~f:(fun f -> f exn)
-    else
+    end else
       match t.parent with
       | Some t' -> loop t'
       | None ->
@@ -151,6 +156,23 @@ module Exported_for_scheduler = struct
       schedule  ?monitor ?priority
         (fun () -> upon (work ()) (fun a -> Ivar.fill i a)))
   ;;
+
+  let preserve_execution_context f =
+    let scheduler = Scheduler.t () in
+    let execution_context = Scheduler.current_execution_context scheduler in
+    stage (fun a -> Raw_scheduler.add_job scheduler (Job.create execution_context f a))
+  ;;
+
+  let preserve_execution_context' f =
+    let scheduler = Scheduler.t () in
+    let execution_context = Scheduler.current_execution_context scheduler in
+    let call_and_fill (f, a, i) = upon (f a) (fun r -> Ivar.fill i r) in
+    stage (fun a ->
+      Deferred.create (fun i ->
+        Raw_scheduler.add_job scheduler
+          (Job.create execution_context call_and_fill (f, a, i))))
+  ;;
+
 end
 
 open Exported_for_scheduler
@@ -166,19 +188,24 @@ let stream_iter stream ~f =
   loop stream
 ;;
 
+let try_with_rest_handling = ref (`Default `Ignore)
+
+let try_with_ignored_exn_handling = ref `Ignore
+
 let try_with ?here ?info
     ?(name = "try_with")
     ?extract_exn:(do_extract_exn = false)
     ?(run = `Schedule)
-    ?(rest = `Ignore) fct =
+    ?rest
+    f =
   let module S = Stream in
   let parent = current () in
   let monitor = create_with_parent ?here ?info ~name (Some parent) in
   let errors = errors monitor in
   let f =
     match run with
-    | `Now      -> within'   ~monitor fct
-    | `Schedule -> schedule' ~monitor fct
+    | `Now      -> within'   ~monitor f
+    | `Schedule -> schedule' ~monitor f
   in
   choose [ choice f (fun x -> (Ok x, errors));
            choice (S.next errors)
@@ -189,9 +216,22 @@ let try_with ?here ?info
                (Error err, errors));
          ]
   >>| fun (res, errors) ->
+  let rest =
+    match !try_with_rest_handling with
+    | `Default default -> Option.value rest ~default
+    | `Force rest -> rest
+  in
   begin match rest with
-  | `Ignore -> ()
   | `Raise -> stream_iter errors ~f:(fun e -> send_exn parent e ?backtrace:None);
+  | `Ignore ->
+    match !try_with_ignored_exn_handling with
+    | `Ignore -> ()
+    | `Eprintf | `Run _ as x ->
+      stream_iter errors ~f:(fun exn ->
+        match x with
+        | `Run f -> f exn
+        | `Eprintf ->
+          Debug.log "try_with ignored exception" (exn, monitor) (<:sexp_of< exn * t >>))
   end;
   res
 ;;

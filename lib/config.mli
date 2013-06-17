@@ -26,6 +26,7 @@ module Print_debug_messages_for : sig
   val finalizers         : bool
   val interruptor        : bool
   val monitor            : bool
+  val monitor_send_exn   : bool
   val parallel           : bool
   val reader             : bool
   val run_job            : bool

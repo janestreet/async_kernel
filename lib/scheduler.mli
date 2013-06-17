@@ -9,11 +9,7 @@ include Invariant.S with type t := t
 
 val current_execution_context  : t -> Execution_context.t
 val with_execution_context     : t -> Execution_context.t -> f:(unit -> 'a) -> 'a
-
-(** [preserve_execution_context f] saves the current execution context and returns a
-    function [g] such that [g a] adds a job that runs [f a] in the saved execution
-    context. *)
-val preserve_execution_context : t -> ('a -> unit) -> ('a -> unit) Staged.t
+val set_execution_context      : t -> Execution_context.t -> unit
 
 val add_job                    : Execution_context.t -> ('a -> unit) -> 'a -> unit
 val main_execution_context     : Execution_context.t
@@ -49,6 +45,9 @@ val within    : ((unit -> unit         ) -> unit         ) with_options
 val within_v  : ((unit -> 'a           ) -> 'a option    ) with_options
 val schedule' : ((unit -> 'a Deferred.t) -> 'a Deferred.t) with_options
 val schedule  : ((unit -> unit         ) -> unit         ) with_options
+
+val preserve_execution_context  : ('a -> unit)          -> ('a -> unit)          Staged.t
+val preserve_execution_context' : ('a -> 'b Deferred.t) -> ('a -> 'b Deferred.t) Staged.t
 
 val within_context : Execution_context.t -> (unit -> 'a) -> ('a, unit) Result.t
 

@@ -1,7 +1,8 @@
 open Core.Std
+open Import  let _ = _squelch_unused_module_warning_
 open Deferred_std
 
-type 'a outcome = [ `Ok of 'a | `Aborted | `Raised of exn ]
+type 'a outcome = [ `Ok of 'a | `Aborted | `Raised of exn ] with sexp_of
 
 module Internal_job : sig
   type 'a t with sexp_of
@@ -55,9 +56,9 @@ end
 type 'a t =
   { continue_on_error : bool;
     max_concurrent_jobs : int;
-    (* [job_resources] holds resources that are not currently in use by a running
-       job. *)
-    job_resources : 'a Stack.t;
+    (* [job_resources_not_in_use] holds resources that are not currently in use by a
+       running job. *)
+    job_resources_not_in_use : 'a Stack.t;
     (* [jobs_waiting_to_start] is the queue of jobs that haven't yet started. *)
     jobs_waiting_to_start : 'a Internal_job.t Queue.t;
     (* [0 <= num_jobs_running <= max_concurrent_jobs]. *)
@@ -67,11 +68,22 @@ type 'a t =
        [maybe_start_job] will fill [ivar] when capacity becomes available, i.e. when
        [jobs_waiting_to_start] is empty and [num_jobs_running < max_concurrent_jobs]. *)
     mutable capacity_available : unit Ivar.t option;
+    (* [is_dead] is true if [t] was killed due to a job raising an exception or [kill t]
+       being called. *)
     mutable is_dead : bool;
+    (* [cleans] holds functions that will be called to clean each resource when [t] is
+       killed. *)
+    mutable cleans : ('a -> unit Deferred.t) list;
+    (* [num_resources_not_cleaned] is the number of resources whose clean functions have
+       not yet completed.  While [t] is alive, [num_resources_not_cleaned =
+       max_concurrent_jobs].  Once [t] is killed, [num_resources_not_cleaned] decreases to
+       zero over time as the clean functions complete. *)
+    mutable num_resources_not_cleaned : int;
+    (* [cleaned] becomes determined when [num_resources_not_cleaned] reaches zero,
+       i.e. after [t] is killed and all its clean functions complete. *)
+    cleaned : unit Ivar.t;
   }
 with fields, sexp_of
-
-type ('a, 'kind) t_ = 'a t with sexp_of
 
 let invariant invariant_a t : unit =
   try
@@ -80,10 +92,14 @@ let invariant invariant_a t : unit =
       ~continue_on_error:ignore
       ~max_concurrent_jobs:(check (fun max_concurrent_jobs ->
         assert (max_concurrent_jobs > 0)))
-      ~job_resources:(check (fun job_resources ->
-        Stack.iter job_resources ~f:invariant_a;
-        assert (Stack.length job_resources = t.max_concurrent_jobs - t.num_jobs_running)))
-      ~jobs_waiting_to_start:ignore
+      ~job_resources_not_in_use:(check (fun job_resources_not_in_use ->
+        Stack.iter job_resources_not_in_use ~f:invariant_a;
+        assert (Stack.length job_resources_not_in_use
+                = (if t.is_dead
+                   then 0
+                   else t.max_concurrent_jobs - t.num_jobs_running))))
+      ~jobs_waiting_to_start:(check (function jobs_waiting_to_start ->
+        if t.is_dead then assert (Queue.is_empty jobs_waiting_to_start)))
       ~num_jobs_running:(check (fun num_jobs_running ->
         assert (num_jobs_running >= 0);
         assert (num_jobs_running <= t.max_concurrent_jobs);
@@ -92,19 +108,51 @@ let invariant invariant_a t : unit =
       ~capacity_available:(check (function
         | None -> ()
         | Some ivar -> assert (Ivar.is_empty ivar)))
-      ~is_dead:(check (function is_dead ->
-        if is_dead then assert (Queue.is_empty t.jobs_waiting_to_start)))
+      ~is_dead:ignore
+      ~cleans:ignore
+      ~num_resources_not_cleaned:(check (fun num_resources_not_cleaned ->
+        assert (num_resources_not_cleaned >= 0);
+        assert (num_resources_not_cleaned <= t.max_concurrent_jobs);
+        if num_resources_not_cleaned < t.max_concurrent_jobs then assert t.is_dead))
+      ~cleaned:(check (fun cleaned ->
+        if Ivar.is_full cleaned then assert (t.num_resources_not_cleaned = 0)))
   with exn ->
     failwiths "Throttle.invariant failed" (exn, t) <:sexp_of< exn * _ t >>
 ;;
 
+module T2 = struct
+  type nonrec ('a, 'kind) t = 'a t with sexp_of
+
+  let invariant invariant_a _ t = invariant invariant_a t
+end
+
 let num_jobs_waiting_to_start t = Queue.length t.jobs_waiting_to_start
 
-let kill t =
-  t.is_dead <- true;
-  Queue.iter t.jobs_waiting_to_start ~f:Internal_job.abort;
-  Queue.clear t.jobs_waiting_to_start;
+let clean_resource t a =
+  Deferred.all_unit (List.map t.cleans ~f:(fun f -> f a))
+  >>> fun () ->
+  t.num_resources_not_cleaned <- t.num_resources_not_cleaned - 1;
+  if t.num_resources_not_cleaned = 0 then Ivar.fill t.cleaned ();
 ;;
+
+let kill t =
+  if not t.is_dead then begin
+    t.is_dead <- true;
+    Queue.iter  t.jobs_waiting_to_start ~f:Internal_job.abort;
+    Queue.clear t.jobs_waiting_to_start;
+    Stack.iter  t.job_resources_not_in_use ~f:(fun a -> clean_resource t a);
+    Stack.clear t.job_resources_not_in_use;
+  end;
+;;
+
+let at_kill t f =
+  (* We preserve the execution context so that exceptions raised by [f] go to the monitor
+     in effect when [at_kill] was called. *)
+  let f = unstage (Monitor.Exported_for_scheduler.preserve_execution_context' f) in
+  t.cleans <- f :: t.cleans;
+;;
+
+let cleaned t = Ivar.read t.cleaned
 
 let rec start_job t =
   assert (not t.is_dead);
@@ -112,16 +160,18 @@ let rec start_job t =
   assert (not (Queue.is_empty t.jobs_waiting_to_start));
   let job = Queue.dequeue_exn t.jobs_waiting_to_start in
   t.num_jobs_running <- t.num_jobs_running + 1;
-  let job_resource = Stack.pop_exn t.job_resources in
+  let job_resource = Stack.pop_exn t.job_resources_not_in_use in
   Internal_job.run job job_resource
   >>> fun res ->
   t.num_jobs_running <- t.num_jobs_running - 1;
-  Stack.push t.job_resources job_resource;
   begin match res with
   | `Ok -> ()
   | `Raised -> if not t.continue_on_error then kill t
   end;
-  if not t.is_dead then begin
+  if t.is_dead then
+    clean_resource t job_resource
+  else begin
+    Stack.push t.job_resources_not_in_use job_resource;
     if not (Queue.is_empty t.jobs_waiting_to_start) then
       start_job t
     else
@@ -132,13 +182,17 @@ let rec start_job t =
 ;;
 
 let create_with ~continue_on_error job_resources =
+  let max_concurrent_jobs = List.length job_resources in
   { continue_on_error;
-    max_concurrent_jobs = List.length job_resources;
-    job_resources = Stack.of_list job_resources;
+    max_concurrent_jobs;
+    job_resources_not_in_use = Stack.of_list job_resources;
     jobs_waiting_to_start = Queue.create ();
     num_jobs_running = 0;
     capacity_available = None;
     is_dead = false;
+    cleans = [];
+    num_resources_not_cleaned = max_concurrent_jobs;
+    cleaned = Ivar.create ();
   }
 ;;
 
@@ -163,6 +217,8 @@ module Job = struct
 
   let result t = t.result
 
+  let abort t = Internal_job.abort t.internal_job
+
   let create f =
     let (internal_job, result) = Internal_job.create f in
     { internal_job; result }
@@ -170,10 +226,13 @@ module Job = struct
 end
 
 let enqueue' t f =
-  if t.is_dead then failwith "cannot enqueue a job in dead throttle";
   let job = Job.create f in
-  Queue.enqueue t.jobs_waiting_to_start job.Job.internal_job;
-  if t.num_jobs_running < t.max_concurrent_jobs then start_job t;
+  if t.is_dead then
+    Job.abort job
+  else begin
+    Queue.enqueue t.jobs_waiting_to_start job.Job.internal_job;
+    if t.num_jobs_running < t.max_concurrent_jobs then start_job t;
+  end;
   Job.result job;
 ;;
 
@@ -208,150 +267,3 @@ let capacity_available t =
     | Some ivar -> Ivar.read ivar
     | None -> Deferred.create (fun ivar -> t.capacity_available <- Some ivar)
 ;;
-
-TEST_MODULE = struct
-  let stabilize = Scheduler.run_cycles_until_no_jobs_remain
-
-  TEST =
-    try
-      ignore (create ~continue_on_error:false ~max_concurrent_jobs:0);
-      false
-    with _ -> true
-  ;;
-
-  TEST_UNIT =
-    (* Check [~continue_on_error:false]. *)
-    let t = create ~continue_on_error:false ~max_concurrent_jobs:1 in
-    let d1 = enqueue' t (fun () -> failwith "") in
-    let d2 = enqueue' t (fun () -> assert false) in
-    stabilize ();
-    assert (num_jobs_waiting_to_start t = 0);
-    assert (match Deferred.peek d1 with Some (`Raised _) -> true | _ -> false);
-    assert (match Deferred.peek d2 with Some `Aborted -> true | _ -> false);
-  ;;
-
-  TEST_UNIT =
-    (* Check [~continue_on_error:true]. *)
-    let t = create ~continue_on_error:true ~max_concurrent_jobs:1 in
-    let d1 = enqueue' t (fun () -> failwith "") in
-    let d2 = enqueue' t (fun () -> return 13) in
-    stabilize ();
-    assert (match Deferred.peek d1 with Some (`Raised _) -> true | _ -> false);
-    assert (match Deferred.peek d2 with Some (`Ok 13) -> true | _ -> false);
-  ;;
-
-  TEST_UNIT =
-    (* Check that jobs are started in the order they are enqueued. *)
-    let t = create ~continue_on_error:false ~max_concurrent_jobs:2 in
-    let r = ref [] in
-    for i = 0 to 99 do
-      don't_wait_for (enqueue t (fun () -> r := i :: !r; Deferred.unit));
-    done;
-    stabilize ();
-    assert (!r = List.rev (List.init 100 ~f:Fn.id));
-  ;;
-
-  (* [num_jobs_waiting_to_start], [num_jobs_running] *)
-  TEST_UNIT =
-    let t = create ~continue_on_error:false ~max_concurrent_jobs:2 in
-    assert (num_jobs_waiting_to_start t = 0);
-    let add_job () =
-      let ivar = Ivar.create () in
-      don't_wait_for (enqueue t (fun () -> Ivar.read ivar));
-      ivar;
-    in
-    let i1 = add_job () in
-    assert (num_jobs_waiting_to_start t + num_jobs_running t = 1);
-    stabilize ();
-    assert (num_jobs_waiting_to_start t = 0);
-    assert (num_jobs_running t = 1);
-    let _i2 = add_job () in
-    assert (num_jobs_waiting_to_start t + num_jobs_running t = 2);
-    stabilize ();
-    assert (num_jobs_waiting_to_start t = 0);
-    assert (num_jobs_running t = 2);
-    let _i3 = add_job () in
-    assert (num_jobs_waiting_to_start t = 1);
-    assert (num_jobs_running t = 2);
-    stabilize ();
-    assert (num_jobs_waiting_to_start t = 1);
-    assert (num_jobs_running t = 2);
-    Ivar.fill i1 ();
-    stabilize ();
-    assert (num_jobs_waiting_to_start t = 0);
-    assert (num_jobs_running t = 2);
-  ;;
-
-  TEST_UNIT =
-    (* Check [capacity_available] *)
-    let t = create ~continue_on_error:false ~max_concurrent_jobs:2 in
-    let r = capacity_available t in
-    stabilize ();
-    assert (Option.is_some (Deferred.peek r));
-    let i1 = Ivar.create () in
-    don't_wait_for (enqueue t (fun () -> Ivar.read i1));
-    let r = capacity_available t in
-    stabilize ();
-    assert (Option.is_some (Deferred.peek r));
-    let i2 = Ivar.create () in
-    don't_wait_for (enqueue t (fun () -> Ivar.read i2));
-    let r = capacity_available t in
-    stabilize ();
-    assert (Option.is_none (Deferred.peek r));
-    Ivar.fill i1 ();
-    stabilize ();
-    assert (Option.is_some (Deferred.peek r));
-  ;;
-
-  TEST_UNIT =
-    (* Check that [max_concurrent_jobs] limit works, and is fully utilized. *)
-    List.iter [ 1; 10; 100; 1000 ] ~f:(fun num_jobs ->
-      List.iter [ 1; 10; 100; 1000 ] ~f:(fun max_concurrent_jobs ->
-        let resources = List.init max_concurrent_jobs ~f:(fun _ -> ref false) in
-        let max_observed_concurrent_jobs = ref 0 in
-        let num_concurrent_jobs = ref 0 in
-        let job_starts = ref [] in
-        let t = create_with ~continue_on_error:false resources in
-        let d = prior_jobs_done t in
-        stabilize ();
-        assert (Deferred.is_determined d);
-        let continue = Ivar.create () in
-        let jobs = ref [] in
-        for i = 0 to num_jobs - 1; do
-          let job =
-            enqueue t (fun r ->
-              assert (not !r); (* ensure no one else is accessing the resource *)
-              r := true;
-              job_starts := i :: !job_starts;
-              incr num_concurrent_jobs;
-              max_observed_concurrent_jobs :=
-                max !max_observed_concurrent_jobs !num_concurrent_jobs;
-              assert (!num_concurrent_jobs <= max_concurrent_jobs);
-              Ivar.read continue
-              >>| fun () ->
-              decr num_concurrent_jobs;
-              r := false)
-          in
-          jobs := job :: !jobs
-        done;
-        let all_done = prior_jobs_done t in
-        let jobs = !jobs in
-        let jobs_finished = Deferred.all_unit jobs in
-        stabilize ();
-        assert (not (Deferred.is_determined all_done));
-        let num_initial_jobs = min num_jobs max_concurrent_jobs in
-        assert (!num_concurrent_jobs = num_initial_jobs);
-        assert (List.length !job_starts = num_initial_jobs);
-        if max_concurrent_jobs = 1 then
-          assert (!job_starts = List.init num_initial_jobs ~f:Fn.id);
-        Ivar.fill continue ();
-        stabilize ();
-        assert (Deferred.is_determined all_done);
-        assert (!max_observed_concurrent_jobs = min num_jobs max_concurrent_jobs);
-        assert (Deferred.is_determined jobs_finished);
-        if max_concurrent_jobs = 1 then
-          assert (List.rev !job_starts = List.init num_jobs ~f:Fn.id);
-      ))
-  ;;
-
-end

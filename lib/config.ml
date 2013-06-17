@@ -14,6 +14,7 @@ module Debug_tag = struct
     | Finalizers
     | Interruptor
     | Monitor
+    | Monitor_send_exn
     | Parallel
     | Reader
     | Run_job
@@ -36,6 +37,7 @@ module Debug_tag = struct
       Finalizers;
       Interruptor;
       Monitor;
+      Monitor_send_exn;
       Parallel;
       Reader;
       Run_job;
@@ -90,6 +92,12 @@ let empty =
   }
 ;;
 
+let default_file_descr_watcher, default_max_num_open_file_descrs =
+  if Result.is_ok Linux_ext.Timerfd.create
+  then File_descr_watcher.Epoll, 8192
+  else File_descr_watcher.Select, 1024
+;;
+
 let default_alarm_precision_and_level_bits word_size =
   let module W = Word_size in
   match word_size with
@@ -134,16 +142,16 @@ let default_alarm_precision, default_timing_wheel_level_bits =
 ;;
 
 let default =
-  { alarm_precision                   = Some default_alarm_precision        ;
-    check_invariants                  = Some false                          ;
-    detect_invalid_access_from_thread = Some false                          ;
-    epoll_max_ready_events            = Some 256                            ;
-    file_descr_watcher                = Some File_descr_watcher.Select      ;
-    max_num_open_file_descrs          = Some 1024                           ;
-    max_num_threads                   = Some 50                             ;
-    print_debug_messages_for          = Some []                             ;
-    record_backtraces                 = Some false                          ;
-    timing_wheel_level_bits           = Some default_timing_wheel_level_bits;
+  { alarm_precision                   = Some default_alarm_precision         ;
+    check_invariants                  = Some false                           ;
+    detect_invalid_access_from_thread = Some false                           ;
+    epoll_max_ready_events            = Some 256                             ;
+    file_descr_watcher                = Some default_file_descr_watcher      ;
+    max_num_open_file_descrs          = Some default_max_num_open_file_descrs;
+    max_num_threads                   = Some 50                              ;
+    print_debug_messages_for          = Some []                              ;
+    record_backtraces                 = Some false                           ;
+    timing_wheel_level_bits           = Some default_timing_wheel_level_bits ;
   }
 ;;
 
@@ -303,6 +311,7 @@ module Print_debug_messages_for = struct
   let finalizers         = debug Debug_tag.Finalizers
   let interruptor        = debug Debug_tag.Interruptor
   let monitor            = debug Debug_tag.Monitor
+  let monitor_send_exn   = debug Debug_tag.Monitor_send_exn
   let parallel           = debug Debug_tag.Parallel
   let reader             = debug Debug_tag.Reader
   let run_job            = debug Debug_tag.Run_job

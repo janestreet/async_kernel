@@ -41,7 +41,7 @@
     this problem. *)
 open Core.Std
 
-type t with sexp_of
+type t = Raw_monitor.t with sexp_of
 
 type 'a with_optional_monitor_name =
   ?here : Source_code_position.t
@@ -104,6 +104,29 @@ val try_with
      -> ('a, exn) Result.t Deferred.t
   ) with_optional_monitor_name
 
+(** [try_with_rest_handling] determines how [try_with f ~rest] determines the [rest] value
+    it actually uses.  If [!try_with_rest_handling = `Default d], then [d] is the default
+    value for [rest], but can be overriden by supplying [rest] to [try_with].  If
+    [!try_with_rest_handling = Force f], then the [rest] supplied to [try_with] is not
+    used, and [f] is.
+
+    Initially, [!try_with_rest_handling = `Default `Ignore]. *)
+val try_with_rest_handling
+  : [ `Default of [ `Ignore | `Raise ]
+    | `Force of   [ `Ignore | `Raise ]
+    ] ref
+
+(** [try_with_ignored_exn_handling] describes what should happen when [try_with]'s [rest]
+    value is [`Ignore], as determined by [!try_with_rest_handling] and the [~rest]
+    supplied to [try_with].
+
+    Initially, [!try_with_ignored_exn_handling = `Ignore]. *)
+val try_with_ignored_exn_handling
+  : [ `Ignore              (* really ignore the exception *)
+    | `Eprintf             (* eprintf the exception *)
+    | `Run of exn -> unit  (* apply the function to the exception *)
+    ] ref
+
 (** [handle_errors ?name f handler] runs [f ()] inside a new monitor with the optionally
     supplied name, and calls [handler error] on every error raised to that monitor.  Any
     error raised by [handler] goes to the monitor in effect when [handle_errors] was
@@ -159,4 +182,8 @@ module Exported_for_scheduler : sig
   val schedule  : ((unit -> unit         ) -> unit         ) with_options
 
   val within_context : Execution_context.t -> (unit -> 'a) -> ('a, unit) Result.t
+
+  val preserve_execution_context  : ('a -> unit)          -> ('a -> unit)          Staged.t
+  val preserve_execution_context' : ('a -> 'b Deferred.t) -> ('a -> 'b Deferred.t) Staged.t
+
 end
