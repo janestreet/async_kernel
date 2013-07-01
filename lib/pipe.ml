@@ -620,23 +620,28 @@ type ('a, 'b, 'c, 'accum) fold =
   -> f:('accum -> 'b -> 'c)
   -> 'accum Deferred.t
 
-let fold_gen (read : ?consumer:Consumer.t -> _ Reader.t -> _) ?consumer t ~init ~f =
+let fold_gen (read_now : ?consumer:Consumer.t -> _ Reader.t -> _) ?consumer t ~init ~f =
   if !check_invariant then invariant t;
   Deferred.create (fun finished ->
     let rec loop b =
-      read t ?consumer >>> function
-      | `Eof  -> Ivar.fill finished b
-      | `Ok q -> f b q loop
+      values_available t
+      >>> function
+      | `Eof -> Ivar.fill finished b
+      | `Ok ->
+        match read_now t ?consumer with
+        | `Eof -> Ivar.fill finished b
+        | `Nothing_available -> loop b
+        | `Ok v -> f b v loop
     in
     loop init)
 ;;
 
 let fold' ?consumer t ~init ~f =
-  fold_gen read' ?consumer t ~init ~f:(fun b q loop -> f b q >>> loop)
+  fold_gen read_now' ?consumer t ~init ~f:(fun b q loop -> f b q >>> loop)
 ;;
 
 let fold ?consumer t ~init ~f =
-  fold_gen read ?consumer t ~init ~f:(fun init a loop -> loop (f init a))
+  fold_gen read_now ?consumer t ~init ~f:(fun init a loop -> loop (f init a))
 ;;
 
 type ('a, 'b, 'c) iter =
@@ -663,7 +668,7 @@ let iter' ?consumer ?continue_on_error t ~f =
 ;;
 
 let iter ?consumer ?continue_on_error t ~f =
-  fold_gen read ?consumer t ~init:() ~f:(fun () a loop ->
+  fold_gen read_now ?consumer t ~init:() ~f:(fun () a loop ->
     with_error_to_current_monitor ?continue_on_error f a
     >>> fun () ->
     loop ())
@@ -753,7 +758,7 @@ let of_stream_deprecated s =
 ;;
 
 let transfer_gen
-    (read : ?consumer:Consumer.t -> _ Reader.t -> _) write input output ~f =
+    (read_now : ?consumer:Consumer.t -> _ Reader.t -> _) write input output ~f =
   if !check_invariant then begin
     invariant input;
     invariant output;
@@ -772,7 +777,7 @@ let transfer_gen
       | `Output_closed -> output_closed ()
       | `Eof -> Ivar.fill result ()
       | `Ok ->
-        match read input ~consumer with
+        match read_now input ~consumer with
         | `Eof -> Ivar.fill result ()
         | `Nothing_available -> loop ()
         | `Ok x -> f x continue
