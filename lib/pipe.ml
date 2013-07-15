@@ -1,4 +1,5 @@
 open Core.Std
+open Import
 open Deferred_std
 module Stream = Async_stream
 module Q = Queue
@@ -312,7 +313,7 @@ let update_pushback t =
 ;;
 
 let close t =
-  if !show_debug_messages then Debug.log "close" t <:sexp_of< (_, _) t >>;
+  if !show_debug_messages then eprints "close" t <:sexp_of< (_, _) t >>;
   if !check_invariant then invariant t;
   if not (is_closed t) then begin
     Ivar.fill t.closed ();
@@ -332,7 +333,7 @@ let init f =
 ;;
 
 let close_read t =
-  if !show_debug_messages then Debug.log "close_read" t <:sexp_of< (_, _) t >>;
+  if !show_debug_messages then eprints "close_read" t <:sexp_of< (_, _) t >>;
   if !check_invariant then invariant t;
   Q.iter  t.blocked_flushes ~f:(fun flush -> Blocked_flush.fill flush `Reader_closed);
   Q.clear t.blocked_flushes;
@@ -421,7 +422,7 @@ let fill_blocked_reads t =
 (* checks all invariants, calls a passed in f to handle a write, then updates reads and
    pushback *)
 let start_write t =
-  if !show_debug_messages then Debug.log "write" t <:sexp_of< (_, _) t >>;
+  if !show_debug_messages then eprints "write" t <:sexp_of< (_, _) t >>;
   if !check_invariant then invariant t;
   if is_closed t then failwiths "write to closed pipe" t <:sexp_of< (_, _) t >>;
 ;;
@@ -463,7 +464,7 @@ let write_when_ready t ~f =
 ;;
 
 let start_read t label =
-  if !show_debug_messages then Debug.log label t <:sexp_of< (_, _) t >>;
+  if !show_debug_messages then eprints label t <:sexp_of< (_, _) t >>;
   if !check_invariant then invariant t;
 ;;
 
@@ -845,6 +846,46 @@ let interleave inputs =
   output
 ;;
 
+let merge inputs ~cmp =
+  let r, w = create () in
+  let heap = Heap.create (fun (a1, _) (a2, _) -> cmp a1 a2) in
+  let handle_read input eof_or_ok =
+    match eof_or_ok with
+    | `Eof -> ()
+    | `Ok v -> ignore (Heap.push heap (v, input));
+  in
+  let rec pop_heap_and_loop () =
+    (* At this point, all inputs not at Eof occur in [heap] exactly once, so we know what
+       the next output element is. *)
+    match Heap.pop heap with
+    | None -> close w
+    | Some (v, input) ->
+      write_without_pushback w v;
+      if Heap.length heap = 0
+      then don't_wait_for (transfer_id input w)
+      else
+        match read_now input with
+        | `Eof | `Ok _ as x ->
+          handle_read input x;
+          pop_heap_and_loop ();
+        | `Nothing_available ->
+          pushback w
+          >>> fun () ->
+          read input
+          >>> fun x ->
+          handle_read input x;
+          pop_heap_and_loop ();
+  in
+  let initial_push =
+    Deferred.List.iter inputs ~f:(fun input ->
+      read input
+      >>| fun x ->
+      handle_read input x)
+  in
+  upon initial_push pop_heap_and_loop;
+  r
+;;
+
 let concat inputs =
   let r, w = create () in
   upon (Deferred.List.iter inputs ~f:(fun input -> transfer_id input w))
@@ -1146,6 +1187,55 @@ TEST_MODULE = struct
     let d = read_all t in
     stabilize ();
     assert (List.length (read_result d) = 2 * List.length l);
+  ;;
+
+  (* ==================== merge ==================== *)
+  TEST_UNIT =
+    let cases = [
+        [];
+        [ [] ];
+        [ [1; 3; 7] ];
+        [ []; []; []; ];
+        [ [1; 7; 10] ];
+        [ [1; 5; 12]; [3; 3; 4; 22]; [1]; [40] ];
+        [ [1; 5; 12]; [3; 3; 4; 22]; []; [] ];
+        [ [27]; [1; 3; 3; 4; 22]; [2; 27; 49] ];
+        [ [27]; [1; 3; 3; 4; 22; 27; 31; 59; 72]; [2; 27; 49] ];
+        [ [2; 9; 12; 27; 101]; [1; 3; 3; 4; 22; 27; 31; 59; 72]; [2; 27; 49; 127; 311] ];
+      ]
+    in
+    let transfer_by = [1; 2; 3; 5; 10] in
+    let cmp = Int.compare in
+    (* The merge function assumes that the pipes return ordered values. *)
+    List.iter cases ~f:(fun lists ->
+      let lists =
+        List.map lists ~f:(fun list -> List.sort list ~cmp)
+      in
+      let expected_result = List.sort ~cmp (List.concat lists) in
+      List.iter transfer_by ~f:(fun transfer_by ->
+        let pipes = List.map lists ~f:(fun _ -> create ()) in
+        let merged_pipe = merge (List.map pipes ~f:fst) ~cmp in
+        List.iter2_exn lists pipes ~f:(fun list (_, writer) ->
+          let rec loop index = function
+            | [] -> close writer
+            | a :: tail ->
+              write_without_pushback writer a;
+              if index mod transfer_by > 0 then
+                loop (index + 1) tail
+              else begin
+                pushback writer
+                >>> fun () ->
+                pushback merged_pipe
+                >>> fun () ->
+                loop (index + 1) tail
+              end
+          in
+          loop 1 list);
+        upon (to_list merged_pipe) (fun actual_result ->
+          if not (actual_result = expected_result) then
+            failwiths "mismatch" (actual_result, expected_result)
+              <:sexp_of< int list * int list >>)));
+    stabilize ()
   ;;
 
   (* ==================== iter' ==================== *)

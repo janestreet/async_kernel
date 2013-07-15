@@ -266,7 +266,7 @@ TEST_UNIT =
 ;;
 
 (* check that exceptions raised by clean function go to the correct monitor *)
-let () =
+TEST_UNIT =
   let t = create ~continue_on_error:false ~max_concurrent_jobs:1 in
   let monitor = Monitor.create () in
   let cleanup_ran = ref false in

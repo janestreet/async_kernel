@@ -25,6 +25,8 @@ type 'a ivar = 'a t
 
 let equal (t : _ t) t' = phys_equal t t'
 
+let indir t = { cell = Indir t }
+
 (*
 (* [Detailed] is used for showing the detailed structure of the ivar graph, including
    indirections.  It is only used for debugging. *)
@@ -84,30 +86,25 @@ let create_full a = create_with_cell (Full a)
    [Indir]s starting with [t] and ensures that all [Indir]s along that chain are replaced
    with an [Indir] pointing to the end of the chain. *)
 let squash =
-  let rec squash t prev_indir prev_indirs =
-    (* [prev_indir.cell = Indir t] *)
-    let cell = t.cell in
-    match cell with
-    | Indir t' -> squash t' t (prev_indir :: prev_indirs)
-    | _ ->
-      (* [t] is the end of the chain, and [prev_indir] points to it; set all the indirs
-         leading up to [prev_indir] to point to [t] too. *)
-      let indir = prev_indir.cell in
-      List.iter prev_indirs ~f:(fun prev_indir -> prev_indir.cell <- indir);
-      t
+  let rec follow indir t =
+    (* [indir = Indir t] *)
+    match t.cell with
+    | Indir t' as indir' -> follow indir' t'
+    | _ -> indir
+  in
+  let rec update t indir =
+    match t.cell with
+    | Indir t' -> t.cell <- indir; update t' indir
+    | _ -> t
   in
   fun t ->
     match t.cell with
     | Indir t' ->
       begin match t'.cell with
-      | Indir t'' -> squash t'' t' [t]
-      | _ ->
-        (* Nothing to do, since [t] is a chain with a single [Indir]. *)
-        t'
+      | Indir t'' as indir -> update t (follow indir t'')
+      | _ -> t' (* nothing to do, since [t] is a chain with a single [Indir] *)
       end
-    | _ ->
-      (* Nothing to do, since [t] isn't an [Indir]. *)
-      t
+    | _ -> t (* nothing to do, since [t] isn't an [Indir]. *)
 ;;
 
 let invariant a_invariant t =

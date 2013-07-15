@@ -22,3 +22,5 @@ val upon  : 'a t -> ('a -> unit) -> unit
 val upon' : 'a t -> ('a -> unit) -> Unregister.t
 
 val debug_space_leaks : int option ref
+
+val indir : 'a t -> 'a t

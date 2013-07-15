@@ -1,9 +1,13 @@
+module Debug_in_this_directory = Debug
+
 open Core.Std  let _ = _squelch_unused_module_warning_
+
+module Debug = Debug_in_this_directory
 
 let concat = String.concat
 
-let log        = Core_kernel.Import.log
-let log_string = Core_kernel.Import.log_string
+let eprints = Core.Std.Debug.eprints
+let eprint  = Core.Std.Debug.eprint
 
 module Poly = Polymorphic_compare
 

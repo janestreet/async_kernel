@@ -174,6 +174,7 @@ let run_cycles_until_no_jobs_remain () =
      a job, [current_execution_context = main_execution_context]. *)
   set_execution_context t t.main_execution_context;
   if debug then Debug.log_string "run_cycles_until_no_jobs_remain finished";
+  Option.iter t.uncaught_exn ~f:Error.raise;
 ;;
 
 let reset_in_forked_process () =

@@ -1,5 +1,4 @@
 open Core.Std
-open Import
 
 let concat = String.concat
 
@@ -65,7 +64,8 @@ module File_descr_watcher = struct
 end
 
 type t =
-  { alarm_precision                   : Time.Span.t               sexp_option;
+  { abort_after_thread_pool_stuck_for : Time.Span.t               sexp_option;
+    alarm_precision                   : Time.Span.t               sexp_option;
     check_invariants                  : bool                      sexp_option;
     detect_invalid_access_from_thread : bool                      sexp_option;
     epoll_max_ready_events            : int                       sexp_option;
@@ -74,12 +74,14 @@ type t =
     max_num_threads                   : int                       sexp_option;
     print_debug_messages_for          : Debug_tag.t list          sexp_option;
     record_backtraces                 : bool                      sexp_option;
+    report_thread_pool_stuck_for      : Time.Span.t               sexp_option;
     timing_wheel_level_bits           : Timing_wheel.Level_bits.t sexp_option;
   }
 with fields, sexp
 
 let empty =
-  { alarm_precision                   = None;
+  { abort_after_thread_pool_stuck_for = None;
+    alarm_precision                   = None;
     check_invariants                  = None;
     detect_invalid_access_from_thread = None;
     epoll_max_ready_events            = None;
@@ -88,6 +90,7 @@ let empty =
     max_num_threads                   = None;
     print_debug_messages_for          = None;
     record_backtraces                 = None;
+    report_thread_pool_stuck_for      = None;
     timing_wheel_level_bits           = None;
   }
 ;;
@@ -142,7 +145,8 @@ let default_alarm_precision, default_timing_wheel_level_bits =
 ;;
 
 let default =
-  { alarm_precision                   = Some default_alarm_precision         ;
+  { abort_after_thread_pool_stuck_for = Some (sec 60.)                       ;
+    alarm_precision                   = Some default_alarm_precision         ;
     check_invariants                  = Some false                           ;
     detect_invalid_access_from_thread = Some false                           ;
     epoll_max_ready_events            = Some 256                             ;
@@ -151,6 +155,7 @@ let default =
     max_num_threads                   = Some 50                              ;
     print_debug_messages_for          = Some []                              ;
     record_backtraces                 = Some false                           ;
+    report_thread_pool_stuck_for      = Some (sec 1.)                        ;
     timing_wheel_level_bits           = Some default_timing_wheel_level_bits ;
   }
 ;;
@@ -172,6 +177,12 @@ let field_descriptions () : string =
   in
   let fields =
     Fields.fold ~init:[]
+      ~abort_after_thread_pool_stuck_for:(field <:sexp_of< Time.Span.t >>
+                                            ["
+  By default, async will send an exception to the toplevel monitor if it detects that the
+  thread pool is stuck for longer than this.
+"
+                                            ])
       ~alarm_precision:(field <:sexp_of< Time.Span.t >>
                           ["
   The precision of alarms in Async's clock.  Time is split into intervals of this size,
@@ -240,6 +251,12 @@ let field_descriptions () : string =
   space usage.
 "
                             ])
+      ~report_thread_pool_stuck_for:(field <:sexp_of< Time.Span.t >>
+                                       ["
+  By default, async will print a message to stderr every second if the thread pool is
+  stuck for longer than this.
+"
+                                       ])
       ~timing_wheel_level_bits:(field <:sexp_of< Timing_wheel.Level_bits.t >>
                                   ["
   This is used to adjust the time/space tradeoff in the timing wheel used to implement
@@ -326,6 +343,7 @@ let default field =
   Option.value (Field.get field t) ~default:(Option.value_exn (Field.get field default))
 ;;
 
+let abort_after_thread_pool_stuck_for = default Fields.abort_after_thread_pool_stuck_for
 let alarm_precision                   = default Fields.alarm_precision
 let check_invariants                  = default Fields.check_invariants
 let detect_invalid_access_from_thread = default Fields.detect_invalid_access_from_thread
@@ -334,10 +352,12 @@ let file_descr_watcher                = default Fields.file_descr_watcher
 let max_num_open_file_descrs          = default Fields.max_num_open_file_descrs
 let max_num_threads                   = default Fields.max_num_threads
 let record_backtraces                 = default Fields.record_backtraces
+let report_thread_pool_stuck_for      = default Fields.report_thread_pool_stuck_for
 let timing_wheel_level_bits           = default Fields.timing_wheel_level_bits
 
 let t =
-  { alarm_precision                   = Some alarm_precision                  ;
+  { abort_after_thread_pool_stuck_for = Some abort_after_thread_pool_stuck_for;
+    alarm_precision                   = Some alarm_precision                  ;
     check_invariants                  = Some check_invariants                 ;
     detect_invalid_access_from_thread = Some detect_invalid_access_from_thread;
     epoll_max_ready_events            = Some epoll_max_ready_events           ;
@@ -346,6 +366,7 @@ let t =
     max_num_threads                   = Some max_num_threads                  ;
     print_debug_messages_for          = t.print_debug_messages_for            ;
     record_backtraces                 = Some record_backtraces                ;
+    report_thread_pool_stuck_for      = Some report_thread_pool_stuck_for     ;
     timing_wheel_level_bits           = Some timing_wheel_level_bits          ;
   }
 ;;

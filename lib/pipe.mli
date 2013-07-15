@@ -14,8 +14,8 @@
     as values are written, if a reader is available to consume them, the values will be
     handed to the reader.
 
-    One can use [flushed] to get notified by a pipe when all prior writes have been
-    consumed by a reader.
+    One can use [downstream_flushed] to get notified by a pipe when all prior writes have
+    been consumed by a reader.
 
     There are distinct [Reader] and [Writer] modules and types, but all of the operations
     on readers and writers are available directly from the [Pipe] module. *)
@@ -96,7 +96,7 @@ module Flushed_result : sig
   type t = [ `Ok | `Reader_closed ] with sexp_of
 end
 
-(** Deferreds returned by [upstream_flushed] and [downstream_flushed] becomes determined
+(** Deferreds returned by [upstream_flushed] and [downstream_flushed] become determined
     when all values written prior to the call have been consumed, or if the reader end of
     the pipe is closed.  The difference between "upstream" and "downstream" comes if one
     has a chain of pipes that are linked (e.g. by [Pipe.map]):
@@ -119,7 +119,7 @@ end
     read from the final pipe in the chain.
 
     The following [Pipe] functions automatically link their input and output pipes
-    together so that [flushed] on upstream pipes will propagate to downstream pipes:
+    together so that [*_flushed] on upstream pipes will propagate to downstream pipes:
     [transfer*], [map*], [filter_map*], [filter], [interleave], [concat].  There is *not*
     automatic linking with [iter*]; however, user code can customize the behavior of
     flush functions using [Consumer], see below. *)
@@ -127,11 +127,11 @@ val   upstream_flushed : (_, _) t -> Flushed_result.t Deferred.t
 val downstream_flushed : (_, _) t -> Flushed_result.t Deferred.t
 
 module Consumer : sig
-  (** A [Consumer] is used to augment our notion of flushing ([Pipe.flushed]) to include
-      the time spent processing an element once it has been removed from the pipe.  It can
-      be thought of as sitting at the end of a pipe, or between two pipes, and it provides
-      more detailed feedback on the time an element spends outside of the pipe proper.
-      So we have the following two cases:
+  (** A [Consumer] is used to augment our notion of flushing ([Pipe.upstream_flushed] and
+      [Pipe.downstream_flushed]) to include the time spent processing an element once it
+      has been removed from the pipe.  It can be thought of as sitting at the end of a
+      pipe, or between two pipes, and it provides more detailed feedback on the time an
+      element spends outside of the pipe proper.  So we have the following two cases:
 
       {v
         Pipe --> Consumer
@@ -140,7 +140,7 @@ module Consumer : sig
 
       The time outside of the pipe can be broken down into two parts: a part (probably
       short lived) during which the consumer processes the elements in some way, and a
-      downstream portion where the consumer acts as a sentinal to report when the element
+      downstream portion where the consumer acts as a sentinel to report when the element
       has been fully processed.
 
       For instance, consider the simple case of a pipe attached to an [Async.Std.Writer]
@@ -247,8 +247,8 @@ val write_without_pushback  : 'a Writer.t -> 'a         -> unit
     then calls [f write], where [write] can be used by [f] to write a single value into
     the pipe at a time.  [write_when_ready] guarantees that the pipe is open when it calls
     [f], and hence that the writes will succeed, unless [f] itself closes the pipe. *)
-val write_when_ready :
-  'a Writer.t
+val write_when_ready
+  :  'a Writer.t
   -> f:(('a -> unit) -> 'b)
   -> [ `Closed | `Ok of 'b ] Deferred.t
 
@@ -386,7 +386,7 @@ val values_available : _ Reader.t -> [ `Eof | `Ok ] Deferred.t
     the consumer was searching its incoming stream for some value, and it found that
     value, so there's no need to search further.)  In this case, the consumer closes its
     pipe to indicate it's done reading values.  When the copy task discovers that its
-    downstream pipe is closed, it propagate the close to the upstream producer by closing
+    downstream pipe is closed, it propagates the close to the upstream producer by closing
     its pipe and stops processing. } } *)
 
 (** [fold' reader ~init ~f] reads a batch of elements from [reader], supplies them to [f],
@@ -486,6 +486,13 @@ val filter : 'a Reader.t -> f:('a -> bool) -> 'a Reader.t
     [output] is closed by the downstream consumer (in which case [interleave] closes all
     the [inputs]). *)
 val interleave : 'a Reader.t list -> 'a Reader.t
+
+(** [merge inputs ~cmp] returns a reader, [output], that merges all the inputs.  Assuming
+    that for each input, values are sorted according to the comparison function [cmp],
+    values for each input will be transfered to [output] and the values returned by
+    [output] will be sorted according to [cmp].  If a single pipe is passed, the pipe is
+    returned unaltered. *)
+val merge : 'a Reader.t list -> cmp:('a -> 'a -> int) -> 'a Reader.t
 
 (** [concat inputs] return a reader, [output], with the values from each pipe in [inputs]
     in sequence.  [concat] closes [output] once it reaches EOF on the final input.
