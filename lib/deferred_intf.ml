@@ -21,6 +21,9 @@ module type Monad_sequence = sig
   val filter     : ?how:how -> 'a t -> f:(       'a ->       bool monad) -> 'a t monad
   val filter_map : ?how:how -> 'a t -> f:(       'a  -> 'b option monad) -> 'b t monad
 
+  val find     : 'a t -> f:('a -> bool      monad) -> 'a option monad
+  val find_map : 'a t -> f:('a -> 'b option monad) -> 'b option monad
+
   val all      : 'a   monad t -> 'a t monad
   val all_unit : unit monad t -> unit monad
 end

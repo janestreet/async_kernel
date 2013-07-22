@@ -14,7 +14,6 @@ module T = struct
       jobs : Jobs.t;
       mutable main_execution_context    : Execution_context.t;
       mutable current_execution_context : Execution_context.t;
-      mutable max_num_jobs_per_priority_per_cycle : int;
       (* [uncaught_exn] is set to [Some error] as soon as an exception bubbles to the top
          of the monitor tree without being handled.  We guarantee to never run another job
          after this by clearing [jobs] and never adding another job. *)
@@ -34,6 +33,11 @@ module T = struct
          scheduler. *)
       finalizer_jobs : Job.t Thread_safe_queue.t sexp_opaque;
       mutable thread_safe_finalizer_hook : (unit -> unit);
+
+      (* configuration *)
+      mutable check_invariants : bool;
+      mutable max_num_jobs_per_priority_per_cycle : Max_num_jobs_per_priority_per_cycle.t;
+      mutable record_backtraces : bool;
     }
   with fields, sexp_of
 end
@@ -48,9 +52,6 @@ let invariant t : unit =
       ~jobs:(check Jobs.invariant)
       ~main_execution_context:(check Execution_context.invariant)
       ~current_execution_context:(check Execution_context.invariant)
-      ~max_num_jobs_per_priority_per_cycle:
-      (check (fun max_num_jobs_per_priority_per_cycle ->
-        assert (max_num_jobs_per_priority_per_cycle > 0)))
       ~uncaught_exn:(check (fun uncaught_exn ->
         if is_some uncaught_exn then assert (Jobs.is_empty t.jobs)))
       ~global_kill_index:(check (fun kill_index ->
@@ -66,6 +67,9 @@ let invariant t : unit =
       ~events:(check (Timing_wheel.invariant Job.invariant))
       ~finalizer_jobs:ignore
       ~thread_safe_finalizer_hook:ignore
+      ~check_invariants:ignore
+      ~max_num_jobs_per_priority_per_cycle:ignore
+      ~record_backtraces:ignore
     ;
   with exn ->
     failwiths "Scheduler.invariant failed" (exn, t) <:sexp_of< exn * t >>
@@ -85,7 +89,6 @@ let create () =
     jobs = Jobs.create ();
     current_execution_context = Execution_context.main;
     main_execution_context = Execution_context.main;
-    max_num_jobs_per_priority_per_cycle = 500;
     uncaught_exn = None;
     global_kill_index = Kill_index.initial;
     num_jobs_run = 0;
@@ -97,12 +100,16 @@ let create () =
     events;
     finalizer_jobs = Thread_safe_queue.create ();
     thread_safe_finalizer_hook = ignore;
+    (* configuration *)
+    check_invariants                    = Config.check_invariants;
+    max_num_jobs_per_priority_per_cycle = Config.max_num_jobs_per_priority_per_cycle;
+    record_backtraces                   = Config.record_backtraces;
   }
 ;;
 
 let is_dead t = is_some t.uncaught_exn
 
-let set_check_access t f = t.check_access <- Some f
+let set_check_access t f = t.check_access <- f
 
 let t_ref =
   match Result.try_with create with
@@ -126,7 +133,7 @@ let t () =
 
 let current_execution_context t =
   let execution_context = t.current_execution_context in
-  if Config.record_backtraces
+  if t.record_backtraces
   then Execution_context.record_backtrace execution_context
   else execution_context
 ;;
@@ -181,6 +188,7 @@ let kill_monitor t monitor =
 
 let stabilize t =
   let jobs = t.jobs in
-  Jobs.start_cycle jobs ~max_num_jobs_per_priority:Int.max_value;
+  Jobs.start_cycle jobs
+    ~max_num_jobs_per_priority:(Max_num_jobs_per_priority_per_cycle.create_exn Int.max_value);
   Jobs.run_all jobs Job.run;
 ;;

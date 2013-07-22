@@ -1,4 +1,5 @@
 open Core.Std
+open Import
 
 module Q = Dequeue
 
@@ -42,10 +43,10 @@ end = struct
   let clear t = Q.clear t.jobs
 
   let set_jobs_left_this_cycle t n =
-    if t.jobs_left_this_cycle < 0 then
+    if n < 0 then
       failwiths "Jobs.set_jobs_left_this_cycle got negative number" (n, t)
         (<:sexp_of< int * t >>);
-    t.jobs_left_this_cycle <- n
+    t.jobs_left_this_cycle <- n;
   ;;
 
   let can_run_a_job t = Q.length t.jobs > 0 && t.jobs_left_this_cycle > 0
@@ -102,11 +103,9 @@ let add t priority job =
 let clear t = List.iter [ t.normal; t.low ] ~f:Jobs_at_priority.clear
 
 let start_cycle t ~max_num_jobs_per_priority =
-  let doit jobs_at_priority =
-    Jobs_at_priority.set_jobs_left_this_cycle jobs_at_priority max_num_jobs_per_priority
-  in
-  doit t.normal;
-  doit t.low;
+  let n = Max_num_jobs_per_priority_per_cycle.raw max_num_jobs_per_priority in
+  Jobs_at_priority.set_jobs_left_this_cycle t.normal n;
+  Jobs_at_priority.set_jobs_left_this_cycle t.low    n;
 ;;
 
 let force_current_cycle_to_end t = Jobs_at_priority.set_jobs_left_this_cycle t.normal 0

@@ -58,9 +58,8 @@ let cycle_count t = t.cycle_count
 let num_jobs_run t = t.num_jobs_run
 
 let set_max_num_jobs_per_priority_per_cycle t int =
-  if int <= 0 then
-    failwiths "max_num_jobs_per_priority_per_cycle must be > 0" int <:sexp_of< int >>;
-  t.max_num_jobs_per_priority_per_cycle <- int;
+  t.max_num_jobs_per_priority_per_cycle <-
+    Max_num_jobs_per_priority_per_cycle.create_exn int;
 ;;
 
 let debug_run_job = debug || Debug.run_job
@@ -182,6 +181,12 @@ let reset_in_forked_process () =
   (* There is no need to empty [main_monitor_hole]. *)
   Raw_scheduler.(t_ref := create ());
 ;;
+
+let check_invariants t = t.check_invariants
+
+let set_check_invariants t b = t.check_invariants <- b
+
+let set_record_backtraces t b = t.record_backtraces <- b
 
 TEST_MODULE = struct
   (* [Monitor.kill] *)

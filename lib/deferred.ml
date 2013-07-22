@@ -173,6 +173,20 @@ module List = struct
     map t ?how ~f
     >>| List.filter_opt
   ;;
+
+  let rec find_map t ~f =
+    match t with
+    | [] -> return None
+    | hd :: tl ->
+      f hd >>= function
+      | None -> find_map tl ~f
+      | Some _ as some -> return some
+  ;;
+
+  let find t ~f =
+    find_map t ~f:(fun elt -> f elt >>| fun b -> if b then Some elt else None)
+  ;;
+
 end
 
 let all = List.all
@@ -230,6 +244,22 @@ module Array = struct
 
   let filter_map ?how t ~f = map t ?how ~f >>| Array.filter_opt
 
+  let find_map t ~f =
+    let rec aux i =
+      if i = Array.length t
+      then return None
+      else
+        f t.(i) >>= function
+        | None -> aux (i + 1)
+        | Some _ as some -> return some
+    in
+    aux 0
+  ;;
+
+  let find t ~f =
+    find_map t ~f:(fun elt -> f elt >>| fun b -> if b then Some elt else None)
+  ;;
+
 end
 
 module Queue = struct
@@ -262,6 +292,10 @@ module Queue = struct
   let filter ?how t ~f = List.filter ?how (Queue.to_list t) ~f >>| Queue.of_list
 
   let filter_map ?how t ~f = List.filter_map ?how (Queue.to_list t) ~f >>| Queue.of_list
+
+  let find_map t ~f = List.find_map (Queue.to_list t) ~f
+
+  let find t ~f = List.find (Queue.to_list t) ~f
 
 end
 

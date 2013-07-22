@@ -174,7 +174,10 @@ end
     causes future calls to [flushed_downstream reader] to take this consumer into account.
     Thereafter, [Pipe.flushed_downstream reader] will first ensure that values previously
     written to [reader] have been read, then that they have been sent downstream by the
-    consumer that read them, and finally that they have been flushed downstream. *)
+    consumer that read them, and finally that they have been flushed downstream.
+
+    One should only supply the resulting consumer to read operations on [reader].  Using
+    a consumer created from one reader with another reader will raise an exception. *)
 val add_consumer
   :  _ Reader.t
   -> downstream_flushed:(unit -> Flushed_result.t Deferred.t)
@@ -405,8 +408,9 @@ type ('a, 'b, 'c, 'accum) fold =
   -> f:('accum -> 'b -> 'c)
   -> 'accum Deferred.t
 
-val fold' : ('a, 'a Queue.t, 'accum Deferred.t, 'accum) fold
-val fold  : ('a, 'a        , 'accum           , 'accum) fold
+val fold'                 : ('a , 'a Queue.t , 'accum Deferred.t , 'accum) fold
+val fold                  : ('a , 'a         , 'accum Deferred.t , 'accum) fold
+val fold_without_pushback : ('a , 'a         , 'accum            , 'accum) fold
 
 (** [iter' reader ~f] repeatedly applies [f] to batches of elements of [reader], waiting
     for each call to [f] to finish before continuing.  The deferred returned by [iter']

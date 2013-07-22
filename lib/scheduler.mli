@@ -24,8 +24,11 @@ val cycle_times : t -> Time.Span.t Async_stream.t
 val cycle_num_jobs : t -> int Async_stream.t
 val cycle_count : t -> int
 val set_max_num_jobs_per_priority_per_cycle : t -> int -> unit
-val set_check_access : t -> (unit -> unit) -> unit
+val set_check_access : t -> (unit -> unit) option -> unit
 val check_access : t -> unit
+val check_invariants : t -> bool
+val set_check_invariants : t -> bool -> unit
+val set_record_backtraces : t -> bool -> unit
 
 val events : t -> Job.t Timing_wheel.t
 

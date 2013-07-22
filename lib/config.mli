@@ -10,7 +10,14 @@
       ASYNC_CONFIG= foo.exe
     v}
 *)
+
 open Core.Std
+
+module Epoll_max_ready_events              : Validated with type raw := int
+module Max_inter_cycle_timeout             : Validated with type raw := Time.Span.t
+module Max_num_open_file_descrs            : Validated with type raw := int
+module Max_num_threads                     : Validated with type raw := int
+module Max_num_jobs_per_priority_per_cycle : Validated with type raw := int
 
 type t with sexp_of
 
@@ -30,6 +37,7 @@ module Print_debug_messages_for : sig
   val reader             : bool
   val run_job            : bool
   val scheduler          : bool
+  val shutdown           : bool
   val thread_pool        : bool
   val thread_safe        : bool
   val writer             : bool
@@ -39,14 +47,18 @@ module File_descr_watcher : sig
   type t = Epoll | Select with sexp_of
 end
 
-val abort_after_thread_pool_stuck_for : Time.Span.t
-val alarm_precision                   : Time.Span.t
-val check_invariants                  : bool
-val detect_invalid_access_from_thread : bool
-val epoll_max_ready_events            : int
-val file_descr_watcher                : File_descr_watcher.t
-val max_num_open_file_descrs          : int
-val max_num_threads                   : int
-val record_backtraces                 : bool
-val report_thread_pool_stuck_for      : Time.Span.t
-val timing_wheel_level_bits           : Timing_wheel.Level_bits.t
+(** Documentation on these is in strings in config.ml, so it can be output in the
+    help message. *)
+val abort_after_thread_pool_stuck_for   : Time.Span.t
+val alarm_precision                     : Time.Span.t
+val check_invariants                    : bool
+val detect_invalid_access_from_thread   : bool
+val epoll_max_ready_events              : Epoll_max_ready_events.t
+val file_descr_watcher                  : File_descr_watcher.t
+val max_inter_cycle_timeout             : Max_inter_cycle_timeout.t
+val max_num_jobs_per_priority_per_cycle : Max_num_jobs_per_priority_per_cycle.t
+val max_num_open_file_descrs            : Max_num_open_file_descrs.t
+val max_num_threads                     : Max_num_threads.t
+val record_backtraces                   : bool
+val report_thread_pool_stuck_for        : Time.Span.t
+val timing_wheel_level_bits             : Timing_wheel.Level_bits.t

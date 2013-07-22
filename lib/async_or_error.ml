@@ -88,6 +88,20 @@ module List = struct
       >>| fun b ->
       if b then Some x else None)
   ;;
+
+  let rec find_map t ~f =
+    match t with
+    | [] -> return None
+    | hd :: tl ->
+      f hd >>= function
+      | None -> find_map tl ~f
+      | Some _ as some -> return some
+  ;;
+
+  let find t ~f =
+    find_map t ~f:(fun elt -> f elt >>| fun b -> if b then Some elt else None)
+  ;;
+
 end
 
 TEST_MODULE = struct

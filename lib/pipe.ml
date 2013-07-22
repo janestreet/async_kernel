@@ -38,13 +38,18 @@ module Consumer : sig
 
   include Invariant.S with type t := t
 
-  val create    : downstream_flushed:(unit -> Flushed_result.t Deferred.t) -> t
-  val start     : t -> unit
+  val create
+    :  pipe_id:int
+    -> downstream_flushed:(unit -> Flushed_result.t Deferred.t)
+    -> t
+  val pipe_id : t -> int
+  val start : t -> unit
   val values_sent_downstream : t -> unit
   val values_sent_downstream_and_flushed : t -> Flushed_result.t Deferred.t
 end = struct
   type t =
-    { (* [values_read] reflects whether values the consumer has read from the pipe have
+    { pipe_id : int;
+      (* [values_read] reflects whether values the consumer has read from the pipe have
          been sent downstream or if not, holds an ivar that is to be filled when they
          are. *)
       mutable values_read : [ `Have_been_sent_downstream
@@ -60,6 +65,7 @@ end = struct
     try
       let check f field = f (Field.get field t) in
       Fields.iter
+        ~pipe_id:ignore
         ~values_read:(check (function
         | `Have_been_sent_downstream -> ()
         | `Have_not_been_sent_downstream ivar -> assert (Ivar.is_empty ivar)))
@@ -68,8 +74,9 @@ end = struct
       failwiths "Pipe.Consumer.invariant failed" (exn, t) <:sexp_of< exn * t >>
   ;;
 
-  let create ~downstream_flushed =
-    { values_read = `Have_been_sent_downstream;
+  let create ~pipe_id ~downstream_flushed =
+    { pipe_id;
+      values_read = `Have_been_sent_downstream;
       downstream_flushed;
     }
   ;;
@@ -265,7 +272,10 @@ let invariant t : unit =
         (* You never block trying to read a closed pipe. *)
         if is_closed t then assert (Q.is_empty blocked_reads)))
       ~closed:ignore
-      ~consumers:(check (fun l -> List.iter l ~f:Consumer.invariant))
+      ~consumers:(check (fun l ->
+        List.iter l ~f:(fun consumer ->
+          Consumer.invariant consumer;
+          assert (Consumer.pipe_id consumer = t.id))))
       ~upstream_flusheds:ignore
   with exn ->
     failwiths "Pipe.invariant failed" (exn, t) <:sexp_of< exn * (_, _) t >>
@@ -463,13 +473,23 @@ let write_when_ready t ~f =
     `Ok (f (fun x -> write_without_pushback t x))
 ;;
 
-let start_read t label =
+let ensure_consumer_matches ?consumer t =
+  match consumer with
+  | None -> ()
+  | Some consumer ->
+    if t.id <> Consumer.pipe_id consumer then
+      failwiths "Attempt to use consumer with wrong pipe" (consumer, t)
+        <:sexp_of< Consumer.t * _ Reader.t >>
+;;
+
+let start_read ?consumer t label =
   if !show_debug_messages then eprints label t <:sexp_of< (_, _) t >>;
   if !check_invariant then invariant t;
+  ensure_consumer_matches t ?consumer;
 ;;
 
 let gen_read_now ?consumer t consume =
-  start_read t "read_now";
+  start_read t "read_now" ?consumer;
   if is_empty t then begin
     if is_closed t then
       `Eof
@@ -492,7 +512,7 @@ let clear t =
 ;;
 
 let read' ?consumer t =
-  start_read t "read'";
+  start_read t "read'" ?consumer;
   match read_now' t ?consumer with
   | (`Ok _ | `Eof) as r -> return r
   | `Nothing_available  ->
@@ -501,7 +521,7 @@ let read' ?consumer t =
 ;;
 
 let read ?consumer t =
-  start_read t "read";
+  start_read t "read" ?consumer;
   if is_empty t then begin
     if is_closed t then
       return `Eof
@@ -515,7 +535,7 @@ let read ?consumer t =
 ;;
 
 let read_at_most ?consumer t ~num_values =
-  start_read t "read_at_most";
+  start_read t "read_at_most" ?consumer;
   if num_values <= 0
   then failwiths "Pipe.read_at_most num_values < 0" num_values <:sexp_of< int >>;
   if is_empty t
@@ -547,7 +567,7 @@ let values_available t =
 
 (* [read_exactly t ~num_values] loops, getting you all [num_values] items, up to EOF. *)
 let read_exactly ?consumer t ~num_values =
-  start_read t "read_exactly";
+  start_read t "read_exactly" ?consumer;
   if num_values <= 0 then
     failwiths "Pipe.read_exactly got num_values <= 0" num_values <:sexp_of< int >>;
   Deferred.create (fun finish ->
@@ -603,7 +623,7 @@ let add_upstream_flushed t upstream_flushed =
 ;;
 
 let add_consumer t ~downstream_flushed =
-  let consumer = Consumer.create ~downstream_flushed in
+  let consumer = Consumer.create ~pipe_id:t.id ~downstream_flushed in
   t.consumers <- consumer :: t.consumers;
   consumer;
 ;;
@@ -623,6 +643,7 @@ type ('a, 'b, 'c, 'accum) fold =
 
 let fold_gen (read_now : ?consumer:Consumer.t -> _ Reader.t -> _) ?consumer t ~init ~f =
   if !check_invariant then invariant t;
+  ensure_consumer_matches t ?consumer;
   Deferred.create (fun finished ->
     let rec loop b =
       values_available t
@@ -642,7 +663,11 @@ let fold' ?consumer t ~init ~f =
 ;;
 
 let fold ?consumer t ~init ~f =
-  fold_gen read_now ?consumer t ~init ~f:(fun init a loop -> loop (f init a))
+  fold_gen read_now  ?consumer t ~init ~f:(fun b a loop -> f b a >>> loop)
+;;
+
+let fold_without_pushback ?consumer t ~init ~f =
+  fold_gen read_now  ?consumer t ~init ~f:(fun b a loop -> loop (f b a))
 ;;
 
 type ('a, 'b, 'c) iter =
@@ -678,6 +703,7 @@ let iter ?consumer ?continue_on_error t ~f =
 (* [iter_without_pushback] is a common case, so we implement it in an optimized
    manner, rather than via [iter]. *)
 let iter_without_pushback ?consumer ?(continue_on_error = false) t ~f =
+  ensure_consumer_matches t ?consumer;
   let f =
     if not continue_on_error then
       f
@@ -848,11 +874,11 @@ let interleave inputs =
 
 let merge inputs ~cmp =
   let r, w = create () in
-  let heap = Heap.create (fun (a1, _) (a2, _) -> cmp a1 a2) in
+  let heap = Heap.create ~cmp:(fun (a1, _) (a2, _) -> cmp a1 a2) () in
   let handle_read input eof_or_ok =
     match eof_or_ok with
     | `Eof -> ()
-    | `Ok v -> ignore (Heap.push heap (v, input));
+    | `Ok v -> Heap.add heap (v, input);
   in
   let rec pop_heap_and_loop () =
     (* At this point, all inputs not at Eof occur in [heap] exactly once, so we know what
@@ -862,7 +888,7 @@ let merge inputs ~cmp =
     | Some (v, input) ->
       write_without_pushback w v;
       if Heap.length heap = 0
-      then don't_wait_for (transfer_id input w)
+      then upon (transfer_id input w) (fun () -> close w)
       else
         match read_now input with
         | `Eof | `Ok _ as x ->
@@ -1206,36 +1232,38 @@ TEST_MODULE = struct
     in
     let transfer_by = [1; 2; 3; 5; 10] in
     let cmp = Int.compare in
-    (* The merge function assumes that the pipes return ordered values. *)
-    List.iter cases ~f:(fun lists ->
-      let lists =
-        List.map lists ~f:(fun list -> List.sort list ~cmp)
-      in
-      let expected_result = List.sort ~cmp (List.concat lists) in
-      List.iter transfer_by ~f:(fun transfer_by ->
-        let pipes = List.map lists ~f:(fun _ -> create ()) in
-        let merged_pipe = merge (List.map pipes ~f:fst) ~cmp in
-        List.iter2_exn lists pipes ~f:(fun list (_, writer) ->
-          let rec loop index = function
-            | [] -> close writer
-            | a :: tail ->
-              write_without_pushback writer a;
-              if index mod transfer_by > 0 then
-                loop (index + 1) tail
-              else begin
-                pushback writer
-                >>> fun () ->
-                pushback merged_pipe
-                >>> fun () ->
-                loop (index + 1) tail
-              end
-          in
-          loop 1 list);
-        upon (to_list merged_pipe) (fun actual_result ->
-          if not (actual_result = expected_result) then
-            failwiths "mismatch" (actual_result, expected_result)
-              <:sexp_of< int list * int list >>)));
-    stabilize ()
+    let finished =
+      Deferred.List.iter cases ~f:(fun lists ->
+        (* The merge function assumes that the pipes return ordered values. *)
+        let lists = List.map lists ~f:(fun list -> List.sort list ~cmp) in
+        let expected_result = List.sort ~cmp (List.concat lists) in
+        Deferred.List.iter transfer_by ~f:(fun transfer_by ->
+          let pipes = List.map lists ~f:(fun _ -> create ()) in
+          let merged_pipe = merge (List.map pipes ~f:fst) ~cmp in
+          List.iter2_exn lists pipes ~f:(fun list (_, writer) ->
+            let rec loop index = function
+              | [] -> close writer
+              | a :: tail ->
+                write_without_pushback writer a;
+                if index mod transfer_by > 0 then
+                  loop (index + 1) tail
+                else begin
+                  pushback writer
+                  >>> fun () ->
+                  pushback merged_pipe
+                  >>> fun () ->
+                  loop (index + 1) tail
+                end
+            in
+            loop 1 list);
+          to_list merged_pipe
+          >>| fun actual_result ->
+            if not (actual_result = expected_result) then
+              failwiths "mismatch" (actual_result, expected_result)
+                <:sexp_of< int list * int list >>))
+    in
+    stabilize ();
+    assert (Deferred.is_determined finished);
   ;;
 
   (* ==================== iter' ==================== *)
@@ -1484,11 +1512,27 @@ TEST_MODULE = struct
     assert (not (flushed f9));
   ;;
 
+  (* ==================== consumer mismatch ==================== *)
+  TEST_UNIT =
+    let r1, _w1 = create () in
+    let r2, _w2 = create () in
+    let consumer = add_consumer r1 ~downstream_flushed:(const (return `Ok)) in
+    assert (Result.is_error (Result.try_with (fun () -> read_now r2 ~consumer)));
+  ;;
+
   (* ==================== close_read and single-item processors ==================== *)
   TEST_UNIT =
     let i = ref 0 in
     let r = of_list [ (); () ] in
-    don't_wait_for (fold r ~init:() ~f:(fun () () -> incr i; close_read r));
+    don't_wait_for (fold r ~init:() ~f:(fun () () -> incr i; close_read r; Deferred.unit));
+    stabilize ();
+    assert (!i = 1);
+  ;;
+
+  TEST_UNIT =
+    let i = ref 0 in
+    let r = of_list [ (); () ] in
+    don't_wait_for (fold_without_pushback r ~init:() ~f:(fun () () -> incr i; close_read r));
     stabilize ();
     assert (!i = 1);
   ;;

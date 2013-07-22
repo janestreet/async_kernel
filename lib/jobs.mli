@@ -1,4 +1,7 @@
-(** A [Jobs.t] has a queue of jobs at each priority level. *)
+(** Queues of jobs to run, one at each priority level. *)
+
+open Core.Std
+open Import
 
 open Core.Std
 
@@ -21,7 +24,10 @@ val clear : t -> unit
 
 (** [start_cycle t ~max_num_jobs_per_priority] enables subsequent calls of [run_all] to
     run up to [max_num_jobs_per_priority] jobs of each priority level. *)
-val start_cycle : t -> max_num_jobs_per_priority:int -> unit
+val start_cycle
+  :  t
+  -> max_num_jobs_per_priority:Max_num_jobs_per_priority_per_cycle.t
+  -> unit
 
 (** [force_current_cycle_to_end] sets the number of normal jobs allowed to run in this
     cycle to zero.  Thus, after the currently running job completes, the scheduler will
