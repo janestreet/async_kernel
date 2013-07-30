@@ -1,5 +1,5 @@
 open Core.Std
-open Import
+open Import    let _ = _squelch_unused_module_warning_
 
 module Hole = struct
   type 'a t =

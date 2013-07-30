@@ -1,4 +1,5 @@
-open Import
+open Core.Std  let _ = _squelch_unused_module_warning_
+open Import    let _ = _squelch_unused_module_warning_
 
 module Ivar = Raw_ivar
 
