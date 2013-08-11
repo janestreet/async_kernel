@@ -672,7 +672,7 @@ let fold_without_pushback ?consumer t ~init ~f =
 
 type ('a, 'b, 'c) iter =
   ?consumer:Consumer.t
-  -> ?continue_on_error:bool (* defaults to false *)
+  -> ?continue_on_error:bool (** default is [false] *)
   -> 'a Reader.t
   -> f:('b -> 'c)
   -> unit Deferred.t

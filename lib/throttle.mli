@@ -111,5 +111,5 @@ val cleaned : _ t -> unit Deferred.t
 module Sequencer : sig
   type 'a t = ('a, [`sequencer]) T2.t with sexp_of
 
-  val create : ?continue_on_error:bool (* defaults to false *) -> 'a -> 'a t
+  val create : ?continue_on_error:bool (** default is [false] *) -> 'a -> 'a t
 end

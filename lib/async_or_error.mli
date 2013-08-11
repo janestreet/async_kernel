@@ -54,12 +54,12 @@ val ok_unit : unit t
     specifies whether or not the monitor exn wrapper should be skipped ([extract_exn:true]
     or kept ([extract_exn:false]). *)
 val try_with
-  :  ?extract_exn:bool (* default is [false] *)
+  :  ?extract_exn:bool (** default is [false] *)
   -> ?name:string
   -> (unit -> 'a Deferred.t)
   -> 'a t
 val try_with_join
-  : ?extract_exn:bool (* default is [false] *)
+  : ?extract_exn:bool (** default is [false] *)
   -> ?name:string
   -> (unit -> 'a t)
   -> 'a t

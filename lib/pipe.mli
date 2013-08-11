@@ -430,7 +430,7 @@ val fold_without_pushback : ('a , 'a         , 'accum            , 'accum) fold
     [Consumer] module above). *)
 type ('a, 'b, 'c) iter =
   ?consumer:Consumer.t
-  -> ?continue_on_error:bool (* defaults to false *)
+  -> ?continue_on_error:bool (** default is [false] *)
   -> 'a Reader.t
   -> f:('b -> 'c)
   -> unit Deferred.t

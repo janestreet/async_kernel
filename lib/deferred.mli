@@ -116,7 +116,7 @@ module Option : Monad.S  with type 'a t = 'a option t
 val don't_wait_for : unit t -> unit
 
 (** [choice] is used to produce an argument to [enabled] or [choose].  See below. *)
-type 'a choice
+type +'a choice
 
 val choice : 'a t -> ('a -> 'b) -> 'b choice
 

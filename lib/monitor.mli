@@ -97,9 +97,9 @@ val send_exn : t -> ?backtrace:[ `Get | `This of string ] -> exn -> unit
     [extract_exn = false] due to the additional information.  However, sometimes one wants
     the concision of [extract_exn = true]. *)
 val try_with
-  : (?extract_exn : bool (* default is false *)
-     -> ?run : [ `Now | `Schedule ]  (* default is `Schedule *)
-     -> ?rest : [ `Ignore | `Raise ] (* default is `Ignore *)
+  : (?extract_exn : bool (** default is [false] *)
+     -> ?run : [ `Now | `Schedule ]  (** default is [`Schedule] *)
+     -> ?rest : [ `Ignore | `Raise ] (** default is [`Ignore] *)
      -> (unit -> 'a Deferred.t)
      -> ('a, exn) Result.t Deferred.t
   ) with_optional_monitor_name

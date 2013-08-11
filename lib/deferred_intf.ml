@@ -13,7 +13,7 @@ module type Monad_sequence = sig
   val foldi : 'a t -> init:'b -> f:(int -> 'b -> 'a -> 'b monad) -> 'b monad
   val fold  : 'a t -> init:'b -> f:(       'b -> 'a -> 'b monad) -> 'b monad
 
-  (* default [how] is [`Sequential] *)
+  (** default [how] is [`Sequential] *)
   val init       : ?how:how ->  int -> f:(int       ->         'a monad) -> 'a t monad
   val iter       : ?how:how -> 'a t -> f:(       'a ->       unit monad) -> unit monad
   val iteri      : ?how:how -> 'a t -> f:(int -> 'a ->       unit monad) -> unit monad
