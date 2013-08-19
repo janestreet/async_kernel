@@ -25,6 +25,18 @@ include Monitor.Exported_for_scheduler
 
 let invariant = Raw_scheduler.invariant
 
+let find_local key =
+  Execution_context.find_local (current_execution_context (t ())) key
+;;
+
+let with_local key value ~f =
+  let t = t () in
+  let execution_context =
+    Execution_context.with_local (current_execution_context t) key value
+  in
+  with_execution_context t execution_context ~f
+;;
+
 let add_job execution_context f a =
   Raw_scheduler.(add_job (t ())) (Job.create execution_context f a)
 ;;

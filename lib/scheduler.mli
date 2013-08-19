@@ -54,4 +54,7 @@ val preserve_execution_context' : ('a -> 'b Deferred.t) -> ('a -> 'b Deferred.t)
 
 val within_context : Execution_context.t -> (unit -> 'a) -> ('a, unit) Result.t
 
+val find_local : 'a Univ_map.Key.t -> 'a option
+val with_local : 'a Univ_map.Key.t -> 'a option -> f:(unit -> 'b) -> 'b
+
 val reset_in_forked_process : unit -> unit
