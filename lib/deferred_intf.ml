@@ -121,4 +121,9 @@ module type Deferred_map = sig
    *   -> f:('v2 -> 'v1 -> 'v2 Deferred.t)
    *   -> ('k, 'v2, 'comparator) t *)
 
+  (* val of_alist_reduce
+   *   :  ('k * 'v) list
+   *   -> f:('v -> 'v -> 'v Deferred.t)
+   *   -> ('k, 'v, 'comparator) t *)
+
 end
