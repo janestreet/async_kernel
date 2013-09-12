@@ -50,7 +50,6 @@ end
 (** Documentation on these is in strings in config.ml, so it can be output in the
     help message. *)
 val abort_after_thread_pool_stuck_for   : Time.Span.t
-val alarm_precision                     : Time.Span.t
 val check_invariants                    : bool
 val detect_invalid_access_from_thread   : bool
 val epoll_max_ready_events              : Epoll_max_ready_events.t
@@ -61,4 +60,4 @@ val max_num_open_file_descrs            : Max_num_open_file_descrs.t
 val max_num_threads                     : Max_num_threads.t
 val record_backtraces                   : bool
 val report_thread_pool_stuck_for        : Time.Span.t
-val timing_wheel_level_bits             : Timing_wheel.Level_bits.t
+val timing_wheel_config                 : Timing_wheel.Config.t

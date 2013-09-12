@@ -79,11 +79,8 @@ let create () =
   let now = Time.now () in
   let events =
     Timing_wheel.create
+      ~config:Config.timing_wheel_config
       ~start:now
-      ~alarm_precision:Config.alarm_precision
-      ~level_bits:Config.timing_wheel_level_bits
-      ~dummy:Job.do_nothing
-      ()
   in
   { check_access = None;
     jobs = Jobs.create ();

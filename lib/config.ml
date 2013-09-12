@@ -102,7 +102,6 @@ end
 
 type t =
   { abort_after_thread_pool_stuck_for   : Time.Span.t                           sexp_option
-  ; alarm_precision                     : Time.Span.t                           sexp_option
   ; check_invariants                    : bool                                  sexp_option
   ; detect_invalid_access_from_thread   : bool                                  sexp_option
   ; epoll_max_ready_events              : Epoll_max_ready_events.t              sexp_option
@@ -114,13 +113,12 @@ type t =
   ; print_debug_messages_for            : Debug_tag.t list                      sexp_option
   ; record_backtraces                   : bool                                  sexp_option
   ; report_thread_pool_stuck_for        : Time.Span.t                           sexp_option
-  ; timing_wheel_level_bits             : Timing_wheel.Level_bits.t             sexp_option
+  ; timing_wheel_config                 : Timing_wheel.Config.t                 sexp_option
   }
 with fields, sexp
 
 let empty =
   { abort_after_thread_pool_stuck_for   = None
-  ; alarm_precision                     = None
   ; check_invariants                    = None
   ; detect_invalid_access_from_thread   = None
   ; epoll_max_ready_events              = None
@@ -132,7 +130,7 @@ let empty =
   ; print_debug_messages_for            = None
   ; record_backtraces                   = None
   ; report_thread_pool_stuck_for        = None
-  ; timing_wheel_level_bits             = None
+  ; timing_wheel_config                 = None
   }
 ;;
 
@@ -142,21 +140,25 @@ let default_file_descr_watcher, default_max_num_open_file_descrs =
   else File_descr_watcher.Select, Max_num_open_file_descrs.create_exn 1024
 ;;
 
-let default_alarm_precision_and_level_bits word_size =
+let default_timing_wheel_config word_size =
   let module W = Word_size in
-  match word_size with
-  | W.W32 -> Time.Span.of_ms 1.,  Timing_wheel.Level_bits.create_exn [ 10; 10; 9;   ]
-  | W.W64 -> Time.Span.of_ms 0.1, Timing_wheel.Level_bits.create_exn [ 15; 15; 9; 6 ]
+  let alarm_precision, level_bits =
+    match word_size with
+    | W.W32 -> Time.Span.of_ms 1. , [ 10; 10; 9;   ]
+    | W.W64 -> Time.Span.of_ms 0.1, [ 15; 15; 9; 6 ]
+  in
+  Timing_wheel.Config.create
+    ~alarm_precision
+    ~level_bits:(Timing_wheel.Level_bits.create_exn level_bits)
+    ()
 ;;
 
 TEST_UNIT =
   let module L = Timing_wheel.Level_bits in
   let module W = Word_size in
   List.iter [ W.W32; W.W64 ] ~f:(fun word_size ->
-    let alarm_precision, level_bits = default_alarm_precision_and_level_bits word_size in
-    let actual_durations =
-      Timing_wheel.Level_bits.durations level_bits ~alarm_precision
-    in
+    let config = default_timing_wheel_config word_size in
+    let actual_durations = Timing_wheel.Config.durations config in
     let year = Time.Span.(scale day) 365. in
     let lower_bounds =
       match word_size with
@@ -181,13 +183,10 @@ TEST_UNIT =
         <:sexp_of< exn * Time.Span.t list * Time.Span.t list >>)
 ;;
 
-let default_alarm_precision, default_timing_wheel_level_bits =
-  default_alarm_precision_and_level_bits Word_size.word_size
-;;
+let default_timing_wheel_config = default_timing_wheel_config Word_size.word_size
 
 let default =
   { abort_after_thread_pool_stuck_for   = Some (sec 60.)
-  ; alarm_precision                     = Some default_alarm_precision
   ; check_invariants                    = Some false
   ; detect_invalid_access_from_thread   = Some false
   ; epoll_max_ready_events              = Some (Epoll_max_ready_events.create_exn 256)
@@ -201,7 +200,7 @@ let default =
   ; print_debug_messages_for            = Some []
   ; record_backtraces                   = Some false
   ; report_thread_pool_stuck_for        = Some (sec 1.)
-  ; timing_wheel_level_bits             = Some default_timing_wheel_level_bits
+  ; timing_wheel_config                 = Some default_timing_wheel_config
   }
 ;;
 
@@ -228,12 +227,6 @@ let field_descriptions () : string =
   thread pool is stuck for longer than this.
 "
                                             ])
-      ~alarm_precision:(field <:sexp_of< Time.Span.t >>
-                          ["
-  The precision of alarms in Async's clock.  Time is split into intervals of this size,
-  and alarms with times in the same interval fire in the same cycle.
-"
-                          ])
       ~check_invariants:(field <:sexp_of< bool >>
                            ["
   If true, causes async to regularly check invariants of its internal
@@ -276,7 +269,7 @@ let field_descriptions () : string =
 "
                           ])
       ~max_inter_cycle_timeout:(field <:sexp_of< Max_inter_cycle_timeout.t >>
-                                ["
+                                  ["
   The maximum amount of time the scheduler will pause between cycles
   when it has no jobs and is going to wait for I/O.  In principle one
   doesn't need this, and we could use an infinite timeout.  We instead
@@ -292,7 +285,7 @@ let field_descriptions () : string =
   the latency would typically be not noticeable.  Also, 50ms is what
   the OCaml ticker thread uses.
 "
-                                ])
+                                  ])
       ~max_num_jobs_per_priority_per_cycle:
         (field <:sexp_of< Max_num_jobs_per_priority_per_cycle.t >>
            ["
@@ -313,7 +306,7 @@ let field_descriptions () : string =
             concat (List.map Debug_tag.list
                       ~f:(fun d ->
                         concat ["    "; Debug_tag.to_string d; "\n"]));
-                                    "\
+            "\
   Turning on debug messages will substantially slow down most programs.
 "
            ])
@@ -334,13 +327,14 @@ let field_descriptions () : string =
   stuck for longer than this.
 "
                                        ])
-      ~timing_wheel_level_bits:(field <:sexp_of< Timing_wheel.Level_bits.t >>
-                                  ["
+      ~timing_wheel_config:(field <:sexp_of< Timing_wheel.Config.t >>
+                              ["
   This is used to adjust the time/space tradeoff in the timing wheel used to implement
-  async's clock.  Level [i] in the timing wheel has an array of size [2^b], where [b] is
-  the [i]'th entry in [timing_wheel_level_bits].
+  async's clock.  Time is split into intervals of size [alarm_precision], and alarms with
+  times in the same interval fire in the same cycle.  Level [i] in the timing wheel has
+  an array of size [2^b], where [b] is the [i]'th entry in [level_bits].
 "
-                                  ])
+                              ])
   in
   concat
     (List.map
@@ -424,7 +418,6 @@ let default field =
 ;;
 
 let abort_after_thread_pool_stuck_for   = default Fields.abort_after_thread_pool_stuck_for
-let alarm_precision                     = default Fields.alarm_precision
 let check_invariants                    = default Fields.check_invariants
 let detect_invalid_access_from_thread   = default Fields.detect_invalid_access_from_thread
 let epoll_max_ready_events              = default Fields.epoll_max_ready_events
@@ -435,11 +428,10 @@ let max_num_threads                     = default Fields.max_num_threads
 let max_num_jobs_per_priority_per_cycle = default Fields.max_num_jobs_per_priority_per_cycle
 let record_backtraces                   = default Fields.record_backtraces
 let report_thread_pool_stuck_for        = default Fields.report_thread_pool_stuck_for
-let timing_wheel_level_bits             = default Fields.timing_wheel_level_bits
+let timing_wheel_config                 = default Fields.timing_wheel_config
 
 let t =
   { abort_after_thread_pool_stuck_for   = Some abort_after_thread_pool_stuck_for
-  ; alarm_precision                     = Some alarm_precision
   ; check_invariants                    = Some check_invariants
   ; detect_invalid_access_from_thread   = Some detect_invalid_access_from_thread
   ; epoll_max_ready_events              = Some epoll_max_ready_events
@@ -451,6 +443,6 @@ let t =
   ; print_debug_messages_for            = t.print_debug_messages_for
   ; record_backtraces                   = Some record_backtraces
   ; report_thread_pool_stuck_for        = Some report_thread_pool_stuck_for
-  ; timing_wheel_level_bits             = Some timing_wheel_level_bits
+  ; timing_wheel_config             = Some timing_wheel_config
   }
 ;;
