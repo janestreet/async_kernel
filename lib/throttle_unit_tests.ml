@@ -31,6 +31,17 @@ TEST =
   with _ -> true
 ;;
 
+
+(* [enqueue] does not start the job immediately. *)
+TEST_UNIT =
+  let t = create ~continue_on_error:false ~max_concurrent_jobs:1 in
+  let i = ref 0 in
+  let _ : unit Deferred.t = enqueue t (fun () -> incr i; Deferred.unit) in
+  assert (!i = 0);
+  stabilize ();
+  assert (!i = 1)
+;;
+
 TEST_UNIT =
   (* Check [~continue_on_error:false]. *)
   let t = create ~continue_on_error:false ~max_concurrent_jobs:1 in

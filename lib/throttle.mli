@@ -56,9 +56,9 @@ val create_with
 type 'a outcome = [ `Ok of 'a | `Aborted | `Raised of exn ] with sexp_of
 
 (** [enqueue t job] schedules [job] to be run as soon as possible.  Jobs are guaranteed to
-    be started in the order they are [enqueue]d.  If [t] is dead, then [job] will be
-    immediately aborted (for [enqueue] this will send an exception to the monitor in
-    effect). *)
+    be started in the order they are [enqueue]d and to not be started during the call to
+    [enqueue].  If [t] is dead, then [job] will be immediately aborted (for [enqueue] this
+    will send an exception to the monitor in effect). *)
 val enqueue' : ('a, _) T2.t -> ('a -> 'b Deferred.t) -> 'b outcome Deferred.t
 val enqueue  : ('a, _) T2.t -> ('a -> 'b Deferred.t) -> 'b         Deferred.t
 

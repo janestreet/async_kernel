@@ -98,7 +98,7 @@ TEST_MODULE = struct
       List.iter
         [ (fun ~key:_ ~data:_ -> false);
           (fun ~key:_ ~data:_ -> true);
-          (fun ~key ~data -> key = 1 or data = "two");
+          (fun ~key ~data -> key = 1 || data = "two");
         ]
         ~f:(fun f ->
           test_map_like "filter"
