@@ -1,4 +1,4 @@
-(** Throttles to limit the number of concurrent computations.
+(** A way to limit the number of concurrent computations.
 
     A throttle is essentially a pipe to which one can feed jobs.
 

@@ -1,11 +1,13 @@
+(** A value that will become determined asynchronously.
+
+    A deferred can be "undetermined" or "determined".  A deferred that is undetermined may
+    at some point become determined with value v, and will henceforth always be determined
+    with value v. *)
+
 open Core.Std
 open Import
 open Deferred_intf
 
-(** A deferred is a value that will become determined asynchronously.  A deferred can be
-    "undetermined" or "determined".  A deferred that is undetermined may at some point
-    become determined with value v, and will henceforth always be determined with value
-    v. *)
 type +'a t = 'a Ivar.Deferred.t with sexp_of
 
 (** [sexp_of_t t f] returns a sexp of the deferred's value, if it is determined, or an
@@ -153,7 +155,7 @@ val enabled : 'b choice list -> (unit -> 'b list) t
       | `X2 -> e2
     ]}
 
-    It may be the case that both [d1] and [d2] become determined, yet the code
+    It may be the case that both [t1] and [t2] become determined, yet the code
     [e2] actually runs.
 *)
 val choose : 'b choice list -> 'b t

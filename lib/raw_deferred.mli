@@ -1,3 +1,5 @@
+(** Internal to async -- see {!Deferred} for the public API. *)
+
 open Import
 
 type +'a t with sexp_of

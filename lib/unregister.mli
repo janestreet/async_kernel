@@ -1,3 +1,5 @@
+(** Internal to async. *)
+
 type t
 
 val noop : t

@@ -1,5 +1,5 @@
 
-(** This module is the deferred analog of [Core.Or_error]. It is exposed in std.ml as
+(** The deferred analog of [Core.Or_error].  It is exposed in std.ml as
     [Deferred.Or_error].
 
     The mental model for a function returning an ['a Deferred.Or_error.t] is that the

@@ -1,8 +1,9 @@
-(** A [Lazy_deferred.t] is a delayed computation that can produce a deferred.  Nothing
-    happens with a lazy deferred unless one [force]s it.  Forcing a lazy deferred starts
-    the computation, which will eventually cause the deferred to become determined.  As
-    usual with laziness, multiply forcing a lazy deferred is no different than forcing it
-    a single time.
+(** A delayed computation that can produce a deferred.
+
+    Nothing happens with a lazy deferred unless one [force]s it.  Forcing a lazy deferred
+    starts the computation, which will eventually cause the deferred to become determined.
+    As usual with laziness, multiply forcing a lazy deferred is no different than forcing
+    it a single time.
 
     Exceptions (both synchronous and asynchronous) raised by a delayed computation are
     returned by [force] ([wait], [peek], etc.), or will be raised to the monitor in effect

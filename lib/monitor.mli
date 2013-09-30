@@ -1,7 +1,9 @@
-(** A monitor is a context that determines what to do when there is an unhandled
-    exception.  Every Async computation runs within the context of some monitor, which,
-    when the computation is running, is referred to as the "current" monitor.  Monitors
-    are arranged in a tree -- when a new monitor is created, it is a child of the current
+(** The part of the {!Execution_context} that determines what to do when there is an
+    unhandled exception.
+
+    Every Async computation runs within the context of some monitor, which, when the
+    computation is running, is referred to as the "current" monitor.  Monitors are
+    arranged in a tree -- when a new monitor is created, it is a child of the current
     monitor.
 
     One can listen to a monitor using Monitor.errors to learn when the monitor sees an

@@ -1,3 +1,5 @@
+(** The context in which an async job runs. *)
+
 open Core.Std
 
 type t =

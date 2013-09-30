@@ -1,4 +1,4 @@
-(** Queues of jobs to run, one at each priority level. *)
+(** Internal to async -- queues of jobs to run, one at each priority level. *)
 
 open Core.Std
 open Import

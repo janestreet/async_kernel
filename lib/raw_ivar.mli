@@ -1,3 +1,5 @@
+(** Internal to async -- see {!Ivar} for the public API. *)
+
 open Core.Std
 open Import
 

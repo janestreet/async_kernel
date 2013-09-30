@@ -1,3 +1,5 @@
+(** Internal to async -- an atomic unit of work to be run by the scheduler. *)
+
 open Core.Std
 
 type t with sexp_of

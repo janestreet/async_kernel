@@ -1,3 +1,5 @@
+(** Internal to async -- see {!Async_unix.Scheduler} for the public API. *)
+
 open Core.Std
 open Import
 
@@ -13,6 +15,7 @@ val set_execution_context      : t -> Execution_context.t -> unit
 
 val add_job                    : Execution_context.t -> ('a -> unit) -> 'a -> unit
 val main_execution_context     : Execution_context.t
+val add_job2 : t -> Job.t -> unit
 val cycle_start : t -> Time.t
 val run_cycle : t -> unit
 val run_cycles_until_no_jobs_remain : unit -> unit

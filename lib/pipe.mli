@@ -1,4 +1,4 @@
-(** A pipe is a buffered FIFO communication channel.
+(** A buffered FIFO communication channel.
 
     A pipe has a "writer" end and a "reader" end.  The intent is that a writer feeds
     values into the pipe and then waits until it is notified that it should put more data

@@ -1,4 +1,4 @@
-(** A tail is a pointer to the end of a stream that can be used to extend the stream. *)
+(** A pointer to the end of an {!Async_stream} that can be used to extend the stream. *)
 
 open Import
 

@@ -1,3 +1,5 @@
+(** Async's analog of [Core.Std.Gc]. *)
+
 open Core.Std
 
 include module type of Core_kernel.Std.Gc

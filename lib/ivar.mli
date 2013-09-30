@@ -1,5 +1,6 @@
-(** An ivar is a write-once cell that can be empty or full (i.e. hold a single value) that
-    one can [read] and to obtain a deferred that becomes determined when the ivar is
+(** A write-once cell that can be empty or full (i.e. hold a single value).
+
+    One can [read] an ivar to obtain a deferred that becomes determined when the ivar is
     filled.  An ivar is similar to an ['a option ref], except it is an error to fill an
     already full ivar. *)
 

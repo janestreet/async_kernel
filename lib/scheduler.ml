@@ -37,8 +37,10 @@ let with_local key value ~f =
   with_execution_context t execution_context ~f
 ;;
 
+let add_job2 t job = Raw_scheduler.add_job t job
+
 let add_job execution_context f a =
-  Raw_scheduler.(add_job (t ())) (Job.create execution_context f a)
+  add_job2 (t ()) (Job.create execution_context f a)
 ;;
 
 let uncaught_exn t = t.uncaught_exn

@@ -1,3 +1,5 @@
+(** The priority of a job. *)
+
 open Core.Std
 open Import
 

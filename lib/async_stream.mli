@@ -1,10 +1,13 @@
-(** For most applications one should use [Pipe] instead of Stream.
+(** An immutable sequence of values, with a possibly incomplete tail that may be extended
+    asynchronously.
 
-    A stream is an immutable sequence of values, with a possibly incomplete tail that may
-    be extended asynchronously.
+    For most applications one should use {!Pipe} instead of Stream.  One justifiable usage
+    of [Stream] rather than [Pipe] is in single-writer, multi-consumer (multicast)
+    scenarios where pushback is not required.
 
     The basic primitive operation for getting the next element out of stream is
-    Stream.next, which (asynchronously) returns the element and the rest of the stream. *)
+    [Stream.next], which (asynchronously) returns the element and the rest of the
+    stream. *)
 open Import
 
 type 'a t = 'a Tail.Stream.t with sexp_of

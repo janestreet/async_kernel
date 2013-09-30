@@ -1,5 +1,4 @@
 module Async_config      = Config
-module Backpatched       = Backpatched
 module Clock             = Clock
 module Condition         = Async_condition
 module Deferred          = struct

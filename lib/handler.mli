@@ -1,5 +1,7 @@
-(** A handler is a continuation that captures the current async execution context.  It can
-    be scheduled for future invocation by installing it in a deferred. *)
+(** A continuation that captures the current async execution context.
+
+    It can be scheduled for future invocation by installing it in a deferred. *)
+
 type 'a t
 
 (** [create k] creates a handler by coupling the continuation [k] together with the
