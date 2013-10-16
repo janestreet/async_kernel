@@ -20,19 +20,21 @@ type 'a with_optional_monitor_name =
   -> ?name : string
   -> 'a
 
-let add_error_handler t f = t.error_handlers <- f :: t.error_handlers
-
 let errors t =
   t.someone_is_listening <- true;
   let tail = Tail.create () in
-  add_error_handler t (fun exn -> Tail.extend tail exn);
+  t.handlers_for_all_errors <-
+    (fun exn -> Tail.extend tail exn)
+    :: t.handlers_for_all_errors;
   Tail.collect tail
 ;;
 
 let error t =
   let module S = Stream in
   Deferred.create (fun ivar ->
-    add_error_handler t (fun exn -> Ivar.fill_if_empty ivar exn));
+    t.handlers_for_next_error <-
+      (fun exn -> Ivar.fill ivar exn)
+      :: t.handlers_for_next_error)
 ;;
 
 let create ?here ?info ?name () =
@@ -78,11 +80,13 @@ let send_exn t ?backtrace exn =
     Debug.log "Monitor.send_exn" (t, exn) <:sexp_of< t * exn >>;
   t.has_seen_error <- true;
   let rec loop t =
+    List.iter t.handlers_for_next_error ~f:(fun f -> f exn);
+    t.handlers_for_next_error <- [];
     if t.someone_is_listening then begin
       if Debug.monitor_send_exn then
         Debug.log "Monitor.send_exn found listening monitor" (t, exn)
           <:sexp_of< t * exn >>;
-      List.iter t.error_handlers ~f:(fun f -> f exn)
+      List.iter t.handlers_for_all_errors ~f:(fun f -> f exn)
     end else
       match t.parent with
       | Some t' -> loop t'

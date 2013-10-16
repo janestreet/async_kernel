@@ -6,17 +6,17 @@
     arranged in a tree -- when a new monitor is created, it is a child of the current
     monitor.
 
-    One can listen to a monitor using Monitor.errors to learn when the monitor sees an
+    One can "listen" to a monitor using [Monitor.errors] to learn when the monitor sees an
     error.
 
     If a computation raises an unhandled exception, the current monitor does one of two
-    things.  If anyone is listening to the monitor (i.e. Monitor.errors has been called on
-    the monitor), then the error stream is extended, and the listeners are responsible for
-    doing something.  If no one is "listening" to the monitor, then the exception is
+    things.  If anyone is listening to the monitor (i.e. [Monitor.errors] has been called
+    on the monitor), then the error stream is extended, and the listeners are responsible
+    for doing something.  If no one is listening to the monitor, then the exception is
     raised to monitor's parent.  The initial monitor, i.e. the root of the monitor tree,
     prints an unhandled-exception message and calls exit 1.
 
-    **************** NOTE ABOUT THE TOPLEVEL MONITOR ****************
+    {1 NOTE ABOUT THE TOPLEVEL MONITOR }
 
     It is important to note that in the toplevel monitor, exceptions will only be caught
     in the async part of a computation.  For example, in:
@@ -64,9 +64,10 @@ val current : unit -> t
 (** [errors t] returns a stream of all subsequent errors that monitor [t] sees. *)
 val errors : t -> exn Tail.Stream.t
 
-(** [error t] returns a deferred that becomes defined if the monitor ever sees an error.
-    Calling [error t] does not count as "listening for errors", and if no one has called
-    [errors t] to listen, then errors will still be raised up the monitor tree. *)
+(** [error t] returns a deferred that becomes determined the next time the monitor gets an
+    error, if ever.  Calling [error t] does not count as "listening for errors", and if no
+    one has called [errors t] to listen, then errors will still be raised up the monitor
+    tree. *)
 val error : t -> exn Deferred.t
 
 (** [extract_exn exn] extracts the exn from an error exn that comes from a monitor.  If it

@@ -8,7 +8,8 @@ type t =
     here : Source_code_position.t option;
     id : int;
     parent : t option;
-    mutable error_handlers : (exn -> unit) list;
+    mutable handlers_for_next_error : (exn -> unit) list;
+    mutable handlers_for_all_errors : (exn -> unit) list;
     mutable has_seen_error : bool;
     mutable someone_is_listening : bool;
     mutable kill_index : Kill_index.t;
@@ -32,8 +33,8 @@ end
 
 let to_pretty =
   let rec loop
-      { name; here; id; parent; error_handlers = _; has_seen_error; someone_is_listening;
-        kill_index;
+      { name; here; id; parent; has_seen_error; someone_is_listening; kill_index;
+        handlers_for_next_error = _; handlers_for_all_errors = _
       }
       ac =
     let ac =
@@ -65,7 +66,8 @@ let create_with_parent ?here ?info ?name parent =
   let t =
     { name; here; parent;
       id;
-      error_handlers = [];
+      handlers_for_next_error = [];
+      handlers_for_all_errors = [];
       has_seen_error = false;
       someone_is_listening = false;
       kill_index = Kill_index.initial;
