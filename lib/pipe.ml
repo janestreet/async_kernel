@@ -645,15 +645,14 @@ let fold_gen (read_now : ?consumer:Consumer.t -> _ Reader.t -> _) ?consumer t ~i
   if !check_invariant then invariant t;
   ensure_consumer_matches t ?consumer;
   Deferred.create (fun finished ->
+    (* We do [Deferred.unit >>>] to ensure that [f] is only called asynchronously. *)
+    Deferred.unit
+    >>> fun () ->
     let rec loop b =
-      values_available t
-      >>> function
+      match read_now t ?consumer with
       | `Eof -> Ivar.fill finished b
-      | `Ok ->
-        match read_now t ?consumer with
-        | `Eof -> Ivar.fill finished b
-        | `Nothing_available -> loop b
-        | `Ok v -> f b v loop
+      | `Ok v -> f b v loop
+      | `Nothing_available -> values_available t >>> fun _ -> loop b
     in
     loop init)
 ;;
@@ -700,28 +699,27 @@ let iter ?consumer ?continue_on_error t ~f =
     loop ())
 ;;
 
-(* [iter_without_pushback] is a common case, so we implement it in an optimized
-   manner, rather than via [iter]. *)
+(* [iter_without_pushback] is a common case, so we implement it in an optimized manner,
+   rather than via [iter].  The implementation reads only one element at a time, so that
+   if [f] closes [t] or raises, no more elements will be read. *)
 let iter_without_pushback ?consumer ?(continue_on_error = false) t ~f =
   ensure_consumer_matches t ?consumer;
   let f =
-    if not continue_on_error then
-      f
-    else
-      (fun a -> try f a with exn -> Monitor.send_exn (Monitor.current ()) exn)
+    if not continue_on_error
+    then f
+    else (fun a -> try f a with exn -> Monitor.send_exn (Monitor.current ()) exn)
   in
   Deferred.create (fun finished ->
+    (* We do [Deferred.unit >>>] to ensure that [f] is only called asynchronously. *)
+    Deferred.unit
+    >>> fun () ->
     let rec loop () =
       match read_now t ?consumer with
       | `Eof -> Ivar.fill finished ()
       | `Ok a -> f a; loop ()
-      | `Nothing_available ->
-        read t ?consumer
-        >>> function
-        | `Eof -> Ivar.fill finished ()
-        | `Ok a -> f a; loop ()
+      | `Nothing_available -> values_available t >>> fun _ -> loop ()
     in
-    loop ())
+    loop ());
 ;;
 
 let drain t = iter' t ~f:(fun _ -> Deferred.unit)
@@ -785,29 +783,33 @@ let of_stream_deprecated s =
 ;;
 
 let transfer_gen
-    (read_now : ?consumer:Consumer.t -> _ Reader.t -> _) write input output ~f =
+      (read_now : ?consumer:Consumer.t -> _ Reader.t -> _) write input output ~f =
   if !check_invariant then begin
     invariant input;
     invariant output;
   end;
   let consumer = link ~upstream:input ~downstream:output in
   Deferred.create (fun result ->
+    (* We do [Deferred.unit >>>] to ensure that [f] is only called asynchronously. *)
+    Deferred.unit
+    >>> fun () ->
     let output_closed () =
       close_read input;
       Ivar.fill result ()
     in
     let rec loop () =
-      choose [ choice (values_available input) (function `Eof | `Ok as x -> x);
-               choice (closed output) (fun () -> `Output_closed);
-             ]
-      >>> function
-      | `Output_closed -> output_closed ()
-      | `Eof -> Ivar.fill result ()
-      | `Ok ->
+      if is_closed output
+      then output_closed ()
+      else
         match read_now input ~consumer with
         | `Eof -> Ivar.fill result ()
-        | `Nothing_available -> loop ()
         | `Ok x -> f x continue
+        | `Nothing_available ->
+          choose [ choice (values_available input) ignore
+                 ; choice (closed output)          ignore
+                 ]
+          >>> fun () ->
+          loop ()
     and continue y =
       if is_closed output
       then output_closed ()

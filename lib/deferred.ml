@@ -9,15 +9,15 @@ let debug_space_leaks = Raw_ivar.debug_space_leaks
 
 let never () = Ivar.read (Ivar.create ())
 
-include Monad.Make (Ivar.Deferred)
+include Monad.Make (struct
+  include Ivar.Deferred
+  let map t ~f = create (fun i -> upon t (fun a -> Ivar.fill i (f a)))
+end)
 
 (* We shadow [all] on-purpose here, since the default definition introduces a chain of
    binds as long as the list. *)
 let all = `Make_sure_to_define_all_elsewhere
 let _ = all
-
-(* We shadow [map] from Monad with a more efficient implementation *)
-let map t ~f = create (fun i -> upon t (fun a -> Ivar.fill i (f a)))
 
 let unit = return ()
 
@@ -25,9 +25,6 @@ module Infix = struct
   include Monad_infix
 
   let (>>>) = upon
-
-  (* We use the more efficient implementation for the infix map *)
-  let (>>|) t f = map t ~f
 end
 
 open Infix
@@ -387,11 +384,9 @@ module Result = struct
       | Ok a -> f a
       | Error _ as error -> Deferred.return error)
     ;;
+
+    let map t ~f = Deferred.map t ~f:(fun r -> Result.map r ~f)
   end)
-
-  let map t ~f = Deferred.map t ~f:(fun r -> Result.map r ~f)
-
-  let (>>|) t f = map t ~f
 end
 
 module Option = struct
@@ -411,9 +406,7 @@ module Option = struct
       | Some a -> f a
       | None -> Deferred.return None)
     ;;
+
+    let map t ~f = Deferred.map t ~f:(fun r -> Option.map r ~f)
   end)
-
-  let map t ~f = Deferred.map t ~f:(fun r -> Option.map r ~f)
-
-  let (>>|) t f = map t ~f
 end

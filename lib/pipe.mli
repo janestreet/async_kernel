@@ -416,18 +416,33 @@ val fold_without_pushback : ('a , 'a         , 'accum            , 'accum) fold
     for each call to [f] to finish before continuing.  The deferred returned by [iter']
     becomes determined when the call to [f] on the final batch of elements finishes.
 
+    Supplying [~continue_on_error:true] causes the iteration to continue even if [f]
+    raises.
+
+    The [~consumer] is used to extend the meaning of values being flushed (see the
+    [Consumer] module above).
+
     [iter] is a specialization of [iter'] that applies the supplied [f] to each element in
     the batch, waiting for one call to [f] to finish before making the next call to [f].
 
     [iter_without_pushback] is a specialized version that applies [f] to each element
     that arrives on the pipe, without giving [f] a chance to pushback on the iteration
-    continuing.
+    continuing.  [iter_without_pushback t ~f] is equivalent to:
 
-    Supplying [~continue_on_error:true] causes the iteration to continue even if [f]
-    raises.
+    {[
+      iter t ~f:(fun a -> f a; Deferred.unit)
+    ]}
 
-    The [consumer] is used to extend the meaning of values being flushed (see the
-    [Consumer] module above). *)
+    It is not equivalent to:
+
+    {[
+      iter' t ~f:(fun q -> Queue.iter q ~f; Deferred.unit)
+    ]}
+
+    because of different behavior with [~continue_on_error:false] when [f] raises.
+    [iter_without_pushback] is guaranteed to read nothing from [t] after the element on
+    which [f] raises.
+ *)
 type ('a, 'b, 'c) iter =
   ?consumer:Consumer.t
   -> ?continue_on_error:bool (** default is [false] *)
