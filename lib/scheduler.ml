@@ -80,6 +80,10 @@ let debug_run_job = debug || Debug.run_job
 
 let set_thread_safe_finalizer_hook t f = t.thread_safe_finalizer_hook <- f
 
+let thread_safe_enqueue_finalizer_job t job =
+  Thread_safe_queue.enqueue t.finalizer_jobs job
+;;
+
 let add_finalizer t heap_block f =
   let execution_context = current_execution_context t in
   let finalizer heap_block =
@@ -97,8 +101,7 @@ let add_finalizer t heap_block f =
        functions that they need to dispose of the block, so it's fine that we keep
        [heap_block] around until later. *)
     if Debug.finalizers then Debug.log_string "enqueueing finalizer";
-    Thread_safe_queue.enqueue t.finalizer_jobs
-      (Job.create execution_context f heap_block);
+    thread_safe_enqueue_finalizer_job t (Job.create execution_context f heap_block);
     t.thread_safe_finalizer_hook ();
   in
   if Debug.finalizers then Debug.log_string "adding finalizer";

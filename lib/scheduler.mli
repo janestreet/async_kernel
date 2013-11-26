@@ -40,6 +40,8 @@ val add_finalizer_exn : t -> 'a              -> ('a              -> unit) -> uni
 
 val set_thread_safe_finalizer_hook : t -> (unit -> unit) -> unit
 
+val thread_safe_enqueue_finalizer_job : t -> Job.t -> unit
+
 val force_current_cycle_to_end : t -> unit
 
 type 'a with_options =
