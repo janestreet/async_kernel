@@ -48,8 +48,8 @@ module Event: sig
   val status : t -> [ `Happened | `Waiting | `Aborted ]
   val abort : t -> [ `Ok | `Previously_aborted | `Previously_happened ]
 
-  (* [at time] returns a pair [d, e], where [d] is like [at time], except that if
-     one calls [abort e] prior to [d] becoming determined, then [d] will become determined
+  (* [at time] returns a pair [t, d], where [d] is like [at time], except that if one
+     calls [abort t] prior to [d] becoming determined, then [d] will become determined
      with [`Aborted].
 
      [after] is like [at], except that one specifies a time span rather than an absolute

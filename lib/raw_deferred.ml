@@ -3,6 +3,8 @@ open Import    let _ = _squelch_unused_module_warning_
 
 module Ivar = Raw_ivar
 
+module Handler = Ivar.Handler
+
 (* Deferreds present a covariant view of ivars.  We could actually implement deferreds
    using a record of closures, as in the [essence_of_deferred] record below, for which the
    OCaml type checker can infer covariance.  However, doing so would make [Ivar.read] very
@@ -41,8 +43,6 @@ let is_determined t = Ivar.is_full (to_ivar t)
 
 let upon t f = Ivar.upon (to_ivar t) f
 
-let upon' t f = Ivar.upon' (to_ivar t) f
-
 let create f =
   let result = Ivar.create () in
   f result;
@@ -54,4 +54,8 @@ let bind t f =
     upon t (fun a -> Ivar.connect ~bind_result ~bind_rhs:(to_ivar (f a))))
 ;;
 
-let install_removable_handler t f = Ivar.install_removable_handler (to_ivar t) f
+let add_handler t f execution_context =
+  Ivar.add_handler (to_ivar t) f execution_context
+;;
+
+let remove_handler t h = Ivar.remove_handler (to_ivar t) h

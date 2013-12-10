@@ -43,56 +43,72 @@ let both t1 t2 =
 
 let don't_wait_for (_ : unit t) = ()
 
-type 'a choice =
-  { register : ready:(unit -> unit) -> Unregister.t;
-    check : unit -> (unit -> 'a) option;
-  }
+type +'a choice = Choice : 'b t * ('b -> 'a) -> 'a choice
 
-let choice t f =
-  let check () =
-    match peek t with
-    | None -> None
-    | Some v -> Some (fun () -> f v)
-  in
-  let register ~ready = upon' t (fun _ -> ready ()) in
-  { check; register }
-;;
+module Unregister = struct
+  (* This representation saves 2n words for a list of n choices. *)
+  type t =
+    | Nil : t
+    | Cons : 'a Ivar.Deferred.t * 'a Ivar.Deferred.Handler.t * t -> t
 
-let enabled' choices =
-  create (fun result ->
-    (* We keep track of all the deferreds we are waiting on so that we can unregister
-       ourselves when one of them does become determined.  Else there would be a space
-       leak. *)
-    let unregisters = Stack.create () in
-    (* The list produced by the following [rev_map] is then reversed again by the
-       [fold] in [enabled], thus producing a result in the same order as [choices]. *)
-    let checks = List.rev_map choices ~f:(fun choice -> choice.check) in
-    let ready () =
-      if Ivar.is_empty result then begin
-        Stack.iter unregisters ~f:Unregister.unregister;
-        Ivar.fill result checks;
-      end
-    in
-    List.iter choices ~f:(fun choice ->
-      Stack.push unregisters (choice.register ~ready)))
-;;
+  let rec process = function
+    | Nil -> ()
+    | Cons (t, handler, rest) ->
+      remove_handler t handler;
+      process rest
+  ;;
+end
+
+let choice t f = Choice (t, f)
 
 let enabled choices =
-  enabled' choices
-  >>| fun checks ->
-  (fun () ->
-    List.fold checks ~init:[] ~f:(fun ac check ->
-      match check () with
-      | None -> ac
-      | Some f -> f () :: ac))
+  let result = Ivar.create () in
+  let unregisters = ref Unregister.Nil in
+  let ready _ =
+    if Ivar.is_empty result then begin
+      Unregister.process !unregisters;
+      Ivar.fill result (fun () ->
+        List.rev
+          (List.fold choices ~init:[] ~f:(fun ac (Choice (t, f)) ->
+             match peek t with
+             | None -> ac
+             | Some v -> f v :: ac)))
+    end
+  in
+  let execution_context = Scheduler.(current_execution_context (t ())) in
+  unregisters :=
+    List.fold choices ~init:Unregister.Nil ~f:(fun acc (Choice (t, _)) ->
+      Unregister.Cons (t,
+                       Ivar.Deferred.add_handler t ready execution_context,
+                       acc));
+  Ivar.read result
+;;
+
+let rec choose_result choices =
+  match choices with
+  | [] -> assert false
+  | Choice (t, f) :: choices ->
+    match peek t with
+    | None -> choose_result choices
+    | Some v -> f v
 ;;
 
 let choose choices =
-  enabled' choices
-  >>| fun checks ->
-  match List.find_map checks ~f:(fun f -> f ()) with
-  | None -> assert false
-  | Some f -> f ()
+  let result = Ivar.create () in
+  let unregisters = ref Unregister.Nil in
+  let ready _ =
+    if Ivar.is_empty result then begin
+      Unregister.process !unregisters;
+      Ivar.fill result (choose_result choices)
+    end
+  in
+  let execution_context = Scheduler.(current_execution_context (t ())) in
+  unregisters :=
+    List.fold choices ~init:Unregister.Nil ~f:(fun acc (Choice (t, _)) ->
+      Unregister.Cons (t,
+                       Ivar.Deferred.add_handler t ready execution_context,
+                       acc));
+  Ivar.read result
 ;;
 
 let any_f ts f = choose (List.map ts ~f:(fun t -> choice t f))

@@ -19,9 +19,16 @@ val equal : 'a t -> 'a t -> bool
 
 val connect : bind_result:'a t -> bind_rhs:'a t -> unit
 val fill : 'a t -> 'a  -> unit
-val install_removable_handler : 'a t -> 'a Raw_handler.t -> Unregister.t
+
+module Handler : sig
+  type 'a t with sexp_of
+end
+
+val add_handler : 'a t -> ('a -> unit) -> Execution_context.t -> 'a Handler.t
+val remove_handler : 'a t -> 'a Handler.t -> unit
+
 val upon  : 'a t -> ('a -> unit) -> unit
-val upon' : 'a t -> ('a -> unit) -> Unregister.t
+val upon' : 'a t -> ('a -> unit) -> 'a Handler.t
 
 val debug_space_leaks : int option ref
 

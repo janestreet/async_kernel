@@ -7,8 +7,8 @@ let create run =
 ;;
 
 let install t d =
-  let u = Ivar.Deferred.install_removable_handler d t in
-  fun () -> Unregister.unregister u;
+  let handler = Ivar.Deferred.add_handler d t.run t.execution_context in
+  fun () -> Ivar.Deferred.remove_handler d handler
 ;;
 
 let schedule t a = Scheduler.add_job t.execution_context t.run a

@@ -130,33 +130,35 @@ val choice : 'a t -> ('a -> 'b) -> 'b choice
     not all [ti] are determined. *)
 val enabled : 'b choice list -> (unit -> 'b list) t
 
-(** [choose choices] is [enabled choices >>| (fun f -> List.hd_exn (f ()))].
-    That is:
-
-    {[
-      choose [choice t1 f1; ...; choice tn fn]
+(** {[
+      choose [ choice t1 f1
+             ; ...
+             ; choice tn fn
+             ]
     ]}
 
-    returns a deferred [t] that becomes determined with value [fi ai] after some
-    [ti] becomes determined with value [ai].  There is no guarantee that the [ti]
-    that becomes determined earliest in time will be the one whose value
-    determines the [choose].  Nor is it guaranteed that the value in [t] is the
-    first value (in place order) from [choices] that is determined at the time [t]
-    is examined.
+    returns a deferred [t] that becomes determined with value [fi ai] after some [ti]
+    becomes determined with value [ai].  There is no guarantee that the [ti] that becomes
+    determined earliest in time will be the one whose value determines the [choose].  Nor
+    is it guaranteed that the value in [t] is the first value (in place order) from
+    [choices] that is determined at the time [t] is examined.
 
-    For example, if you write:
+    For example, in:
 
     {[
-      choose [choice t1 (fun () -> `X1);
-              choice t2 (fun () -> `X2);
+      choose [ choice t1 (fun () -> `X1)
+             ; choice t2 (fun () -> `X2)
              ]
       >>> function
       | `X1 -> e1
       | `X2 -> e2
     ]}
 
-    It may be the case that both [t1] and [t2] become determined, yet the code
-    [e2] actually runs.
+    it may be the case that both [t1] and [t2] become determined, yet [e2] actually runs.
+
+    It is guaranteed that if multiple choices are determined with no intervening
+    asynchrony, then the earliest choice in the list will become the value of the
+    [choose].
 *)
 val choose : 'b choice list -> 'b t
 

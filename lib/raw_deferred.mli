@@ -14,6 +14,9 @@ val peek : 'a t -> 'a option
 val is_determined : _ t -> bool
 val return : 'a -> 'a t
 val upon  : 'a t -> ('a -> unit) -> unit
-val upon' : 'a t -> ('a -> unit) -> Unregister.t
 val bind  : 'a t -> ('a -> 'b t) -> 'b t
-val install_removable_handler : 'a t -> 'a Raw_handler.t -> Unregister.t
+
+module Handler : sig type 'a t with sexp_of end
+val add_handler : 'a t -> ('a -> unit) -> Execution_context.t -> 'a Handler.t
+val remove_handler : 'a t -> 'a Handler.t -> unit
+

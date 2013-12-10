@@ -88,6 +88,7 @@ module Event = struct
     | Happened -> `Previously_happened
     | Waiting waiting ->
       t := Aborted;
+      Ivar.fill waiting.ready `Aborted;
       let events = Scheduler.(events (t ())) in
       Timing_wheel.remove events waiting.event;
       `Ok
