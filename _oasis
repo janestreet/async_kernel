@@ -68,6 +68,8 @@ Library async_core
                       fieldslib.syntax,
                       pa_ounit,
                       pa_ounit.syntax,
+                      pa_test,
+                      pa_test.syntax,
                       sexplib,
                       sexplib.syntax,
                       threads,
@@ -75,6 +77,7 @@ Library async_core
                       herelib.syntax
   XMETARequires:      sexplib,
                       pa_ounit,
+                      pa_test,
                       fieldslib,
                       bin_prot,
                       core,
