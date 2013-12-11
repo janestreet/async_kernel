@@ -1,5 +1,5 @@
 (* OASIS_START *)
-(* DO NOT EDIT (digest: 39c522074ab14dc0c709c7dd96ca3a5f) *)
+(* DO NOT EDIT (digest: db17349288d5148a31cc7597066633c8) *)
 This is the INSTALL file for the async_core distribution.
 
 This package uses OASIS to generate its build system. See section OASIS for
@@ -15,6 +15,7 @@ In order to compile this package, you will need:
 * core
 * fieldslib
 * pa_ounit
+* pa_test
 * sexplib
 * herelib
 
