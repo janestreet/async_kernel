@@ -1,5 +1,5 @@
 (* OASIS_START *)
-(* DO NOT EDIT (digest: db17349288d5148a31cc7597066633c8) *)
+(* DO NOT EDIT (digest: 21a4fa24833a476b1d95d482656ce975) *)
 This is the INSTALL file for the async_core distribution.
 
 This package uses OASIS to generate its build system. See section OASIS for
@@ -30,7 +30,7 @@ Installing
 Uninstalling
 ============
 
-1. Go to the root of the package 
+1. Go to the root of the package
 2. Run 'ocaml setup.ml -uninstall'
 
 OASIS
