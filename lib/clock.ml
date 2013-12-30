@@ -3,6 +3,7 @@ open Import  let _ = _squelch_unused_module_warning_
 open Deferred_std
 
 module Stream = Async_stream
+module Job = Jobs.Job
 
 let debug = Debug.clock
 
@@ -15,10 +16,12 @@ let span_to_time span = Time.add (Time.now ()) span
 let run_at time f a =
   let scheduler = Raw_scheduler.t () in
   let events = scheduler.Raw_scheduler.events in
-  let job = Job.create (Raw_scheduler.current_execution_context scheduler) f a in
+  let execution_context = Raw_scheduler.current_execution_context scheduler in
   if Time.(<) time (Timing_wheel.now events)
-  then Raw_scheduler.add_job scheduler job
-  else ignore (Timing_wheel.add events ~at:time job : _ Timing_wheel.Alarm.t)
+  then Raw_scheduler.enqueue scheduler execution_context f a
+  else ignore (Timing_wheel.add events ~at:time
+                 (Raw_scheduler.create_job scheduler execution_context f a)
+               : _ Timing_wheel.Alarm.t);
 ;;
 
 let run_after span f a = run_at (span_to_time span) f a
@@ -34,84 +37,63 @@ let at =
 let after span = at (span_to_time span)
 
 module Event = struct
-  (* Clock events start in the [Uninitialized] state just for their creation (because of
-     cyclic types), and then are immediately marked as [Waiting] or [Happened], depending
-     on the time.  A [Waiting] event will then either [Happen] at the appropriate time,
-     or be [Aborted] prior to when it would have [Happened].
 
-     Uninitialized
-     |           |
-     v           v
-     Waiting --> Happened
-     |
-     v
-     Aborted *)
-  type waiting =
-    { event : Job.t Timing_wheel.Alarm.t;
-      ready : [ `Happened | `Aborted ] Ivar.t;
+  type t =
+    { mutable alarm : Job.t Timing_wheel.Alarm.t
+    ; ready         : [ `Happened | `Aborted ] Ivar.t
     }
-  with sexp_of
+  with fields, sexp_of
 
-  type state =
-  | Uninitialized
-  | Aborted
-  | Happened
-  | Waiting of waiting
-  with sexp_of
-
-  type t = state ref with sexp_of
-
-  let invariant t : unit =
-    try
-      match !t with
-      | Uninitialized | Aborted | Happened -> ()
-      | Waiting { event = _; ready } ->
-        Ivar.invariant Fn.ignore ready;
-        assert (Ivar.is_empty ready);
-    with exn ->
-      failwiths "Clock.Event.invariant failed" (exn, t) (<:sexp_of< exn * t >>)
+  let invariant t =
+    Invariant.invariant _here_ t <:sexp_of< t >> (fun () ->
+      let events = Raw_scheduler.(events (t ())) in
+      let check f = Invariant.check_field t f in
+      Fields.iter
+        ~alarm:(check (fun alarm ->
+          if Ivar.is_full t.ready
+          then assert (not (Timing_wheel.mem events alarm))))
+        ~ready:ignore)
   ;;
 
   let status t =
-    match !t with
-    | Uninitialized -> assert false
-    | Aborted -> `Aborted
-    | Happened -> `Happened
-    | Waiting _ -> `Waiting
+    match Deferred.peek (Ivar.read t.ready) with
+    | None -> `Waiting
+    | Some x -> (x :> [ `Happened | `Aborted | `Waiting ])
   ;;
 
   let abort t =
     if debug then Debug.log "Clock.Event.abort" t <:sexp_of< t >>;
-    match !t with
-    | Uninitialized -> assert false
-    | Aborted -> `Previously_aborted
-    | Happened -> `Previously_happened
-    | Waiting waiting ->
-      t := Aborted;
-      Ivar.fill waiting.ready `Aborted;
-      let events = Scheduler.(events (t ())) in
-      Timing_wheel.remove events waiting.event;
+    match status t with
+    | `Aborted -> `Previously_aborted
+    | `Happened -> `Previously_happened
+    | `Waiting ->
+      Ivar.fill t.ready `Aborted;
+      let events = Raw_scheduler.(events (t ())) in
+      (* [t.alarm] might have been removed from [events] due to [advance_clock], even
+         though the resulting [fire] job hasn't run yet.  So, we have to check before
+         removing it. *)
+      if Timing_wheel.mem events t.alarm then Timing_wheel.remove events t.alarm;
       `Ok
   ;;
 
   let at time =
     if debug then Debug.log "Clock.Event.at" time <:sexp_of< Time.t >>;
-    let ready = Ivar.create () in
-    let t = ref Uninitialized in
-    let scheduler = Scheduler.t () in
-    let events = Scheduler.events scheduler in
+    let t = { alarm = Timing_wheel.Alarm.null (); ready = Ivar.create () } in
+    let scheduler = Raw_scheduler.t () in
+    let events = Raw_scheduler.events scheduler in
     let fire () =
-      t := Happened;
-      Ivar.fill ready `Happened;
+      match status t with
+      | `Happened -> assert false
+      | `Aborted -> ()
+      | `Waiting -> Ivar.fill t.ready `Happened
     in
-    let job = Job.create (Scheduler.current_execution_context scheduler) fire () in
     if Time.(<) time (Timing_wheel.now events)
     then fire ()
-    else begin
-      let event = Timing_wheel.add events ~at:time job in
-      t := Waiting { event; ready };
-    end;
-    t, Ivar.read ready
+    else t.alarm <- Timing_wheel.add events ~at:time
+                      (Raw_scheduler.create_job scheduler
+                         (Raw_scheduler.current_execution_context scheduler)
+                         fire ());
+    t, Ivar.read t.ready
   ;;
 
   let after span = at (span_to_time span)
@@ -138,7 +120,8 @@ let at_varying_intervals ?stop compute_span =
 ;;
 
 let at_intervals ?(start = Time.now ()) ?stop interval =
-  at_times ?stop (fun () -> Time.next_multiple ~base:start ~after:(Time.now ()) ~interval)
+  at_times ?stop (fun () ->
+    Time.next_multiple ~base:start ~after:(Time.now ()) ~interval ())
 ;;
 
 let every' ?(start = Deferred.unit) ?(stop = Deferred.never ())

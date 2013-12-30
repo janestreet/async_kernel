@@ -31,7 +31,7 @@ type 'a deferred = 'a t
 
 let of_ivar (type a) (ivar : a Ivar.t) = (Obj.magic ivar : a t)
 
-let to_ivar (type a) (t : a t) = (Obj.magic t : a Ivar.t)
+let to_ivar (type a) t = (Obj.magic (t : a t) : a Ivar.t)
 
 let sexp_of_t sexp_of_a t = Ivar.sexp_of_t sexp_of_a (to_ivar t)
 

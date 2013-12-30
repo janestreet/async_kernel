@@ -316,3 +316,19 @@ TEST_UNIT =
   assert (Deferred.peek d = Some `Aborted);
   assert !r;
 ;;
+
+TEST_UNIT = (* enqueueing withing a job doesn't lead to monitor nesting *)
+  let seq = Sequencer.create () in
+  let rec loop n =
+    if n = 0
+    then Deferred.unit
+    else
+      enqueue seq (fun () ->
+        assert (Monitor.depth (Monitor.current ()) < 5);
+        don't_wait_for (loop (n - 1));
+        Deferred.unit)
+  in
+  let d = loop 100 in
+  stabilize ();
+  assert (Deferred.peek d = Some ());
+;;

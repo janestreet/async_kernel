@@ -1,4 +1,4 @@
-(** Internal to async -- a timestamp used to implement [Monitor.kill].
+(** Internal to Async -- a timestamp used to implement [Monitor.kill].
 
     A monitor is dead if it has an ancestor whose kill index is [dead].
 

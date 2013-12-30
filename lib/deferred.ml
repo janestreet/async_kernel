@@ -5,8 +5,6 @@ module Scheduler = Raw_scheduler
 
 include Ivar.Deferred
 
-let debug_space_leaks = Raw_ivar.debug_space_leaks
-
 let never () = Ivar.read (Ivar.create ())
 
 include Monad.Make (struct

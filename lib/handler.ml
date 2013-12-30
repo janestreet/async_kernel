@@ -11,4 +11,4 @@ let install t d =
   fun () -> Ivar.Deferred.remove_handler d handler
 ;;
 
-let schedule t a = Scheduler.add_job t.execution_context t.run a
+let schedule t a = Scheduler.(enqueue (t ())) t.execution_context t.run a

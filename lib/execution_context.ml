@@ -43,3 +43,11 @@ let record_backtrace =
   | Error _ -> Fn.id
   | Ok get -> fun t -> { t with backtrace_history = get () :: t.backtrace_history }
 ;;
+
+let is_alive t ~global_kill_index =
+  Kill_index.equal t.kill_index global_kill_index
+  || (not (Kill_index.equal t.kill_index Kill_index.dead)
+      && let b = Monitor.is_alive t.monitor ~global_kill_index in
+         t.kill_index <- t.monitor.Monitor.kill_index;
+         b)
+;;

@@ -13,7 +13,7 @@ include Bin_prot.Utils.Make_binable1 (struct
     type 'a t = 'a option with bin_io
   end
 
-  type 'a t = 'a ivar
+  type nonrec 'a t = 'a t
 
   let to_binable t = peek t
 

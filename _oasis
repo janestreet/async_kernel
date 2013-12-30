@@ -1,15 +1,15 @@
 OASISFormat:      0.3
 OCamlVersion:     >= 4.00.0
 FindlibVersion:   >= 1.3.2
-Name:             async_core
-Version:          109.55.00
+Name:             async_kernel
+Version:          109.58.00
 Synopsis:         Jane Street Capital's asynchronous execution library (core)
 Authors:          Jane Street Capital LLC <opensource@janestreet.com>
 Copyrights:       (C) 2008-2013 Jane Street Capital LLC <opensource@janestreet.com>
 Maintainers:      Jane Street Capital LLC <opensource@janestreet.com>
 License:          Apache-2.0
 LicenseFile:      LICENSE.txt
-Homepage:         https://github.com/janestreet/async_core
+Homepage:         https://github.com/janestreet/async_kernel
 Plugins:          StdFiles (0.3), DevFiles (0.3), META (0.3)
 XStdFilesAUTHORS: false
 XStdFilesREADME:  false
@@ -21,9 +21,9 @@ Description:
   OCaml's standard library that was developed by Jane Street, the
   largest industrial user of OCaml.
 
-Library async_core
+Library async_kernel
   Path:               lib
-  FindlibName:        async_core
+  FindlibName:        async_kernel
   Pack:               true
   Modules:            Async_condition,
                       Async_gc,
@@ -40,7 +40,6 @@ Library async_core
                       Handler,
                       Import,
                       Ivar,
-                      Job,
                       Jobs,
                       Kill_index,
                       Lazy_deferred,
@@ -84,10 +83,10 @@ Library async_core
                       threads,
                       herelib
 
-Document "async_core"
+Document "async_kernel"
   Title:                Jane street's async library (core)
   Type:                 ocamlbuild (0.3)
   BuildTools+:          ocamldoc
   XOCamlbuildPath:      lib
-  XOCamlbuildLibraries: async_core
+  XOCamlbuildLibraries: async_kernel
 

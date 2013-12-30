@@ -19,7 +19,7 @@
     {1 NOTE ABOUT THE TOPLEVEL MONITOR }
 
     It is important to note that in the toplevel monitor, exceptions will only be caught
-    in the async part of a computation.  For example, in:
+    in the Async part of a computation.  For example, in:
 
     {[
       upon (f ()) g
@@ -58,6 +58,10 @@ val create : (unit -> t) with_optional_monitor_name
     [create]. *)
 val name : t -> Info.t
 
+val parent : t -> t option
+
+val depth : t -> int
+
 (** [current ()] returns the current monitor *)
 val current : unit -> t
 
@@ -77,7 +81,7 @@ val extract_exn : exn -> exn
 (** [has_seen_error t] returns true iff the monitor has ever seen an error. *)
 val has_seen_error : t -> bool
 
-(** [send_exn t exn ?backtrace] sends the exception [exn] as an error to be handled
+(** [send_exn t exn ?backtrace] sends the exception [exn] as an error to be handled by
     monitor [t].  By default, the error will not contain a backtrace.  However, the caller
     can supply one using [`This], or use [`Get] to request that [send_exn] obtain one
     using [Exn.backtrace ()]. *)
@@ -93,6 +97,11 @@ val send_exn : t -> ?backtrace:[ `Get | `This of string ] -> exn -> unit
 
     The [name] argument is used to give a name to the monitor the computation will be
     running in.  This name will appear when printing errors.
+
+    [try_with] runs [f ()] in a new monitor [t] that has no parent.  This works because
+    [try_with] calls [errors t] and explicitly handles all errors sent to [t].  No errors
+    would ever implicitly propagate to [t]'s parent, although [try_with] will explicitly
+    send them to [t]'s parent with [rest = `Raise].
 
     If [extract_exn = true], then in an [Error exn] result, the [exn] will be the actual
     exception raised by the computation.  If [extract_exn = false], then the [exn] will

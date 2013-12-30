@@ -1,4 +1,4 @@
-(** Internal to async -- see {!Ivar} for the public API. *)
+(** Internal to Async -- see {!Ivar} for the public API. *)
 
 open Core.Std
 open Import
@@ -29,7 +29,5 @@ val remove_handler : 'a t -> 'a Handler.t -> unit
 
 val upon  : 'a t -> ('a -> unit) -> unit
 val upon' : 'a t -> ('a -> unit) -> 'a Handler.t
-
-val debug_space_leaks : int option ref
 
 val indir : 'a t -> 'a t

@@ -1,4 +1,4 @@
-(** Internal async debugging functions. *)
+(** Internal Async debugging functions. *)
 
 open Core.Std
 

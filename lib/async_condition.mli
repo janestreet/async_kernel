@@ -4,8 +4,8 @@
     variable provides is that a call to [signal] (or [broadcast]) after a call to [wait]
     will be seen by the waiter.
 
-    Unlike the use of condition variables in ordinary threaded programs, async condition
-    variables do not require a mutex, since async programs are cooperatively threaded. *)
+    Unlike the use of condition variables in ordinary threaded programs, Async condition
+    variables do not require a mutex, since Async programs are cooperatively threaded. *)
 
 open Core.Std
 

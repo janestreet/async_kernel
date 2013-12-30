@@ -51,7 +51,6 @@ module Debug_tag = struct
     | Monitor_send_exn
     | Parallel
     | Reader
-    | Run_job
     | Scheduler
     | Shutdown
     | Thread_pool
@@ -75,7 +74,6 @@ module Debug_tag = struct
       Monitor_send_exn;
       Parallel;
       Reader;
-      Run_job;
       Scheduler;
       Shutdown;
       Thread_pool;
@@ -306,7 +304,7 @@ let field_descriptions () : string =
             concat (List.map Debug_tag.list
                       ~f:(fun d ->
                         concat ["    "; Debug_tag.to_string d; "\n"]));
-            "\
+            "
   Turning on debug messages will substantially slow down most programs.
 "
            ])
@@ -403,7 +401,6 @@ module Print_debug_messages_for = struct
   let monitor_send_exn   = debug Debug_tag.Monitor_send_exn
   let parallel           = debug Debug_tag.Parallel
   let reader             = debug Debug_tag.Reader
-  let run_job            = debug Debug_tag.Run_job
   let scheduler          = debug Debug_tag.Scheduler
   let shutdown           = debug Debug_tag.Shutdown
   let thread_pool        = debug Debug_tag.Thread_pool

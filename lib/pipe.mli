@@ -353,7 +353,7 @@ val read_all : 'a Reader.t -> 'a Queue.t Deferred.t
 
 (** [values_available reader] returns a deferred that becomes determined when there are
     values in the pipe.  If there are multiple readers (a rare situation), there is no
-    guarantee that some other reader hasn't become active because of ordinary async
+    guarantee that some other reader hasn't become active because of ordinary Async
     scheduling and removed some or all of the values between the time the result of
     [values_available] becomes determined and the time something waiting [upon] that
     result runs.
@@ -477,7 +477,7 @@ val transfer_id
 
     If [output] is closed, then [map'] will close [input].
 
-    [map] is a specialization of [map'] that uses [Queue.map ~f]. *)
+    [map] is like [map'], except that it processes one element at time. *)
 val map' : 'a Reader.t -> f:('a Queue.t -> 'b Queue.t Deferred.t) -> 'b Reader.t
 val map  : 'a Reader.t -> f:('a         -> 'b                   ) -> 'b Reader.t
 

@@ -178,8 +178,3 @@ val forever
   :  'state
   -> ('state -> 'state t)
   -> unit
-
-(** Set [debug_space_leaks] to [Some n] to trigger assertion failures when single deferred
-    has more than [n] handlers waiting for it to be filled.  Note that if [n] is
-    less than 2, we may not trigger all assertion failures. *)
-val debug_space_leaks : int option ref

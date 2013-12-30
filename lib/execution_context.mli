@@ -1,4 +1,4 @@
-(** The context in which an async job runs. *)
+(** The context in which an Async job runs. *)
 
 open Core.Std
 
@@ -32,3 +32,4 @@ val with_local : t -> 'a Univ_map.Key.t -> 'a option -> t
 
 val record_backtrace : t -> t
 
+val is_alive : t -> global_kill_index : Kill_index.t -> bool

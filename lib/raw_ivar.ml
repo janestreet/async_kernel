@@ -118,14 +118,14 @@ module Handler = struct
     !n;
   ;;
 
-  let to_job t v = Job.create t.execution_context t.run v
+  let enqueue t scheduler v = Scheduler.enqueue scheduler t.execution_context t.run v
 
   let schedule_jobs t v =
     let scheduler = Scheduler.t () in
-    Scheduler.add_job scheduler (to_job t v);
+    enqueue t scheduler v;
     let r = ref t.next in
     while not (phys_equal !r t) do
-      Scheduler.add_job scheduler (to_job !r v);
+      enqueue !r scheduler v;
       r := !r.next;
     done;
   ;;
@@ -296,15 +296,13 @@ let invariant a_invariant t =
     Handler.invariant (handler_of_constructor cell);
 ;;
 
-let sexp_of_t sexp_of_a _ t =
+let sexp_of_t sexp_of_a t =
   let t = squash t in
   match t.cell with
   | Indir _ -> assert false (* fulfilled by [squash] *)
   | Full a -> Sexp.List [ Sexp.Atom "Full"; sexp_of_a a ]
   | Empty | Empty_one_handler _ | Empty_one_or_more_handlers _ -> Sexp.Atom "Empty"
 ;;
-
-let sexp_of_ivar = sexp_of_t
 
 let peek t =
   let t = squash t in
@@ -324,23 +322,15 @@ let is_empty t =
 
 let is_full t = not (is_empty t)
 
-let debug_space_leaks = ref None
-
-let debug_handlers_check handler =
-  match !debug_space_leaks with
-  | None -> ()
-  | Some bound -> assert (Handler.length handler < bound);
-;;
-
 let fill t v =
   let t = squash t in
   match t.cell with
   | Indir _ -> assert false (* fulfilled by [squash] *)
-  | Full _ -> failwiths "Ivar.fill of full ivar" t <:sexp_of< (_, _) t >>
+  | Full _ -> failwiths "Ivar.fill of full ivar" t <:sexp_of< _ t >>
   | Empty -> t.cell <- Full v;
   | Empty_one_handler (run, execution_context) ->
     t.cell <- Full v;
-    Scheduler.(add_job (t ())) (Job.create execution_context run v);
+    Scheduler.(enqueue (t ())) execution_context run v;
   | Empty_one_or_more_handlers _ as cell ->
     t.cell <- Full v;
     Handler.schedule_jobs (handler_of_constructor cell) v;
@@ -392,7 +382,7 @@ let add_handler t run execution_context =
     (* [run] calls [handler.Handler.run], which, if [handler] has been removed, has
        been changed to [ignore]. *)
     let run v = handler.Handler.run v in
-    Scheduler.(add_job (t ())) (Job.create execution_context run v);
+    Scheduler.(enqueue (t ())) execution_context run v;
     handler
 ;;
 
@@ -416,15 +406,13 @@ let upon =
     match t.cell with
     | Indir _ ->
       assert false (* fulfilled by [squash] *)
-    | Full v ->
-      Scheduler.add_job scheduler (Job.create execution_context run v)
-    | Empty ->
-      t.cell <- Empty_one_handler (run, execution_context)
+    | Full v -> Scheduler.enqueue scheduler execution_context run v;
+    | Empty -> t.cell <- Empty_one_handler (run, execution_context);
     | Empty_one_handler (run', execution_context') ->
       t.cell <- cell_of_handler
                   (Handler.create2
                      run  execution_context
-                     run' execution_context')
+                     run' execution_context');
     | Empty_one_or_more_handlers _ as cell ->
       ignore (Handler.add (handler_of_constructor cell) run execution_context
               : _ Handler.t);
@@ -488,7 +476,7 @@ let connect ~bind_result ~bind_rhs =
     | Empty, _ -> bind_result.cell <- bind_rhs_contents;
     | Empty_one_handler (run, execution_context), Full v ->
       bind_result.cell <- bind_rhs_contents;
-      Scheduler.(add_job (t ())) (Job.create execution_context run v);
+      Scheduler.(enqueue (t ())) execution_context run v;
     | Empty_one_or_more_handlers _ as cell, Full v ->
       bind_result.cell <- bind_rhs_contents;
       Handler.schedule_jobs (handler_of_constructor cell) v;
@@ -500,27 +488,21 @@ let connect ~bind_result ~bind_rhs =
           run2 execution_context2
       in
       bind_result.cell <- cell_of_handler handler1;
-      debug_handlers_check handler1
     | (Empty_one_or_more_handlers _ as cell1),
       Empty_one_handler (run2, execution_context2) ->
       let handler1 = handler_of_constructor cell1 in
       ignore (Handler.add handler1 run2 execution_context2 : _ Handler.t);
-      debug_handlers_check handler1;
     | Empty_one_handler (run1, execution_context1),
       (Empty_one_or_more_handlers _ as cell2) ->
       let handler2 = handler_of_constructor cell2 in
       let handler1 = Handler.add handler2 run1 execution_context1 in
       bind_result.cell <- cell_of_handler handler1;
-      debug_handlers_check handler1;
     | (Empty_one_or_more_handlers _ as cell1),
       (Empty_one_or_more_handlers _ as cell2) ->
       let handler1 = handler_of_constructor cell1 in
       Handler.splice handler1 (handler_of_constructor cell2);
-      debug_handlers_check handler1;
   end
 ;;
-
-let sexp_of_t sexp_of_a t = sexp_of_ivar sexp_of_a () t
 
 TEST_MODULE = struct
 

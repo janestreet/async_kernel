@@ -1,4 +1,4 @@
-(** Settings that globally affect the behavior of async.
+(** Settings that globally affect the behavior of Async.
 
     These can be set by setting an environment variable, [ASYNC_CONFIG], to a sexp
     representation of the config.  Also, setting [ASYNC_CONFIG] to an invalid sexp
@@ -35,7 +35,6 @@ module Print_debug_messages_for : sig
   val monitor_send_exn   : bool
   val parallel           : bool
   val reader             : bool
-  val run_job            : bool
   val scheduler          : bool
   val shutdown           : bool
   val thread_pool        : bool

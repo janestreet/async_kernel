@@ -5,7 +5,7 @@ open Core.Std
 include module type of Core_kernel.Std.Gc
 
 (** [add_finalizer b f] ensures that [f] runs after [b] becomes unreachable.  [f b] will
-    run in its own async job.  If [f] raises, the unhandled exception will be raised to
+    run in its own Async job.  If [f] raises, the unhandled exception will be raised to
     the monitor that called [add_finalizer b f].
 
     The OCaml runtime only supports finalizers on heap blocks, hence [add_finalizer]
@@ -33,8 +33,8 @@ include module type of Core_kernel.Std.Gc
     itself is a root of garbage collection, and can itself only be collected after the
     pair [(b, f)] is removed from the set of finalizers.
 
-    The [f] function can use all features of OCaml and async, since it runs as an ordinary
-    async job.  [f] can even make make [b] reachable again.  It can even call
+    The [f] function can use all features of OCaml and Async, since it runs as an ordinary
+    Async job.  [f] can even make make [b] reachable again.  It can even call
     [add_finalizer] on [b] or other values to register other finalizer functions.
 *)
 val add_finalizer     : 'a Heap_block.t -> ('a Heap_block.t -> unit) -> unit

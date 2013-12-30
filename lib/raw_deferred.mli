@@ -1,4 +1,4 @@
-(** Internal to async -- see {!Deferred} for the public API. *)
+(** Internal to Async -- see {!Deferred} for the public API. *)
 
 open Import
 

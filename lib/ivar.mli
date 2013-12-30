@@ -8,7 +8,6 @@ open Core.Std
 open Import
 
 type 'a t with bin_io, sexp_of
-
 type 'a ivar = 'a t
 
 include Invariant.S1 with type 'a t := 'a t
@@ -36,7 +35,7 @@ val is_empty : 'a t -> bool
 (** [is_full t] returns true if [t] is full *)
 val is_full : 'a t -> bool
 
-(** The [Deferred] module exposed here is for async's internal use only. *)
+(** The [Deferred] module exposed here is for Async's internal use only. *)
 module Deferred : sig
 
   type +'a t with sexp_of

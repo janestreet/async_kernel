@@ -107,3 +107,8 @@ let update_kill_index =
     let kill_index = determine_kill_index t ~global_kill_index in
     set_kill_index t ~kill_index;
 ;;
+
+let is_alive t ~global_kill_index =
+  update_kill_index t ~global_kill_index;
+  Kill_index.equal t.kill_index global_kill_index
+;;

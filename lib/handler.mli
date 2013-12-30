@@ -1,4 +1,4 @@
-(** A continuation that captures the current async execution context.
+(** A continuation that captures the current Async execution context.
 
     It can be scheduled for future invocation by installing it in a deferred. *)
 

@@ -1,4 +1,4 @@
-(** Internal to async -- see {!Async_unix.Scheduler} for the public API. *)
+(** Internal to Async -- see {!Async_unix.Scheduler} for the public API. *)
 
 open Core.Std
 open Import
@@ -13,9 +13,11 @@ val current_execution_context  : t -> Execution_context.t
 val with_execution_context     : t -> Execution_context.t -> f:(unit -> 'a) -> 'a
 val set_execution_context      : t -> Execution_context.t -> unit
 
-val add_job                    : Execution_context.t -> ('a -> unit) -> 'a -> unit
-val main_execution_context     : Execution_context.t
-val add_job2 : t -> Job.t -> unit
+val enqueue     : t -> Execution_context.t -> ('a -> unit) -> 'a -> unit
+val create_job  : t -> Execution_context.t -> ('a -> unit) -> 'a -> Jobs.Job.t
+val enqueue_job : t -> Jobs.Job.t -> free_job:bool -> unit
+
+val main_execution_context : Execution_context.t
 val cycle_start : t -> Time.t
 val run_cycle : t -> unit
 val run_cycles_until_no_jobs_remain : unit -> unit
@@ -33,14 +35,12 @@ val check_invariants : t -> bool
 val set_check_invariants : t -> bool -> unit
 val set_record_backtraces : t -> bool -> unit
 
-val events : t -> Job.t Timing_wheel.t
-
 val add_finalizer     : t -> 'a Heap_block.t -> ('a Heap_block.t -> unit) -> unit
 val add_finalizer_exn : t -> 'a              -> ('a              -> unit) -> unit
 
-val set_thread_safe_finalizer_hook : t -> (unit -> unit) -> unit
+val set_thread_safe_external_action_hook : t -> (unit -> unit) -> unit
 
-val thread_safe_enqueue_finalizer_job : t -> Job.t -> unit
+val thread_safe_enqueue_external_action : t -> (unit -> unit) -> unit
 
 val force_current_cycle_to_end : t -> unit
 

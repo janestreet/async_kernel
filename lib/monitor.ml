@@ -14,6 +14,15 @@ let current_execution_context () = Scheduler.(current_execution_context (t ()))
 
 let current () = Execution_context.monitor (current_execution_context ())
 
+let depth t =
+  let rec loop t n =
+    match t.parent with
+    | None -> n
+    | Some t -> loop t (n + 1)
+  in
+  loop t 0
+;;
+
 type 'a with_optional_monitor_name =
   ?here : Source_code_position.t
   -> ?info : Info.t
@@ -47,7 +56,7 @@ module Exn_for_monitor = struct
     { exn : exn;
       backtrace : string sexp_list;
       backtrace_history : Backtrace.t sexp_list;
-      monitor : monitor;
+      monitor : Monitor.t;
     }
   with fields, sexp_of
 end
@@ -148,11 +157,10 @@ module Exported_for_scheduler = struct
 
   let schedule ?monitor ?priority work =
     let scheduler = Scheduler.t () in
-    Scheduler.add_job scheduler
-      (Job.create
-         (Execution_context.create_like (Scheduler.current_execution_context scheduler)
-            ?monitor ?priority)
-         work ())
+    Scheduler.enqueue scheduler
+      (Execution_context.create_like (Scheduler.current_execution_context scheduler)
+         ?monitor ?priority)
+      work ()
   ;;
 
   let schedule' ?monitor ?priority work =
@@ -164,7 +172,7 @@ module Exported_for_scheduler = struct
   let preserve_execution_context f =
     let scheduler = Scheduler.t () in
     let execution_context = Scheduler.current_execution_context scheduler in
-    stage (fun a -> Raw_scheduler.add_job scheduler (Job.create execution_context f a))
+    stage (fun a -> Raw_scheduler.enqueue scheduler execution_context f a)
   ;;
 
   let preserve_execution_context' f =
@@ -173,8 +181,8 @@ module Exported_for_scheduler = struct
     let call_and_fill (f, a, i) = upon (f a) (fun r -> Ivar.fill i r) in
     stage (fun a ->
       Deferred.create (fun i ->
-        Raw_scheduler.add_job scheduler
-          (Job.create execution_context call_and_fill (f, a, i))))
+        Raw_scheduler.enqueue scheduler
+          execution_context call_and_fill (f, a, i)))
   ;;
 
 end
@@ -197,27 +205,28 @@ let try_with_rest_handling = ref (`Default `Ignore)
 let try_with_ignored_exn_handling = ref `Ignore
 
 let try_with ?here ?info
-    ?(name = "try_with")
-    ?extract_exn:(do_extract_exn = false)
-    ?(run = `Schedule)
-    ?rest
-    f =
+      ?(name = "try_with")
+      ?extract_exn:(do_extract_exn = false)
+      ?(run = `Schedule)
+      ?rest
+      f =
   let module S = Stream in
-  let parent = current () in
-  let monitor = create_with_parent ?here ?info ~name (Some parent) in
+  (* [monitor] does not need a parent, because we call [errors monitor] and deal with the
+     errors explicitly; thus [send_exn] would never propagate an exn past [monitor]. *)
+  let monitor = create_with_parent ?here ?info ~name None in
   let errors = errors monitor in
   let f =
     match run with
     | `Now      -> within'   ~monitor f
     | `Schedule -> schedule' ~monitor f
   in
-  choose [ choice f (fun x -> (Ok x, errors));
-           choice (S.next errors)
+  choose [ choice f (fun x -> (Ok x, errors))
+         ; choice (S.next errors)
              (function
-             | S.Nil -> assert false
-             | S.Cons (err, errors) ->
-               let err = if do_extract_exn then extract_exn err else err in
-               (Error err, errors));
+               | S.Nil -> assert false
+               | S.Cons (err, errors) ->
+                 let err = if do_extract_exn then extract_exn err else err in
+                 (Error err, errors));
          ]
   >>| fun (res, errors) ->
   let rest =
@@ -226,7 +235,8 @@ let try_with ?here ?info
     | `Force rest -> rest
   in
   begin match rest with
-  | `Raise -> stream_iter errors ~f:(fun e -> send_exn parent e ?backtrace:None);
+  | `Raise ->
+    stream_iter errors ~f:(fun e -> send_exn (current ()) e ?backtrace:None);
   | `Ignore ->
     match !try_with_ignored_exn_handling with
     | `Ignore -> ()
@@ -235,7 +245,7 @@ let try_with ?here ?info
         match x with
         | `Run f -> f exn
         | `Eprintf ->
-          Debug.log "try_with ignored exception" (exn, monitor) (<:sexp_of< exn * t >>))
+          Debug.log "try_with ignored exception" (exn, monitor) <:sexp_of< exn * t >>);
   end;
   res
 ;;

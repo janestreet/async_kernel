@@ -1,7 +1,7 @@
 (** Schedule jobs to run at a time in the future.
 
     The underlying implementation uses a heap of events, one for each job that needs to
-    run in the future.  The async scheduler is responsible for waking up at the right time
+    run in the future.  The Async scheduler is responsible for waking up at the right time
     to run the jobs.
 *)
 
@@ -55,7 +55,7 @@ module Event: sig
      [after] is like [at], except that one specifies a time span rather than an absolute
      time.
 
-     For both [at] and [after], once an event is aborted, async doesn't use any space for
+     For both [at] and [after], once an event is aborted, Async doesn't use any space for
      tracking it. *)
   val at    : Time.t      -> t * [ `Happened | `Aborted ] Deferred.t
   val after : Time.Span.t -> t * [ `Happened | `Aborted ] Deferred.t
