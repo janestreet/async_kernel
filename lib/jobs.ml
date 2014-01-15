@@ -197,7 +197,10 @@ end = struct
         in
         let f = (Obj.obj (A.unsafe_get t.jobs (this_job + 1)) : a -> unit) in
         let a = (Obj.obj (A.unsafe_get t.jobs (this_job + 2)) : a        ) in
-        (* set t 0 dummy_e dummy_f dummy_a; *)
+        (* We clear out the job right now so that it isn't live at the next minor
+           collection.  We tried not doing this and saw significant (15% or so)
+           performance hits due to spurious promotion. *)
+        set t 0 dummy_e dummy_f dummy_a;
         t.front <- (t.front + 1) land t.mask;
         t.length <- t.length - 1;
         t.jobs_left_this_cycle <- t.jobs_left_this_cycle - 1;
