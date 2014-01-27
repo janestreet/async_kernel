@@ -1,0 +1,12 @@
+# OASIS_START
+# DO NOT EDIT (digest: 81de3bda33aff31acfc9eefd3edb0785)
+version = "110.01.00"
+description = "Jane Street Capital's asynchronous execution library (core)"
+requires = "sexplib pa_ounit pa_test fieldslib bin_prot core threads herelib"
+archive(byte) = "async_kernel.cma"
+archive(byte, plugin) = "async_kernel.cma"
+archive(native) = "async_kernel.cmxa"
+archive(native, plugin) = "async_kernel.cmxs"
+exists_if = "async_kernel.cma"
+# OASIS_STOP
+
