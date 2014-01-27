@@ -184,7 +184,7 @@ type ('a, 'phantom) t =
   { (* [id] is an integer used to distinguish pipes when debugging. *)
     id : int;
     (* [buffer] holds values written to the pipe that have not yet been read. *)
-    buffer : 'a Q.t;
+    mutable buffer : 'a Q.t;
     (* [size_budget] governs pushback on writers to the pipe.
 
        There is *no* invariant that [Q.length buffer <= size_budget].  There is no hard
@@ -372,11 +372,11 @@ let values_were_read t consumer =
   loop ();
 ;;
 
-(* [consume_all t] reads all the elements in [t], in constant time. *)
+(* [consume_all t] reads all the elements in [t]. *)
 let consume_all t consumer =
-  let result = Q.create () in
-  t.num_values_read <- t.num_values_read + length t;
-  Q.transfer ~src:t.buffer ~dst:result;
+  let result = t.buffer in
+  t.buffer <- Q.create ();
+  t.num_values_read <- t.num_values_read + Q.length result;
   values_were_read t consumer;
   update_pushback t;
   result
@@ -396,14 +396,13 @@ let consume_one t consumer =
 let consume_at_most t num_values consumer =
   assert (num_values >= 0);
   if num_values >= length t then
-    consume_all t consumer (* fast because it can use [Q.transfer] *)
+    consume_all t consumer
   else begin
     t.num_values_read <- t.num_values_read + num_values;
     values_were_read t consumer;
     let result = Q.create () in
-    for _i = 1 to num_values do
-      Q.enqueue result (Q.dequeue_exn t.buffer);
-    done;
+    Q.set_capacity result num_values;
+    Q.blit_transfer ~src:t.buffer ~dst:result ~len:num_values ();
     update_pushback t;
     result
   end
@@ -444,7 +443,7 @@ let finish_write t =
 
 let write_without_pushback' t values =
   start_write t;
-  Q.transfer ~src:values ~dst:t.buffer;
+  Q.blit_transfer ~src:values ~dst:t.buffer ();
   finish_write t;
 ;;
 
@@ -582,7 +581,7 @@ let read_exactly ?consumer t ~num_values =
         >>> function
         | `Eof -> Ivar.fill finish (if already_read = 0 then `Eof else `Fewer result)
         | `Ok q ->
-          Q.transfer ~src:q ~dst:result;
+          Q.blit_transfer ~src:q ~dst:result ();
           loop ();
       end
     in
@@ -728,7 +727,7 @@ let drain_and_count t = fold' t ~init:0 ~f:(fun sum q -> return (sum + Q.length 
 
 let read_all input =
   let result = Q.create () in
-  iter' input ~f:(fun q -> Q.transfer ~src:q ~dst:result; Deferred.unit)
+  iter' input ~f:(fun q -> Q.blit_transfer ~src:q ~dst:result (); Deferred.unit)
   >>| fun () ->
   result
 ;;

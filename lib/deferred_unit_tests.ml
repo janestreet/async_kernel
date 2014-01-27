@@ -33,7 +33,7 @@ TEST_MODULE = struct
                ; choice (Ivar.read t2) Fn.id
                ]
         >>| fun i ->
-        <:test_result< int >> i ~expected:13
+        <:test_result< int >> i ~expect:13
       in
       Ivar.fill t2 14;
       Ivar.fill t1 13;

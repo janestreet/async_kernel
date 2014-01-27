@@ -345,14 +345,18 @@ TEST_MODULE = struct
   TEST_UNIT =
     assert (eq (try_with (fun () -> Deferred.return 1)) (Ok 1));
     assert (expect_failure_with_prefix (try_with (fun () -> failwith "foo"))
-              ~prefix:"(monitor.ml.Error_((exn(Failure foo))");
+              ~prefix:"\
+(monitor.ml.Error_
+ ((exn (Failure foo))");
   ;;
 
   TEST_UNIT =
     assert (eq (try_with_join (fun () -> return 1)) (Ok 1));
     assert (eq (try_with_join (fun () -> fail err)) (Error err));
     assert (expect_failure_with_prefix (try_with (fun () -> failwith "foo"))
-              ~prefix:"(monitor.ml.Error_((exn(Failure foo))");
+              ~prefix:"\
+(monitor.ml.Error_
+ ((exn (Failure foo))");
   ;;
 
 end

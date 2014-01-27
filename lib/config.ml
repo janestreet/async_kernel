@@ -133,6 +133,7 @@ let empty =
 ;;
 
 let default_file_descr_watcher, default_max_num_open_file_descrs =
+  (* epoll predates timerfd_create (2.5.44 vs. 2.6.25) *)
   if Result.is_ok Linux_ext.Timerfd.create
   then File_descr_watcher.Epoll , Max_num_open_file_descrs.create_exn 8192
   else File_descr_watcher.Select, Max_num_open_file_descrs.create_exn 1024

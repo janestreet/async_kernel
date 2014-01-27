@@ -142,7 +142,10 @@ val try_with_ignored_exn_handling
 (** [handle_errors ?name f handler] runs [f ()] inside a new monitor with the optionally
     supplied name, and calls [handler error] on every error raised to that monitor.  Any
     error raised by [handler] goes to the monitor in effect when [handle_errors] was
-    called. *)
+    called.
+
+    Errors that are raised after [f ()] becomes determined will still be sent to
+    [handler]; i.e. the new monitor lives as long as jobs created by [f] live. *)
 val handle_errors
   : ((unit -> 'a Deferred.t)
      -> (exn -> unit)

@@ -401,6 +401,8 @@ module Result = struct
 
     let map t ~f = Deferred.map t ~f:(fun r -> Result.map r ~f)
   end)
+
+  let map_error t ~f = Deferred.map t ~f:(fun r -> Result.map_error r ~f)
 end
 
 module Option = struct

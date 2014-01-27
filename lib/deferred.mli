@@ -100,11 +100,18 @@ module type Monad_sequence = Monad_sequence with type 'a monad := 'a t
 
 module Array : Monad_sequence with type 'a t = 'a array
 module List  : Monad_sequence with type 'a t = 'a list
+
+(** All [Queue] iteration functions first copy the queue (to a list) and then start
+    calling the user function [f].  So, if [f] modifies the queue, that will have no
+    effect on the iteration. *)
 module Queue : Monad_sequence with type 'a t = 'a Queue.t
 
 module Map : Deferred_map
 
-module Result : Monad.S2 with type ('a, 'b) t = ('a, 'b) Result.t t
+module Result : sig
+  include Monad.S2 with type ('a, 'b) t = ('a, 'b) Result.t t
+  val map_error : ('ok, 'error1) t -> f:('error1 -> 'error2) -> ('ok, 'error2) t
+end
 
 module Option : Monad.S  with type 'a t = 'a option t
 
