@@ -82,11 +82,3 @@ Library async_kernel
                       core,
                       threads,
                       herelib
-
-Document "async_kernel"
-  Title:                Jane street's async library (core)
-  Type:                 ocamlbuild (0.3)
-  BuildTools+:          ocamldoc
-  XOCamlbuildPath:      lib
-  XOCamlbuildLibraries: async_kernel
-
