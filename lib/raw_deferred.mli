@@ -7,8 +7,6 @@ type 'a deferred = 'a t
 
 val of_ivar : 'a Raw_ivar.t -> 'a t
 
-val peek : 'a t -> 'a option
-
 val create : ('a Raw_ivar.t -> unit) -> 'a t
 val peek : 'a t -> 'a option
 val is_determined : _ t -> bool

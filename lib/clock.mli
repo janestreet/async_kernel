@@ -30,8 +30,8 @@ val after : Time.Span.t -> unit Deferred.t
 
 (** [with_timeout span d] does pretty much what one would expect.  Note that at the point
     of checking if [d] is determined and the timeout has expired, the resulting deferred
-    will be determined with [`Result].  In other words, since there is inherent race
-    between [d] and the timeout, the preference is given to [d]. *)
+    will be determined with [`Result].  In other words, since there is an inherent race
+    between [d] and the timeout, preference is given to [d]. *)
 val with_timeout
   :  Time.Span.t
   -> 'a Deferred.t

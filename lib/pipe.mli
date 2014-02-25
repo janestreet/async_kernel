@@ -454,11 +454,10 @@ val iter'                 : ('a, 'a Queue.t, unit Deferred.t) iter
 val iter                  : ('a, 'a        , unit Deferred.t) iter
 val iter_without_pushback : ('a, 'a        , unit           ) iter
 
-(** [transfer' input output ~f ?stop] repeatedly reads a batch of elements from [input],
-    applies [f] to the batch, writes the result as a batch to [output], and then waits on
-    [pushback] in [output] before continuing.  [transfer'] finishes if [input] is closed,
-    or [output] is closed, or [stop] is determined.  If [output] is closed, then
-    [transfer'] closes [input].
+(** [transfer' input output ~f] repeatedly reads a batch of elements from [input], applies
+    [f] to the batch, writes the result as a batch to [output], and then waits on
+    [pushback] in [output] before continuing.  [transfer'] finishes if [input] is closed
+    or [output] is closed.  If [output] is closed, then [transfer'] closes [input].
 
     [transfer] is a specialization of [transfer'] that uses [Queue.map ~f].
 
@@ -552,7 +551,7 @@ val equal : ('a, 'b) t -> ('a, 'b) t -> bool
 (** Every pipe has a "size budget", which governs the pushback that is used to discourage
     writers from enqueueing arbitrarily large amounts of data.  As long as the length of
     the pipe exceeds the size budget, writers will not be notified to do further writing.
-    Whenver the length is less than or equal to the size budget, writers will be notified
+    Whenever the length is less than or equal to the size budget, writers will be notified
     to continue.
 
     Every pipe's initial size budget is zero. *)
