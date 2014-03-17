@@ -461,7 +461,7 @@ val iter_without_pushback : ('a, 'a        , unit           ) iter
 
     [transfer] is a specialization of [transfer'] that uses [Queue.map ~f].
 
-    [transfer_id] is a specialization of [transfer'] wifh [f = Fn.id]. *)
+    [transfer_id] is a specialization of [transfer'] with [f = Fn.id]. *)
 val transfer'
   : 'a Reader.t -> 'b Writer.t -> f:('a Queue.t -> 'b Queue.t Deferred.t) -> unit Deferred.t
 val transfer

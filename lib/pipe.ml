@@ -217,6 +217,8 @@ type ('a, 'phantom) t =
     blocked_reads : 'a Blocked_read.t Q.t;
     (* [closed] is filled when we close the write end of the pipe. *)
     closed : unit Ivar.t;
+    (* [read_closed] is filled when we close the read end of the pipe. *)
+    read_closed : unit Ivar.t;
 
     (* [consumers] is a list of all consumers that may be handling values read from the
        pipe. *)
@@ -236,6 +238,8 @@ let hash t = Hashtbl.hash t.id
 let equal (t1 : (_, _) t) t2 = phys_equal t1 t2
 
 let is_closed t = Ivar.is_full t.closed
+
+let is_read_closed t = Ivar.is_full t.read_closed
 
 let closed t = Ivar.read t.closed
 
@@ -272,6 +276,7 @@ let invariant t : unit =
         (* You never block trying to read a closed pipe. *)
         if is_closed t then assert (Q.is_empty blocked_reads)))
       ~closed:ignore
+      ~read_closed:ignore
       ~consumers:(check (fun l ->
         List.iter l ~f:(fun consumer ->
           Consumer.invariant consumer;
@@ -300,6 +305,7 @@ let create () =
   let t =
     { id                = !id_ref       ;
       closed            = Ivar.create ();
+      read_closed       = Ivar.create ();
       size_budget       = 0             ;
       pushback          = Ivar.create ();
       buffer            = Q.create    ();
@@ -345,11 +351,14 @@ let init f =
 let close_read t =
   if !show_debug_messages then eprints "close_read" t <:sexp_of< (_, _) t >>;
   if !check_invariant then invariant t;
-  Q.iter  t.blocked_flushes ~f:(fun flush -> Blocked_flush.fill flush `Reader_closed);
-  Q.clear t.blocked_flushes;
-  Q.clear t.buffer;
-  update_pushback t; (* we just cleared the buffer, so may need to fill [t.pushback] *)
-  close t;
+  if not (is_read_closed t) then begin
+    Ivar.fill t.read_closed ();
+    Q.iter  t.blocked_flushes ~f:(fun flush -> Blocked_flush.fill flush `Reader_closed);
+    Q.clear t.blocked_flushes;
+    Q.clear t.buffer;
+    update_pushback t; (* we just cleared the buffer, so may need to fill [t.pushback] *)
+    close t;
+  end;
 ;;
 
 let values_were_read t consumer =
@@ -847,12 +856,8 @@ let map  input ~f = map_gen read_now  write  input ~f:(fun a k -> k (f a))
 let filter_map' input ~f = map' input ~f:(fun q -> Deferred.Queue.filter_map q ~f)
 
 let filter_map input ~f =
-  let write t a_option =
-    match a_option with
-    | None -> pushback t
-    | Some a -> write t a
-  in
-  map_gen read_now write input ~f:(fun a k -> k (f a))
+  map_gen read_now' write' input ~f:(fun q k ->
+    k (Queue.filter_map q ~f:(fun x -> if is_read_closed input then None else f x)))
 ;;
 
 let filter input ~f = filter_map input ~f:(fun x -> if f x then Some x else None)

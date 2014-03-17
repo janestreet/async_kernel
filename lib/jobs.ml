@@ -175,12 +175,10 @@ end = struct
   let can_run_a_job t = t.length > 0 && t.jobs_left_this_cycle > 0
 
   let run_external_actions external_actions =
-    (* This test is not necessary and redundant in case the queue is not empty; however it
-       is false 99% of the time and avoids one function call (dequeue_until_empty won't be
-       inlined because of a rec). Since we do this in a tight loop it makes sense to keep
-       it. *)
-    if Thread_safe_queue.length external_actions > 0 then
-      Thread_safe_queue.dequeue_until_empty external_actions (fun f -> f ())
+    while Thread_safe_queue.length external_actions > 0 do
+      let f = Thread_safe_queue.dequeue_exn external_actions in
+      f ()
+    done;
   ;;
 
   let run_all (type a) t state ~external_actions =
