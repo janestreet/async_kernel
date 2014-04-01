@@ -105,7 +105,7 @@ let t_ref =
   match Result.try_with create with
   | Ok t -> ref t
   | Error exn ->
-    eprintf "%s\n" (Exn.to_string exn);
+    Debug.log "Async cannot create its raw scheduler" exn <:sexp_of< exn >>;
     exit 1;
 ;;
 

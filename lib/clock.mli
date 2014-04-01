@@ -94,19 +94,22 @@ val at_intervals
     It is guaranteed that if [stop] becomes determined, even during evaluation of [f],
     then [f] will not be called again by a subsequent iteration of the loop.
 
-    It is an error for [span] to be nonpositive. *)
+    It is an error for [span] to be nonpositive.
+
+    Exceptions raised by [f] are always sent to monitor in effect when [every'] was
+    called, even with [~continue_on_error:true]. *)
 val every'
-  :  ?start : unit Deferred.t
-  -> ?stop : unit Deferred.t
-  -> ?continue_on_error : bool
+  :  ?start : unit Deferred.t   (** default is [Deferred.unit] *)
+  -> ?stop : unit Deferred.t    (** default is [Deferred.never ()] *)
+  -> ?continue_on_error : bool  (** default is [true] *)
   -> Time.Span.t
   -> (unit -> unit Deferred.t) -> unit
 
 (** [every ?start ?stop span f] is
     [every' ?start ?stop span (fun () -> f (); Deferred.unit)] *)
 val every
-  :  ?start : unit Deferred.t
-  -> ?stop : unit Deferred.t
-  -> ?continue_on_error : bool
+  :  ?start : unit Deferred.t   (** default is [Deferred.unit] *)
+  -> ?stop : unit Deferred.t    (** default is [Deferred.never ()] *)
+  -> ?continue_on_error : bool  (** default is [true] *)
   -> Time.Span.t
   -> (unit -> unit) -> unit
