@@ -113,3 +113,32 @@ val every
   -> ?continue_on_error : bool  (** default is [true] *)
   -> Time.Span.t
   -> (unit -> unit) -> unit
+
+(** [run_at_intervals' ?start ?stop span f] runs [f()] at increments of [start + i * span]
+    for non-negative integers [i], until [stop] becomes determined.  [run_at_intervals']
+    waits for the result of [f] to become determined before waiting for the next interval.
+
+    Exceptions raised by [f] are always sent to monitor in effect when [run_at_intervals']
+    was called, even with [~continue_on_error:true]. *)
+val run_at_intervals'
+  :  ?start : Time.t            (** default is [Time.now ()] *)
+  -> ?stop : unit Deferred.t    (** default is [Deferred.never ()] *)
+  -> ?continue_on_error : bool  (** default is [true] *)
+  -> Time.Span.t
+  -> (unit -> unit Deferred.t)
+  -> unit
+
+(** [run_at_intervals ?start ?stop ?continue_on_error span f] is equivalent to:
+
+    {[
+      run_at_intervals' ?start ?stop ?continue_on_error span
+        (fun () -> f (); Deferred.unit)
+    ]}
+*)
+val run_at_intervals
+  :  ?start : Time.t            (** default is [Time.now ()] *)
+  -> ?stop : unit Deferred.t    (** default is [Deferred.never ()] *)
+  -> ?continue_on_error : bool  (** default is [true] *)
+  -> Time.Span.t
+  -> (unit -> unit)
+  -> unit

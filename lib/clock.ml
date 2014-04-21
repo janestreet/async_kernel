@@ -124,15 +124,16 @@ let at_intervals ?(start = Time.now ()) ?stop interval =
     Time.next_multiple ~base:start ~after:(Time.now ()) ~interval ())
 ;;
 
-let every' ?(start = Deferred.unit) ?(stop = Deferred.never ())
-    ?(continue_on_error = true) span f =
-  if Time.Span.(<=) span Time.Span.zero then
-    failwiths "Clock.every got nonpositive span" span <:sexp_of< Time.Span.t >>;
+let run_repeatedly
+  ?(start = Deferred.unit)
+  ?(stop = Deferred.never ())
+  ?(continue_on_error = true)
+  ~f ~continue () =
   start
   >>> fun () ->
     (* We use an extra monitor so we can specially handle errors in [f]. *)
     let saw_error = ref false in
-    let monitor = Monitor.create ~name:"Clock.every'" () in
+    let monitor = Monitor.create ~name:"Clock.run_repeatedly" () in
     Stream.iter (Monitor.errors monitor) ~f:(fun e ->
       Monitor.send_exn (Monitor.current ()) e;
       saw_error := true);
@@ -159,18 +160,41 @@ let every' ?(start = Deferred.unit) ?(stop = Deferred.never ())
                 | Ok z ->
                   begin match z with
                   | `Stop -> ()
-                  | `Ran -> loop (after span)
+                  | `Ran -> loop (continue ())
                   end
                 | Error error ->
                   Monitor.send_exn (Monitor.current ()) error;
-                  if continue_on_error then loop (after span)
+                  if continue_on_error then loop (continue ())
             end)
     in
     loop Deferred.unit
 ;;
 
+let every' ?start ?stop ?continue_on_error span f =
+  if Time.Span.(<=) span Time.Span.zero
+  then failwiths "Clock.every got nonpositive span" span <:sexp_of< Time.Span.t >>;
+  run_repeatedly ?start ?stop ?continue_on_error ~f
+    ~continue:(fun () -> after span) ()
+;;
+
 let every ?start ?stop ?continue_on_error span f =
   every' ?start ?stop ?continue_on_error span (fun () -> f (); Deferred.unit)
+;;
+
+let run_at_intervals' ?start ?stop ?continue_on_error interval f =
+  let base, start =
+    match start with
+    | None       -> Time.now (), None
+    | Some start -> start      , Some (at start)
+  in
+  run_repeatedly ?start ?stop ?continue_on_error ~f
+    ~continue:(fun () -> at (Time.next_multiple ~base ~after:(Time.now ()) ~interval ()))
+    ()
+;;
+
+let run_at_intervals ?start ?stop ?continue_on_error interval f =
+  run_at_intervals' ?start ?stop ?continue_on_error interval
+    (fun () -> f (); Deferred.unit)
 ;;
 
 let with_timeout span d =
