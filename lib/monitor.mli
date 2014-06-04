@@ -6,15 +6,12 @@
     arranged in a tree -- when a new monitor is created, it is a child of the current
     monitor.
 
-    One can "listen" to a monitor using [Monitor.errors] to learn when the monitor sees an
-    error.
-
-    If a computation raises an unhandled exception, the current monitor does one of two
-    things.  If anyone is listening to the monitor (i.e. [Monitor.errors] has been called
-    on the monitor), then the error stream is extended, and the listeners are responsible
-    for doing something.  If no one is listening to the monitor, then the exception is
-    raised to monitor's parent.  The initial monitor, i.e. the root of the monitor tree,
-    prints an unhandled-exception message and calls exit 1.
+    If a computation raises an unhandled exception, the behavior depends on whether the
+    current monitor is "detached" or "attached".  If the monitor has been "detached", via
+    one of the [detach*] functions, then whomever detached it is responsible for dealing
+    with the exception.  If the monitor is still attached, then the exception bubbles to
+    monitor's parent.  If an exception bubbles to the initial monitor, i.e. the root of
+    the monitor tree, that prints an unhandled-exception message and calls exit 1.
 
     {1 NOTE ABOUT THE TOPLEVEL MONITOR }
 
@@ -65,14 +62,34 @@ val depth : t -> int
 (** [current ()] returns the current monitor *)
 val current : unit -> t
 
-(** [errors t] returns a stream of all subsequent errors that monitor [t] sees. *)
-val errors : t -> exn Tail.Stream.t
 
-(** [error t] returns a deferred that becomes determined the next time the monitor gets an
-    error, if ever.  Calling [error t] does not count as "listening for errors", and if no
-    one has called [errors t] to listen, then errors will still be raised up the monitor
-    tree. *)
-val error : t -> exn Deferred.t
+(** [detach t] detaches [t] so that errors raised to [t] are not passed to [t]'s parent
+    monitor.  If those errors aren't handled in some other way, then they will effectively
+    be ignored.  One should usually use [detach_and_iter_errors] so that errors are not
+    ignored. *)
+val detach : t -> unit
+
+
+(** [detach_and_iter_errors t ~f] detaches [t] and passes to [f] all subsequent errors
+    that reach [t], stopping iteration if [f] raises an exception.  An exception raised by
+    [f] is sent to the monitor in effect when [detach_and_iter_errors] was called. *)
+val detach_and_iter_errors : t -> f:(exn -> unit) -> unit
+
+(** [detach_and_get_next_error t] detaches [t] and returns a deferred that becomes
+    determined with the next error that reaches [t] (possibly never). *)
+val detach_and_get_next_error : t -> exn Deferred.t
+
+(** [detach_and_get_error_stream t] detaches [t] and returns a stream of all subsequent
+    errors that reach [t].
+
+    [Stream.iter (detach_and_get_error_stream t) ~f] is equivalent to
+    [detach_and_iter_errors t ~f]. *)
+val detach_and_get_error_stream : t -> exn Tail.Stream.t
+
+(** [get_next_error t] returns a deferred that becomes determined the next time [t] gets
+    an error, if ever.  Calling [get_next_error t] does not detach [t], and if no other
+    call has detached [t], then errors will still bubble up the monitor tree. *)
+val get_next_error : t -> exn Deferred.t
 
 (** [extract_exn exn] extracts the exn from an error exn that comes from a monitor.  If it
     is not supplied such an error exn, it returns the exn itself. *)
@@ -99,9 +116,9 @@ val send_exn : t -> ?backtrace:[ `Get | `This of string ] -> exn -> unit
     running in.  This name will appear when printing errors.
 
     [try_with] runs [f ()] in a new monitor [t] that has no parent.  This works because
-    [try_with] calls [errors t] and explicitly handles all errors sent to [t].  No errors
-    would ever implicitly propagate to [t]'s parent, although [try_with] will explicitly
-    send them to [t]'s parent with [rest = `Raise].
+    [try_with] calls [detach_and_get_error_stream t] and explicitly handles all errors
+    sent to [t].  No errors would ever implicitly propagate to [t]'s parent, although
+    [try_with] will explicitly send them to [t]'s parent with [rest = `Raise].
 
     If [extract_exn = true], then in an [Error exn] result, the [exn] will be the actual
     exception raised by the computation.  If [extract_exn = false], then the [exn] will

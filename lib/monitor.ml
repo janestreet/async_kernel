@@ -29,21 +29,63 @@ type 'a with_optional_monitor_name =
   -> ?name : string
   -> 'a
 
-let errors t =
-  t.someone_is_listening <- true;
+let detach t = t.is_detached <- true
+
+(* After [add_handler_for_all_errors t f], [f] runs in the middle of [send_exn], in an
+   arbitrary execution context.  So, [f] should not depend on the current execution
+   context.  If [f] needs to do anything that does depend on the execution context, it
+   must explicitly run within the desired execution context.  [f] also runs in the middle
+   of [Bag.iter t.handlers_for_all_errors], so [f] should not side effect
+   [t.handlers_for_all_errors]. *)
+let add_handler_for_all_errors t ~f = Bag.add t.handlers_for_all_errors f
+
+type handler_state =
+  | Uninitialized
+  | Running of (exn -> unit) Bag.Elt.t
+  | Terminated
+
+let detach_and_iter_errors t ~f =
+  detach t;
+  let scheduler = Scheduler.t () in
+  let execution_context = Scheduler.current_execution_context scheduler in
+  let handler_state_ref = ref Uninitialized in
+  let run_f exn =
+    match !handler_state_ref with
+    | Uninitialized -> assert false
+    | Terminated -> ()
+    | Running bag_elt ->
+      try f exn
+      with inner_exn ->
+        handler_state_ref := Terminated;
+        Bag.remove t.handlers_for_all_errors bag_elt;
+        (* [run_f] always runs in [execution_context].  Hence, [raise inner_exn] sends
+           [inner_exn] to [execution_context]'s monitor, i.e. the monitor in effect when
+           [detach_and_iter_errors] was called. *)
+        raise inner_exn
+  in
+  handler_state_ref :=
+    Running (add_handler_for_all_errors t ~f:(fun exn ->
+      Scheduler.enqueue scheduler execution_context run_f exn));
+;;
+
+let detach_and_get_error_stream t =
+  detach t;
   let tail = Tail.create () in
-  t.handlers_for_all_errors <-
-    (fun exn -> Tail.extend tail exn)
-    :: t.handlers_for_all_errors;
+  ignore (add_handler_for_all_errors t ~f:(fun exn -> Tail.extend tail exn)
+          : _ Bag.Elt.t);
   Tail.collect tail
 ;;
 
-let error t =
-  let module S = Stream in
+let get_next_error t =
   Deferred.create (fun ivar ->
     t.handlers_for_next_error <-
       (fun exn -> Ivar.fill ivar exn)
       :: t.handlers_for_next_error)
+;;
+
+let detach_and_get_next_error t =
+  detach t;
+  get_next_error t
 ;;
 
 let create ?here ?info ?name () =
@@ -91,11 +133,11 @@ let send_exn t ?backtrace exn =
   let rec loop t =
     List.iter t.handlers_for_next_error ~f:(fun f -> f exn);
     t.handlers_for_next_error <- [];
-    if t.someone_is_listening then begin
+    if t.is_detached then begin
       if Debug.monitor_send_exn then
         Debug.log "Monitor.send_exn found listening monitor" (t, exn)
           <:sexp_of< t * exn >>;
-      List.iter t.handlers_for_all_errors ~f:(fun f -> f exn)
+      Bag.iter t.handlers_for_all_errors ~f:(fun f -> f exn);
     end else
       match t.parent with
       | Some t' -> loop t'
@@ -211,10 +253,11 @@ let try_with ?here ?info
       ?rest
       f =
   let module S = Stream in
-  (* [monitor] does not need a parent, because we call [errors monitor] and deal with the
-     errors explicitly; thus [send_exn] would never propagate an exn past [monitor]. *)
+  (* Because we call [detach_and_get_error_stream monitor] and deal with the errors
+     explicitly, [monitor] does not need a parent; thus [send_exn] would never propagate
+     an exn past [monitor]. *)
   let monitor = create_with_parent ?here ?info ~name None in
-  let errors = errors monitor in
+  let errors = detach_and_get_error_stream monitor in
   let f =
     match run with
     | `Now      -> within'   ~monitor f
@@ -265,13 +308,13 @@ let protect ?here ?info ?(name = "Monitor.protect") f ~finally =
 
 let handle_errors ?here ?info ?name f handler =
   let monitor = create ?here ?info ?name () in
-  stream_iter (errors monitor) ~f:handler;
+  stream_iter (detach_and_get_error_stream monitor) ~f:handler;
   within' ~monitor f;
 ;;
 
 let catch_stream ?here ?info ?name f =
   let monitor = create ?here ?info ?name () in
-  let stream = errors monitor in
+  let stream = detach_and_get_error_stream monitor in
   within ~monitor f;
   stream
 ;;

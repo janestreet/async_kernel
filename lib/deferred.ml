@@ -10,6 +10,7 @@ let never () = Ivar.read (Ivar.create ())
 include Monad.Make (struct
   include Ivar.Deferred
   let map t ~f = create (fun i -> upon t (fun a -> Ivar.fill i (f a)))
+  let map = `Custom map
 end)
 
 (* We shadow [all] on-purpose here, since the default definition introduces a chain of
@@ -400,6 +401,7 @@ module Result = struct
     ;;
 
     let map t ~f = Deferred.map t ~f:(fun r -> Result.map r ~f)
+    let map = `Custom map
   end)
 
   let map_error t ~f = Deferred.map t ~f:(fun r -> Result.map_error r ~f)
@@ -424,5 +426,6 @@ module Option = struct
     ;;
 
     let map t ~f = Deferred.map t ~f:(fun r -> Option.map r ~f)
+    let map = `Custom map
   end)
 end

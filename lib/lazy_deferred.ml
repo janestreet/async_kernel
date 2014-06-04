@@ -30,6 +30,7 @@ module T = struct
   let bind t f = create (fun () -> force_exn t >>= fun a -> force_exn (f a))
 
   let map t ~f = create (fun () -> force_exn t >>| f)
+  let map = `Custom map
 
 end
 

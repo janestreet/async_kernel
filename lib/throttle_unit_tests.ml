@@ -282,7 +282,7 @@ TEST_UNIT =
   let monitor = Monitor.create () in
   let cleanup_ran = ref false in
   let got_error = ref false in
-  Stream.iter (Monitor.errors monitor) ~f:(fun _ -> got_error := true);
+  Stream.iter (Monitor.detach_and_get_error_stream monitor) ~f:(fun _ -> got_error := true);
   Scheduler.within ~monitor (fun () ->
     at_kill t (fun () -> cleanup_ran := true; failwith ""));
   let c = cleaned t in

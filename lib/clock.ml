@@ -134,7 +134,7 @@ let run_repeatedly
     (* We use an extra monitor so we can specially handle errors in [f]. *)
     let saw_error = ref false in
     let monitor = Monitor.create ~name:"Clock.run_repeatedly" () in
-    Stream.iter (Monitor.errors monitor) ~f:(fun e ->
+    Stream.iter (Monitor.detach_and_get_error_stream monitor) ~f:(fun e ->
       Monitor.send_exn (Monitor.current ()) e;
       saw_error := true);
     let rec loop wait =

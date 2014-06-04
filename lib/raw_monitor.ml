@@ -9,9 +9,9 @@ type t =
     id : int;
     parent : t option;
     mutable handlers_for_next_error : (exn -> unit) list;
-    mutable handlers_for_all_errors : (exn -> unit) list;
+    mutable handlers_for_all_errors : (exn -> unit) Bag.t;
     mutable has_seen_error : bool;
-    mutable someone_is_listening : bool;
+    mutable is_detached : bool;
     mutable kill_index : Kill_index.t;
   }
 with fields
@@ -22,7 +22,7 @@ module Pretty = struct
       here : Source_code_position.t option;
       id : int;
       has_seen_error : bool;
-      someone_is_listening : bool;
+      is_detached : bool;
       kill_index : Kill_index.t;
     }
   with sexp_of
@@ -33,12 +33,12 @@ end
 
 let to_pretty =
   let rec loop
-      { name; here; id; parent; has_seen_error; someone_is_listening; kill_index;
+      { name; here; id; parent; has_seen_error; is_detached; kill_index;
         handlers_for_next_error = _; handlers_for_all_errors = _
       }
       ac =
     let ac =
-      { Pretty. name; here; id; has_seen_error; someone_is_listening; kill_index } :: ac
+      { Pretty. name; here; id; has_seen_error; is_detached; kill_index } :: ac
     in
     match parent with
     | None -> List.rev ac
@@ -67,9 +67,9 @@ let create_with_parent ?here ?info ?name parent =
     { name; here; parent;
       id;
       handlers_for_next_error = [];
-      handlers_for_all_errors = [];
+      handlers_for_all_errors = Bag.create ();
       has_seen_error = false;
-      someone_is_listening = false;
+      is_detached = false;
       kill_index = Kill_index.initial;
     }
   in

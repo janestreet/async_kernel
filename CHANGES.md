@@ -1,3 +1,20 @@
+## 111.17.00
+
+- Renamed `Monitor.errors` to `Monitor.detach_and_get_error_stream`
+  and `Monitor.error` as `Monitor.get_next_error`.
+
+  The use of `detach` in the name is intended to make clear that
+  errors do not propagate to the parent.
+
+  Added several other non-stream =Monitor= functions to capture common
+  use cases of `Monitor.detach_and_get_error_stream`:
+
+  ```ocaml
+  detach_and_get_next_error
+  detach_and_iter_errors
+  detach
+  ```
+
 ## 111.11.00
 
 - Added `Clock.run_at_intervals`, which runs a job at regular

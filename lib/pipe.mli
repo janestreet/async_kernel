@@ -459,7 +459,7 @@ val iter_without_pushback : ('a, 'a        , unit           ) iter
     [pushback] in [output] before continuing.  [transfer'] finishes if [input] is closed
     or [output] is closed.  If [output] is closed, then [transfer'] closes [input].
 
-    [transfer] is a specialization of [transfer'] that uses [Queue.map ~f].
+    [transfer] is like [transfer'], except that it processes one element at time.
 
     [transfer_id] is a specialization of [transfer'] with [f = Fn.id]. *)
 val transfer'
