@@ -182,10 +182,17 @@ let every ?start ?stop ?continue_on_error span f =
 ;;
 
 let run_at_intervals' ?start ?stop ?continue_on_error interval f =
+  let now = Time.now () in
   let base, start =
     match start with
-    | None       -> Time.now (), None
-    | Some start -> start      , Some (at start)
+    | None       -> now, None
+    | Some start ->
+      start,
+      Some (at (Time.next_multiple ()
+                  ~base:start
+                  ~after:now
+                  ~can_equal_after:true
+                  ~interval))
   in
   run_repeatedly ?start ?stop ?continue_on_error ~f
     ~continue:(fun () -> at (Time.next_multiple ~base ~after:(Time.now ()) ~interval ()))

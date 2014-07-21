@@ -59,6 +59,8 @@ val is_determined : 'a t -> bool
         upon t (fun a -> ... loop () ... )
     ]}
 
+    although often [forever] or [repeat_until_finished] is more clear.
+
     The same loop written with [>>=] would allocate deferreds that would be immediately
     garbage collected.  (In the past, this loop would have also used linear space in
     recursion depth!)
