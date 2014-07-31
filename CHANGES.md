@@ -1,3 +1,12 @@
+## 111.25.00
+
+- Fixed `Clock.run_at_intervals` to make the initial callback at an
+  interval multiple.
+
+  Previously, if `start` was in the past, `f` would run immediately
+  rather than waiting for an interval of the form `start + i * span`.
+  Now it always waits for an interval, even the first time it runs.
+
 ## 111.17.00
 
 - Renamed `Monitor.errors` to `Monitor.detach_and_get_error_stream`
