@@ -110,7 +110,7 @@ TEST_MODULE = struct
      [open Core.Std] to get [List].  But that shadows a couple other things we need, so we
      bind them first. *)
   module Seqlist = List
-  let unimplemented_from_our_module = unimplemented (* it gets shadowed *)
+
   module List = Core.Std.List
 
   let tasks = Queue.create ()
@@ -297,7 +297,7 @@ TEST_MODULE = struct
   ;;
 
   TEST =
-    eq (unimplemented_from_our_module "foo") (Or_error.unimplemented "foo");
+    eq (unimplemented "foo") (Or_error.unimplemented "foo");
   ;;
 
   let check deferred_f immediate_f =
