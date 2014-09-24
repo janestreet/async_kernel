@@ -246,38 +246,13 @@ let try_with_rest_handling = ref (`Default `Ignore)
 
 let try_with_ignored_exn_handling = ref `Ignore
 
-let try_with ?here ?info
-      ?(name = "try_with")
-      ?extract_exn:(do_extract_exn = false)
-      ?(run = `Schedule)
-      ?rest
-      f =
-  let module S = Stream in
-  (* Because we call [detach_and_get_error_stream monitor] and deal with the errors
-     explicitly, [monitor] does not need a parent; thus [send_exn] would never propagate
-     an exn past [monitor]. *)
-  let monitor = create_with_parent ?here ?info ~name None in
-  let errors = detach_and_get_error_stream monitor in
-  let f =
-    match run with
-    | `Now      -> within'   ~monitor f
-    | `Schedule -> schedule' ~monitor f
-  in
-  choose [ choice f (fun x -> (Ok x, errors))
-         ; choice (S.next errors)
-             (function
-               | S.Nil -> assert false
-               | S.Cons (err, errors) ->
-                 let err = if do_extract_exn then extract_exn err else err in
-                 (Error err, errors));
-         ]
-  >>| fun (res, errors) ->
+let internal_try_with_handle_errors ?rest errors monitor =
   let rest =
     match !try_with_rest_handling with
     | `Default default -> Option.value rest ~default
     | `Force rest -> rest
   in
-  begin match rest with
+  match rest with
   | `Raise ->
     stream_iter errors ~f:(fun e -> send_exn (current ()) e ?backtrace:None);
   | `Ignore ->
@@ -289,8 +264,39 @@ let try_with ?here ?info
         | `Run f -> f exn
         | `Eprintf ->
           Debug.log "try_with ignored exception" (exn, monitor) <:sexp_of< exn * t >>);
-  end;
-  res
+;;
+
+let try_with ?here ?info
+      ?(name = "try_with")
+      ?extract_exn:(do_extract_exn = false)
+      ?(run = `Schedule)
+      ?rest
+      f =
+  (* Because we call [detach_and_get_error_stream monitor] and deal with the errors
+     explicitly, [monitor] does not need a parent; thus [send_exn] would never propagate
+     an exn past [monitor]. *)
+  let monitor = create_with_parent ?here ?info ~name None in
+  let errors = detach_and_get_error_stream monitor in
+  let d =
+    match run with
+    | `Now      -> within' ~monitor f
+    | `Schedule -> schedule' ~monitor f
+  in
+  match Deferred.peek d with
+  | Some a -> (internal_try_with_handle_errors ?rest errors monitor; return (Ok a))
+  | None ->
+    let module S = Stream in
+    choose [ choice d (fun a -> (Ok a, errors))
+           ; choice (S.next errors)
+               (function
+                 | S.Nil -> assert false
+                 | S.Cons (err, errors) ->
+                   let err = if do_extract_exn then extract_exn err else err in
+                   (Error err, errors));
+           ]
+    >>| fun (res, errors) ->
+    internal_try_with_handle_errors ?rest errors monitor;
+    res
 ;;
 
 let protect ?here ?info ?(name = "Monitor.protect") f ~finally =

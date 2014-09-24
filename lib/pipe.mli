@@ -44,14 +44,15 @@ end
 
 (** {1 Creation} *)
 
-(** [create ()] creates a new pipe. *)
-val create : unit -> 'a Reader.t * 'a Writer.t
-
 (** [init f] creates a new pipe, applies [f] to its writer end, and returns its reader
     end.  [init] closes the writer end when the result of [f] becomes determined.  If [f]
     raises, the writer end is closed and the exception is raised to the caller of
     [init]. *)
 val init : ('a Writer.t -> unit Deferred.t) -> 'a Reader.t
+
+(** [create ()] creates a new pipe.  It is preferable to use [init] instead of [create],
+    since [init] provides exception handling and automatic closing of the pipe. *)
+val create : unit -> 'a Reader.t * 'a Writer.t
 
 (** [of_list l] returns a closed pipe reader filled with the contents of [l]. *)
 val of_list : 'a list -> 'a Reader.t

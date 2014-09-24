@@ -19,6 +19,19 @@ module Max_num_open_file_descrs            : Validated with type raw := int
 module Max_num_threads                     : Validated with type raw := int
 module Max_num_jobs_per_priority_per_cycle : Validated with type raw := int
 
+module Dump_core_on_job_delay : sig
+  type watch =
+    { dump_if_delayed_by : Time.Span.t
+    ; how_to_dump        : [ `Default | `Call_abort | `Call_gcore ]
+    }
+  with sexp
+
+  type t =
+    | Watch of watch
+    | Do_not_watch
+  with sexp
+end
+
 type t with sexp_of
 
 val t : t
@@ -51,6 +64,7 @@ end
 val abort_after_thread_pool_stuck_for   : Time.Span.t
 val check_invariants                    : bool
 val detect_invalid_access_from_thread   : bool
+val dump_core_on_job_delay              : Dump_core_on_job_delay.t
 val epoll_max_ready_events              : Epoll_max_ready_events.t
 val file_descr_watcher                  : File_descr_watcher.t
 val max_inter_cycle_timeout             : Max_inter_cycle_timeout.t

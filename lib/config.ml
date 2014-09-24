@@ -1,3 +1,4 @@
+module Inria_sys = Sys
 open Core.Std
 
 let concat = String.concat
@@ -36,6 +37,19 @@ module Max_num_jobs_per_priority_per_cycle =
     let here = _here_
     let validate = Int.validate_positive
   end)
+
+module Dump_core_on_job_delay = struct
+  type watch =
+    { dump_if_delayed_by : Time.Span.t
+    ; how_to_dump        : [ `Default | `Call_abort | `Call_gcore ]
+    }
+  with sexp
+
+  type t =
+    | Watch of watch
+    | Do_not_watch
+  with sexp
+end
 
 module Debug_tag = struct
 
@@ -102,6 +116,7 @@ type t =
   { abort_after_thread_pool_stuck_for   : Time.Span.t                           sexp_option
   ; check_invariants                    : bool                                  sexp_option
   ; detect_invalid_access_from_thread   : bool                                  sexp_option
+  ; dump_core_on_job_delay              : Dump_core_on_job_delay.t              sexp_option
   ; epoll_max_ready_events              : Epoll_max_ready_events.t              sexp_option
   ; file_descr_watcher                  : File_descr_watcher.t                  sexp_option
   ; max_inter_cycle_timeout             : Max_inter_cycle_timeout.t             sexp_option
@@ -119,6 +134,7 @@ let empty =
   { abort_after_thread_pool_stuck_for   = None
   ; check_invariants                    = None
   ; detect_invalid_access_from_thread   = None
+  ; dump_core_on_job_delay              = None
   ; epoll_max_ready_events              = None
   ; file_descr_watcher                  = None
   ; max_inter_cycle_timeout             = None
@@ -188,6 +204,7 @@ let default =
   { abort_after_thread_pool_stuck_for   = Some (sec 60.)
   ; check_invariants                    = Some false
   ; detect_invalid_access_from_thread   = Some false
+  ; dump_core_on_job_delay              = Some Do_not_watch
   ; epoll_max_ready_events              = Some (Epoll_max_ready_events.create_exn 256)
   ; file_descr_watcher                  = Some default_file_descr_watcher
   ; max_inter_cycle_timeout             =
@@ -239,7 +256,18 @@ let field_descriptions () : string =
   lock, which is not allowed and can lead to very confusing behavior.
 "
                                             ])
-
+      ~dump_core_on_job_delay:(field <:sexp_of< Dump_core_on_job_delay.t >>
+                                 ["
+  Can be set to [Do_not_watch] or [(Watch ((dump_if_delayed_by SPAN) (how_to_dump HOW)))].
+  If set to [Watch], then on program start this will start a regular async job that
+  increments a counter, and a C thread that will detect if that job is delayed by
+  [dump_if_delayed_by], and if so, will core dump the program.  If available,
+  [/usr/bin/gcore] is used by default to dump the core, which should allow the program to
+  continue running.  Otherwise, [abort] will be called from C, which will kill the
+  program while causing a core dump.  One can force [abort] or [gcore] via [how_to_dump],
+  which should be one of: [Call_abort], [Call_gcore], or [Default].
+"
+                                 ])
       ~epoll_max_ready_events:(field <:sexp_of< Epoll_max_ready_events.t >>
                                  ["
   The maximum number of ready events that async's call to [Epoll.wait]
@@ -365,7 +393,7 @@ Here is an explanation of each field.
 let usage () = eprintf "%s%!" (help_message ()); exit 1
 
 let t =
-  match Sys.getenv environment_variable with
+  match Option.try_with (fun () -> Inria_sys.getenv environment_variable) with
   | None -> empty
   | Some "" -> usage ()
   | Some string ->
@@ -410,28 +438,30 @@ module Print_debug_messages_for = struct
 
 end
 
-let default field =
+let ( !! ) field =
   Option.value (Field.get field t)
     ~default:(Option.value_exn (Field.get field default))
 ;;
 
-let abort_after_thread_pool_stuck_for   = default Fields.abort_after_thread_pool_stuck_for
-let check_invariants                    = default Fields.check_invariants
-let detect_invalid_access_from_thread   = default Fields.detect_invalid_access_from_thread
-let epoll_max_ready_events              = default Fields.epoll_max_ready_events
-let file_descr_watcher                  = default Fields.file_descr_watcher
-let max_inter_cycle_timeout             = default Fields.max_inter_cycle_timeout
-let max_num_open_file_descrs            = default Fields.max_num_open_file_descrs
-let max_num_threads                     = default Fields.max_num_threads
-let max_num_jobs_per_priority_per_cycle = default Fields.max_num_jobs_per_priority_per_cycle
-let record_backtraces                   = default Fields.record_backtraces
-let report_thread_pool_stuck_for        = default Fields.report_thread_pool_stuck_for
-let timing_wheel_config                 = default Fields.timing_wheel_config
+let abort_after_thread_pool_stuck_for   = !! Fields.abort_after_thread_pool_stuck_for
+let check_invariants                    = !! Fields.check_invariants
+let detect_invalid_access_from_thread   = !! Fields.detect_invalid_access_from_thread
+let epoll_max_ready_events              = !! Fields.epoll_max_ready_events
+let file_descr_watcher                  = !! Fields.file_descr_watcher
+let max_inter_cycle_timeout             = !! Fields.max_inter_cycle_timeout
+let max_num_open_file_descrs            = !! Fields.max_num_open_file_descrs
+let max_num_threads                     = !! Fields.max_num_threads
+let max_num_jobs_per_priority_per_cycle = !! Fields.max_num_jobs_per_priority_per_cycle
+let record_backtraces                   = !! Fields.record_backtraces
+let report_thread_pool_stuck_for        = !! Fields.report_thread_pool_stuck_for
+let timing_wheel_config                 = !! Fields.timing_wheel_config
+let dump_core_on_job_delay              = !! Fields.dump_core_on_job_delay
 
 let t =
   { abort_after_thread_pool_stuck_for   = Some abort_after_thread_pool_stuck_for
   ; check_invariants                    = Some check_invariants
   ; detect_invalid_access_from_thread   = Some detect_invalid_access_from_thread
+  ; dump_core_on_job_delay              = Some dump_core_on_job_delay
   ; epoll_max_ready_events              = Some epoll_max_ready_events
   ; file_descr_watcher                  = Some file_descr_watcher
   ; max_inter_cycle_timeout             = Some max_inter_cycle_timeout
@@ -441,6 +471,6 @@ let t =
   ; print_debug_messages_for            = t.print_debug_messages_for
   ; record_backtraces                   = Some record_backtraces
   ; report_thread_pool_stuck_for        = Some report_thread_pool_stuck_for
-  ; timing_wheel_config             = Some timing_wheel_config
+  ; timing_wheel_config                 = Some timing_wheel_config
   }
 ;;

@@ -5,7 +5,7 @@
     A throttle schedules asynchronous jobs so that at any point in time no more than
     [max_concurrent_jobs] jobs are running.  A job [f] is considered to be running from
     the time [f ()] is executed until the deferred returned by [f ()] becomes determined,
-    or [f ()] raises.  The throttle intiates jobs first-come first-served.
+    or [f ()] raises.  The throttle initiates jobs first-come first-served.
 
     One can use [create_with] to create a throttle with "resources" that one would
     like to make available to concurrent jobs and to guarantee that different jobs
@@ -85,7 +85,7 @@ val num_jobs_waiting_to_start : (_ , _) T2.t -> int
     immediately. *)
 val capacity_available : (_, _) T2.t -> unit Deferred.t
 
-(** [kill t] kills [t], which aborts all enqeued jobs that haven't started and all jobs
+(** [kill t] kills [t], which aborts all enqueued jobs that haven't started and all jobs
     enqueued in the future.  [kill] also initiates the [at_kill] clean functions.
 
     If [t] has already been killed, then calling [kill t] has no effect. *)
