@@ -1,3 +1,68 @@
 # OASIS_START
+# DO NOT EDIT (digest: cf7fa70e9d01721a8467043454c5d38d)
+# Ignore VCS directories, you can use the same kind of rule outside
+# OASIS_START/STOP if you want to exclude directories that contains
+# useless stuff for the build process
+<**/.svn>: -traverse
+<**/.svn>: not_hygienic
+".bzr": -traverse
+".bzr": not_hygienic
+".hg": -traverse
+".hg": not_hygienic
+".git": -traverse
+".git": not_hygienic
+"_darcs": -traverse
+"_darcs": not_hygienic
+# Library async_kernel
+"lib/async_kernel.cmxs": use_async_kernel
+"lib/async_condition.cmx": for-pack(Async_kernel)
+"lib/async_gc.cmx": for-pack(Async_kernel)
+"lib/async_or_error.cmx": for-pack(Async_kernel)
+"lib/async_stream.cmx": for-pack(Async_kernel)
+"lib/clock.cmx": for-pack(Async_kernel)
+"lib/config.cmx": for-pack(Async_kernel)
+"lib/debug.cmx": for-pack(Async_kernel)
+"lib/deferred.cmx": for-pack(Async_kernel)
+"lib/deferred_intf.cmx": for-pack(Async_kernel)
+"lib/deferred_std.cmx": for-pack(Async_kernel)
+"lib/deferred_unit_tests.cmx": for-pack(Async_kernel)
+"lib/execution_context.cmx": for-pack(Async_kernel)
+"lib/handler.cmx": for-pack(Async_kernel)
+"lib/import.cmx": for-pack(Async_kernel)
+"lib/ivar.cmx": for-pack(Async_kernel)
+"lib/jobs.cmx": for-pack(Async_kernel)
+"lib/kill_index.cmx": for-pack(Async_kernel)
+"lib/lazy_deferred.cmx": for-pack(Async_kernel)
+"lib/monitor.cmx": for-pack(Async_kernel)
+"lib/monitor_unit_tests.cmx": for-pack(Async_kernel)
+"lib/pipe.cmx": for-pack(Async_kernel)
+"lib/priority.cmx": for-pack(Async_kernel)
+"lib/raw_deferred.cmx": for-pack(Async_kernel)
+"lib/raw_handler.cmx": for-pack(Async_kernel)
+"lib/raw_ivar.cmx": for-pack(Async_kernel)
+"lib/raw_monitor.cmx": for-pack(Async_kernel)
+"lib/raw_scheduler.cmx": for-pack(Async_kernel)
+"lib/raw_stream.cmx": for-pack(Async_kernel)
+"lib/scheduler.cmx": for-pack(Async_kernel)
+"lib/std.cmx": for-pack(Async_kernel)
+"lib/tail.cmx": for-pack(Async_kernel)
+"lib/test.cmx": for-pack(Async_kernel)
+"lib/throttle.cmx": for-pack(Async_kernel)
+"lib/throttle_debug.cmx": for-pack(Async_kernel)
+"lib/throttle_unit_tests.cmx": for-pack(Async_kernel)
+<lib/*.ml{,i}>: package(bin_prot)
+<lib/*.ml{,i}>: package(bin_prot.syntax)
+<lib/*.ml{,i}>: package(core)
+<lib/*.ml{,i}>: package(fieldslib)
+<lib/*.ml{,i}>: package(fieldslib.syntax)
+<lib/*.ml{,i}>: package(herelib)
+<lib/*.ml{,i}>: package(herelib.syntax)
+<lib/*.ml{,i}>: package(pa_ounit)
+<lib/*.ml{,i}>: package(pa_ounit.syntax)
+<lib/*.ml{,i}>: package(pa_test)
+<lib/*.ml{,i}>: package(pa_test.syntax)
+<lib/*.ml{,i}>: package(sexplib)
+<lib/*.ml{,i}>: package(sexplib.syntax)
+<lib/*.ml{,i}>: package(threads)
 # OASIS_STOP
 <lib/*.ml{,i}>: syntax_camlp4o, pa_ounit_lib(async_kernel)
