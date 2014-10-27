@@ -12,35 +12,35 @@ module T = struct
     {(* [check_access] optionally holds a function to run to check whether access to [t]
         is currently allowed.  It is used to detect invalid access to the scheduler from a
         thread. *)
-      mutable check_access : (unit -> unit) option;
-      jobs : Jobs.t;
-      mutable main_execution_context    : Execution_context.t;
-      mutable cycle_count : int;
-      mutable cycle_start : Time.t;
-      mutable run_every_cycle_start : (unit -> unit) list;
-      mutable last_cycle_time : Time.Span.t;
-      mutable last_cycle_num_jobs : int;
-      events : Job.t Timing_wheel.t;
-      (* [external_actions] is a queue of actions sent from outside of async.  This is for
-         the case where we want to schedule a job or fill an ivar from a context where it
-         is not safe to run async code, because the async lock isn't held.  For instance:
-         - in an OCaml finalizer, as they can run at any time in any thread.
+      mutable check_access                        : (unit -> unit) option
+    ; jobs                                        : Jobs.t
+    ; mutable main_execution_context              : Execution_context.t
+    ; mutable cycle_count                         : int
+    ; mutable cycle_start                         : Time.t
+    ; mutable run_every_cycle_start               : (unit -> unit) list
+    ; mutable last_cycle_time                     : Time.Span.t
+    ; mutable last_cycle_num_jobs                 : int
+    ; events                                      : Job.t Timing_wheel.t
+    (* [external_actions] is a queue of actions sent from outside of async.  This is for
+       the case where we want to schedule a job or fill an ivar from a context where it is
+       not safe to run async code, because the async lock isn't held.  For instance: - in
+       an OCaml finalizer, as they can run at any time in any thread.
 
-         The way to do it is to queue a thunk in [external_actions] and call
-         [thread_safe_external_action_hook], which is responsible for notifying the
-         scheduler that new actions are available.  [thread_safe_external_action_hook]
-         is set in [Async_unix] to call [Interruptor.thread_safe_interrupt], which will
-         wake up the [Async_unix] scheduler and run a cycle.
+       The way to do it is to queue a thunk in [external_actions] and call
+       [thread_safe_external_action_hook], which is responsible for notifying the
+       scheduler that new actions are available.  [thread_safe_external_action_hook] is
+       set in [Async_unix] to call [Interruptor.thread_safe_interrupt], which will wake up
+       the [Async_unix] scheduler and run a cycle.
 
-         When running a cycle, we pull external actions at every job and perform them
-         immediately. *)
-      external_actions : (unit -> unit) Thread_safe_queue.t sexp_opaque;
-      mutable thread_safe_external_action_hook : (unit -> unit);
+       When running a cycle, we pull external actions at every job and perform them
+       immediately. *)
+    ; external_actions                            : (unit -> unit) Thread_safe_queue.t sexp_opaque
+    ; mutable thread_safe_external_action_hook    : (unit -> unit)
 
-      (* configuration *)
-      mutable check_invariants : bool;
-      mutable max_num_jobs_per_priority_per_cycle : Max_num_jobs_per_priority_per_cycle.t;
-      mutable record_backtraces : bool;
+    (* configuration*)
+    ; mutable check_invariants                    : bool
+    ; mutable max_num_jobs_per_priority_per_cycle : Max_num_jobs_per_priority_per_cycle.t
+    ; mutable record_backtraces                   : bool
     }
   with fields, sexp_of
 end
@@ -79,21 +79,21 @@ let create () =
       ~config:Config.timing_wheel_config
       ~start:now
   in
-  { check_access = None;
-    jobs;
-    main_execution_context = Execution_context.main;
-    cycle_start = now;
-    cycle_count = 0;
-    run_every_cycle_start = [];
-    last_cycle_time = sec 0.;
-    last_cycle_num_jobs = 0;
-    events;
-    external_actions = Thread_safe_queue.create ();
-    thread_safe_external_action_hook = ignore;
-    (* configuration *)
-    check_invariants                    = Config.check_invariants;
-    max_num_jobs_per_priority_per_cycle = Config.max_num_jobs_per_priority_per_cycle;
-    record_backtraces                   = Config.record_backtraces;
+  { check_access                        = None
+  ; jobs
+  ; main_execution_context              = Execution_context.main
+  ; cycle_start                         = now
+  ; cycle_count                         = 0
+  ; run_every_cycle_start               = []
+  ; last_cycle_time                     = sec 0.
+  ; last_cycle_num_jobs                 = 0
+  ; events
+  ; external_actions                    = Thread_safe_queue.create ()
+  ; thread_safe_external_action_hook    = ignore
+  (* configuration*)
+  ; check_invariants                    = Config.check_invariants
+  ; max_num_jobs_per_priority_per_cycle = Config.max_num_jobs_per_priority_per_cycle
+  ; record_backtraces                   = Config.record_backtraces;
   }
 ;;
 
@@ -152,7 +152,7 @@ let monitor_is_alive t monitor =
 
 let kill_monitor t monitor =
   if Debug.monitor then Debug.log "kill_monitor" monitor <:sexp_of< Monitor.t >>;
-  monitor.Monitor.kill_index <- Kill_index.dead;
+  monitor.kill_index <- Kill_index.dead;
   Jobs.inc_global_kill_index t.jobs;
 ;;
 

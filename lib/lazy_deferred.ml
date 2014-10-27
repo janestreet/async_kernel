@@ -4,14 +4,14 @@ open Deferred_std
 module T = struct
 
   type 'a t =
-    { start : unit Ivar.t;
-      result : ('a, exn) Result.t Deferred.t;
+    { start  : unit Ivar.t
+    ; result : ('a, exn) Result.t Deferred.t
     }
 
   let create f =
     let start = Ivar.create () in
-    { start;
-      result = Ivar.read start >>= (fun () -> Monitor.try_with f);
+    { start
+    ; result = Ivar.read start >>= (fun () -> Monitor.try_with f);
     }
   ;;
 

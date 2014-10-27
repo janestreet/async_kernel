@@ -179,15 +179,15 @@ TEST_UNIT =
       let num_initial_jobs = min num_jobs max_concurrent_jobs in
       assert (!num_concurrent_jobs = num_initial_jobs);
       assert (List.length !job_starts = num_initial_jobs);
-      if max_concurrent_jobs = 1 then
-        assert (!job_starts = List.init num_initial_jobs ~f:Fn.id);
+      if max_concurrent_jobs = 1
+      then assert (!job_starts = List.init num_initial_jobs ~f:Fn.id);
       Ivar.fill continue ();
       stabilize ();
       assert (Deferred.is_determined all_done);
       assert (!max_observed_concurrent_jobs = min num_jobs max_concurrent_jobs);
       assert (Deferred.is_determined jobs_finished);
-      if max_concurrent_jobs = 1 then
-        assert (List.rev !job_starts = List.init num_jobs ~f:Fn.id);
+      if max_concurrent_jobs = 1
+      then assert (List.rev !job_starts = List.init num_jobs ~f:Fn.id);
     ))
 ;;
 
@@ -225,8 +225,8 @@ TEST_UNIT =
       assert (not (is_cleaned ()));
       (* We should have starting freeing all resources that aren't occupied by jobs. *)
       assert (!num_at_kill_started >=
-                Int.max 0
-                  (num_resources - 1 - (num_jobs_before_fail + num_jobs_after_fail)));
+              Int.max 0
+                (num_resources - 1 - (num_jobs_before_fail + num_jobs_after_fail)));
       Ivar.fill continue_jobs ();
       stabilize ();
       assert (not (is_cleaned ()));
@@ -261,15 +261,14 @@ TEST_UNIT =
   for num_resources = 1 to 3 do
     for num_jobs_before_fail = 0 to num_resources + 1 do
       for num_jobs_after_fail = 0 to num_resources + 1 do
-        if false then
-          Debug.log "test"
-            (`num_resources num_resources,
-             `num_jobs_before_fail num_jobs_before_fail,
-             `num_jobs_after_fail num_jobs_after_fail)
-            <:sexp_of<
-              ([ `num_resources of int ]
-              * [ `num_jobs_before_fail of int ]
-              * [ `num_jobs_after_fail of int ]) >>;
+        if false
+        then Debug.log "test"
+               (`num_resources num_resources,
+                `num_jobs_before_fail num_jobs_before_fail,
+                `num_jobs_after_fail num_jobs_after_fail)
+               <:sexp_of< ([ `num_resources of int ]
+                          * [ `num_jobs_before_fail of int ]
+                          * [ `num_jobs_after_fail of int ]) >>;
         test ~num_resources ~num_jobs_before_fail ~num_jobs_after_fail;
       done;
     done;

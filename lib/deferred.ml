@@ -5,6 +5,9 @@ module Scheduler = Raw_scheduler
 
 include Ivar.Deferred
 
+(* To avoid a space leak, it is necessary that [never] allocates a new ivar whenever it is
+   called.  Code can bind on [never ()], so if we re-used the ivar, we could endlessly
+   accumulate handlers. *)
 let never () = Ivar.read (Ivar.create ())
 
 include Monad.Make (struct
@@ -77,9 +80,9 @@ let enabled choices =
   let execution_context = Scheduler.(current_execution_context (t ())) in
   unregisters :=
     List.fold choices ~init:Unregister.Nil ~f:(fun acc (Choice (t, _)) ->
-      Unregister.Cons (t,
-                       Ivar.Deferred.add_handler t ready execution_context,
-                       acc));
+      Cons (t,
+            Ivar.Deferred.add_handler t ready execution_context,
+            acc));
   Ivar.read result
 ;;
 
@@ -104,9 +107,9 @@ let choose choices =
   let execution_context = Scheduler.(current_execution_context (t ())) in
   unregisters :=
     List.fold choices ~init:Unregister.Nil ~f:(fun acc (Choice (t, _)) ->
-      Unregister.Cons (t,
-                       Ivar.Deferred.add_handler t ready execution_context,
-                       acc));
+      Cons (t,
+            Ivar.Deferred.add_handler t ready execution_context,
+            acc));
   Ivar.read result
 ;;
 
@@ -119,8 +122,8 @@ let repeat_until_finished state f =
     let rec loop state =
       f state
       >>> function
-        | `Repeat state -> loop state
-        | `Finished result -> Ivar.fill finished result
+      | `Repeat state -> loop state
+      | `Finished result -> Ivar.fill finished result
     in
     loop state)
 ;;
@@ -133,18 +136,92 @@ let forever state f =
 
 module type Monad_sequence = Monad_sequence with type 'a monad := 'a t
 
+module Sequence = struct
+  type 'a t = 'a Sequence.t
+
+  let foldi t ~init ~f =
+    Sequence.delayed_fold t ~init:(0, init)
+      ~f:(fun (i, b) a ~k -> f i b a >>= fun b -> k (i + 1, b))
+      ~finish:(fun (_, b) -> return b)
+  ;;
+
+  (* [fold] is not implemented in terms of [foldi] to save the intermediate closure
+     allocation. *)
+  let fold t ~init ~f =
+    Sequence.delayed_fold t ~init
+      ~f:(fun b a ~k -> f b a >>= k)
+      ~finish:return
+  ;;
+
+  let all t =
+    fold t ~init:[] ~f:(fun accum d -> d >>| fun a -> a :: accum)
+    >>| fun res ->
+    Sequence.of_list (List.rev res)
+  ;;
+
+  let all_unit t = fold t ~init:() ~f:(fun () v -> v)
+
+  let rec find_map t ~f =
+    match Sequence.next t with
+    | None           -> return None
+    | Some (v, rest) ->
+      f v >>= function
+      | None           -> find_map rest ~f
+      | Some _ as some -> return some
+  ;;
+
+  let find t ~f =
+    find_map t ~f:(fun elt -> f elt >>| fun b -> if b then Some elt else None)
+  ;;
+
+  let maybe_force ?(how = `Sequential) t =
+    match how with
+    | `Parallel   -> Sequence.force_eagerly t
+    | `Sequential -> t
+  ;;
+
+  let iteri ?how t ~f = all_unit (maybe_force ?how (Sequence.mapi t ~f))
+
+  let iter ?how t ~f = iteri ?how t ~f:(fun _ a -> f a)
+
+  let map ?how t ~f = all (maybe_force ?how (Sequence.map t ~f))
+
+  (* [filter_map] is implemented separately from [map] so that we never need to keep a
+     long stream of intermediate [None] results in the accumulator, only to later filter
+     them all out. *)
+  let filter_map ?how t ~f =
+    fold (maybe_force ?how (Sequence.map t ~f)) ~init:[] ~f:(fun acc maybe_v ->
+      maybe_v
+      >>| function
+      | None   -> acc
+      | Some v -> v :: acc)
+    >>| fun s ->
+    Sequence.of_list (List.rev s)
+  ;;
+
+  let filter ?how t ~f =
+    filter_map ?how t ~f:(fun a ->
+      f a
+      >>| function
+      | true -> Some a
+      | false -> None)
+  ;;
+
+  let init ?how n ~f = map ?how (Sequence.init n ~f:Fn.id) ~f
+end
+
 module List = struct
   type 'a t = 'a List.t
 
   let foldi t ~init ~f =
     create
       (fun result ->
-        let rec loop t i b =
-          match t with
-          | [] -> Ivar.fill result b
-          | x :: xs -> f i b x >>> fun b -> loop xs (i + 1) b
-        in
-        loop t 0 init)
+         let rec loop t i b =
+           match t with
+           | [] -> Ivar.fill result b
+           | x :: xs -> f i b x >>> fun b -> loop xs (i + 1) b
+         in
+         loop t 0 init)
   ;;
 
   let fold t ~init ~f = foldi t ~init ~f:(fun _ a -> f a)
@@ -181,10 +258,7 @@ module List = struct
                 ~f:(fun ac x b -> if b then x :: ac else ac))
   ;;
 
-  let filter_map ?how t ~f =
-    map t ?how ~f
-    >>| List.filter_opt
-  ;;
+  let filter_map ?how t ~f = map t ?how ~f >>| List.filter_opt
 
   let rec find_map t ~f =
     match t with
@@ -210,13 +284,12 @@ module Array = struct
   let foldi t ~init ~f =
     create
       (fun result ->
-        let rec loop i b =
-          if i = Array.length t then
-            Ivar.fill result b
-          else
-            f i b t.(i) >>> fun b -> loop (i + 1) b
-        in
-        loop 0 init)
+         let rec loop i b =
+           if i = Array.length t
+           then Ivar.fill result b
+           else f i b t.(i) >>> fun b -> loop (i + 1) b
+         in
+         loop 0 init)
   ;;
 
   let fold t ~init ~f = foldi t ~init ~f:(fun _ a -> f a)
@@ -251,7 +324,7 @@ module Array = struct
     >>| fun bools ->
     Array.of_list_rev
       (Array.fold2_exn t bools ~init:[] ~f:(fun ac x b ->
-        if b then x :: ac else ac))
+         if b then x :: ac else ac))
   ;;
 
   let filter_map ?how t ~f = map t ?how ~f >>| Array.filter_opt
@@ -308,7 +381,6 @@ module Queue = struct
   let find_map t ~f = List.find_map (Queue.to_list t) ~f
 
   let find t ~f = List.find (Queue.to_list t) ~f
-
 end
 
 module Map = struct
@@ -339,9 +411,9 @@ module Map = struct
 
   module Job = struct
     type ('a, 'b, 'c) t =
-      { key : 'a;
-        data : 'b;
-        mutable result : 'c option;
+      { key            : 'a
+      ; data           : 'b
+      ; mutable result : 'c option
       }
     with fields
   end
@@ -350,12 +422,12 @@ module Map = struct
     let jobs = ref [] in
     let job_map =
       Map.mapi t ~f:(fun ~key ~data ->
-        let job = { Job.key; data; result = None } in
+        let job = { Job. key; data; result = None } in
         jobs := job :: !jobs;
         job)
     in
-    List.iter ?how !jobs ~f:(function { Job.key; data; result=_ } as job ->
-      f ~key ~data >>| fun x -> job.Job.result <- x)
+    List.iter ?how !jobs ~f:(function { Job. key; data; result=_ } as job ->
+      f ~key ~data >>| fun x -> job.result <- x)
     >>| fun () ->
     Map.filter_map job_map ~f:Job.result
   ;;
@@ -396,8 +468,8 @@ module Result = struct
 
     let bind t f =
       Deferred.bind t (function
-      | Ok a -> f a
-      | Error _ as error -> Deferred.return error)
+        | Ok a -> f a
+        | Error _ as error -> Deferred.return error)
     ;;
 
     let map t ~f = Deferred.map t ~f:(fun r -> Result.map r ~f)
@@ -421,8 +493,8 @@ module Option = struct
 
     let bind t f =
       Deferred.bind t (function
-      | Some a -> f a
-      | None -> Deferred.return None)
+        | Some a -> f a
+        | None -> Deferred.return None)
     ;;
 
     let map t ~f = Deferred.map t ~f:(fun r -> Option.map r ~f)

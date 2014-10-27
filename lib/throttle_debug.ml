@@ -12,15 +12,15 @@ module Debug (Throttle : Throttle) : Throttle = struct
 
   let debug name ts arg sexp_of_arg sexp_of_result f =
     let invariant = T2.invariant ignore ignore in
-    if !show_messages then
-      eprints (concat [ "Throttle."; name ]) (ts, arg)
-        <:sexp_of< (_, _) T2.t list * arg >>;
+    if !show_messages
+    then eprints (concat [ "Throttle."; name ]) (ts, arg)
+           <:sexp_of< (_, _) T2.t list * arg >>;
     if !check_invariant then List.iter ts ~f:invariant;
     let result_or_exn = Result.try_with f in
-    if !show_messages then
-      eprints (concat [ "Throttle."; name; "-result" ])
-        (result_or_exn, ts)
-        <:sexp_of< (result, exn) Result.t * (_, _) T2.t list >>;
+    if !show_messages
+    then eprints (concat [ "Throttle."; name; "-result" ])
+           (result_or_exn, ts)
+           <:sexp_of< (result, exn) Result.t * (_, _) T2.t list >>;
     Result.ok_exn result_or_exn;
   ;;
 

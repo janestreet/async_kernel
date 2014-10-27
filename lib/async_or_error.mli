@@ -66,4 +66,4 @@ val try_with_join
 
 module List : Deferred_intf.Monad_sequence
   with type 'a monad := 'a t
-    with type 'a t := 'a list
+  with type 'a t := 'a list

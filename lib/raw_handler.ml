@@ -1,7 +1,7 @@
 module T = struct
   type 'a t =
-    { run : 'a -> unit;
-      execution_context : Execution_context.t;
+    { run : 'a -> unit
+    ; execution_context : Execution_context.t
     }
 end
 

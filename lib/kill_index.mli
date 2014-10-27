@@ -20,9 +20,9 @@
     - [kill_index = global_kill_index].  The monitor is alive.
     - [kill_index = dead].  The monitor is dead.  A dead monitor is never revived.
     - Otherwise, some monitor has been killed since the monitor was last known to be
-      alive.  We must check the monitor's ancestors to see if an ancestor is dead.  If so,
-      we will set its [kill_index] to [dead].  If not, we will set its [kill_index] to
-      [global_kill_index].
+    alive.  We must check the monitor's ancestors to see if an ancestor is dead.  If so,
+    we will set its [kill_index] to [dead].  If not, we will set its [kill_index] to
+    [global_kill_index].
 *)
 
 open Core.Std

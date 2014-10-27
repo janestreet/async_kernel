@@ -35,8 +35,8 @@ let default_name = "Async.Std.Deferred.Or_error.try_with"
 
 let try_with ?extract_exn ?(name = default_name) f =
   Deferred.map (Monitor.try_with ?extract_exn ~name f) ~f:(function
-  | Error exn -> Error (Error.of_exn exn)
-  | Ok _ as ok -> ok)
+    | Error exn -> Error (Error.of_exn exn)
+    | Ok _ as ok -> ok)
 ;;
 
 let try_with_join ?extract_exn ?(name = default_name) f =
@@ -206,8 +206,7 @@ TEST_MODULE = struct
       Seqlist.filter_map [ 0 ; 1 ; 2 ; 3 ; 4 ]
         ~f:(fun value ->
           return (
-            if value mod 2 = 0 then Some (succ value)
-            else None))
+            if value mod 2 = 0 then Some (succ value) else None))
     in
     stabilize ();
     assert (determined def [ 1 ; 3 ; 5 ]);
@@ -335,7 +334,9 @@ TEST_MODULE = struct
     match Deferred.peek deferred with
     | Some (Error err) ->
       let s = Error.to_string_hum err in
-      if String.is_prefix ~prefix s then true else begin
+      if String.is_prefix ~prefix s
+      then true
+      else begin
         eprintf "expected %s, got %s\n%!" prefix s;
         false
       end

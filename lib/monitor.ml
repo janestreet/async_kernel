@@ -95,10 +95,10 @@ let create ?here ?info ?name () =
 
 module Exn_for_monitor = struct
   type t =
-    { exn : exn;
-      backtrace : string sexp_list;
-      backtrace_history : Backtrace.t sexp_list;
-      monitor : Monitor.t;
+    { exn               : exn
+    ; backtrace         : string sexp_list
+    ; backtrace_history : Backtrace.t sexp_list
+    ; monitor           : Monitor.t
     }
   with fields, sexp_of
 end
@@ -107,7 +107,7 @@ exception Error_ of Exn_for_monitor.t with sexp
 
 let extract_exn exn =
   match exn with
-  | Error_ error -> error.Exn_for_monitor.exn
+  | Error_ error -> error.exn
   | exn -> exn
 ;;
 
@@ -119,24 +119,22 @@ let send_exn t ?backtrace exn =
     | Some `Get -> split (Exn.backtrace ())
     | Some (`This b) -> split b
   in
-  let backtrace_history =
-    (current_execution_context ()).Execution_context.backtrace_history
-  in
+  let backtrace_history = (current_execution_context ()).backtrace_history in
   let exn =
     match exn with
     | Error_ _ -> exn
     | _ -> Error_ { Exn_for_monitor. exn; backtrace; backtrace_history; monitor = t }
   in
-  if Debug.monitor_send_exn then
-    Debug.log "Monitor.send_exn" (t, exn) <:sexp_of< t * exn >>;
+  if Debug.monitor_send_exn
+  then Debug.log "Monitor.send_exn" (t, exn) <:sexp_of< t * exn >>;
   t.has_seen_error <- true;
   let rec loop t =
     List.iter t.handlers_for_next_error ~f:(fun f -> f exn);
     t.handlers_for_next_error <- [];
     if t.is_detached then begin
-      if Debug.monitor_send_exn then
-        Debug.log "Monitor.send_exn found listening monitor" (t, exn)
-          <:sexp_of< t * exn >>;
+      if Debug.monitor_send_exn
+      then Debug.log "Monitor.send_exn found listening monitor" (t, exn)
+             <:sexp_of< t * exn >>;
       Bag.iter t.handlers_for_all_errors ~f:(fun f -> f exn);
     end else
       match t.parent with
@@ -149,7 +147,7 @@ let send_exn t ?backtrace exn =
              that call [Scheduler.go] and want to handle it. *)
           Scheduler.(got_uncaught_exn (t ()))
             (Error.create "unhandled exception" (exn, `Pid (Unix.getpid ()))
-               (<:sexp_of< exn * [ `Pid of Pid.t ] >>))
+               <:sexp_of< exn * [ `Pid of Pid.t ] >>)
         end;
   in
   loop t
@@ -233,11 +231,10 @@ open Exported_for_scheduler
 
 let stream_iter stream ~f =
   let rec loop stream =
-    let module S = Stream in
-    S.next stream
+    Stream.next stream
     >>> function
-    | S.Nil -> ()
-    | S.Cons (v, stream) -> loop stream; f v
+    | Nil -> ()
+    | Cons (v, stream) -> loop stream; f v
   in
   loop stream
 ;;
@@ -285,12 +282,11 @@ let try_with ?here ?info
   match Deferred.peek d with
   | Some a -> (internal_try_with_handle_errors ?rest errors monitor; return (Ok a))
   | None ->
-    let module S = Stream in
     choose [ choice d (fun a -> (Ok a, errors))
-           ; choice (S.next errors)
+           ; choice (Stream.next errors)
                (function
-                 | S.Nil -> assert false
-                 | S.Cons (err, errors) ->
+                 | Nil -> assert false
+                 | Cons (err, errors) ->
                    let err = if do_extract_exn then extract_exn err else err in
                    (Error err, errors));
            ]
@@ -326,11 +322,10 @@ let catch_stream ?here ?info ?name f =
 ;;
 
 let catch ?here ?info ?name f =
-  let module S = Stream in
-  S.next (catch_stream ?here ?info ?name f)
+  Stream.next (catch_stream ?here ?info ?name f)
   >>| function
-  | S.Cons (x, _) -> x
-  | S.Nil -> failwith "Monitor.catch got unexpected empty stream"
+  | Cons (x, _) -> x
+  | Nil -> failwith "Monitor.catch got unexpected empty stream"
 ;;
 
 let is_alive t = Scheduler.monitor_is_alive (Scheduler.t ()) t

@@ -2,7 +2,7 @@ OASISFormat:      0.3
 OCamlVersion:     >= 4.00.0
 FindlibVersion:   >= 1.3.2
 Name:             async_kernel
-Version:          112.01.00
+Version:          112.06.00
 Synopsis:         Jane Street Capital's asynchronous execution library (core)
 Authors:          Jane Street Capital LLC <opensource@janestreet.com>
 Copyrights:       (C) 2008-2013 Jane Street Capital LLC <opensource@janestreet.com>
@@ -34,6 +34,7 @@ Library async_kernel
                       Debug,
                       Deferred,
                       Deferred_intf,
+                      Deferred_sequence_unit_tests,
                       Deferred_std,
                       Deferred_unit_tests,
                       Execution_context,

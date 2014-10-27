@@ -37,7 +37,7 @@ val first_exn : 'a t -> 'a Deferred.t
 val of_list : 'a list -> 'a t
 
 (** [to_list t] returns a deferred that will become determined with the list
-   of elements in t, if the end of t is reached. *)
+    of elements in t, if the end of t is reached. *)
 val to_list : 'a t -> 'a list Deferred.t
 
 (** [of_fun f] returns a stream whose elements are determined by calling [f] forever. *)

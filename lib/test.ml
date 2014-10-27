@@ -34,9 +34,9 @@ TEST_MODULE = struct
 
     TEST_UNIT =
       let fs =
-        [ (fun _ -> None);
-          (fun _ -> Some "z");
-          (function None -> Some "None" | Some x -> Some ("Some " ^ x));
+        [ (fun _ -> None)
+        ; (fun _ -> Some "z")
+        ; (function None -> Some "None" | Some x -> Some ("Some " ^ x))
         ]
       in
       List.iter ts ~f:(fun t ->
@@ -46,9 +46,9 @@ TEST_MODULE = struct
             stabilize ();
             let o1 = Deferred.peek d in
             let o2 = Some (Core.Std.Map.change t k f) in
-            if not (Option.equal equal o1 o2) then
-              Error.failwiths "Deferred.Map.change failed" (t, k, o1, o2)
-                (<:sexp_of< t * k * t option * t option >>))))
+            if not (Option.equal equal o1 o2)
+            then failwiths "Deferred.Map.change failed" (t, k, o1, o2)
+                   <:sexp_of< t * k * t option * t option >>)))
     ;;
 
     TEST_UNIT =
@@ -59,9 +59,9 @@ TEST_MODULE = struct
           stabilize ();
           let i1 = !r in
           let i2 = Core.Std.Map.fold t ~init:0 ~f:(fun ~key ~data:_ ac -> key + ac) in
-          if i1 <> i2 then
-            Error.failwiths "Deferred.Map.iter failed" (t, how, i1, i2)
-              (<:sexp_of< t * how * int * int >>)))
+          if i1 <> i2
+          then failwiths "Deferred.Map.iter failed" (t, how, i1, i2)
+                 <:sexp_of< t * how * int * int >>))
     ;;
 
     let test_map_like name f =
@@ -71,9 +71,9 @@ TEST_MODULE = struct
           stabilize ();
           let o1 = Deferred.peek d in
           let o2 = Some c in
-          if not (Option.equal equal o1 o2) then
-            Error.failwiths ("Deferred.Map."^name^" failed") (t, o1, o2)
-              (<:sexp_of< t * t option * t option >>)))
+          if not (Option.equal equal o1 o2)
+          then failwiths ("Deferred.Map."^name^" failed") (t, o1, o2)
+                 <:sexp_of< t * t option * t option >>))
     ;;
 
     TEST_UNIT =
@@ -81,8 +81,8 @@ TEST_MODULE = struct
         ~f:(fun f ->
           test_map_like "map"
             (fun t ~how ->
-              (Core.Std.Map.map t ~f,
-               M.map t ~how ~f:(fun x -> return (f x)))))
+               (Core.Std.Map.map t ~f,
+                M.map t ~how ~f:(fun x -> return (f x)))))
     ;;
 
     TEST_UNIT =
@@ -90,54 +90,54 @@ TEST_MODULE = struct
         ~f:(fun f ->
           test_map_like "mapi"
             (fun t ~how ->
-              (Core.Std.Map.mapi t ~f,
-               M.mapi ~how t ~f:(fun ~key ~data -> return (f ~key ~data)))))
+               (Core.Std.Map.mapi t ~f,
+                M.mapi ~how t ~f:(fun ~key ~data -> return (f ~key ~data)))))
     ;;
 
     TEST_UNIT =
       List.iter
-        [ (fun ~key:_ ~data:_ -> false);
-          (fun ~key:_ ~data:_ -> true);
-          (fun ~key ~data -> key = 1 || data = "two");
+        [ (fun ~key:_ ~data:_ -> false)
+        ; (fun ~key:_ ~data:_ -> true)
+        ; (fun ~key ~data -> key = 1 || data = "two")
         ]
         ~f:(fun f ->
           test_map_like "filter"
             (fun t ~how ->
-              (Core.Std.Map.filter t ~f,
-               M.filter ~how t ~f:(fun ~key ~data -> return (f ~key ~data)))))
+               (Core.Std.Map.filter t ~f,
+                M.filter ~how t ~f:(fun ~key ~data -> return (f ~key ~data)))))
     ;;
 
     TEST_UNIT =
       List.iter
-        [ (fun _ -> None);
-          (fun _ -> Some "z");
-          (fun data -> Some data);
-          (fun data -> if data = "one" then None else Some data);
+        [ (fun _ -> None)
+        ; (fun _ -> Some "z")
+        ; (fun data -> Some data)
+        ; (fun data -> if data = "one" then None else Some data)
         ]
         ~f:(fun f ->
           test_map_like "filter_map"
             (fun t ~how ->
-              (Core.Std.Map.filter_map t ~f,
-               M.filter_map ~how t ~f:(fun data -> return (f data)))))
+               (Core.Std.Map.filter_map t ~f,
+                M.filter_map ~how t ~f:(fun data -> return (f data)))))
     ;;
 
     TEST_UNIT =
       List.iter
-        [ (fun ~key:_ ~data:_ -> None);
-          (fun ~key:_ ~data:_ -> Some "z");
-          (fun ~key ~data -> Some (Int.to_string key ^ data));
+        [ (fun ~key:_ ~data:_ -> None)
+        ; (fun ~key:_ ~data:_ -> Some "z")
+        ; (fun ~key ~data -> Some (Int.to_string key ^ data))
         ]
         ~f:(fun f ->
           test_map_like "filter_mapi"
             (fun t ~how ->
-              (Core.Std.Map.filter_mapi t ~f,
-               M.filter_mapi ~how t ~f:(fun ~key ~data -> return (f ~key ~data)))))
+               (Core.Std.Map.filter_mapi t ~f,
+                M.filter_mapi ~how t ~f:(fun ~key ~data -> return (f ~key ~data)))))
     ;;
 
     TEST_UNIT =
       let folds =
-        [ "fold"      , M.fold      , Core.Std.Map.fold      ;
-          "fold_right", M.fold_right, Core.Std.Map.fold_right;
+        [ "fold"      , M.fold      , Core.Std.Map.fold
+        ; "fold_right", M.fold_right, Core.Std.Map.fold_right
         ]
       in
       let fs = [ fun ~key ~data ac -> (Int.to_string key ^ data) ^ ac ] in
@@ -149,9 +149,9 @@ TEST_MODULE = struct
             stabilize ();
             let o1 = Deferred.peek d in
             let o2 = Some (core_fold t ~init ~f) in
-            if not (Option.equal String.equal o1 o2) then
-              Error.failwiths ("Deferred.Map."^name^" failed") (t, o1, o2)
-                (<:sexp_of< t * string option * string option >>))))
+            if not (Option.equal String.equal o1 o2)
+            then failwiths ("Deferred.Map."^name^" failed") (t, o1, o2)
+                   <:sexp_of< t * string option * string option >>)))
     ;;
 
     TEST_UNIT =
@@ -162,9 +162,9 @@ TEST_MODULE = struct
           (fun ~key:_ -> function `Right _ -> None | _ -> Some "z");
           (fun ~key:_ -> function `Both _ -> None | _ -> Some "z");
           (fun ~key:_ -> function
-          | `Left v -> Some v
-          | `Right v -> Some v
-          | `Both (v1, v2) -> Some (v1 ^ v2));
+             | `Left v -> Some v
+             | `Right v -> Some v
+             | `Both (v1, v2) -> Some (v1 ^ v2));
         ]
         ~f:(fun f ->
           List.iter ts ~f:(fun t1 ->
@@ -174,8 +174,8 @@ TEST_MODULE = struct
               let o1 = Deferred.peek d in
               let o2 = Some (Core.Std.Map.merge t1 t2 ~f) in
               if not (Option.equal equal o1 o2) then
-                Error.failwiths "Deferred.Map.merge failed" (t1, t2, o1, o2)
-                  (<:sexp_of< t * t * t option * t option >>))))
+                failwiths "Deferred.Map.merge failed" (t1, t2, o1, o2)
+                  <:sexp_of< t * t * t option * t option >>)))
     ;;
   end
 
@@ -183,9 +183,9 @@ TEST_MODULE = struct
   module F (M : Deferred.Monad_sequence) = struct
     TEST_UNIT =
       List.iter
-        [ [];
-          [ 13 ];
-          [ 13; 15 ];
+        [ []
+        ; [ 13 ]
+        ; [ 13; 15 ]
         ]
         ~f:(fun l ->
           let finish = Ivar.create () in

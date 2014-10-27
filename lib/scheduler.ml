@@ -135,18 +135,18 @@ let run_cycle t =
   run_jobs ();
   t.last_cycle_time <- Time.diff (Time.now ()) t.cycle_start;
   t.last_cycle_num_jobs <- num_jobs_run t - num_jobs_run_at_start_of_cycle;
-  if debug then
-    Debug.log "run_cycle finished"
-      (uncaught_exn t, is_some (Timing_wheel.next_alarm_fires_at t.events))
-      (<:sexp_of< Error.t option * bool >>);
+  if debug
+  then Debug.log "run_cycle finished"
+         (uncaught_exn t, is_some (Timing_wheel.next_alarm_fires_at t.events))
+         <:sexp_of< Error.t option * bool >>;
 ;;
 
 let run_cycles_until_no_jobs_remain () =
   if debug then Debug.log_string "run_cycles_until_no_jobs_remain starting";
   let t = t () in
-  if is_dead t then
-    failwiths "run_cycles_until_no_jobs_remain cannot proceed -- scheduler is dead" t
-      <:sexp_of< t >>;
+  if is_dead t
+  then failwiths "run_cycles_until_no_jobs_remain cannot proceed -- scheduler is dead" t
+         <:sexp_of< t >>;
   let rec loop () =
     run_cycle t;
     if not (Jobs.is_empty t.jobs) then loop ();

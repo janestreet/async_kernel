@@ -21,15 +21,15 @@ end
 
 (* A [Consumer.t] acts as the monitor of some process that reads values from a pipe and
    processes them, allowing that process:
-     - to communicate that it has taken responsibility for the values
-     - to signal when it has finished with the values to interested parties (via
-       [downstream_flushed])
+   - to communicate that it has taken responsibility for the values
+   - to signal when it has finished with the values to interested parties (via
+   [downstream_flushed])
 
    It is used in two steps:
 
-     1. calling [Consumer.start] at the point where the consumer takes values out of the
-        Pipe via [read] or [read'].
-     2. calling [Consumer.values_sent_downstream].
+   1. calling [Consumer.start] at the point where the consumer takes values out of the
+   Pipe via [read] or [read'].
+   2. calling [Consumer.values_sent_downstream].
 
    If no [Consumer.t] is supplied when a value is read then the value is defined to be
    flushed at that time. *)
@@ -48,16 +48,15 @@ module Consumer : sig
   val values_sent_downstream_and_flushed : t -> Flushed_result.t Deferred.t
 end = struct
   type t =
-    { pipe_id : int;
-      (* [values_read] reflects whether values the consumer has read from the pipe have
-         been sent downstream or if not, holds an ivar that is to be filled when they
-         are. *)
-      mutable values_read : [ `Have_been_sent_downstream
+    { pipe_id             : int
+    (* [values_read] reflects whether values the consumer has read from the pipe have been
+       sent downstream or if not, holds an ivar that is to be filled when they are. *)
+    ; mutable values_read : [ `Have_been_sent_downstream
                             | `Have_not_been_sent_downstream of unit Ivar.t
-                            ];
-      (* [downstream_flushed ()] returns when all prior values that the consumer has
-         passed downstream have been flushed all the way down the chain of pipes. *)
-      downstream_flushed : unit -> Flushed_result.t Deferred.t;
+                            ]
+    (* [downstream_flushed ()] returns when all prior values that the consumer has
+       passed downstream have been flushed all the way down the chain of pipes. *)
+    ; downstream_flushed  : unit -> Flushed_result.t Deferred.t
     }
   with fields, sexp_of
 
@@ -67,17 +66,17 @@ end = struct
       Fields.iter
         ~pipe_id:ignore
         ~values_read:(check (function
-        | `Have_been_sent_downstream -> ()
-        | `Have_not_been_sent_downstream ivar -> assert (Ivar.is_empty ivar)))
+          | `Have_been_sent_downstream -> ()
+          | `Have_not_been_sent_downstream ivar -> assert (Ivar.is_empty ivar)))
         ~downstream_flushed:ignore;
     with exn ->
       failwiths "Pipe.Consumer.invariant failed" (exn, t) <:sexp_of< exn * t >>
   ;;
 
   let create ~pipe_id ~downstream_flushed =
-    { pipe_id;
-      values_read = `Have_been_sent_downstream;
-      downstream_flushed;
+    { pipe_id
+    ; values_read        = `Have_been_sent_downstream
+    ; downstream_flushed
     }
   ;;
 
@@ -115,15 +114,15 @@ module Blocked_read = struct
 
      If a pipe is closed, then all blocked reads will be filled with [`Eof]. *)
   type 'a wants =
-  | Zero    of       [ `Eof | `Ok           ] Ivar.t
-  | One     of       [ `Eof | `Ok of 'a     ] Ivar.t
-  | All     of       [ `Eof | `Ok of 'a Q.t ] Ivar.t
-  | At_most of int * [ `Eof | `Ok of 'a Q.t ] Ivar.t
+    | Zero    of       [ `Eof | `Ok           ] Ivar.t
+    | One     of       [ `Eof | `Ok of 'a     ] Ivar.t
+    | All     of       [ `Eof | `Ok of 'a Q.t ] Ivar.t
+    | At_most of int * [ `Eof | `Ok of 'a Q.t ] Ivar.t
   with sexp_of
 
   type 'a t =
-    { wants : 'a wants;
-      consumer : Consumer.t option;
+    { wants : 'a wants
+    ; consumer : Consumer.t option
     }
   with fields, sexp_of
 
@@ -132,11 +131,11 @@ module Blocked_read = struct
       let check f field = f (Field.get field t) in
       Fields.iter
         ~wants:(check (function
-        | Zero _ | All _ | One _ -> ()
-        | At_most (i, _) -> assert (i > 0)))
+          | Zero _ | All _ | One _ -> ()
+          | At_most (i, _) -> assert (i > 0)))
         ~consumer:(check (function
-        | None -> ()
-        | Some consumer -> Consumer.invariant consumer));
+          | None -> ()
+          | Some consumer -> Consumer.invariant consumer));
     with exn ->
       failwiths "Pipe.Blocked_read.invariant failed" (exn, t) <:sexp_of< exn * _ t >>
   ;;
@@ -172,8 +171,8 @@ module Blocked_flush = struct
      reader end of the pipe is closed, and we are thus sure that the unread elements
      preceding the flush will never be read. *)
   type t =
-    { fill_when_num_values_read : int;
-      ready : [ `Ok | `Reader_closed ] Ivar.t;
+    { fill_when_num_values_read : int
+    ; ready : [ `Ok | `Reader_closed ] Ivar.t
     }
   with fields, sexp_of
 
@@ -182,52 +181,52 @@ end
 
 type ('a, 'phantom) t =
   { (* [id] is an integer used to distinguish pipes when debugging. *)
-    id : int;
-    (* [buffer] holds values written to the pipe that have not yet been read. *)
-    mutable buffer : 'a Q.t;
-    (* [size_budget] governs pushback on writers to the pipe.
+    id                        : int
+  (* [buffer] holds values written to the pipe that have not yet been read. *)
+  ; mutable buffer            : 'a Q.t
+  (* [size_budget] governs pushback on writers to the pipe.
 
-       There is *no* invariant that [Q.length buffer <= size_budget].  There is no hard
-       upper bound on the number of elements that can be stuffed into the [buffer].  This
-       is due to the way we handle writes.  When we do a write, all of the values written
-       are immediately enqueued into [buffer].  After the write, if [Q.length buffer <=
-       t.size_budget], then the writer will be notified to continue writing.  After the
-       write, if [length t > t.size_budget], then the write will block until the pipe is
-       under budget. *)
-    mutable size_budget : int;
-    (* [pushback] is used to give feedback to writers about whether they should write to
-       the pipe.  [pushback] is full iff [length t <= t.size_budget || is_closed t]. *)
-    mutable pushback : unit Ivar.t;
-    (* [num_values_read] keeps track of the total number of values that have been read
-       from the pipe.  We do not have to worry about overflow in [num_values_read].  You'd
-       need to write 2^62 elements to the pipe, which would take about 146 years, at a
-       flow rate of 1 size-unit/nanosecond. *)
-    mutable num_values_read : int;
-    (* [blocked_flushes] holds flushes whose preceding elements have not been completely
-       read.  For each blocked flush, the number of elements that need to be read from the
-       pipe in order to fill the flush is:
+     There is *no* invariant that [Q.length buffer <= size_budget].  There is no hard
+     upper bound on the number of elements that can be stuffed into the [buffer].  This
+     is due to the way we handle writes.  When we do a write, all of the values written
+     are immediately enqueued into [buffer].  After the write, if [Q.length buffer <=
+     t.size_budget], then the writer will be notified to continue writing.  After the
+     write, if [length t > t.size_budget], then the write will block until the pipe is
+     under budget. *)
+  ; mutable size_budget       : int
+  (* [pushback] is used to give feedback to writers about whether they should write to
+     the pipe.  [pushback] is full iff [length t <= t.size_budget || is_closed t]. *)
+  ; mutable pushback          : unit Ivar.t
+  (* [num_values_read] keeps track of the total number of values that have been read
+     from the pipe.  We do not have to worry about overflow in [num_values_read].  You'd
+     need to write 2^62 elements to the pipe, which would take about 146 years, at a
+     flow rate of 1 size-unit/nanosecond. *)
+  ; mutable num_values_read   : int
+  (* [blocked_flushes] holds flushes whose preceding elements have not been completely
+     read.  For each blocked flush, the number of elements that need to be read from the
+     pipe in order to fill the flush is                        :
 
-       fill_when_num_values_read - num_values_read
+     fill_when_num_values_read - num_values_read
 
-       Keeping the data in this form allows us to change a single field (num_values_read)
-       when we consume values instead of having to iterate over the whole queue of
-       flushes. *)
-    blocked_flushes : Blocked_flush.t Q.t;
-    (* [blocked_reads] holds reads that are waiting on data to be written to the pipe. *)
-    blocked_reads : 'a Blocked_read.t Q.t;
-    (* [closed] is filled when we close the write end of the pipe. *)
-    closed : unit Ivar.t;
-    (* [read_closed] is filled when we close the read end of the pipe. *)
-    read_closed : unit Ivar.t;
+     Keeping the data in this form allows us to change a single field(num_values_read)
+     when we consume values instead of having to iterate over the whole queue of
+     flushes. *)
+  ; blocked_flushes           : Blocked_flush.t Q.t
+  (* [blocked_reads] holds reads that are waiting on data to be written to the pipe. *)
+  ; blocked_reads             : 'a Blocked_read.t Q.t
+  (* [closed] is filled when we close the write end of the pipe. *)
+  ; closed                    : unit Ivar.t
+  (* [read_closed] is filled when we close the read end of the pipe. *)
+  ; read_closed               : unit Ivar.t
 
-    (* [consumers] is a list of all consumers that may be handling values read from the
-       pipe. *)
-    mutable consumers : Consumer.t list;
-    (* [upstream_flusheds] has a function for each pipe immediately upstream of this one.
-       That function walks to the head(s) of the upstream pipe, and calls
-       [downstream_flushed] on the head(s).  See the definition of [upstream_flushed]
-       below. *)
-    mutable upstream_flusheds : (unit -> Flushed_result.t Deferred.t) list;
+  (* [consumers] is a list of all consumers that may be handling values read from the
+     pipe. *)
+  ; mutable consumers         : Consumer.t list
+  (* [upstream_flusheds] has a function for each pipe immediately upstream of this one.
+     That function walks to the head(s) of the upstream pipe, and calls
+     [downstream_flushed] on the head(s).  See the definition of [upstream_flushed]
+     below. *)
+  ; mutable upstream_flusheds : (unit -> Flushed_result.t Deferred.t) list
   }
 with fields, sexp_of
 
@@ -260,8 +259,8 @@ let invariant t : unit =
         assert (Ivar.is_full pushback = (length t <= t.size_budget || is_closed t))))
       ~num_values_read:ignore
       ~blocked_flushes:(check (fun blocked_flushes ->
-        Q.iter blocked_flushes ~f:(fun f ->
-          assert (f.Blocked_flush.fill_when_num_values_read > t.num_values_read));
+        Q.iter blocked_flushes ~f:(fun (f : Blocked_flush.t) ->
+          assert (f.fill_when_num_values_read > t.num_values_read));
         assert (List.is_sorted ~compare
                   (List.map (Q.to_list blocked_flushes)
                      ~f:Blocked_flush.fill_when_num_values_read));
@@ -303,17 +302,17 @@ let id_ref = ref 0
 let create () =
   incr id_ref;
   let t =
-    { id                = !id_ref       ;
-      closed            = Ivar.create ();
-      read_closed       = Ivar.create ();
-      size_budget       = 0             ;
-      pushback          = Ivar.create ();
-      buffer            = Q.create    ();
-      num_values_read   = 0             ;
-      blocked_flushes   = Q.create    ();
-      blocked_reads     = Q.create    ();
-      consumers         = []            ;
-      upstream_flusheds = []            ;
+    { id                = !id_ref
+    ; closed            = Ivar.create ()
+    ; read_closed       = Ivar.create ()
+    ; size_budget       = 0
+    ; pushback          = Ivar.create ()
+    ; buffer            = Q.create    ()
+    ; num_values_read   = 0
+    ; blocked_flushes   = Q.create    ()
+    ; blocked_reads     = Q.create    ()
+    ; consumers         = []
+    ; upstream_flusheds = []
     }
   in
   Ivar.fill t.pushback (); (* initially, the pipe does not pushback *)
@@ -322,10 +321,10 @@ let create () =
 ;;
 
 let update_pushback t =
-  if length t <= t.size_budget || is_closed t then
-    Ivar.fill_if_empty t.pushback ()
-  else if Ivar.is_full t.pushback then
-    t.pushback <- Ivar.create ();
+  if length t <= t.size_budget || is_closed t
+  then Ivar.fill_if_empty t.pushback ()
+  else if Ivar.is_full t.pushback
+  then t.pushback <- Ivar.create ();
 ;;
 
 let close t =
@@ -367,7 +366,7 @@ let values_were_read t consumer =
     match Q.peek t.blocked_flushes with
     | None -> ()
     | Some flush ->
-      if t.num_values_read >= flush.Blocked_flush.fill_when_num_values_read then begin
+      if t.num_values_read >= flush.fill_when_num_values_read then begin
         ignore (Q.dequeue_exn t.blocked_flushes : Blocked_flush.t);
         begin match consumer with
         | None -> Blocked_flush.fill flush `Ok;
@@ -404,13 +403,12 @@ let consume_one t consumer =
    error if [is_empty t] or [num_values < 0]. *)
 let consume_at_most t num_values consumer =
   assert (num_values >= 0);
-  if num_values >= length t then
-    consume_all t consumer
+  if num_values >= length t
+  then consume_all t consumer
   else begin
     t.num_values_read <- t.num_values_read + num_values;
     values_were_read t consumer;
-    let result = Q.create () in
-    Q.set_capacity result num_values;
+    let result = Q.create ~capacity:num_values () in
     Q.blit_transfer ~src:t.buffer ~dst:result ~len:num_values ();
     update_pushback t;
     result
@@ -418,22 +416,21 @@ let consume_at_most t num_values consumer =
 ;;
 
 let set_size_budget t size_budget =
-  if size_budget < 0 then
-    failwiths "negative size_budget" size_budget <:sexp_of< int >>;
+  if size_budget < 0
+  then failwiths "negative size_budget" size_budget <:sexp_of< int >>;
   t.size_budget <- size_budget;
   update_pushback t;
 ;;
 
 let fill_blocked_reads t =
   while not (Q.is_empty t.blocked_reads) && not (is_empty t) do
-    let module R = Blocked_read in
     let blocked_read = Q.dequeue_exn t.blocked_reads in
-    let consumer = blocked_read.R.consumer in
-    match blocked_read.R.wants with
-    | R.Zero        ivar  -> Ivar.fill ivar  `Ok
-    | R.One         ivar  -> Ivar.fill ivar (`Ok (consume_one     t   consumer))
-    | R.All         ivar  -> Ivar.fill ivar (`Ok (consume_all     t   consumer))
-    | R.At_most (n, ivar) -> Ivar.fill ivar (`Ok (consume_at_most t n consumer))
+    let consumer = blocked_read.consumer in
+    match blocked_read.wants with
+    | Zero        ivar  -> Ivar.fill ivar  `Ok
+    | One         ivar  -> Ivar.fill ivar (`Ok (consume_one     t   consumer))
+    | All         ivar  -> Ivar.fill ivar (`Ok (consume_all     t   consumer))
+    | At_most (n, ivar) -> Ivar.fill ivar (`Ok (consume_at_most t n consumer))
   done;
 ;;
 
@@ -475,19 +472,18 @@ let write t value =
 let write_when_ready t ~f =
   pushback t
   >>| fun () ->
-  if is_closed t then
-    `Closed
-  else
-    `Ok (f (fun x -> write_without_pushback t x))
+  if is_closed t
+  then `Closed
+  else `Ok (f (fun x -> write_without_pushback t x))
 ;;
 
 let ensure_consumer_matches ?consumer t =
   match consumer with
   | None -> ()
   | Some consumer ->
-    if t.id <> Consumer.pipe_id consumer then
-      failwiths "Attempt to use consumer with wrong pipe" (consumer, t)
-        <:sexp_of< Consumer.t * _ Reader.t >>
+    if t.id <> Consumer.pipe_id consumer
+    then failwiths "Attempt to use consumer with wrong pipe" (consumer, t)
+           <:sexp_of< Consumer.t * _ Reader.t >>
 ;;
 
 let start_read ?consumer t label =
@@ -499,10 +495,9 @@ let start_read ?consumer t label =
 let gen_read_now ?consumer t consume =
   start_read t "read_now" ?consumer;
   if is_empty t then begin
-    if is_closed t then
-      `Eof
-    else
-      `Nothing_available
+    if is_closed t
+    then `Eof
+    else `Nothing_available
   end else begin
     assert (Q.is_empty t.blocked_reads); (* from [invariant] and [not (is_empty t)] *)
     `Ok (consume t consumer)
@@ -546,16 +541,14 @@ let read_at_most ?consumer t ~num_values =
   start_read t "read_at_most" ?consumer;
   if num_values <= 0
   then failwiths "Pipe.read_at_most num_values < 0" num_values <:sexp_of< int >>;
-  if is_empty t
-  then begin
+  if is_empty t then begin
     if is_closed t
     then return `Eof
     else
       Deferred.create (fun ivar ->
         Q.enqueue t.blocked_reads
           (Blocked_read.(create (At_most (num_values, ivar))) consumer))
-  end
-  else begin
+  end else begin
     assert (Q.is_empty t.blocked_reads);
     return (`Ok (consume_at_most t num_values consumer))
   end
@@ -566,8 +559,7 @@ let values_available t =
   if not (is_empty t)
   then return `Ok
   else if is_closed t
-  then
-    return `Eof
+  then return `Eof
   else
     Deferred.create (fun ivar ->
       Q.enqueue t.blocked_reads (Blocked_read.(create (Zero ivar)) None))
@@ -576,15 +568,15 @@ let values_available t =
 (* [read_exactly t ~num_values] loops, getting you all [num_values] items, up to EOF. *)
 let read_exactly ?consumer t ~num_values =
   start_read t "read_exactly" ?consumer;
-  if num_values <= 0 then
-    failwiths "Pipe.read_exactly got num_values <= 0" num_values <:sexp_of< int >>;
+  if num_values <= 0
+  then failwiths "Pipe.read_exactly got num_values <= 0" num_values <:sexp_of< int >>;
   Deferred.create (fun finish ->
     let result = Q.create () in
     let rec loop () =
       let already_read = Q.length result in
       assert (already_read <= num_values);
-      if already_read = num_values then
-        Ivar.fill finish (`Exactly result)
+      if already_read = num_values
+      then Ivar.fill finish (`Exactly result)
       else begin
         read_at_most ?consumer t ~num_values:(num_values - already_read)
         >>> function
@@ -598,21 +590,20 @@ let read_exactly ?consumer t ~num_values =
 ;;
 
 let downstream_flushed t =
-  if is_empty t then
-    if List.is_empty t.consumers then
-      return `Ok
-    else
-      Flushed_result.combine (List.map t.consumers
-        ~f:Consumer.values_sent_downstream_and_flushed)
+  if is_empty t
+  then
+    if List.is_empty t.consumers
+    then return `Ok
+    else Flushed_result.combine (List.map t.consumers
+                                   ~f:Consumer.values_sent_downstream_and_flushed)
   else
     (* [t] might be closed.  But the read end can't be closed, because if it were, then
        [t] would be empty.  If the write end is closed but not the read end, then we want
        to enqueue a blocked flush because the enqueued values may get read. *)
     Deferred.create (fun ready ->
       Q.enqueue t.blocked_flushes
-        { Blocked_flush.
-          fill_when_num_values_read = t.num_values_read + length t;
-          ready;
+        { fill_when_num_values_read = t.num_values_read + length t
+        ; ready
         })
 ;;
 
@@ -620,10 +611,9 @@ let downstream_flushed t =
    the graph of linked pipes up to the heads and then calls [downstream_flushed] on
    them. *)
 let upstream_flushed t =
-  if List.is_empty t.upstream_flusheds then
-    downstream_flushed t
-  else
-    Flushed_result.combine (List.map t.upstream_flusheds ~f:(fun f -> f ()))
+  if List.is_empty t.upstream_flusheds
+  then downstream_flushed t
+  else Flushed_result.combine (List.map t.upstream_flusheds ~f:(fun f -> f ()))
 ;;
 
 let add_upstream_flushed t upstream_flushed =
@@ -783,8 +773,8 @@ let of_stream_deprecated s =
     | None -> transfer (); upon next_deferred check_closed_loop_next
   and check_closed_loop_next next = if not (is_closed w) then loop_next next
   and loop_next = function
-    | Stream.Nil -> transfer (); close w
-    | Stream.Cons (x, s) -> Q.enqueue q x; loop s
+    | Nil -> transfer (); close w
+    | Cons (x, s) -> Q.enqueue q x; loop s
   in
   loop s;
   r
@@ -989,11 +979,11 @@ TEST_MODULE = struct
       let d = read reader in
       stabilize ();
       match Deferred.peek d with
-      | Some z -> assert ([13] = get_values z)
+      | Some z -> assert ([ 13 ] = get_values z)
       | None -> assert false
     in
     check_read read' (function `Ok q -> Q.to_list q | _ -> assert false);
-    check_read read (function `Ok a -> [a] | _ -> assert false);
+    check_read read (function `Ok a -> [ a ] | _ -> assert false);
     check_read (fun r -> read_at_most r ~num_values:1)
       (function `Ok q -> Q.to_list q | _ -> assert false);
     check_read (fun r -> read_exactly r ~num_values:1)
@@ -1109,14 +1099,14 @@ TEST_MODULE = struct
     close writer;
     let d = read_all reader in
     stabilize ();
-    assert (read_result d = [13]);
+    assert (read_result d = [ 13 ]);
   ;;
 
   (* ==================== read_at_most ==================== *)
 
   TEST_UNIT =
     let (reader, writer) = create () in
-    don't_wait_for (write' writer (Q.of_list [12; 13; 14]));
+    don't_wait_for (write' writer (Q.of_list [ 12; 13; 14 ]));
     close writer;
     let d =
       read_at_most reader ~num_values:2
@@ -1125,12 +1115,12 @@ TEST_MODULE = struct
       | `Ok q -> q
     in
     stabilize ();
-    assert (read_result d = [12; 13]);
+    assert (read_result d = [ 12; 13 ]);
   ;;
 
   TEST_UNIT =
     let (reader, writer) = create () in
-    don't_wait_for (write' writer (Q.of_list [12; 13; 14]));
+    don't_wait_for (write' writer (Q.of_list [ 12; 13; 14 ]));
     close writer;
     let d =
       read_at_most reader ~num_values:4
@@ -1139,7 +1129,7 @@ TEST_MODULE = struct
       | `Ok q -> q
     in
     stabilize ();
-    assert (read_result d = [12; 13; 14]);
+    assert (read_result d = [ 12; 13; 14 ]);
   ;;
 
   (* ==================== clear ==================== *)
@@ -1206,7 +1196,7 @@ TEST_MODULE = struct
   ;;
 
   TEST_UNIT =
-    let l = [ 1 ; 2; 3 ] in
+    let l = [ 1; 2; 3 ] in
     let t = interleave [ of_list l ] in
     let d = read_all t in
     stabilize ();
@@ -1214,7 +1204,7 @@ TEST_MODULE = struct
   ;;
 
   TEST_UNIT =
-    let l = [ 1 ; 2; 3 ] in
+    let l = [ 1; 2; 3 ] in
     let t = interleave [ of_list l; of_list l ] in
     let d = read_all t in
     stabilize ();
@@ -1223,20 +1213,23 @@ TEST_MODULE = struct
 
   (* ==================== merge ==================== *)
   TEST_UNIT =
-    let cases = [
-        [];
-        [ [] ];
-        [ [1; 3; 7] ];
-        [ []; []; []; ];
-        [ [1; 7; 10] ];
-        [ [1; 5; 12]; [3; 3; 4; 22]; [1]; [40] ];
-        [ [1; 5; 12]; [3; 3; 4; 22]; []; [] ];
-        [ [27]; [1; 3; 3; 4; 22]; [2; 27; 49] ];
-        [ [27]; [1; 3; 3; 4; 22; 27; 31; 59; 72]; [2; 27; 49] ];
-        [ [2; 9; 12; 27; 101]; [1; 3; 3; 4; 22; 27; 31; 59; 72]; [2; 27; 49; 127; 311] ];
+    let cases =
+      [ []
+      ; [ [] ]
+      ; [ [ 1; 3; 7 ] ]
+      ; [ []; []; []; ]
+      ; [ [ 1; 7; 10 ] ]
+      ; [ [ 1; 5; 12 ]; [ 3; 3; 4; 22 ]; [ 1 ]; [ 40 ] ]
+      ; [ [ 1; 5; 12 ]; [ 3; 3; 4; 22 ]; []; [] ]
+      ; [ [ 27 ]; [ 1; 3; 3; 4; 22 ]; [ 2; 27; 49 ] ]
+      ; [ [ 27 ]; [ 1; 3; 3; 4; 22; 27; 31; 59; 72 ]; [ 2; 27; 49 ] ]
+      ; [ [ 2; 9; 12; 27; 101 ]
+        ; [ 1; 3; 3; 4; 22; 27; 31; 59; 72 ]
+        ; [ 2; 27; 49; 127; 311 ]
+        ]
       ]
     in
-    let transfer_by = [1; 2; 3; 5; 10] in
+    let transfer_by = [ 1; 2; 3; 5; 10 ] in
     let cmp = Int.compare in
     let finished =
       Deferred.List.iter cases ~f:(fun lists ->
@@ -1251,8 +1244,8 @@ TEST_MODULE = struct
               | [] -> close writer
               | a :: tail ->
                 write_without_pushback writer a;
-                if index mod transfer_by > 0 then
-                  loop (index + 1) tail
+                if index mod transfer_by > 0
+                then loop (index + 1) tail
                 else begin
                   pushback writer
                   >>> fun () ->
@@ -1264,9 +1257,9 @@ TEST_MODULE = struct
             loop 1 list);
           to_list merged_pipe
           >>| fun actual_result ->
-            if not (actual_result = expected_result) then
-              failwiths "mismatch" (actual_result, expected_result)
-                <:sexp_of< int list * int list >>))
+          if not (actual_result = expected_result)
+          then failwiths "mismatch" (actual_result, expected_result)
+                 <:sexp_of< int list * int list >>))
     in
     stabilize ();
     assert (Deferred.is_determined finished);
@@ -1294,14 +1287,14 @@ TEST_MODULE = struct
     ignore
       (Monitor.try_with
          (fun () ->
-           let finished =
-             iter' r ~f:(fun q ->
-               Queue.iter q ~f:(fun i ->
-                 if i = 17 then failwith "" else count := !count + i);
-               Deferred.unit)
-           in
-           upon finished (fun () -> iter_finished := true);
-           finished));
+            let finished =
+              iter' r ~f:(fun q ->
+                Queue.iter q ~f:(fun i ->
+                  if i = 17 then failwith "" else count := !count + i);
+                Deferred.unit)
+            in
+            upon finished (fun () -> iter_finished := true);
+            finished));
     stabilize ();
     write_without_pushback w 17;
     stabilize ();
@@ -1317,14 +1310,14 @@ TEST_MODULE = struct
     ignore
       (Monitor.try_with
          (fun () ->
-           let finished =
-             iter' r ~continue_on_error:true ~f:(fun q ->
-               Queue.iter q ~f:(fun i ->
-                 if i = 17 then failwith "" else count := !count + i);
-               Deferred.unit)
-           in
-           upon finished (fun () -> iter_finished := true);
-           finished));
+            let finished =
+              iter' r ~continue_on_error:true ~f:(fun q ->
+                Queue.iter q ~f:(fun i ->
+                  if i = 17 then failwith "" else count := !count + i);
+                Deferred.unit)
+            in
+            upon finished (fun () -> iter_finished := true);
+            finished));
     stabilize ();
     assert (not !iter_finished);
     write_without_pushback w 17;
@@ -1361,13 +1354,13 @@ TEST_MODULE = struct
     ignore
       (Monitor.try_with
          (fun () ->
-           let finished =
-             iter t ~f:(fun i ->
-               if i = 17 then failwith "" else r := !r + i;
-               Deferred.unit)
-           in
-           upon finished (fun () -> iter_finished := true);
-           finished));
+            let finished =
+              iter t ~f:(fun i ->
+                if i = 17 then failwith "" else r := !r + i;
+                Deferred.unit)
+            in
+            upon finished (fun () -> iter_finished := true);
+            finished));
     stabilize ();
     assert (!r = 13);
     assert (not !iter_finished);
@@ -1381,13 +1374,13 @@ TEST_MODULE = struct
     ignore
       (Monitor.try_with
          (fun () ->
-           let finished =
-             iter t ~continue_on_error:true ~f:(fun i ->
-               if i = 2 then failwith "" else r := !r + i;
-               Deferred.unit)
-           in
-           upon finished (fun () -> iter_finished := true);
-           finished));
+            let finished =
+              iter t ~continue_on_error:true ~f:(fun i ->
+                if i = 2 then failwith "" else r := !r + i;
+                Deferred.unit)
+            in
+            upon finished (fun () -> iter_finished := true);
+            finished));
     stabilize ();
     assert (!r = 4);
     assert !iter_finished;
@@ -1415,12 +1408,12 @@ TEST_MODULE = struct
     ignore
       (Monitor.try_with
          (fun () ->
-           let finished =
-             iter_without_pushback t ~f:(fun i ->
-               if i = 17 then failwith "" else r := !r + i)
-           in
-           upon finished (fun () -> iter_finished := true);
-           finished));
+            let finished =
+              iter_without_pushback t ~f:(fun i ->
+                if i = 17 then failwith "" else r := !r + i)
+            in
+            upon finished (fun () -> iter_finished := true);
+            finished));
     stabilize ();
     assert (!r = 13);
     assert (not !iter_finished);
@@ -1434,12 +1427,12 @@ TEST_MODULE = struct
     ignore
       (Monitor.try_with
          (fun () ->
-           let finished =
-             iter_without_pushback t ~continue_on_error:true ~f:(fun i ->
-               if i = 2 then failwith "" else r := !r + i)
-           in
-           upon finished (fun () -> iter_finished := true);
-           finished));
+            let finished =
+              iter_without_pushback t ~continue_on_error:true ~f:(fun i ->
+                if i = 2 then failwith "" else r := !r + i)
+            in
+            upon finished (fun () -> iter_finished := true);
+            finished));
     stabilize ();
     assert (!r = 4);
     assert !iter_finished;

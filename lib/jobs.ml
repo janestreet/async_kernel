@@ -181,7 +181,7 @@ end = struct
     done;
   ;;
 
-  let run_all (type a) t state ~external_actions =
+  let run_all (type a) t (state : State.t) ~external_actions =
     (* [run_external_actions] before entering the loop, since it might enqueue a job,
        changing [t.length]. *)
     run_external_actions external_actions;
@@ -203,7 +203,7 @@ end = struct
         t.length <- t.length - 1;
         t.jobs_left_this_cycle <- t.jobs_left_this_cycle - 1;
         if Execution_context.is_alive execution_context
-             ~global_kill_index:state.State.global_kill_index
+             ~global_kill_index:state.global_kill_index
         then begin
           t.num_jobs_run <- t.num_jobs_run + 1;
           State.set_execution_context state execution_context;
@@ -276,7 +276,7 @@ let invariant t =
     Fields.iter
       ~state:(check (fun state ->
         State.invariant state;
-        if is_some state.State.uncaught_exn then assert (is_empty t)))
+        if is_some state.uncaught_exn then assert (is_empty t)))
       ~job_pool:(check (Job.Pool.invariant ignore))
       ~normal:(check Job_queue.invariant)
       ~low:   (check Job_queue.invariant))
@@ -290,15 +290,14 @@ let create () =
   }
 ;;
 
-let enqueue t execution_context f a =
+let enqueue t (execution_context : Execution_context.t) f a =
   (* If there's been an uncaught exn, we don't add the job, since we don't want
      any jobs to run once there's been an uncaught exn. *)
-  if is_none t.state.State.uncaught_exn then begin
-    let module P = Priority in
+  if is_none t.state.uncaught_exn then begin
     let job_queue =
-      match execution_context.Execution_context.priority with
-      | P.Normal -> t.normal
-      | P.Low -> t.low
+      match execution_context.priority with
+      | Normal -> t.normal
+      | Low    -> t.low
     in
     Job_queue.enqueue job_queue execution_context f a
   end;
@@ -341,19 +340,19 @@ let rec run_all t ~external_actions =
       else Result.ok_unit
 ;;
 
-let current_execution_context t = t.state.State.current_execution_context
+let current_execution_context t = t.state.current_execution_context
 
 let set_execution_context t e = State.set_execution_context t.state e
 
-let uncaught_exn t = t.state.State.uncaught_exn
+let uncaught_exn t = t.state.uncaught_exn
 
 let got_uncaught_exn t error =
   if debug then Debug.log "got_uncaught_exn" error <:sexp_of< Error.t >>;
   clear t;
-  t.state.State.uncaught_exn <- Some error;
+  t.state.uncaught_exn <- Some error;
 ;;
 
-let global_kill_index t = t.state.State.global_kill_index
+let global_kill_index t = t.state.global_kill_index
 
 let inc_global_kill_index t = State.inc_global_kill_index t.state
 

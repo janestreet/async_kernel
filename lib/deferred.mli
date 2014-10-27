@@ -100,13 +100,13 @@ val any_unit : 'a t list -> unit t
 
 module type Monad_sequence = Monad_sequence with type 'a monad := 'a t
 
-module Array : Monad_sequence with type 'a t = 'a array
-module List  : Monad_sequence with type 'a t = 'a list
-
+module Array    : Monad_sequence with type 'a t = 'a array
+module List     : Monad_sequence with type 'a t = 'a list
 (** All [Queue] iteration functions first copy the queue (to a list) and then start
     calling the user function [f].  So, if [f] modifies the queue, that will have no
     effect on the iteration. *)
-module Queue : Monad_sequence with type 'a t = 'a Queue.t
+module Queue    : Monad_sequence with type 'a t = 'a Queue.t
+module Sequence : Monad_sequence with type 'a t = 'a Sequence.t
 
 module Map : Deferred_map
 
@@ -140,34 +140,34 @@ val choice : 'a t -> ('a -> 'b) -> 'b choice
 val enabled : 'b choice list -> (unit -> 'b list) t
 
 (** {[
-      choose [ choice t1 f1
-             ; ...
-             ; choice tn fn
-             ]
-    ]}
+     choose [ choice t1 f1
+            ; ...
+              ; choice tn fn
+            ]
+   ]}
 
-    returns a deferred [t] that becomes determined with value [fi ai] after some [ti]
-    becomes determined with value [ai].  There is no guarantee that the [ti] that becomes
-    determined earliest in time will be the one whose value determines the [choose].  Nor
-    is it guaranteed that the value in [t] is the first value (in place order) from
-    [choices] that is determined at the time [t] is examined.
+   returns a deferred [t] that becomes determined with value [fi ai] after some [ti]
+   becomes determined with value [ai].  There is no guarantee that the [ti] that becomes
+   determined earliest in time will be the one whose value determines the [choose].  Nor
+   is it guaranteed that the value in [t] is the first value (in place order) from
+   [choices] that is determined at the time [t] is examined.
 
-    For example, in:
+   For example, in:
 
-    {[
-      choose [ choice t1 (fun () -> `X1)
-             ; choice t2 (fun () -> `X2)
-             ]
-      >>> function
-      | `X1 -> e1
-      | `X2 -> e2
-    ]}
+   {[
+     choose [ choice t1 (fun () -> `X1)
+            ; choice t2 (fun () -> `X2)
+            ]
+     >>> function
+     | `X1 -> e1
+     | `X2 -> e2
+   ]}
 
-    it may be the case that both [t1] and [t2] become determined, yet [e2] actually runs.
+   it may be the case that both [t1] and [t2] become determined, yet [e2] actually runs.
 
-    It is guaranteed that if multiple choices are determined with no intervening
-    asynchrony, then the earliest choice in the list will become the value of the
-    [choose].
+   It is guaranteed that if multiple choices are determined with no intervening
+   asynchrony, then the earliest choice in the list will become the value of the
+   [choose].
 *)
 val choose : 'b choice list -> 'b t
 

@@ -131,7 +131,7 @@ val try_with
      -> ?rest : [ `Ignore | `Raise ] (** default is [`Ignore] *)
      -> (unit -> 'a Deferred.t)
      -> ('a, exn) Result.t Deferred.t
-  ) with_optional_monitor_name
+    ) with_optional_monitor_name
 
 (** [try_with_rest_handling] determines how [try_with f ~rest] determines the [rest] value
     it actually uses.  If [!try_with_rest_handling = `Default d], then [d] is the default
@@ -167,7 +167,7 @@ val handle_errors
   : ((unit -> 'a Deferred.t)
      -> (exn -> unit)
      -> 'a Deferred.t
-  ) with_optional_monitor_name
+    ) with_optional_monitor_name
 
 (** [catch_stream ?name f] runs [f ()] inside a new monitor [m] and returns the stream of
     errors raised to [m]. *)
@@ -187,7 +187,7 @@ val protect
   : ((unit -> 'a Deferred.t)
      -> finally:(unit -> unit Deferred.t)
      -> 'a Deferred.t
-  ) with_optional_monitor_name
+    ) with_optional_monitor_name
 
 val main : t
 

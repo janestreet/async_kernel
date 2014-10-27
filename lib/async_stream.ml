@@ -13,12 +13,12 @@ let first_exn t =
 let fold' t ~init ~f =
   Deferred.create
     (fun result ->
-      let rec loop t b =
-        upon (next t) (function
-        | Nil -> Ivar.fill result b
-        | Cons (v, t) -> upon (f b v) (loop t))
-      in
-      loop t init)
+       let rec loop t b =
+         upon (next t) (function
+           | Nil -> Ivar.fill result b
+           | Cons (v, t) -> upon (f b v) (loop t))
+       in
+       loop t init)
 ;;
 
 (* [fold] is implemented to avoid per-stream-element deferred overhead in the case when
@@ -26,16 +26,16 @@ let fold' t ~init ~f =
 let fold t ~init ~f =
   Deferred.create
     (fun result ->
-      let rec loop t b =
-        match Deferred.peek (next t) with
-        | None -> upon (next t) (fun next -> loop_next next b)
-        | Some next -> loop_next next b
-      and loop_next next b =
-        match next with
-        | Nil -> Ivar.fill result b
-        | Cons (v, t) -> loop t (f b v)
-      in
-      loop t init)
+       let rec loop t b =
+         match Deferred.peek (next t) with
+         | None -> upon (next t) (fun next -> loop_next next b)
+         | Some next -> loop_next next b
+       and loop_next next b =
+         match next with
+         | Nil -> Ivar.fill result b
+         | Cons (v, t) -> loop t (f b v)
+       in
+       loop t init)
 ;;
 
 let length t = fold t ~init:0 ~f:(fun n _ -> n + 1)
@@ -117,8 +117,8 @@ let map t ~f = map' t ~f:(fun a -> return (f a))
 let first_n s n =
   create (fun tail ->
     let rec loop s n =
-      if n = 0 then
-        Tail.close_exn tail
+      if n = 0
+      then Tail.close_exn tail
       else
         upon (next s) (function
           | Nil -> Tail.close_exn tail
@@ -141,18 +141,18 @@ let split ?(stop = Deferred.never ()) ?(f = (fun _ -> `Continue)) t =
   let prefix = Tail.create () in
   let finish v = Tail.close_exn prefix; Ivar.fill reason_for_stopping v in
   let rec loop t =
-    choose [ choice stop (fun () -> `Stopped);
-             choice (next t) (fun o -> `Next o);
+    choose [ choice stop (fun () -> `Stopped)
+           ; choice (next t) (fun o -> `Next o)
            ]
     >>> function
-      | `Stopped -> finish (`Stopped t)
-      | `Next o ->
-        match o with
-        | Nil -> finish `End_of_stream
-        | Cons (a, t) ->
-          match f a with
-          | `Continue -> Tail.extend prefix a; loop t
-          | `Found b -> finish (`Found (b, t))
+    | `Stopped -> finish (`Stopped t)
+    | `Next o ->
+      match o with
+      | Nil -> finish `End_of_stream
+      | Cons (a, t) ->
+        match f a with
+        | `Continue -> Tail.extend prefix a; loop t
+        | `Found b -> finish (`Found (b, t))
   in
   loop t;
   (Tail.collect prefix, Ivar.read reason_for_stopping)
@@ -195,8 +195,9 @@ let interleave ts =
 let take_until t d =
   create (fun tail ->
     let rec loop t =
-      upon (choose [choice d (fun () -> `Stop);
-                    choice (next t) (fun z -> `Next z)])
+      upon (choose [ choice d        (fun () -> `Stop)
+                   ; choice (next t) (fun z  -> `Next z)
+                   ])
         (function
           | `Stop | `Next Nil -> Tail.close_exn tail
           | `Next (Cons (x, t)) -> Tail.extend tail x; loop t)
@@ -209,14 +210,14 @@ let iter_durably' t ~f =
     let rec loop t =
       next t
       >>> function
-        | Nil -> Ivar.fill result ()
-        | Cons (x, t) ->
-          Monitor.try_with ~rest:`Raise (fun () -> f x)
-          >>> fun z ->
-          loop t;
-          match z with
-          | Ok () -> ()
-          | Error e -> Monitor.send_exn (Monitor.current ()) e
+      | Nil -> Ivar.fill result ()
+      | Cons (x, t) ->
+        Monitor.try_with ~rest:`Raise (fun () -> f x)
+        >>> fun z ->
+        loop t;
+        match z with
+        | Ok () -> ()
+        | Error e -> Monitor.send_exn (Monitor.current ()) e
     in
     loop t)
 ;;
@@ -226,12 +227,12 @@ let iter_durably_report_end t ~f =
     let rec loop t =
       next t
       >>> function
-        | Nil -> Ivar.fill result ()
-        | Cons (x, t) ->
-          (* We immediately call [loop], thus making the iter durable.  Any exceptions
-             raised by [f] will not prevent the loop from continuing, and will go to the
-             monitor of whomever called [iter_durably_report_end]. *)
-          loop t; f x
+      | Nil -> Ivar.fill result ()
+      | Cons (x, t) ->
+        (* We immediately call [loop], thus making the iter durable.  Any exceptions
+           raised by [f] will not prevent the loop from continuing, and will go to the
+           monitor of whomever called [iter_durably_report_end]. *)
+        loop t; f x
     in
     loop t)
 ;;

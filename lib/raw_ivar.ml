@@ -5,9 +5,9 @@ module Scheduler = Raw_scheduler
 
 type any = [ `Empty | `Empty_one_handler | `Empty_one_or_more_handlers | `Full | `Indir ]
 
-(* [Handler.t] shares the same memory representation as [Empty_one_or_more_handlers].  This
-   allows us to save one indirection.  The magic won't be needed anymore when this feature
-   is accepted:
+(* [Handler.t] shares the same memory representation as [Empty_one_or_more_handlers].
+   This allows us to save one indirection.  The magic won't be needed anymore when this
+   feature is accepted:
 
    http://caml.inria.fr/mantis/view.php?id=5528
 *)
@@ -202,7 +202,7 @@ module Handler = struct
 end
 
 type 'a t =
-  { mutable cell : ('a, any) cell;
+  { mutable cell : ('a, any) cell
   }
 
 (* The ['b] is used to encode the constructor.  This allows us to write functions that
@@ -296,12 +296,12 @@ let invariant a_invariant t =
     Handler.invariant (handler_of_constructor cell);
 ;;
 
-let sexp_of_t sexp_of_a t =
+let sexp_of_t sexp_of_a t : Sexp.t =
   let t = squash t in
   match t.cell with
   | Indir _ -> assert false (* fulfilled by [squash] *)
-  | Full a -> Sexp.List [ Sexp.Atom "Full"; sexp_of_a a ]
-  | Empty | Empty_one_handler _ | Empty_one_or_more_handlers _ -> Sexp.Atom "Empty"
+  | Full a -> List [ Atom "Full"; sexp_of_a a ]
+  | Empty | Empty_one_handler _ | Empty_one_or_more_handlers _ -> Atom "Empty"
 ;;
 
 let peek t =
@@ -336,8 +336,8 @@ let fill t v =
     Handler.schedule_jobs (handler_of_constructor cell) v;
 ;;
 
-let remove_handler t handler =
-  handler.Handler.run <- ignore;
+let remove_handler t (handler : _ Handler.t) =
+  handler.run <- ignore;
   let t = squash t in
   match t.cell with
   | Indir _ -> assert false (* fulfilled by [squash] *)
@@ -353,7 +353,7 @@ let remove_handler t handler =
     then t.cell <- Empty
     else begin
       if phys_equal handler (handler_of_constructor cell)
-      then t.cell <- cell_of_handler handler.Handler.next;
+      then t.cell <- cell_of_handler handler.next;
       Handler.unlink handler;
     end;
 ;;
@@ -379,9 +379,9 @@ let add_handler t run execution_context =
     Handler.add (handler_of_constructor cell) run execution_context;
   | Full v ->
     let handler = Handler.create run execution_context in
-    (* [run] calls [handler.Handler.run], which, if [handler] has been removed, has
-       been changed to [ignore]. *)
-    let run v = handler.Handler.run v in
+    (* [run] calls [handler.run], which, if [handler] has been removed, has been changed
+       to [ignore]. *)
+    let run v = handler.run v in
     Scheduler.(enqueue (t ())) execution_context run v;
     handler
 ;;
@@ -394,10 +394,10 @@ let upon' t run = add_handler t run Scheduler.(current_execution_context (t ()))
      let upon t f = ignore (upon' t run)
    ]}
 
-   However, below is a more efficient implementation, which is worth doing because
-   [upon] is very widely used and is so much more common than [upon'].  The below
-   implementation avoids the use of the bag of handlers in the extremely common case of
-   one handler for the deferred. *)
+   However, below is a more efficient implementation, which is worth doing because [upon]
+   is very widely used and is so much more common than [upon'].  The below implementation
+   avoids the use of the bag of handlers in the extremely common case of one handler for
+   the deferred. *)
 let upon =
   fun t run ->
     let scheduler = Scheduler.t () in

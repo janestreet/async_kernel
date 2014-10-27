@@ -15,7 +15,7 @@ let span_to_time span = Time.add (Time.now ()) span
 
 let run_at time f a =
   let scheduler = Raw_scheduler.t () in
-  let events = scheduler.Raw_scheduler.events in
+  let events = scheduler.events in
   let execution_context = Raw_scheduler.current_execution_context scheduler in
   if Time.(<) time (Timing_wheel.now events)
   then Raw_scheduler.enqueue scheduler execution_context f a
@@ -104,8 +104,8 @@ open Monitor.Exported_for_scheduler
 let at_times ?(stop = Deferred.never ()) next_time =
   let tail = Tail.create () in
   let rec loop () =
-    choose [ choice stop (fun () -> `Stop);
-             choice (at (next_time ())) (fun () -> `Tick);
+    choose [ choice stop                (fun () -> `Stop)
+           ; choice (at (next_time ())) (fun () -> `Tick)
            ]
     >>> function
     | `Stop -> Tail.close_exn tail
@@ -125,49 +125,49 @@ let at_intervals ?(start = Time.now ()) ?stop interval =
 ;;
 
 let run_repeatedly
-  ?(start = Deferred.unit)
-  ?(stop = Deferred.never ())
-  ?(continue_on_error = true)
-  ~f ~continue () =
+      ?(start = Deferred.unit)
+      ?(stop = Deferred.never ())
+      ?(continue_on_error = true)
+      ~f ~continue () =
   start
   >>> fun () ->
-    (* We use an extra monitor so we can specially handle errors in [f]. *)
-    let saw_error = ref false in
-    let monitor = Monitor.create ~name:"Clock.run_repeatedly" () in
-    Stream.iter (Monitor.detach_and_get_error_stream monitor) ~f:(fun e ->
-      Monitor.send_exn (Monitor.current ()) e;
-      saw_error := true);
-    let rec loop wait =
-      upon (choose [choice stop (fun () -> `Stop);
-                    choice wait (fun () -> `Continue)])
-        (function
-          | `Stop -> ()
-          | `Continue ->
-            (* The "raise_rest" part of a prior call to [try_with ~rest:`Raise f] could
-               have raised an error after having returned ok.  We check [saw_error] and
-               don't proceed if it did. *)
-            if continue_on_error || not !saw_error then begin
-              within' ~monitor (fun () ->
-                Monitor.try_with ~rest:`Raise
-                  (fun () ->
-                    (* We check at the last possible moment before running [f] whether
-                       [stop] is determined, and if so, abort the loop. *)
-                    if Deferred.is_determined stop then
-                      return `Stop
-                    else
-                      f () >>| fun () -> `Ran))
-              >>> function
-                | Ok z ->
-                  begin match z with
-                  | `Stop -> ()
-                  | `Ran -> loop (continue ())
-                  end
-                | Error error ->
-                  Monitor.send_exn (Monitor.current ()) error;
-                  if continue_on_error then loop (continue ())
-            end)
-    in
-    loop Deferred.unit
+  (* We use an extra monitor so we can specially handle errors in [f]. *)
+  let saw_error = ref false in
+  let monitor = Monitor.create ~name:"Clock.run_repeatedly" () in
+  Stream.iter (Monitor.detach_and_get_error_stream monitor) ~f:(fun e ->
+    Monitor.send_exn (Monitor.current ()) e;
+    saw_error := true);
+  let rec loop wait =
+    upon (choose [ choice stop (fun () -> `Stop)
+                 ; choice wait (fun () -> `Continue)
+                 ])
+      (function
+        | `Stop -> ()
+        | `Continue ->
+          (* The "raise_rest" part of a prior call to [try_with ~rest:`Raise f] could
+             have raised an error after having returned ok.  We check [saw_error] and
+             don't proceed if it did. *)
+          if continue_on_error || not !saw_error then begin
+            within' ~monitor (fun () ->
+              Monitor.try_with ~rest:`Raise
+                (fun () ->
+                   (* We check at the last possible moment before running [f] whether
+                      [stop] is determined, and if so, abort the loop. *)
+                   if Deferred.is_determined stop
+                   then return `Stop
+                   else f () >>| fun () -> `Ran))
+            >>> function
+            | Ok z ->
+              begin match z with
+              | `Stop -> ()
+              | `Ran -> loop (continue ())
+              end
+            | Error error ->
+              Monitor.send_exn (Monitor.current ()) error;
+              if continue_on_error then loop (continue ())
+          end)
+  in
+  loop Deferred.unit
 ;;
 
 let every' ?start ?stop ?continue_on_error span f =
@@ -205,7 +205,7 @@ let run_at_intervals ?start ?stop ?continue_on_error interval f =
 ;;
 
 let with_timeout span d =
-  choose [choice d (fun v -> `Result v);
-          choice (after span) (fun _ -> `Timeout);
+  choose [ choice d            (fun v -> `Result v)
+         ; choice (after span) (fun _ -> `Timeout)
          ]
 ;;

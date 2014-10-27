@@ -4,26 +4,26 @@ open Import
 let debug = Debug.monitor
 
 type t =
-  { name : Info.t;
-    here : Source_code_position.t option;
-    id : int;
-    parent : t option;
-    mutable handlers_for_next_error : (exn -> unit) list;
-    mutable handlers_for_all_errors : (exn -> unit) Bag.t;
-    mutable has_seen_error : bool;
-    mutable is_detached : bool;
-    mutable kill_index : Kill_index.t;
+  { name                            : Info.t
+  ; here                            : Source_code_position.t option
+  ; id                              : int
+  ; parent                          : t option
+  ; mutable handlers_for_next_error : (exn -> unit) list
+  ; mutable handlers_for_all_errors : (exn -> unit) Bag.t
+  ; mutable has_seen_error          : bool
+  ; mutable is_detached             : bool
+  ; mutable kill_index              : Kill_index.t
   }
 with fields
 
 module Pretty = struct
   type one =
-    { name : Info.t;
-      here : Source_code_position.t option;
-      id : int;
-      has_seen_error : bool;
-      is_detached : bool;
-      kill_index : Kill_index.t;
+    { name           : Info.t
+    ; here           : Source_code_position.t option
+    ; id             : int
+    ; has_seen_error : bool
+    ; is_detached    : bool
+    ; kill_index     : Kill_index.t
     }
   with sexp_of
 
@@ -33,10 +33,11 @@ end
 
 let to_pretty =
   let rec loop
-      { name; here; id; parent; has_seen_error; is_detached; kill_index;
-        handlers_for_next_error = _; handlers_for_all_errors = _
-      }
-      ac =
+            { name; here; id; parent; has_seen_error; is_detached; kill_index
+            ; handlers_for_next_error = _
+            ; handlers_for_all_errors = _
+            }
+            ac =
     let ac =
       { Pretty. name; here; id; has_seen_error; is_detached; kill_index } :: ac
     in
@@ -64,13 +65,13 @@ let create_with_parent ?here ?info ?name parent =
     | None  , None   -> Info.create "id" id <:sexp_of< int >>
   in
   let t =
-    { name; here; parent;
-      id;
-      handlers_for_next_error = [];
-      handlers_for_all_errors = Bag.create ();
-      has_seen_error = false;
-      is_detached = false;
-      kill_index = Kill_index.initial;
+    { name; here; parent
+    ; id
+    ; handlers_for_next_error = []
+    ; handlers_for_all_errors = Bag.create ()
+    ; has_seen_error          = false
+    ; is_detached             = false
+    ; kill_index              = Kill_index.initial
     }
   in
   if debug then Debug.log "created monitor" t <:sexp_of< t >>;

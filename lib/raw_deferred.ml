@@ -16,13 +16,13 @@ module Handler = Ivar.Handler
    operations are equivalent to those implemented directly on top of the
    [essence_of_deferred]. *)
 (*
-type (+'a, 'execution_context) essence_of_deferred =
-  { peek : unit -> 'a option;
-    is_determined : unit -> bool;
-    upon : ('a -> unit) -> unit;
-    upon' : ('a -> unit) -> Unregister.t;
-    install_removable_handler : ('a, 'execution_context) Raw_handler.t -> Unregister.t;
-  }
+   type (+'a, 'execution_context) essence_of_deferred =
+   { peek : unit -> 'a option;
+   is_determined : unit -> bool;
+   upon : ('a -> unit) -> unit;
+   upon' : ('a -> unit) -> Unregister.t;
+   install_removable_handler : ('a, 'execution_context) Raw_handler.t -> Unregister.t;
+   }
 *)
 
 type +'a t  (* the abstract covariant type, equivalent to ivar *)

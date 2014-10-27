@@ -1,3 +1,9 @@
+## 112.06.00
+
+- Added `Deferred.Sequence` module, analogous to `Deferred.List` but for
+  `Core_kernel.Std.Sequence`.
+- Modernized code style.
+
 ## 112.01.00
 
 - Optimized `Monitor.try_with ~run:\`Now f` to return a determined
@@ -338,17 +344,17 @@
   (*** [max_concurrent_jobs t] returns the maximum number of jobs that [t] will run
        concurrently. *)
   val max_concurrent_jobs : (_, _) t_ -> int
-  
+
   (*** [num_jobs_running t] returns the number of jobs that [t] is currently running.  It
        is guaranteed that if [num_jobs_running t < max_concurrent_jobs t] then
        [num_jobs_waiting_to_start t = 0].  That is, the throttle always uses its maximum
        concurrency if possible. *)
   val num_jobs_running : (_, _) t_ -> int
-  
+
   (*** [num_jobs_waiting_to_start t] returns the number of jobs that have been [enqueue]d but
        have not yet started. *)
   val num_jobs_waiting_to_start : (_ , _) t_ -> int
-  
+
   (*** [capacity_available t] becomes determined the next time that [t] has fewer than
        [max_concurrent_jobs t] running, and hence an [enqueue]d job would start
        immediately. *)

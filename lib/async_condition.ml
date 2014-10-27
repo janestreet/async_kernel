@@ -1,12 +1,12 @@
 open Core.Std
 
 type 'a t =
-  { waits : 'a Ivar.t Queue.t;
+  { waits : 'a Ivar.t Queue.t
   }
 with sexp_of
 
 let create () =
-  { waits = Queue.create ();
+  { waits = Queue.create ()
   }
 ;;
 
@@ -102,7 +102,7 @@ TEST_MODULE = struct
     Array.iter consumers ~f:(fun consumer ->
       assert (not (Deferred.is_determined consumer)));
     for i = 0 to pred n do
-       signal cond i;
+      signal cond i;
     done;
     stabilize();
     for i = 0 to pred n do

@@ -1,8 +1,8 @@
 include Raw_handler
 
 let create run =
-  { execution_context = Scheduler.(current_execution_context (t ()));
-    run;
+  { execution_context = Scheduler.(current_execution_context (t ()))
+  ; run;
   }
 ;;
 

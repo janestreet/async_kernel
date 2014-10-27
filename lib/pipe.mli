@@ -212,14 +212,14 @@ val is_empty : (_, _) t -> bool
     [is_closed] tests.  Thus, a typical writer loop should look like this:
 
     {[
-    fun countup hi w = (* Send the ints in range \[0,hi) to writer W. *)
-      let rec loop i =
-        if i < hi and not (is_closed w) then (* Guard write w/closed test. *)
-          write i w >>>            (* Do the write then block until datum     *)
-          fun () -> loop (i+1)     (*   fits or the pipe is closed.           *)
-        else close w (* No harm done if reader has already closed the pipe.*)
-      in
-      loop 0
+      fun countup hi w = (* Send the ints in range \[0,hi) to writer W. *)
+        let rec loop i =
+          if i < hi and not (is_closed w) then (* Guard write w/closed test. *)
+      write i w >>>            (* Do the write then block until datum     *)
+      fun () -> loop (i+1)     (*   fits or the pipe is closed.           *)
+      else close w (* No harm done if reader has already closed the pipe.*)
+    in
+    loop 0
     ]}
 
     If the pipe's consumer stops reading early and closes the pipe, [countup] won't error
@@ -443,7 +443,7 @@ val fold_without_pushback : ('a , 'a         , 'accum            , 'accum) fold
     because of different behavior with [~continue_on_error:false] when [f] raises.
     [iter_without_pushback] is guaranteed to read nothing from [t] after the element on
     which [f] raises.
- *)
+*)
 type ('a, 'b, 'c) iter =
   ?consumer:Consumer.t
   -> ?continue_on_error:bool (** default is [false] *)

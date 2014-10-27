@@ -55,21 +55,21 @@ module Debug_tag = struct
 
   module T = struct
     type t =
-    | All
-    | Clock
-    | Fd
-    | File_descr_watcher
-    | Finalizers
-    | Interruptor
-    | Monitor
-    | Monitor_send_exn
-    | Parallel
-    | Reader
-    | Scheduler
-    | Shutdown
-    | Thread_pool
-    | Thread_safe
-    | Writer
+      | All
+      | Clock
+      | Fd
+      | File_descr_watcher
+      | Finalizers
+      | Interruptor
+      | Monitor
+      | Monitor_send_exn
+      | Parallel
+      | Reader
+      | Scheduler
+      | Shutdown
+      | Thread_pool
+      | Thread_safe
+      | Writer
     with sexp
   end
 
@@ -78,21 +78,21 @@ module Debug_tag = struct
   include Sexpable.To_stringable (T)
 
   let list =
-    [ All;
-      Clock;
-      Fd;
-      File_descr_watcher;
-      Finalizers;
-      Interruptor;
-      Monitor;
-      Monitor_send_exn;
-      Parallel;
-      Reader;
-      Scheduler;
-      Shutdown;
-      Thread_pool;
-      Thread_safe;
-      Writer
+    [ All
+    ; Clock
+    ; Fd
+    ; File_descr_watcher
+    ; Finalizers
+    ; Interruptor
+    ; Monitor
+    ; Monitor_send_exn
+    ; Parallel
+    ; Reader
+    ; Scheduler
+    ; Shutdown
+    ; Thread_pool
+    ; Thread_safe
+    ; Writer
     ]
   ;;
 
@@ -155,12 +155,11 @@ let default_file_descr_watcher, default_max_num_open_file_descrs =
   else File_descr_watcher.Select, Max_num_open_file_descrs.create_exn 1024
 ;;
 
-let default_timing_wheel_config word_size =
-  let module W = Word_size in
+let default_timing_wheel_config (word_size : Word_size.t) =
   let alarm_precision, level_bits =
     match word_size with
-    | W.W32 -> Time.Span.of_ms 1. , [ 10; 10; 9;   ]
-    | W.W64 -> Time.Span.of_ms 0.1, [ 15; 15; 9; 6 ]
+    | W32 -> Time.Span.of_ms 1. , [ 10; 10; 9;   ]
+    | W64 -> Time.Span.of_ms 0.1, [ 15; 15; 9; 6 ]
   in
   Timing_wheel.Config.create
     ~alarm_precision
@@ -169,23 +168,21 @@ let default_timing_wheel_config word_size =
 ;;
 
 TEST_UNIT =
-  let module L = Timing_wheel.Level_bits in
-  let module W = Word_size in
-  List.iter [ W.W32; W.W64 ] ~f:(fun word_size ->
+  List.iter [ Word_size.W32; W64 ] ~f:(fun word_size ->
     let config = default_timing_wheel_config word_size in
     let actual_durations = Timing_wheel.Config.durations config in
     let year = Time.Span.(scale day) 365. in
     let lower_bounds =
       match word_size with
-      | W.W32 -> Time.Span.([ 1., second;
-                              17., minute;
-                              6.2, day;
-                            ])
-      | W.W64 -> Time.Span.([ 3.2, second;
-                              1.2, day;
-                              1.7, year;
-                              111., year;
-                            ])
+      | W32 -> Time.Span.([ 1. , second
+                          ; 17., minute
+                          ; 6.2, day
+                          ])
+      | W64 -> Time.Span.([ 3.2 , second
+                          ; 1.2 , day
+                          ; 1.7 , year
+                          ; 111., year
+                          ])
     in
     let lower_bounds =
       List.map lower_bounds ~f:(fun (scale, span) -> Time.Span.scale span scale)
@@ -222,7 +219,7 @@ let default =
 
 let example =
   { default with
-    print_debug_messages_for = Some Debug_tag.([ Fd; Scheduler ]);
+    print_debug_messages_for = Some Debug_tag.([ Fd; Scheduler ])
   }
 ;;
 
@@ -382,7 +379,7 @@ where all fields are optional:
 
 ";
     Sexp.to_string_hum (sexp_of_t example)
-;"
+    ;"
 
 Here is an explanation of each field.
 ";
@@ -417,24 +414,24 @@ module Print_debug_messages_for = struct
     | Some l -> List.mem l tag
   ;;
 
-  let all = print_debug_messages_for Debug_tag.All
+  let all = print_debug_messages_for All
 
   let debug tag = all || print_debug_messages_for tag
 
-  let clock              = debug Debug_tag.Clock
-  let fd                 = debug Debug_tag.Fd
-  let file_descr_watcher = debug Debug_tag.File_descr_watcher
-  let finalizers         = debug Debug_tag.Finalizers
-  let interruptor        = debug Debug_tag.Interruptor
-  let monitor            = debug Debug_tag.Monitor
-  let monitor_send_exn   = debug Debug_tag.Monitor_send_exn
-  let parallel           = debug Debug_tag.Parallel
-  let reader             = debug Debug_tag.Reader
-  let scheduler          = debug Debug_tag.Scheduler
-  let shutdown           = debug Debug_tag.Shutdown
-  let thread_pool        = debug Debug_tag.Thread_pool
-  let thread_safe        = debug Debug_tag.Thread_safe
-  let writer             = debug Debug_tag.Writer
+  let clock              = debug Clock
+  let fd                 = debug Fd
+  let file_descr_watcher = debug File_descr_watcher
+  let finalizers         = debug Finalizers
+  let interruptor        = debug Interruptor
+  let monitor            = debug Monitor
+  let monitor_send_exn   = debug Monitor_send_exn
+  let parallel           = debug Parallel
+  let reader             = debug Reader
+  let scheduler          = debug Scheduler
+  let shutdown           = debug Shutdown
+  let thread_pool        = debug Thread_pool
+  let thread_safe        = debug Thread_safe
+  let writer             = debug Writer
 
 end
 

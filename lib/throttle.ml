@@ -14,8 +14,8 @@ module Internal_job : sig
   val abort : _ t -> unit
 end  = struct
   type 'a t =
-    { start : [ `Abort | `Start of 'a ] Ivar.t;
-      outcome : [ `Ok | `Aborted | `Raised ] Deferred.t;
+    { start   : [ `Abort | `Start of 'a ] Ivar.t
+    ; outcome : [ `Ok | `Aborted | `Raised ] Deferred.t
     }
   with sexp_of
 
@@ -54,34 +54,34 @@ end  = struct
 end
 
 type 'a t =
-  { continue_on_error : bool;
-    max_concurrent_jobs : int;
-    (* [job_resources_not_in_use] holds resources that are not currently in use by a
-       running job. *)
-    job_resources_not_in_use : 'a Stack.t;
-    (* [jobs_waiting_to_start] is the queue of jobs that haven't yet started. *)
-    jobs_waiting_to_start : 'a Internal_job.t Queue.t;
-    (* [0 <= num_jobs_running <= max_concurrent_jobs]. *)
-    mutable num_jobs_running : int;
-    (* [capacity_available] is [Some ivar] if user code has called [capacity_available
-       t] and is waiting to be notified when capacity is available in the throttle.
-       [maybe_start_job] will fill [ivar] when capacity becomes available, i.e. when
-       [jobs_waiting_to_start] is empty and [num_jobs_running < max_concurrent_jobs]. *)
-    mutable capacity_available : unit Ivar.t option;
-    (* [is_dead] is true if [t] was killed due to a job raising an exception or [kill t]
-       being called. *)
-    mutable is_dead : bool;
-    (* [cleans] holds functions that will be called to clean each resource when [t] is
-       killed. *)
-    mutable cleans : ('a -> unit Deferred.t) list;
-    (* [num_resources_not_cleaned] is the number of resources whose clean functions have
-       not yet completed.  While [t] is alive, [num_resources_not_cleaned =
-       max_concurrent_jobs].  Once [t] is killed, [num_resources_not_cleaned] decreases to
-       zero over time as the clean functions complete. *)
-    mutable num_resources_not_cleaned : int;
-    (* [cleaned] becomes determined when [num_resources_not_cleaned] reaches zero,
-       i.e. after [t] is killed and all its clean functions complete. *)
-    cleaned : unit Ivar.t;
+  { continue_on_error                 : bool
+  ; max_concurrent_jobs               : int
+  (* [job_resources_not_in_use] holds resources that are not currently in use by a
+     running job. *)
+  ; job_resources_not_in_use          : 'a Stack.t
+  (* [jobs_waiting_to_start] is the queue of jobs that haven't yet started. *)
+  ; jobs_waiting_to_start             : 'a Internal_job.t Queue.t
+  (* [0 <= num_jobs_running <= max_concurrent_jobs]. *)
+  ; mutable num_jobs_running          : int
+  (* [capacity_available] is [Some ivar] if user code has called [capacity_available t] and
+     is waiting to be notified when capacity is available in the throttle.
+     [maybe_start_job] will fill [ivar] when capacity becomes available, i.e. when
+     [jobs_waiting_to_start] is empty and [num_jobs_running < max_concurrent_jobs]. *)
+  ; mutable capacity_available        : unit Ivar.t option
+  (* [is_dead] is true if [t] was killed due to a job raising an exception or [kill t]
+     being called. *)
+  ; mutable is_dead                   : bool
+  (* [cleans] holds functions that will be called to clean each resource when [t] is
+     killed. *)
+  ; mutable cleans                    : ('a -> unit Deferred.t) list
+  (* [num_resources_not_cleaned] is the number of resources whose clean functions have not
+     yet completed.  While [t] is alive, [num_resources_not_cleaned =
+     max_concurrent_jobs].  Once [t] is killed, [num_resources_not_cleaned] decreases to
+     zero over time as the clean functions complete. *)
+  ; mutable num_resources_not_cleaned : int
+  (* [cleaned] becomes determined when [num_resources_not_cleaned] reaches zero,
+     i.e. after [t] is killed and all its clean functions complete. *)
+  ; cleaned                           : unit Ivar.t
   }
 with fields, sexp_of
 
@@ -103,8 +103,8 @@ let invariant invariant_a t : unit =
       ~num_jobs_running:(check (fun num_jobs_running ->
         assert (num_jobs_running >= 0);
         assert (num_jobs_running <= t.max_concurrent_jobs);
-        if num_jobs_running < t.max_concurrent_jobs then
-          assert (Queue.is_empty t.jobs_waiting_to_start)))
+        if num_jobs_running < t.max_concurrent_jobs
+        then assert (Queue.is_empty t.jobs_waiting_to_start)))
       ~capacity_available:(check (function
         | None -> ()
         | Some ivar -> assert (Ivar.is_empty ivar)))
@@ -168,12 +168,12 @@ let rec start_job t =
   | `Ok -> ()
   | `Raised -> if not t.continue_on_error then kill t
   end;
-  if t.is_dead then
-    clean_resource t job_resource
+  if t.is_dead
+  then clean_resource t job_resource
   else begin
     Stack.push t.job_resources_not_in_use job_resource;
-    if not (Queue.is_empty t.jobs_waiting_to_start) then
-      start_job t
+    if not (Queue.is_empty t.jobs_waiting_to_start)
+    then start_job t
     else
       match t.capacity_available with
       | None -> ()
@@ -183,23 +183,23 @@ let rec start_job t =
 
 let create_with ~continue_on_error job_resources =
   let max_concurrent_jobs = List.length job_resources in
-  { continue_on_error;
-    max_concurrent_jobs;
-    job_resources_not_in_use = Stack.of_list job_resources;
-    jobs_waiting_to_start = Queue.create ();
-    num_jobs_running = 0;
-    capacity_available = None;
-    is_dead = false;
-    cleans = [];
-    num_resources_not_cleaned = max_concurrent_jobs;
-    cleaned = Ivar.create ();
+  { continue_on_error
+  ; max_concurrent_jobs
+  ; job_resources_not_in_use  = Stack.of_list job_resources
+  ; jobs_waiting_to_start     = Queue.create ()
+  ; num_jobs_running          = 0
+  ; capacity_available        = None
+  ; is_dead                   = false
+  ; cleans                    = []
+  ; num_resources_not_cleaned = max_concurrent_jobs
+  ; cleaned                   = Ivar.create ()
   }
 ;;
 
 module Sequencer = struct
   type nonrec 'a t = 'a t with sexp_of
 
-  let create ?(continue_on_error = false) a = create_with ~continue_on_error [a]
+  let create ?(continue_on_error = false) a = create_with ~continue_on_error [ a ]
 end
 
 let create ~continue_on_error ~max_concurrent_jobs =
@@ -211,8 +211,8 @@ let create ~continue_on_error ~max_concurrent_jobs =
 
 module Job = struct
   type ('a, 'b) t =
-    { internal_job : 'a Internal_job.t;
-      result : [ `Ok of 'b | `Aborted | `Raised of exn ] Deferred.t;
+    { internal_job : 'a Internal_job.t
+    ; result : [ `Ok of 'b | `Aborted | `Raised of exn ] Deferred.t
     }
 
   let result t = t.result
@@ -227,10 +227,10 @@ end
 
 let enqueue' t f =
   let job = Job.create f in
-  if t.is_dead then
-    Job.abort job
+  if t.is_dead
+  then Job.abort job
   else begin
-    Queue.enqueue t.jobs_waiting_to_start job.Job.internal_job;
+    Queue.enqueue t.jobs_waiting_to_start job.internal_job;
     if t.num_jobs_running < t.max_concurrent_jobs then start_job t;
   end;
   Job.result job;
@@ -253,8 +253,8 @@ let prior_jobs_done t =
     for _i = 1 to t.max_concurrent_jobs do
       don't_wait_for (enqueue t (fun _ ->
         incr dummy_jobs_running;
-        if !dummy_jobs_running = t.max_concurrent_jobs then
-          Ivar.fill all_dummy_jobs_running ();
+        if !dummy_jobs_running = t.max_concurrent_jobs
+        then Ivar.fill all_dummy_jobs_running ();
         Ivar.read all_dummy_jobs_running))
     done)
 ;;
