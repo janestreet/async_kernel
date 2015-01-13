@@ -22,6 +22,7 @@ val cycle_start : t -> Time.t
 val run_cycle : t -> unit
 val run_cycles_until_no_jobs_remain : unit -> unit
 val next_upcoming_event : t -> Time.t option
+val event_precision : t -> Time.Span.t
 val uncaught_exn : t -> Error.t option
 val num_pending_jobs : t -> int
 val num_jobs_run : t -> int
@@ -35,6 +36,10 @@ val check_invariants : t -> bool
 val set_check_invariants : t -> bool -> unit
 val set_record_backtraces : t -> bool -> unit
 
+val can_run_a_job : t -> bool
+
+val create_alarm : t -> (unit -> unit) -> Gc.Expert.Alarm.t
+
 val add_finalizer     : t -> 'a Heap_block.t -> ('a Heap_block.t -> unit) -> unit
 val add_finalizer_exn : t -> 'a              -> ('a              -> unit) -> unit
 
@@ -44,8 +49,8 @@ val thread_safe_enqueue_external_action : t -> (unit -> unit) -> unit
 
 val force_current_cycle_to_end : t -> unit
 
-type 'a with_options =
-  ?monitor:Monitor.t
+type 'a with_options
+  =  ?monitor:Monitor.t
   -> ?priority:Priority.t
   -> 'a
 val within'   : ((unit -> 'a Deferred.t) -> 'a Deferred.t) with_options
@@ -63,3 +68,6 @@ val find_local : 'a Univ_map.Key.t -> 'a option
 val with_local : 'a Univ_map.Key.t -> 'a option -> f:(unit -> 'b) -> 'b
 
 val reset_in_forked_process : unit -> unit
+
+val yield       : t -> unit Deferred.t
+val yield_every : n:int -> (t -> unit Deferred.t) Staged.t

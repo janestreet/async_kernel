@@ -56,6 +56,8 @@ TEST_UNIT =
   assert_sequences_equal (Sequence.filter numbers ~f) deferred_result;
 ;;
 
+let filter_map = filter_map
+
 TEST_UNIT =
   let f i = if i % 2 = 0 then Some i else None in
   let deferred_result =
@@ -65,7 +67,18 @@ TEST_UNIT =
   assert_sequences_equal (Sequence.filter_map numbers ~f) deferred_result;
 ;;
 
-let filter_map = filter_map
+let concat_map = concat_map
+
+TEST_UNIT =
+  let f i = Sequence.init i ~f:(fun j -> i + j) in
+  let deferred_result =
+    deferred_result
+      (Deferred.Sequence.concat_map numbers ~f:(fun i -> return (f i)))
+  in
+  assert_sequences_equal (Sequence.concat_map numbers ~f) deferred_result;
+;;
+
+let map = map
 
 TEST_UNIT =
   let f i = i * 2 in
@@ -112,7 +125,6 @@ let all_unit = all_unit
 let find     = find
 let find_map = find_map
 let init     = init
-let map      = map
 
 TEST_UNIT =
   for n = 0 to 5 do

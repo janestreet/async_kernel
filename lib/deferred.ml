@@ -199,6 +199,8 @@ module Sequence = struct
     Sequence.of_list (List.rev s)
   ;;
 
+  let concat_map ?how t ~f = map ?how t ~f >>| Sequence.concat
+
   let filter ?how t ~f =
     filter_map ?how t ~f:(fun a ->
       f a
@@ -259,6 +261,8 @@ module List = struct
   ;;
 
   let filter_map ?how t ~f = map t ?how ~f >>| List.filter_opt
+
+  let concat_map ?how t ~f = map t ?how ~f >>| List.concat
 
   let rec find_map t ~f =
     match t with
@@ -329,6 +333,8 @@ module Array = struct
 
   let filter_map ?how t ~f = map t ?how ~f >>| Array.filter_opt
 
+  let concat_map ?how t ~f = map t ?how ~f >>| fun t -> Array.concat (Array.to_list t)
+
   let find_map t ~f =
     let rec aux i =
       if i = Array.length t
@@ -377,6 +383,10 @@ module Queue = struct
   let filter ?how t ~f = List.filter ?how (Queue.to_list t) ~f >>| Queue.of_list
 
   let filter_map ?how t ~f = List.filter_map ?how (Queue.to_list t) ~f >>| Queue.of_list
+
+  let concat_map ?how t ~f =
+    List.concat_map ?how (Queue.to_list t) ~f:(fun x -> f x >>| Queue.to_list)
+    >>| Queue.of_list
 
   let find_map t ~f = List.find_map (Queue.to_list t) ~f
 

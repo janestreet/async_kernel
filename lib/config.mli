@@ -15,9 +15,15 @@ open Core.Std
 
 module Epoll_max_ready_events              : Validated with type raw := int
 module Max_inter_cycle_timeout             : Validated with type raw := Time.Span.t
-module Max_num_open_file_descrs            : Validated with type raw := int
 module Max_num_threads                     : Validated with type raw := int
 module Max_num_jobs_per_priority_per_cycle : Validated with type raw := int
+
+module Max_num_open_file_descrs : sig
+  include Validated with type raw := int
+  include Equal.S   with type t := t
+
+  val default : t
+end
 
 module Dump_core_on_job_delay : sig
   type watch =
@@ -56,7 +62,7 @@ module Print_debug_messages_for : sig
 end
 
 module File_descr_watcher : sig
-  type t = Epoll | Select with sexp_of
+  type t = Epoll_if_timerfd | Epoll | Select with sexp_of
 end
 
 (** Documentation on these is in strings in config.ml, so it can be output in the

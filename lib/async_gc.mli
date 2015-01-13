@@ -3,6 +3,9 @@
 open Core.Std
 
 include module type of Core_kernel.Std.Gc
+  (** We remove the [Expert] module, which has functions that are superseded by
+      Async-friendly functions below. *)
+  with module Expert := Core_kernel.Std.Gc.Expert
 
 (** [add_finalizer b f] ensures that [f] runs after [b] becomes unreachable.  [f b] will
     run in its own Async job.  If [f] raises, the unhandled exception will be raised to
@@ -39,3 +42,18 @@ include module type of Core_kernel.Std.Gc
 *)
 val add_finalizer     : 'a Heap_block.t -> ('a Heap_block.t -> unit) -> unit
 val add_finalizer_exn : 'a -> ('a -> unit) -> unit
+
+(** A GC alarm calls a user function after the end of each major GC cycle. *)
+module Alarm : sig
+
+  type t with sexp_of
+
+  (** [create f] arranges for [f] to be called after the end of each major GC cycle,
+      starting with the current cycle or the next one.  [f] will be run in the monitor
+      that [create] was called in. *)
+  val create : (unit -> unit) -> t
+
+  (** [delete t] will stop the calls to the function associated with [a].  Calling [delete
+      t] again has no effect. *)
+  val delete : t -> unit
+end

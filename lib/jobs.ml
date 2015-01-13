@@ -313,6 +313,8 @@ let enqueue_job t job ~free_job =
   if free_job then P.free t.job_pool job;
 ;;
 
+let free_job t job = Job.Pool.free t.job_pool job
+
 let create_job t execution_context f a =
   if Job.Pool.is_full t.job_pool then t.job_pool <- Job.Pool.grow t.job_pool;
   Job.create t.job_pool execution_context f a;

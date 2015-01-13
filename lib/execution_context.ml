@@ -38,10 +38,8 @@ let with_local t key data =
   { t with local_storage = Univ_map.change t.local_storage key (fun _ -> data) }
 ;;
 
-let record_backtrace =
-  match Backtrace.get with
-  | Error _ -> Fn.id
-  | Ok get -> fun t -> { t with backtrace_history = get () :: t.backtrace_history }
+let record_backtrace t =
+  { t with backtrace_history = Backtrace.get () :: t.backtrace_history }
 ;;
 
 let is_alive t ~global_kill_index =

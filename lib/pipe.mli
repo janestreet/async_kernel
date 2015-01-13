@@ -305,7 +305,8 @@ val read
 val read_at_most
   :  ?consumer:Consumer.t
   -> 'a Reader.t
-  -> num_values:int -> [ `Eof | `Ok of 'a Queue.t ] Deferred.t
+  -> num_values:int
+  -> [ `Eof | `Ok of 'a Queue.t ] Deferred.t
 
 (** [read_exactly r ~num_values] reads exactly [num_values] items, unless EOF is
     encountered.  [read_exactly] performs a sequence of [read_at_most] operations, so
@@ -334,13 +335,18 @@ val read_exactly
     [read_now] is like [read_now'], except that it reads a single value rather than
     everything that is available. *)
 val read_now'
-  :  ?consumer:Consumer.t
+  :  ?consumer : Consumer.t
   -> 'a Reader.t
   -> [ `Eof | `Nothing_available | `Ok of 'a Queue.t ]
 val read_now
-  :  ?consumer:Consumer.t
+  :  ?consumer : Consumer.t
   -> 'a Reader.t
   -> [ `Eof | `Nothing_available | `Ok of 'a ]
+val read_now_at_most
+  :  ?consumer  : Consumer.t
+  -> 'a Reader.t
+  -> num_values : int
+  -> [ `Eof | `Nothing_available | `Ok of 'a Queue.t]
 
 val peek : 'a Reader.t -> 'a option
 

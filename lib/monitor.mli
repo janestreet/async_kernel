@@ -189,6 +189,8 @@ val protect
      -> 'a Deferred.t
     ) with_optional_monitor_name
 
+(** This it the initial monitor and is the root of the monitor tree.  Unhandled exceptions
+    are raised to this monitor. *)
 val main : t
 
 (** [kill t] causes [t] and all of [t]'s descendants to never start another job.  The job

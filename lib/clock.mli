@@ -45,7 +45,15 @@ module Event: sig
 
   include Invariant.S with type t := t
 
-  val status : t -> [ `Happened | `Waiting | `Aborted ]
+  (** If [status] returns [`Will_happen_at time], it is possible that [time < Time.now
+      ()], if Async's scheduler hasn't yet gotten the chance to update its clock, e.g.
+      due to user jobs running. *)
+  val status
+    : t -> [ `Happened
+           | `Will_happen_at of Time.t
+           | `Aborted
+           ]
+
   val abort : t -> [ `Ok | `Previously_aborted | `Previously_happened ]
 
   (* [at time] returns a pair [t, d], where [d] is like [at time], except that if one

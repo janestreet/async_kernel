@@ -15,8 +15,9 @@ include Invariant.S1 with type 'a t := 'a t
 (** [equal t t'] is physical equality of [t] and [t']. *)
 val equal : 'a t -> 'a t -> bool
 
-(** [create ()] returns an empty ivar. *)
-val create : unit -> 'a t
+(** [create ()] returns an empty ivar, [create_full], a full one. *)
+val create      : unit -> 'a t
+val create_full : 'a   -> 'a t
 
 (** [fill t v] fills [t] with value [v] if [t] was empty.  If [t] was full, fill raises
     an exception.

@@ -17,12 +17,18 @@ module Max_inter_cycle_timeout =
     let validate = Time.Span.validate_positive
   end)
 
-module Max_num_open_file_descrs =
-  Validated.Make (struct
-    include Int
-    let here = _here_
-    let validate = Int.validate_positive
-  end)
+module Max_num_open_file_descrs = struct
+  include
+    Validated.Make (struct
+       include Int
+       let here = _here_
+       let validate = Int.validate_positive
+    end)
+
+  let default = create_exn 8192
+
+  let equal (t1 : t) t2 = t1 = t2
+end
 
 module Max_num_threads =
   Validated.Make (struct
@@ -101,14 +107,14 @@ end
 module File_descr_watcher = struct
 
   module T = struct
-    type t = Epoll | Select with sexp
+    type t = Epoll_if_timerfd | Epoll | Select with sexp
   end
 
   include T
 
   include Sexpable.To_stringable (T)
 
-  let list = [ Epoll; Select ]
+  let list = [ Epoll_if_timerfd; Epoll; Select ]
 
 end
 
@@ -146,13 +152,6 @@ let empty =
   ; report_thread_pool_stuck_for        = None
   ; timing_wheel_config                 = None
   }
-;;
-
-let default_file_descr_watcher, default_max_num_open_file_descrs =
-  (* Without timerfd, epoll_wait(2) timeouts would have only millisecond precision. *)
-  if Result.is_ok Linux_ext.Timerfd.create
-  then File_descr_watcher.Epoll , Max_num_open_file_descrs.create_exn 8192
-  else File_descr_watcher.Select, Max_num_open_file_descrs.create_exn 1024
 ;;
 
 let default_timing_wheel_config (word_size : Word_size.t) =
@@ -198,15 +197,19 @@ TEST_UNIT =
 let default_timing_wheel_config = default_timing_wheel_config Word_size.word_size
 
 let default =
+  (* For [file_descr_watcher] and [max_num_open_file_descrs] we choose the default for the
+     common case that [epoll] is available.  There is some additional code in
+     [Async_unix.Config] that checks whether [epoll] is actually available, and if not,
+     uses [select] and a smaller number of file descriptors. *)
   { abort_after_thread_pool_stuck_for   = Some (sec 60.)
   ; check_invariants                    = Some false
   ; detect_invalid_access_from_thread   = Some false
   ; dump_core_on_job_delay              = Some Do_not_watch
   ; epoll_max_ready_events              = Some (Epoll_max_ready_events.create_exn 256)
-  ; file_descr_watcher                  = Some default_file_descr_watcher
+  ; file_descr_watcher                  = Some Epoll_if_timerfd
   ; max_inter_cycle_timeout             =
       Some (Max_inter_cycle_timeout.create_exn (sec 0.05))
-  ; max_num_open_file_descrs            = Some default_max_num_open_file_descrs
+  ; max_num_open_file_descrs            = Some Max_num_open_file_descrs.default
   ; max_num_threads                     = Some (Max_num_threads.create_exn 50)
   ; max_num_jobs_per_priority_per_cycle =
       Some (Max_num_jobs_per_priority_per_cycle.create_exn 500)
@@ -236,45 +239,52 @@ let field_descriptions () : string =
     Fields.fold ~init:[]
       ~abort_after_thread_pool_stuck_for:(field <:sexp_of< Time.Span.t >>
                                             ["
-  By default, async will send an exception to the toplevel monitor if it detects that the
-  thread pool is stuck for longer than this.
+  By default, Async will send an exception to the toplevel monitor
+  if it detects that the thread pool is stuck for longer than this.
 "
                                             ])
       ~check_invariants:(field <:sexp_of< bool >>
                            ["
-  If true, causes async to regularly check invariants of its internal
+  If true, causes Async to regularly check invariants of its internal
   data structures.  This can substantially slow down your program.
 "
                            ])
       ~detect_invalid_access_from_thread:(field <:sexp_of< bool >>
                                             ["
-  If true, causes async routines to check if they are being accessed
-  from some thread other than the thread currently holding the async
+  If true, causes Async routines to check if they are being accessed
+  from some thread other than the thread currently holding the Async
   lock, which is not allowed and can lead to very confusing behavior.
 "
                                             ])
       ~dump_core_on_job_delay:(field <:sexp_of< Dump_core_on_job_delay.t >>
                                  ["
-  Can be set to [Do_not_watch] or [(Watch ((dump_if_delayed_by SPAN) (how_to_dump HOW)))].
-  If set to [Watch], then on program start this will start a regular async job that
-  increments a counter, and a C thread that will detect if that job is delayed by
-  [dump_if_delayed_by], and if so, will core dump the program.  If available,
-  [/usr/bin/gcore] is used by default to dump the core, which should allow the program to
-  continue running.  Otherwise, [abort] will be called from C, which will kill the
-  program while causing a core dump.  One can force [abort] or [gcore] via [how_to_dump],
-  which should be one of: [Call_abort], [Call_gcore], or [Default].
+  Can be set to [Do_not_watch] or:
+
+    (Watch ((dump_if_delayed_by SPAN) (how_to_dump HOW)))
+
+  If set to [Watch], then on program start this will start a regular
+  Async job that increments a counter, and a C thread that will
+  detect if that job is delayed by [dump_if_delayed_by], and if so,
+  will core dump the program.  If available, [/usr/bin/gcore] is
+  used by default to dump the core, which should allow the program
+  to continue running.  Otherwise, [abort] will be called from C,
+  which will kill the program while causing a core dump.  One can
+  force [abort] or [gcore] via [how_to_dump], which should be one of:
+  [Call_abort], [Call_gcore], or [Default].
 "
                                  ])
       ~epoll_max_ready_events:(field <:sexp_of< Epoll_max_ready_events.t >>
                                  ["
-  The maximum number of ready events that async's call to [Epoll.wait]
+  The maximum number of ready events that Async's call to [Epoll.wait]
   will handle.
 "
                                  ])
       ~file_descr_watcher:(field <:sexp_of< File_descr_watcher.t >>
                              ["
-  This determines what OS subsystem async uses to watch file
-  descriptors for being ready.  Allowed values are:";
+  This determines what OS subsystem Async uses to watch file descriptors for being ready.
+  The default is to use [epoll] if timerfd's are supported and if not, use [select].
+
+  Allowed values are:";
                               concat ~sep:", "
                                 (List.map File_descr_watcher.list
                                    ~f:File_descr_watcher.to_string);
@@ -288,7 +298,7 @@ let field_descriptions () : string =
                                    ])
       ~max_num_threads:(field <:sexp_of< Max_num_threads.t >>
                           ["
-  The maximum number of threads that async will create to do blocking
+  The maximum number of threads that Async will create to do blocking
   system calls and handle calls to [In_thread.run].
 "
                           ])
@@ -298,10 +308,10 @@ let field_descriptions () : string =
   when it has no jobs and is going to wait for I/O.  In principle one
   doesn't need this, and we could use an infinite timeout.  We instead
   use a small timeout (by default), to be more robust to bugs that
-  could prevent async from waking up and servicing events.  For
+  could prevent Async from waking up and servicing events.  For
   example, as of 2013-01, the OCaml runtime has a bug that causes it
   to not necessarily run an OCaml signal handler in a timely manner.
-  This in turn can cause a simple async program that is waiting on a
+  This in turn can cause a simple Async program that is waiting on a
   signal to hang, when in fact it should handle the signal.
 
   We use 50ms as the default timeout, because it is infrequent enough
@@ -314,16 +324,16 @@ let field_descriptions () : string =
         (field <:sexp_of< Max_num_jobs_per_priority_per_cycle.t >>
            ["
   The maximum number of jobs that will be done at each priority within
-  each async cycle.  This limits how many jobs the scheduler will run
+  each Async cycle.  This limits how many jobs the scheduler will run
   before pausing to check for I/O.
 "
            ])
       ~print_debug_messages_for:
         (field <:sexp_of< Debug_tag.t list >>
            ["
-  A list of tags specifying which async functions should print debug
-  messages to stderr.  Each tag identifies a group of related async
-  functions.  The tag 'all' means to print debug messages for all
+  A list of tags specifying which Async functions should print debug
+  messages to stderr.  Each tag identifies a group of related Async
+  functions.  The tag [all] means to print debug messages for all
   functions.  Allowed values are:
 
 ";
@@ -336,9 +346,9 @@ let field_descriptions () : string =
            ])
       ~record_backtraces:(field <:sexp_of< bool >>
                             ["
-  If true, this will cause async to keep in the execution context the
+  If true, this will cause Async to keep in the execution context the
   history of stack backtraces (obtained via [Backtrace.get]) that led
-  to the current job.  If an async job has an unhandled exception,
+  to the current job.  If an Async job has an unhandled exception,
   this backtrace history will be recorded in the exception.  In
   particular the history will appean in an unhandled exception that
   reaches the main monitor.  This can have a substantial performance
@@ -347,16 +357,17 @@ let field_descriptions () : string =
                             ])
       ~report_thread_pool_stuck_for:(field <:sexp_of< Time.Span.t >>
                                        ["
-  By default, async will print a message to stderr every second if the thread pool is
-  stuck for longer than this.
+  By default, Async will print a message to stderr every second if
+  the thread pool is stuck for longer than this.
 "
                                        ])
       ~timing_wheel_config:(field <:sexp_of< Timing_wheel.Config.t >>
                               ["
-  This is used to adjust the time/space tradeoff in the timing wheel used to implement
-  async's clock.  Time is split into intervals of size [alarm_precision], and alarms with
-  times in the same interval fire in the same cycle.  Level [i] in the timing wheel has
-  an array of size [2^b], where [b] is the [i]'th entry in [level_bits].
+  This is used to adjust the time/space tradeoff in the timing wheel
+  used to implement Async's clock.  Time is split into intervals of
+  size [alarm_precision], and alarms with times in the same interval
+  fire in the same cycle.  Level [i] in the timing wheel has an
+  array of size [2^b], where [b] is the [i]'th entry in [level_bits].
 "
                               ])
   in
@@ -373,7 +384,7 @@ let field_descriptions () : string =
 let help_message () =
   concat [
     "\
-The "; environment_variable;" environment variable affects async
+The "; environment_variable;" environment variable affects Async
 in various ways.  Its value should be a sexp of the following form,
 where all fields are optional:
 

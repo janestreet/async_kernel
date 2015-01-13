@@ -7,6 +7,12 @@ let debug = Debug.scheduler
 
 module Job = Jobs.Job
 
+module Yield_ivar = struct
+  type t = ..
+
+  let sexp_of_t = <:sexp_of< _ >>
+end
+
 module T = struct
   type t =
     {(* [check_access] optionally holds a function to run to check whether access to [t]
@@ -37,6 +43,8 @@ module T = struct
     ; external_actions                            : (unit -> unit) Thread_safe_queue.t sexp_opaque
     ; mutable thread_safe_external_action_hook    : (unit -> unit)
 
+    ; mutable yield_ivar                          : Yield_ivar.t option
+
     (* configuration*)
     ; mutable check_invariants                    : bool
     ; mutable max_num_jobs_per_priority_per_cycle : Max_num_jobs_per_priority_per_cycle.t
@@ -63,6 +71,7 @@ let invariant t : unit =
       ~events:(check (Timing_wheel.invariant Job.invariant))
       ~external_actions:ignore
       ~thread_safe_external_action_hook:ignore
+      ~yield_ivar:ignore
       ~check_invariants:ignore
       ~max_num_jobs_per_priority_per_cycle:ignore
       ~record_backtraces:ignore
@@ -90,6 +99,7 @@ let create () =
   ; events
   ; external_actions                    = Thread_safe_queue.create ()
   ; thread_safe_external_action_hook    = ignore
+  ; yield_ivar                          = None
   (* configuration*)
   ; check_invariants                    = Config.check_invariants
   ; max_num_jobs_per_priority_per_cycle = Config.max_num_jobs_per_priority_per_cycle

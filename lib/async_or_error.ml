@@ -1,4 +1,3 @@
-
 open Core.Std
 
 include (Deferred.Result : Monad.S2 with type ('a, 'b) t := ('a, 'b) Deferred.Result.t)
@@ -16,6 +15,14 @@ let of_exn_result t = Deferred.map t ~f:Or_error.of_exn_result
 let error msg v sexp_of = Deferred.return (Or_error.error msg v sexp_of)
 
 let error_string msg = Deferred.return (Or_error.error_string msg)
+
+let errorf format = ksprintf error_string format
+
+let tag t message = Deferred.map t ~f:(fun t -> Or_error.tag t message)
+
+let tag_arg t message a sexp_of_a =
+  Deferred.map t ~f:(fun t -> Or_error.tag_arg t message a sexp_of_a)
+;;
 
 let unimplemented msg = Deferred.return (Or_error.unimplemented msg)
 
@@ -81,6 +88,8 @@ module List = struct
   let init ?how n ~f = map ?how (List.init n ~f:Fn.id) ~f
 
   let filter_map ?how t ~f = map t ?how ~f >>| List.filter_opt
+
+  let concat_map ?how t ~f = map t ?how ~f >>| List.concat
 
   let filter ?how t ~f =
     filter_map ?how t ~f:(fun x ->

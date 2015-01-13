@@ -25,6 +25,8 @@ val enqueue     : t -> Execution_context.t -> ('a -> unit) -> 'a -> unit
 val create_job  : t -> Execution_context.t -> ('a -> unit) -> 'a -> Job.t
 val enqueue_job : t -> Job.t -> free_job:bool -> unit
 
+val free_job : t -> Job.t -> unit
+
 (** [start_cycle t ~max_num_jobs_per_priority] enables subsequent calls of [run_all] to
     run up to [max_num_jobs_per_priority] jobs of each priority level. *)
 val start_cycle

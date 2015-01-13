@@ -506,6 +506,9 @@ let gen_read_now ?consumer t consume =
 
 let read_now' ?consumer t = gen_read_now t ?consumer consume_all
 let read_now  ?consumer t = gen_read_now t ?consumer consume_one
+let read_now_at_most ?consumer t ~num_values =
+  gen_read_now t ?consumer (fun t consumer -> consume_at_most t num_values consumer)
+;;
 
 let peek t = Queue.peek t.buffer
 
@@ -870,6 +873,7 @@ let interleave inputs =
 
 let merge inputs ~cmp =
   let r, w = create () in
+  upon (closed w) (fun () -> List.iter inputs ~f:close_read);
   let heap = Heap.create ~cmp:(fun (a1, _) (a2, _) -> cmp a1 a2) () in
   let handle_read input eof_or_ok =
     match eof_or_ok with
@@ -878,25 +882,33 @@ let merge inputs ~cmp =
   in
   let rec pop_heap_and_loop () =
     (* At this point, all inputs not at Eof occur in [heap] exactly once, so we know what
-       the next output element is. *)
+       the next output element is.  [pop_heap_and_loop] repeatedly takes elements from the
+       inputs as long as it has one from each input.  This is done synchronously to avoid
+       the cost of a deferred for each element of the output -- there's no need to
+       pushback since that is only moving elements from one pipe to another.  As soon as
+       [pop_heap_and_loop] can't get an element from some input, it waits on pushback from
+       the output, since it has to wait on the input anyway.  This also prevents [merge]
+       from consuming inputs at a rate faster than its output is consumed. *)
     match Heap.pop heap with
     | None -> close w
     | Some (v, input) ->
-      write_without_pushback w v;
-      if Heap.length heap = 0
-      then upon (transfer_id input w) (fun () -> close w)
-      else
-        match read_now input with
-        | `Eof | `Ok _ as x ->
-          handle_read input x;
-          pop_heap_and_loop ();
-        | `Nothing_available ->
-          pushback w
-          >>> fun () ->
-          read input
-          >>> fun x ->
-          handle_read input x;
-          pop_heap_and_loop ();
+      if not (is_closed w) then begin
+        write_without_pushback w v;
+        if Heap.length heap = 0
+        then upon (transfer_id input w) (fun () -> close w)
+        else
+          match read_now input with
+          | `Eof | `Ok _ as x ->
+            handle_read input x;
+            pop_heap_and_loop ();
+          | `Nothing_available ->
+            pushback w
+            >>> fun () ->
+            read input
+            >>> fun x ->
+            handle_read input x;
+            pop_heap_and_loop ();
+      end
   in
   let initial_push =
     Deferred.List.iter inputs ~f:(fun input ->
@@ -1263,6 +1275,15 @@ TEST_MODULE = struct
     in
     stabilize ();
     assert (Deferred.is_determined finished);
+  ;;
+
+  TEST_UNIT = (* [merge] stops and closes its input when its output is closed *)
+    let r, w = create () in
+    write_without_pushback w 1;
+    let t = merge [ r ] ~cmp:Int.compare in
+    close_read t;
+    stabilize ();
+    assert (is_closed w);
   ;;
 
   (* ==================== iter' ==================== *)

@@ -1,3 +1,43 @@
+## 112.17.00
+
+- Fixed a space leak in `Clock.Event.abort`, making it free the job
+  that was created and stored in the timing wheel.
+- Moved `Scheduler.yield` from `Async_unix`.
+- Fixed a bug in `Scheduler.yield_every`, so that it doesn't
+  initialize the scheduler until the staged function is called.
+- Added `concat_map` function to `Monad_sequence` interface.
+- Added `Shutdown.shutdown_on_unhandled_exn`.
+- Added some functions to `Deferred.Or_error` to parallel
+  `Core.Or_error`: `errorf`, `tag`, `tag_arg`.
+
+  ```ocaml
+  val errorf : ('a, unit, string, _ t) format4 -> 'a
+  val tag : 'a t -> string -> 'a t
+  val tag_arg : 'a t -> string -> 'b -> ('b -> Sexp.t) -> 'a t
+  ```
+- Added `Gc.Alarm`, an Async-friendly wrapper around
+  `Core.Gc.Expert.Alarm`.
+- Removed `Gc.Expert`, whose functions are superseded by
+  Async-friendly functions in `Gc` proper.
+- Added `Pipe.read_now_at_most`.
+- Changed `Pipe.merge` to check whether its output is closed, and if
+  so, stop rather than write to it (which raised).
+
+  Also, made `Pipe.merge` close its inputs whenever its output is
+  closed.
+- Changed `Clock.at` to return `Deferred.unit` if it is supplied a
+  time in the past.
+
+  Previously, it would create an empty ivar and a job to fill it that
+  would run in the next cycle.
+- Changed `Clock.Event.status` to return ````Will_happen_at of
+  Time.t``` rather than ````Waiting```, if applicable.
+- Added `Ivar.create_full`.
+- Moved the use of `Linux_ext` to `Async_unix`.
+
+  This is one of the necessary steps in making `Async_kernel` depend
+  on `Core_kernel` rather than `Core`.
+
 ## 112.06.00
 
 - Added `Deferred.Sequence` module, analogous to `Deferred.List` but for

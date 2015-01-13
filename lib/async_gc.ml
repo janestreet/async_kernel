@@ -10,6 +10,16 @@ include Gc
 let add_finalizer     heap_block f = Scheduler.(add_finalizer     (t ())) heap_block f
 let add_finalizer_exn heap_block f = Scheduler.(add_finalizer_exn (t ())) heap_block f
 
+module Alarm = struct
+  module Alarm = Gc.Expert.Alarm
+
+  type t = Alarm.t with sexp_of
+
+  let create f = Scheduler.(create_alarm (t ())) f
+
+  let delete = Alarm.delete
+end
+
 TEST_MODULE = struct
 
   let stabilize () =
@@ -28,4 +38,17 @@ TEST_MODULE = struct
     assert (!r = 17);
   ;;
 
+  TEST_UNIT =
+    let r = ref false in
+    let alarm = Alarm.create (fun () -> r := true) in
+    stabilize ();
+    assert !r;
+    r := false;
+    stabilize ();
+    assert !r;
+    Alarm.delete alarm;
+    r := false;
+    stabilize ();
+    assert (not !r);
+  ;;
 end

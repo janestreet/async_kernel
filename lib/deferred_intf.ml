@@ -20,6 +20,7 @@ module type Monad_sequence = sig
   val map        : ?how:how -> 'a t -> f:(       'a ->         'b monad) -> 'b t monad
   val filter     : ?how:how -> 'a t -> f:(       'a ->       bool monad) -> 'a t monad
   val filter_map : ?how:how -> 'a t -> f:(       'a  -> 'b option monad) -> 'b t monad
+  val concat_map : ?how:how -> 'a t -> f:(       'a  -> 'b      t monad) -> 'b t monad
 
   val find     : 'a t -> f:('a -> bool      monad) -> 'a option monad
   val find_map : 'a t -> f:('a -> 'b option monad) -> 'b option monad

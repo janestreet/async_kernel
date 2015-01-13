@@ -47,7 +47,11 @@ let main_execution_context = (t ()).main_execution_context
 
 let num_pending_jobs t = Jobs.length t.jobs
 
+let can_run_a_job t = num_pending_jobs t > 0 || Option.is_some t.yield_ivar
+
 let next_upcoming_event t = Timing_wheel.next_alarm_fires_at t.events
+
+let event_precision t = Timing_wheel.alarm_precision t.events
 
 let cycle_start t = t.cycle_start
 
@@ -77,6 +81,13 @@ let set_thread_safe_external_action_hook t f = t.thread_safe_external_action_hoo
 let thread_safe_enqueue_external_action t f =
   Thread_safe_queue.enqueue t.external_actions f;
   t.thread_safe_external_action_hook ();
+;;
+
+let create_alarm t f =
+  let execution_context = current_execution_context t in
+  Gc.Expert.Alarm.create (fun () ->
+    thread_safe_enqueue_external_action t (fun () ->
+      Raw_scheduler.enqueue t execution_context f ()));
 ;;
 
 let add_finalizer t heap_block f =
@@ -112,15 +123,26 @@ let add_finalizer_exn t x f =
 
 let force_current_cycle_to_end t = Jobs.force_current_cycle_to_end t.jobs
 
+type Raw_scheduler.Yield_ivar.t += T of unit Ivar.t
+
+let advance_clock t ~now =
+  Timing_wheel.advance_clock t.events ~to_:now ~handle_fired:(fun alarm ->
+    enqueue_job t (Timing_wheel.Alarm.value t.events alarm) ~free_job:true);
+;;
+
 let run_cycle t =
   if debug then Debug.log "run_cycle starting" t <:sexp_of< t >>;
   let now = Time.now () in
   t.cycle_count <- t.cycle_count + 1;
   t.cycle_start <- now;
+  begin match t.yield_ivar with
+  | None -> ()
+  | Some (T ivar) -> Ivar.fill ivar (); t.yield_ivar <- None;
+  | Some _ -> failwith "unexpected yield_ivar"
+  end;
   let num_jobs_run_at_start_of_cycle = num_jobs_run t in
   List.iter t.run_every_cycle_start ~f:(fun f -> f ());
-  Timing_wheel.advance_clock t.events ~to_:now ~handle_fired:(fun alarm ->
-    enqueue_job t (Timing_wheel.Alarm.value t.events alarm) ~free_job:true);
+  advance_clock t ~now;
   Jobs.start_cycle t.jobs
     ~max_num_jobs_per_priority:t.max_num_jobs_per_priority_per_cycle;
   let rec run_jobs () =
@@ -137,8 +159,23 @@ let run_cycle t =
   t.last_cycle_num_jobs <- num_jobs_run t - num_jobs_run_at_start_of_cycle;
   if debug
   then Debug.log "run_cycle finished"
-         (uncaught_exn t, is_some (Timing_wheel.next_alarm_fires_at t.events))
+         (uncaught_exn t, is_some (next_upcoming_event t))
          <:sexp_of< Error.t option * bool >>;
+;;
+
+(* Pause long enough so that events in the current timing-wheel interval, some of which
+   may be before [Time.now ()], are fired by the [Timing_wheel.advance_clock] in
+   [run_cycle].  This is necessary because timing-wheel events are guaranteed to fire only
+   by [event_precision] after their scheduled time. *)
+let pause_for_events_in_the_past t =
+  Option.iter (next_upcoming_event t) ~f:(fun next_upcoming_event ->
+    let precision = event_precision t in
+    let next_event_fires_in = Time.diff next_upcoming_event (Time.now ()) in
+    if Time.Span.( <= ) next_event_fires_in precision
+    then begin
+      Time.pause precision;
+      advance_clock t ~now:(Time.now ());
+    end);
 ;;
 
 let run_cycles_until_no_jobs_remain () =
@@ -149,6 +186,9 @@ let run_cycles_until_no_jobs_remain () =
          <:sexp_of< t >>;
   let rec loop () =
     run_cycle t;
+    (* We pause just before checking [Jobs.is_empty], so that clock events that fire
+       become jobs, and thus cause an additional [loop]. *)
+    pause_for_events_in_the_past t;
     if not (Jobs.is_empty t.jobs) then loop ();
   in
   loop ();
@@ -170,6 +210,36 @@ let check_invariants t = t.check_invariants
 let set_check_invariants t b = t.check_invariants <- b
 
 let set_record_backtraces t b = t.record_backtraces <- b
+
+let yield t =
+  let ivar =
+    match t.yield_ivar with
+    | Some (T ivar) -> ivar
+    | Some _ -> failwith "unexpected yield_ivar"
+    | None ->
+      let ivar = Ivar.create () in
+      t.yield_ivar <- Some (T ivar);
+      ivar
+  in
+  Ivar.read ivar
+;;
+
+let yield_every ~n =
+  if n <= 0
+  then failwiths "Scheduler.yield_every got nonpositive count" n <:sexp_of< int >>
+  else if n = 1
+  then stage (fun t -> yield t)
+  else
+    let count_until_yield = ref n in
+    stage (fun t ->
+      decr count_until_yield;
+      if !count_until_yield > 0
+      then Deferred.unit
+      else begin
+        count_until_yield := n;
+        yield t;
+      end)
+;;
 
 TEST_MODULE = struct
   (* [Monitor.kill] *)

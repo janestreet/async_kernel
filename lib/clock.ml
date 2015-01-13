@@ -13,25 +13,30 @@ let debug = Debug.clock
    current time, not some artifact of async implementation. *)
 let span_to_time span = Time.add (Time.now ()) span
 
-let run_at time f a =
-  let scheduler = Raw_scheduler.t () in
+let run_at_internal (scheduler : Raw_scheduler.t) time f a =
   let events = scheduler.events in
   let execution_context = Raw_scheduler.current_execution_context scheduler in
-  if Time.(<) time (Timing_wheel.now events)
+  if Time.( <= ) time (Timing_wheel.now events)
   then Raw_scheduler.enqueue scheduler execution_context f a
   else ignore (Timing_wheel.add events ~at:time
                  (Raw_scheduler.create_job scheduler execution_context f a)
                : _ Timing_wheel.Alarm.t);
 ;;
 
+let run_at time f a = run_at_internal (Raw_scheduler.t ()) time f a
+
 let run_after span f a = run_at (span_to_time span) f a
 
 let at =
   let fill result = Ivar.fill result () in
   fun time ->
-    let result = Ivar.create () in
-    run_at time fill result;
-    Ivar.read result;
+    let scheduler = Raw_scheduler.t () in
+    if Time.( <= ) time (Timing_wheel.now scheduler.events)
+    then Deferred.unit
+    else
+      let result = Ivar.create () in
+      run_at_internal scheduler time fill result;
+      Ivar.read result;
 ;;
 
 let after span = at (span_to_time span)
@@ -39,8 +44,8 @@ let after span = at (span_to_time span)
 module Event = struct
 
   type t =
-    { mutable alarm : Job.t Timing_wheel.Alarm.t
-    ; ready         : [ `Happened | `Aborted ] Ivar.t
+    { alarm : Job.t Timing_wheel.Alarm.t
+    ; ready : [ `Happened | `Aborted ] Ivar.t
     }
   with fields, sexp_of
 
@@ -57,42 +62,61 @@ module Event = struct
 
   let status t =
     match Deferred.peek (Ivar.read t.ready) with
-    | None -> `Waiting
-    | Some x -> (x :> [ `Happened | `Aborted | `Waiting ])
+    | Some x -> (x :> [ `Happened | `Aborted | `Will_happen_at of Time.t ])
+    | None ->
+      let scheduler = Raw_scheduler.t () in
+      let events = scheduler.events in
+      if Timing_wheel.mem events t.alarm
+      then `Will_happen_at (Timing_wheel.Alarm.at events t.alarm)
+      else begin
+        (* [advance_clock] already scheduled [fire] and removed [t.alarm], but the [fire]
+           job didn't yet run.  We go ahead and pretend it happened though.  The
+           subsequent [fire] job will be a no-op. *)
+        Ivar.fill t.ready `Happened;
+        `Happened
+      end;
   ;;
 
-  let abort t =
+ let abort t =
     if debug then Debug.log "Clock.Event.abort" t <:sexp_of< t >>;
     match status t with
     | `Aborted -> `Previously_aborted
     | `Happened -> `Previously_happened
-    | `Waiting ->
+    | `Will_happen_at _ ->
       Ivar.fill t.ready `Aborted;
-      let events = Raw_scheduler.(events (t ())) in
+      let scheduler = Raw_scheduler.t () in
+      let events = scheduler.events in
       (* [t.alarm] might have been removed from [events] due to [advance_clock], even
          though the resulting [fire] job hasn't run yet.  So, we have to check before
          removing it. *)
-      if Timing_wheel.mem events t.alarm then Timing_wheel.remove events t.alarm;
+      if Timing_wheel.mem events t.alarm then begin
+        Jobs.free_job scheduler.jobs (Timing_wheel.Alarm.value events t.alarm);
+        Timing_wheel.remove events t.alarm;
+      end;
       `Ok
   ;;
 
   let at time =
     if debug then Debug.log "Clock.Event.at" time <:sexp_of< Time.t >>;
-    let t = { alarm = Timing_wheel.Alarm.null (); ready = Ivar.create () } in
     let scheduler = Raw_scheduler.t () in
     let events = Raw_scheduler.events scheduler in
-    let fire () =
-      match status t with
-      | `Happened -> assert false
-      | `Aborted -> ()
-      | `Waiting -> Ivar.fill t.ready `Happened
+    let t =
+      if Time.(<) time (Timing_wheel.now events)
+      then
+        { alarm = Timing_wheel.Alarm.null ()
+        ; ready = Ivar.create_full `Happened
+        }
+      else
+        let ready = Ivar.create () in
+        let fire () = Ivar.fill_if_empty ready `Happened in
+        let alarm =
+          Timing_wheel.add events ~at:time
+            (Raw_scheduler.create_job scheduler
+               (Raw_scheduler.current_execution_context scheduler)
+               fire ())
+        in
+        { alarm ; ready }
     in
-    if Time.(<) time (Timing_wheel.now events)
-    then fire ()
-    else t.alarm <- Timing_wheel.add events ~at:time
-                      (Raw_scheduler.create_job scheduler
-                         (Raw_scheduler.current_execution_context scheduler)
-                         fire ());
     t, Ivar.read t.ready
   ;;
 
