@@ -1,9 +1,9 @@
-open Core.Std
+open Core_kernel.Std
 open Import
 
 let debug = Debug.monitor
 
-type t =
+type t = Types.Monitor.t =
   { name                            : Info.t
   ; here                            : Source_code_position.t option
   ; id                              : int

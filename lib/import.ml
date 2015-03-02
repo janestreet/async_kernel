@@ -1,6 +1,6 @@
 module Debug_in_this_directory = Debug
 
-open Core.Std  let _ = _squelch_unused_module_warning_
+open! Core_kernel.Std
 
 module Debug = Debug_in_this_directory
 
@@ -12,7 +12,9 @@ module Max_num_jobs_per_priority_per_cycle = Config.Max_num_jobs_per_priority_pe
 
 let concat = String.concat
 
-let eprints = Core.Std.Debug.eprints
-let eprint  = Core.Std.Debug.eprint
+let eprints = Core_kernel.Debug.eprints
+let eprint  = Core_kernel.Debug.eprint
+
+let sec = Time_ns.Span.of_sec
 
 let _squelch_unused_module_warning_ = ()

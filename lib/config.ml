@@ -1,5 +1,7 @@
 module Inria_sys = Sys
-open Core.Std
+open Core_kernel.Std
+
+let sec = Time_ns.Span.of_sec
 
 let concat = String.concat
 
@@ -12,9 +14,9 @@ module Epoll_max_ready_events =
 
 module Max_inter_cycle_timeout =
   Validated.Make (struct
-    include Time.Span
+    include Time_ns.Span
     let here = _here_
-    let validate = Time.Span.validate_positive
+    let validate = Time_ns.Span.validate_positive
   end)
 
 module Max_num_open_file_descrs = struct
@@ -46,7 +48,7 @@ module Max_num_jobs_per_priority_per_cycle =
 
 module Dump_core_on_job_delay = struct
   type watch =
-    { dump_if_delayed_by : Time.Span.t
+    { dump_if_delayed_by : Time_ns.Span.t
     ; how_to_dump        : [ `Default | `Call_abort | `Call_gcore ]
     }
   with sexp
@@ -119,7 +121,7 @@ module File_descr_watcher = struct
 end
 
 type t =
-  { abort_after_thread_pool_stuck_for   : Time.Span.t                           sexp_option
+  { abort_after_thread_pool_stuck_for   : Time_ns.Span.t                        sexp_option
   ; check_invariants                    : bool                                  sexp_option
   ; detect_invalid_access_from_thread   : bool                                  sexp_option
   ; dump_core_on_job_delay              : Dump_core_on_job_delay.t              sexp_option
@@ -131,8 +133,8 @@ type t =
   ; max_num_jobs_per_priority_per_cycle : Max_num_jobs_per_priority_per_cycle.t sexp_option
   ; print_debug_messages_for            : Debug_tag.t list                      sexp_option
   ; record_backtraces                   : bool                                  sexp_option
-  ; report_thread_pool_stuck_for        : Time.Span.t                           sexp_option
-  ; timing_wheel_config                 : Timing_wheel.Config.t                 sexp_option
+  ; report_thread_pool_stuck_for        : Time_ns.Span.t                        sexp_option
+  ; timing_wheel_config                 : Timing_wheel_ns.Config.t              sexp_option
   }
 with fields, sexp
 
@@ -157,41 +159,41 @@ let empty =
 let default_timing_wheel_config (word_size : Word_size.t) =
   let alarm_precision, level_bits =
     match word_size with
-    | W32 -> Time.Span.of_ms 1. , [ 10; 10; 9;   ]
-    | W64 -> Time.Span.of_ms 0.1, [ 15; 15; 9; 6 ]
+    | W32 -> Time_ns.Span.of_ms 1. , [ 10; 10; 9;   ]
+    | W64 -> Time_ns.Span.of_ms 0.1, [ 15; 15; 9; 6 ]
   in
-  Timing_wheel.Config.create
+  Timing_wheel_ns.Config.create
     ~alarm_precision
-    ~level_bits:(Timing_wheel.Level_bits.create_exn level_bits)
+    ~level_bits:(Timing_wheel_ns.Level_bits.create_exn level_bits)
     ()
 ;;
 
 TEST_UNIT =
   List.iter [ Word_size.W32; W64 ] ~f:(fun word_size ->
     let config = default_timing_wheel_config word_size in
-    let actual_durations = Timing_wheel.Config.durations config in
-    let year = Time.Span.(scale day) 365. in
+    let actual_durations = Timing_wheel_ns.Config.durations config in
+    let year = Time_ns.Span.(scale day) 365. in
     let lower_bounds =
       match word_size with
-      | W32 -> Time.Span.([ 1. , second
-                          ; 17., minute
-                          ; 6.2, day
-                          ])
-      | W64 -> Time.Span.([ 3.2 , second
-                          ; 1.2 , day
-                          ; 1.7 , year
-                          ; 111., year
-                          ])
+      | W32 -> Time_ns.Span.([ 1. , second
+                             ; 17., minute
+                             ; 6.2, day
+                             ])
+      | W64 -> Time_ns.Span.([ 3.2 , second
+                             ; 1.2 , day
+                             ; 1.7 , year
+                             ; 111., year
+                             ])
     in
     let lower_bounds =
-      List.map lower_bounds ~f:(fun (scale, span) -> Time.Span.scale span scale)
+      List.map lower_bounds ~f:(fun (scale, span) -> Time_ns.Span.scale span scale)
     in
     try
       List.iter2_exn actual_durations lower_bounds ~f:(fun actual bound ->
-        assert (Time.Span.(>=) actual bound))
+        assert (Time_ns.Span.(>=) actual bound))
     with exn ->
       failwiths "lower bound violated" (exn, actual_durations, lower_bounds)
-        <:sexp_of< exn * Time.Span.t list * Time.Span.t list >>)
+        <:sexp_of< exn * Time_ns.Span.t list * Time_ns.Span.t list >>)
 ;;
 
 let default_timing_wheel_config = default_timing_wheel_config Word_size.word_size
@@ -237,7 +239,7 @@ let field_descriptions () : string =
   in
   let fields =
     Fields.fold ~init:[]
-      ~abort_after_thread_pool_stuck_for:(field <:sexp_of< Time.Span.t >>
+      ~abort_after_thread_pool_stuck_for:(field <:sexp_of< Time_ns.Span.t >>
                                             ["
   By default, Async will send an exception to the toplevel monitor
   if it detects that the thread pool is stuck for longer than this.
@@ -355,13 +357,13 @@ let field_descriptions () : string =
   impact, both in running time and space usage.
 "
                             ])
-      ~report_thread_pool_stuck_for:(field <:sexp_of< Time.Span.t >>
+      ~report_thread_pool_stuck_for:(field <:sexp_of< Time_ns.Span.t >>
                                        ["
   By default, Async will print a message to stderr every second if
   the thread pool is stuck for longer than this.
 "
                                        ])
-      ~timing_wheel_config:(field <:sexp_of< Timing_wheel.Config.t >>
+      ~timing_wheel_config:(field <:sexp_of< Timing_wheel_ns.Config.t >>
                               ["
   This is used to adjust the time/space tradeoff in the timing wheel
   used to implement Async's clock.  Time is split into intervals of

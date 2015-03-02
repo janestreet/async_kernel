@@ -1,4 +1,4 @@
-open Core.Std
+open Core_kernel.Std
 open Import  let _ = _squelch_unused_module_warning_
 open Deferred_std
 
@@ -30,7 +30,6 @@ TEST =
     false
   with _ -> true
 ;;
-
 
 (* [enqueue] does not start the job immediately. *)
 TEST_UNIT =
@@ -296,13 +295,24 @@ let kill = kill
 
 (* jobs started before [kill] finish. *)
 TEST_UNIT =
-  let t = create ~continue_on_error:false ~max_concurrent_jobs:1 in
-  let r = ref false in
-  let d = enqueue' t (fun () -> r := true; return ()) in
-  kill t;
+  let d =
+    let t = create ~continue_on_error:false ~max_concurrent_jobs:1 in
+    let started = Ivar.create () in
+    let finished = Ivar.create () in
+    let enqueue_result =
+      enqueue' t (fun () -> Ivar.fill started (); Ivar.read finished)
+    in
+    Ivar.read started
+    >>= fun () ->
+    kill t;
+    Ivar.fill finished ();
+    enqueue_result
+    >>= function
+    | `Ok () -> return ()
+    | `Aborted | `Raised _ -> assert false
+  in
   stabilize ();
-  assert (Deferred.peek d = Some (`Ok ()));
-  assert !r;
+  assert (Deferred.is_determined d);
 ;;
 
 (* jobs enqueued after [kill] are aborted. *)

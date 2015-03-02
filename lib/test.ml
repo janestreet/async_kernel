@@ -1,4 +1,4 @@
-open Core.Std
+open Core_kernel.Std
 open Std
 
 TEST_MODULE = struct
@@ -45,7 +45,7 @@ TEST_MODULE = struct
             let d = M.change t k (fun x -> return (f x)) in
             stabilize ();
             let o1 = Deferred.peek d in
-            let o2 = Some (Core.Std.Map.change t k f) in
+            let o2 = Some (Core_kernel.Std.Map.change t k f) in
             if not (Option.equal equal o1 o2)
             then failwiths "Deferred.Map.change failed" (t, k, o1, o2)
                    <:sexp_of< t * k * t option * t option >>)))
@@ -58,7 +58,7 @@ TEST_MODULE = struct
           ignore (M.iter t ~how ~f:(fun ~key ~data:_ -> return (r := !r + key)));
           stabilize ();
           let i1 = !r in
-          let i2 = Core.Std.Map.fold t ~init:0 ~f:(fun ~key ~data:_ ac -> key + ac) in
+          let i2 = Core_kernel.Std.Map.fold t ~init:0 ~f:(fun ~key ~data:_ ac -> key + ac) in
           if i1 <> i2
           then failwiths "Deferred.Map.iter failed" (t, how, i1, i2)
                  <:sexp_of< t * how * int * int >>))
@@ -81,7 +81,7 @@ TEST_MODULE = struct
         ~f:(fun f ->
           test_map_like "map"
             (fun t ~how ->
-               (Core.Std.Map.map t ~f,
+               (Core_kernel.Std.Map.map t ~f,
                 M.map t ~how ~f:(fun x -> return (f x)))))
     ;;
 
@@ -90,7 +90,7 @@ TEST_MODULE = struct
         ~f:(fun f ->
           test_map_like "mapi"
             (fun t ~how ->
-               (Core.Std.Map.mapi t ~f,
+               (Core_kernel.Std.Map.mapi t ~f,
                 M.mapi ~how t ~f:(fun ~key ~data -> return (f ~key ~data)))))
     ;;
 
@@ -103,7 +103,7 @@ TEST_MODULE = struct
         ~f:(fun f ->
           test_map_like "filter"
             (fun t ~how ->
-               (Core.Std.Map.filter t ~f,
+               (Core_kernel.Std.Map.filter t ~f,
                 M.filter ~how t ~f:(fun ~key ~data -> return (f ~key ~data)))))
     ;;
 
@@ -117,7 +117,7 @@ TEST_MODULE = struct
         ~f:(fun f ->
           test_map_like "filter_map"
             (fun t ~how ->
-               (Core.Std.Map.filter_map t ~f,
+               (Core_kernel.Std.Map.filter_map t ~f,
                 M.filter_map ~how t ~f:(fun data -> return (f data)))))
     ;;
 
@@ -130,14 +130,14 @@ TEST_MODULE = struct
         ~f:(fun f ->
           test_map_like "filter_mapi"
             (fun t ~how ->
-               (Core.Std.Map.filter_mapi t ~f,
+               (Core_kernel.Std.Map.filter_mapi t ~f,
                 M.filter_mapi ~how t ~f:(fun ~key ~data -> return (f ~key ~data)))))
     ;;
 
     TEST_UNIT =
       let folds =
-        [ "fold"      , M.fold      , Core.Std.Map.fold
-        ; "fold_right", M.fold_right, Core.Std.Map.fold_right
+        [ "fold"      , M.fold      , Core_kernel.Std.Map.fold
+        ; "fold_right", M.fold_right, Core_kernel.Std.Map.fold_right
         ]
       in
       let fs = [ fun ~key ~data ac -> (Int.to_string key ^ data) ^ ac ] in
@@ -172,7 +172,7 @@ TEST_MODULE = struct
               let d = M.merge t1 t2 ~f:(fun ~key z -> return (f ~key z)) in
               stabilize ();
               let o1 = Deferred.peek d in
-              let o2 = Some (Core.Std.Map.merge t1 t2 ~f) in
+              let o2 = Some (Core_kernel.Std.Map.merge t1 t2 ~f) in
               if not (Option.equal equal o1 o2) then
                 failwiths "Deferred.Map.merge failed" (t1, t2, o1, o2)
                   <:sexp_of< t * t * t option * t option >>)))

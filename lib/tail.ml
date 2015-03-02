@@ -1,4 +1,4 @@
-open Core.Std
+open Core_kernel.Std
 
 module Stream = struct
   type 'a t = 'a next Deferred.t

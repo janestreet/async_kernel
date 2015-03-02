@@ -1,5 +1,5 @@
-open Core.Std  let _ = _squelch_unused_module_warning_
-open Import    let _ = _squelch_unused_module_warning_
+open! Core_kernel.Std
+open! Import
 
 type t = Normal | Low with sexp_of
 

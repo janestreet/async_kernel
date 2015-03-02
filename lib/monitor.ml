@@ -1,4 +1,4 @@
-open Core.Std
+open Core_kernel.Std
 open Import  let _ = _squelch_unused_module_warning_
 open Deferred_std
 
@@ -147,7 +147,7 @@ let send_exn t ?backtrace exn =
              that call [Scheduler.go] and want to handle it. *)
           Scheduler.(got_uncaught_exn (t ()))
             (Error.create "unhandled exception" (exn, `Pid (Unix.getpid ()))
-               <:sexp_of< exn * [ `Pid of Pid.t ] >>)
+               <:sexp_of< exn * [ `Pid of int ] >>)
         end;
   in
   loop t

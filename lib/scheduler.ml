@@ -1,6 +1,6 @@
-open Core.Std
+open Core_kernel.Std
 open Import    let _ = _squelch_unused_module_warning_
-open Raw_scheduler.T
+open Raw_scheduler
 
 module Stream = Async_stream
 
@@ -18,12 +18,15 @@ include struct
   let current_execution_context = current_execution_context
   let enqueue                   = enqueue
   let enqueue_job               = enqueue_job
+  let free_job                  = free_job
   let invariant                 = invariant
   let is_dead                   = is_dead
+  let num_pending_jobs          = num_pending_jobs
   let num_jobs_run              = num_jobs_run
   let set_check_access          = set_check_access
   let set_check_access          = set_check_access
   let set_execution_context     = set_execution_context
+  let uncaught_exn              = uncaught_exn
   let with_execution_context    = with_execution_context
 end
 
@@ -41,17 +44,13 @@ let with_local key value ~f =
   with_execution_context t execution_context ~f
 ;;
 
-let uncaught_exn t = Jobs.uncaught_exn t.jobs
-
 let main_execution_context = (t ()).main_execution_context
-
-let num_pending_jobs t = Jobs.length t.jobs
 
 let can_run_a_job t = num_pending_jobs t > 0 || Option.is_some t.yield_ivar
 
-let next_upcoming_event t = Timing_wheel.next_alarm_fires_at t.events
+let next_upcoming_event t = Timing_wheel_ns.next_alarm_fires_at t.events
 
-let event_precision t = Timing_wheel.alarm_precision t.events
+let event_precision t = Timing_wheel_ns.alarm_precision t.events
 
 let cycle_start t = t.cycle_start
 
@@ -76,42 +75,40 @@ let set_max_num_jobs_per_priority_per_cycle t int =
     Max_num_jobs_per_priority_per_cycle.create_exn int;
 ;;
 
-let set_thread_safe_external_action_hook t f = t.thread_safe_external_action_hook <- f
+let set_thread_safe_external_job_hook t f = t.thread_safe_external_job_hook <- f
 
-let thread_safe_enqueue_external_action t f =
-  Thread_safe_queue.enqueue t.external_actions f;
-  t.thread_safe_external_action_hook ();
+let thread_safe_enqueue_external_job t execution_context f a =
+  Thread_safe_queue.enqueue t.external_jobs (External_job.T (execution_context, f, a));
+  t.thread_safe_external_job_hook ();
 ;;
 
 let create_alarm t f =
   let execution_context = current_execution_context t in
   Gc.Expert.Alarm.create (fun () ->
-    thread_safe_enqueue_external_action t (fun () ->
-      Raw_scheduler.enqueue t execution_context f ()));
+    thread_safe_enqueue_external_job t execution_context f ());
 ;;
 
 let add_finalizer t heap_block f =
   let execution_context = current_execution_context t in
   let finalizer heap_block =
-    (* Here we can be in any thread, and may not be holding the async lock.  So, we
-       can only do thread-safe things.
+    (* Here we can be in any thread, and may not be holding the async lock.  So, we can
+       only do thread-safe things.
 
-       By putting [heap_block] in [external_actions], we are keeping it alive until the
-       next time the async scheduler gets around to dequeueing it.  Calling
-       [t.thread_safe_external_action_hook] ensures that will happen in short order.
-       Thus, we are not dramatically increasing the lifetime of [heap_block], since the
-       OCaml runtime already resurrected [heap_block] so that we could refer to it here.
-       The OCaml runtime already removed the finalizer function when it noticed
-       [heap_block] could be finalized, so there is no infinite loop in which we are
-       causing the finalizer to run again.  Also, OCaml does not impose any requirement on
-       finalizer functions that they need to dispose of the block, so it's fine that we
-       keep [heap_block] around until later. *)
+       By putting [heap_block] in [external_jobs], we are keeping it alive until the next
+       time the async scheduler gets around to dequeueing it.  Calling
+       [t.thread_safe_external_job_hook] ensures that will happen in short order.  Thus,
+       we are not dramatically increasing the lifetime of [heap_block], since the OCaml
+       runtime already resurrected [heap_block] so that we could refer to it here.  The
+       OCaml runtime already removed the finalizer function when it noticed [heap_block]
+       could be finalized, so there is no infinite loop in which we are causing the
+       finalizer to run again.  Also, OCaml does not impose any requirement on finalizer
+       functions that they need to dispose of the block, so it's fine that we keep
+       [heap_block] around until later. *)
     if Debug.finalizers then Debug.log_string "enqueueing finalizer";
-    thread_safe_enqueue_external_action t (fun () ->
-      Raw_scheduler.enqueue t execution_context f heap_block);
+    thread_safe_enqueue_external_job t execution_context f heap_block;
   in
   if Debug.finalizers then Debug.log_string "adding finalizer";
-  (* We use [Caml.Gc.finalise] instead of [Core.Std.Gc.add_finalizer] because the latter
+  (* We use [Caml.Gc.finalise] instead of [Core_kernel.Std.Gc.add_finalizer] because the latter
      has its own wrapper around [Caml.Gc.finalise] to run finalizers synchronously. *)
   Caml.Gc.finalise finalizer heap_block;
 ;;
@@ -121,41 +118,42 @@ let add_finalizer_exn t x f =
     (fun heap_block -> f (Heap_block.value heap_block))
 ;;
 
-let force_current_cycle_to_end t = Jobs.force_current_cycle_to_end t.jobs
-
-type Raw_scheduler.Yield_ivar.t += T of unit Ivar.t
+(** [force_current_cycle_to_end] sets the number of normal jobs allowed to run in this
+    cycle to zero.  Thus, after the currently running job completes, the scheduler will
+    switch to low priority jobs and then end the current cycle. *)
+let force_current_cycle_to_end t =
+  Job_queue.set_jobs_left_this_cycle t.normal_priority_jobs 0
+;;
 
 let advance_clock t ~now =
-  Timing_wheel.advance_clock t.events ~to_:now ~handle_fired:(fun alarm ->
-    enqueue_job t (Timing_wheel.Alarm.value t.events alarm) ~free_job:true);
+  Timing_wheel_ns.advance_clock t.events ~to_:now ~handle_fired:(fun alarm ->
+    enqueue_job t (Timing_wheel_ns.Alarm.value t.events alarm) ~free_job:true);
 ;;
 
 let run_cycle t =
   if debug then Debug.log "run_cycle starting" t <:sexp_of< t >>;
-  let now = Time.now () in
+  let now = Time_ns.now () in
   t.cycle_count <- t.cycle_count + 1;
   t.cycle_start <- now;
   begin match t.yield_ivar with
   | None -> ()
-  | Some (T ivar) -> Ivar.fill ivar (); t.yield_ivar <- None;
-  | Some _ -> failwith "unexpected yield_ivar"
+  | Some ivar -> Ivar.fill ivar (); t.yield_ivar <- None;
   end;
   let num_jobs_run_at_start_of_cycle = num_jobs_run t in
   List.iter t.run_every_cycle_start ~f:(fun f -> f ());
   advance_clock t ~now;
-  Jobs.start_cycle t.jobs
-    ~max_num_jobs_per_priority:t.max_num_jobs_per_priority_per_cycle;
+  start_cycle t ~max_num_jobs_per_priority:t.max_num_jobs_per_priority_per_cycle;
   let rec run_jobs () =
-    match Jobs.run_all t.jobs ~external_actions:t.external_actions with
+    match Raw_scheduler.run_jobs t with
     | Ok () -> ()
     | Error exn ->
       Monitor.send_exn (Monitor.current ()) exn ~backtrace:`Get;
-      (* [run_all] stopped due to an exn.  There may still be jobs that could be run
+      (* [run_jobs] stopped due to an exn.  There may still be jobs that could be run
          this cycle, so [run_jobs] again. *)
       run_jobs ()
   in
   run_jobs ();
-  t.last_cycle_time <- Time.diff (Time.now ()) t.cycle_start;
+  t.last_cycle_time <- Time_ns.diff (Time_ns.now ()) t.cycle_start;
   t.last_cycle_num_jobs <- num_jobs_run t - num_jobs_run_at_start_of_cycle;
   if debug
   then Debug.log "run_cycle finished"
@@ -164,17 +162,17 @@ let run_cycle t =
 ;;
 
 (* Pause long enough so that events in the current timing-wheel interval, some of which
-   may be before [Time.now ()], are fired by the [Timing_wheel.advance_clock] in
+   may be before [Time_ns.now ()], are fired by the [Timing_wheel_ns.advance_clock] in
    [run_cycle].  This is necessary because timing-wheel events are guaranteed to fire only
    by [event_precision] after their scheduled time. *)
 let pause_for_events_in_the_past t =
   Option.iter (next_upcoming_event t) ~f:(fun next_upcoming_event ->
     let precision = event_precision t in
-    let next_event_fires_in = Time.diff next_upcoming_event (Time.now ()) in
-    if Time.Span.( <= ) next_event_fires_in precision
+    let next_event_fires_in = Time_ns.diff next_upcoming_event (Time_ns.now ()) in
+    if Time_ns.Span.( <= ) next_event_fires_in precision
     then begin
-      Time.pause precision;
-      advance_clock t ~now:(Time.now ());
+      Time_ns.pause precision;
+      advance_clock t ~now:(Time_ns.now ());
     end);
 ;;
 
@@ -186,17 +184,17 @@ let run_cycles_until_no_jobs_remain () =
          <:sexp_of< t >>;
   let rec loop () =
     run_cycle t;
-    (* We pause just before checking [Jobs.is_empty], so that clock events that fire
-       become jobs, and thus cause an additional [loop]. *)
+    (* We pause just before checking if there are pending jobs, so that clock events that
+       fire become jobs, and thus cause an additional [loop]. *)
     pause_for_events_in_the_past t;
-    if not (Jobs.is_empty t.jobs) then loop ();
+    if num_pending_jobs t > 0 then loop ();
   in
   loop ();
   (* Reset the current execution context to maintain the invariant that when we're not in
      a job, [current_execution_context = main_execution_context]. *)
   set_execution_context t t.main_execution_context;
   if debug then Debug.log_string "run_cycles_until_no_jobs_remain finished";
-  Option.iter (Jobs.uncaught_exn t.jobs) ~f:Error.raise;
+  Option.iter t.uncaught_exn ~f:Error.raise;
 ;;
 
 let reset_in_forked_process () =
@@ -214,11 +212,10 @@ let set_record_backtraces t b = t.record_backtraces <- b
 let yield t =
   let ivar =
     match t.yield_ivar with
-    | Some (T ivar) -> ivar
-    | Some _ -> failwith "unexpected yield_ivar"
+    | Some ivar -> ivar
     | None ->
       let ivar = Ivar.create () in
-      t.yield_ivar <- Some (T ivar);
+      t.yield_ivar <- Some ivar;
       ivar
   in
   Ivar.read ivar

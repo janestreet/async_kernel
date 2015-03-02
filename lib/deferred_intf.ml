@@ -1,4 +1,4 @@
-open Core.Std
+open Core_kernel.Std
 
 module Deferred = struct
   type 'a t = 'a Ivar.Deferred.t

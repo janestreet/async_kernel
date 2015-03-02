@@ -1,4 +1,4 @@
-open Core.Std
+open Core_kernel.Std
 open Import    let _ = _squelch_unused_module_warning_
 
 module Scheduler = Raw_scheduler
@@ -13,7 +13,7 @@ type any = [ `Empty | `Empty_one_handler | `Empty_one_or_more_handlers | `Full |
 *)
 module Handler = struct
 
-  type 'a t =
+  type 'a t = 'a Types.Handler.t =
     { (* [run] is mutable so we can set it to [ignore] when the handler is removed.  This
          is used when we install a handler on a full ivar since it is immediately added to
          the scheduler. *)
@@ -201,7 +201,7 @@ module Handler = struct
   ;;
 end
 
-type 'a t =
+type 'a t = 'a Types.Ivar.t =
   { mutable cell : ('a, any) cell
   }
 
@@ -215,7 +215,7 @@ type 'a t =
    edges is acyclic.  The only functions that create an [Indir] are [squash] and
    [connect], and for those, the target of the [Indir] is always a non-[Indir].  Thus, the
    newly added edges are never part of a cycle. *)
-and ('a, 'b) cell =
+and ('a, 'b) cell = ('a, 'b) Types.Cell.t =
   | Empty_one_or_more_handlers
     :  ('a -> unit) * Execution_context.t * 'a Handler.t * 'a Handler.t
     ->                                       ('a, [> `Empty_one_or_more_handlers ]) cell
@@ -442,66 +442,66 @@ let upon =
 
    [connect] works by squashing its arguments so that the [bind_rhs] always points at the
    ultimate result. *)
-let connect ~bind_result ~bind_rhs =
-  if not (phys_equal bind_result bind_rhs) then begin
-    let bind_result = squash bind_result in
-    let indir = Indir bind_result in
-    (* [repoint_indirs bind_rhs] repoints to [indir] all the ivars in the chain
-       reachable from [bind_rhs], and returns the non-[Indir] cell at the end of the
-       chain.  After repointing, we will merge the handlers in that cell with the
-       handlers in [bind_result], and put the merged set of handlers in
-       [bind_result]. *)
-    let rec repoint_indirs ivar =
-      let cell = ivar.cell in
-      match cell with
-      | Indir ivar' -> ivar.cell <- indir; repoint_indirs ivar'
-      | Full _ -> cell
-      | Empty | Empty_one_handler _ | Empty_one_or_more_handlers _ ->
-        (* It is possible that [bind_result] and [bind_rhs] are not equal, but their
-           chains of indirs lead to the same non-[Indir] cell, in which case we cannot
-           set that cell to point to itself, because that would introduce a cycle. *)
-        if not (phys_equal ivar bind_result) then ivar.cell <- indir;
-        cell
-    in
-    let bind_rhs_contents = repoint_indirs bind_rhs in
-    (* update [bind_result] with the union of handlers in [bind_result] and
-       [bind_rhs] *)
-    match bind_result.cell, bind_rhs_contents with
-    | Indir _, _ | _, Indir _
-      -> assert false (* fulfilled by [squash] and [repoint_indirs] *)
-    (* [connect] is only used in bind, whose ivar is only ever exported as a read-only
-       deferred.  Thus, [bind_result] must be empty. *)
-    | Full _, _ -> assert false
-    | _, Empty -> ()
-    | Empty, _ -> bind_result.cell <- bind_rhs_contents;
-    | Empty_one_handler (run, execution_context), Full v ->
-      bind_result.cell <- bind_rhs_contents;
-      Scheduler.(enqueue (t ())) execution_context run v;
-    | Empty_one_or_more_handlers _ as cell, Full v ->
-      bind_result.cell <- bind_rhs_contents;
-      Handler.schedule_jobs (handler_of_constructor cell) v;
-    | Empty_one_handler (run1, execution_context1),
-      Empty_one_handler (run2, execution_context2) ->
-      let handler1 =
-        Handler.create2
-          run1 execution_context1
-          run2 execution_context2
-      in
-      bind_result.cell <- cell_of_handler handler1;
-    | (Empty_one_or_more_handlers _ as cell1),
-      Empty_one_handler (run2, execution_context2) ->
-      let handler1 = handler_of_constructor cell1 in
-      ignore (Handler.add handler1 run2 execution_context2 : _ Handler.t);
-    | Empty_one_handler (run1, execution_context1),
-      (Empty_one_or_more_handlers _ as cell2) ->
-      let handler2 = handler_of_constructor cell2 in
-      let handler1 = Handler.add handler2 run1 execution_context1 in
-      bind_result.cell <- cell_of_handler handler1;
-    | (Empty_one_or_more_handlers _ as cell1),
-      (Empty_one_or_more_handlers _ as cell2) ->
-      let handler1 = handler_of_constructor cell1 in
-      Handler.splice handler1 (handler_of_constructor cell2);
-  end
+let connect =
+  (* [repoint_indirs ~ivar ~indir ~bind_result] repoints to [indir] all the ivars in the
+     chain reachable from [ivar], and returns the non-[Indir] cell at the end of the
+     chain.  After repointing, we will merge the handlers in that cell with the handlers
+     in [bind_result], and put the merged set of handlers in [bind_result]. *)
+  let rec repoint_indirs ~ivar ~indir ~bind_result =
+    let cell = ivar.cell in
+    match cell with
+    | Indir ivar' -> ivar.cell <- indir; repoint_indirs ~ivar:ivar' ~indir ~bind_result
+    | Full _ -> cell
+    | Empty | Empty_one_handler _ | Empty_one_or_more_handlers _ ->
+      (* It is possible that [bind_result] and [bind_rhs] are not equal, but their chains
+         of indirs lead to the same non-[Indir] cell, in which case we cannot set that
+         cell to point to itself, because that would introduce a cycle. *)
+      if not (phys_equal ivar bind_result) then ivar.cell <- indir;
+      cell
+  in
+  fun ~bind_result ~bind_rhs ->
+    if not (phys_equal bind_result bind_rhs) then begin
+      let bind_result = squash bind_result in
+      let indir = Indir bind_result in
+      let bind_rhs_contents = repoint_indirs ~ivar:bind_rhs ~indir ~bind_result in
+      (* update [bind_result] with the union of handlers in [bind_result] and
+         [bind_rhs] *)
+      match bind_result.cell, bind_rhs_contents with
+      | Indir _, _ | _, Indir _
+        -> assert false (* fulfilled by [squash] and [repoint_indirs] *)
+      (* [connect] is only used in bind, whose ivar is only ever exported as a read-only
+         deferred.  Thus, [bind_result] must be empty. *)
+      | Full _, _ -> assert false
+      | _, Empty -> ()
+      | Empty, _ -> bind_result.cell <- bind_rhs_contents;
+      | Empty_one_handler (run, execution_context), Full v ->
+        bind_result.cell <- bind_rhs_contents;
+        Scheduler.(enqueue (t ())) execution_context run v;
+      | Empty_one_or_more_handlers _ as cell, Full v ->
+        bind_result.cell <- bind_rhs_contents;
+        Handler.schedule_jobs (handler_of_constructor cell) v;
+      | Empty_one_handler (run1, execution_context1),
+        Empty_one_handler (run2, execution_context2) ->
+        let handler1 =
+          Handler.create2
+            run1 execution_context1
+            run2 execution_context2
+        in
+        bind_result.cell <- cell_of_handler handler1;
+      | (Empty_one_or_more_handlers _ as cell1),
+        Empty_one_handler (run2, execution_context2) ->
+        let handler1 = handler_of_constructor cell1 in
+        ignore (Handler.add handler1 run2 execution_context2 : _ Handler.t);
+      | Empty_one_handler (run1, execution_context1),
+        (Empty_one_or_more_handlers _ as cell2) ->
+        let handler2 = handler_of_constructor cell2 in
+        let handler1 = Handler.add handler2 run1 execution_context1 in
+        bind_result.cell <- cell_of_handler handler1;
+      | (Empty_one_or_more_handlers _ as cell1),
+        (Empty_one_or_more_handlers _ as cell2) ->
+        let handler1 = handler_of_constructor cell1 in
+        Handler.splice handler1 (handler_of_constructor cell2);
+    end
 ;;
 
 TEST_MODULE = struct

@@ -7,7 +7,7 @@
     Unlike the use of condition variables in ordinary threaded programs, Async condition
     variables do not require a mutex, since Async programs are cooperatively threaded. *)
 
-open Core.Std
+open Core_kernel.Std
 
 type 'a t with sexp_of
 

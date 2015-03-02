@@ -4,7 +4,7 @@
     at some point become determined with value v, and will henceforth always be determined
     with value v. *)
 
-open Core.Std
+open Core_kernel.Std
 open Import
 open Deferred_intf
 

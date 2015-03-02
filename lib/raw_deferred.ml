@@ -1,4 +1,4 @@
-open Core.Std  let _ = _squelch_unused_module_warning_
+open Core_kernel.Std  let _ = _squelch_unused_module_warning_
 open Import    let _ = _squelch_unused_module_warning_
 
 module Ivar = Raw_ivar
@@ -49,9 +49,11 @@ let create f =
   of_ivar result;
 ;;
 
+(* don't use [create] here as it would allocate one more closure *)
 let bind t f =
-  create (fun bind_result ->
-    upon t (fun a -> Ivar.connect ~bind_result ~bind_rhs:(to_ivar (f a))))
+  let bind_result = Ivar.create () in
+  upon t (fun a -> Ivar.connect ~bind_result ~bind_rhs:(to_ivar (f a)));
+  of_ivar bind_result
 ;;
 
 let add_handler t f execution_context =

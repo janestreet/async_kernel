@@ -1,4 +1,4 @@
-open Core.Std
+open Core_kernel.Std
 open Import
 open Deferred_std
 module Stream = Async_stream
@@ -862,13 +862,33 @@ let of_list l =
   reader
 ;;
 
+let interleave_pipe inputs =
+  let output, output_writer = create () in
+  (* We keep a reference count of all the pipes that [interleave_pipe] is managing;
+     [inputs] counts as one.  When the reference count drops to zero, we know that all
+     pipes are closed and we can close [output_writer]. *)
+  let num_pipes_remaining = ref 1 in
+  let decr_num_pipes_remaining () =
+    decr num_pipes_remaining;
+    if !num_pipes_remaining = 0 then close output_writer;
+  in
+  don't_wait_for begin
+    iter_without_pushback inputs ~f:(fun input ->
+      incr num_pipes_remaining;
+      don't_wait_for begin
+        transfer_id input output_writer
+        >>| fun () ->
+        decr_num_pipes_remaining ();
+      end)
+    >>| fun () ->
+    decr_num_pipes_remaining ();  (* for [inputs] *)
+  end;
+  output
+;;
+
 let interleave inputs =
   if !check_invariant then List.iter inputs ~f:invariant;
-  let (output, writer) = create () in
-  upon
-    (Deferred.List.iter inputs ~how:`Parallel ~f:(fun input -> transfer_id input writer))
-    (fun () -> close writer);
-  output
+  interleave_pipe (of_list inputs)
 ;;
 
 let merge inputs ~cmp =
@@ -1221,6 +1241,72 @@ TEST_MODULE = struct
     let d = read_all t in
     stabilize ();
     assert (List.length (read_result d) = 2 * List.length l);
+  ;;
+
+  (* ==================== interleave_pipe ================== *)
+
+  TEST_UNIT =
+    let r, w = create () in
+    let t = interleave_pipe r in
+    close w;
+    let d = read_all t in
+    stabilize ();
+    assert (read_result d = [])
+  ;;
+
+  TEST_UNIT =
+    let r, w = create () in
+    let t = interleave_pipe r in
+    write_without_pushback w (of_list [ 1; 2; 3 ]);
+    stabilize ();
+    write_without_pushback w (of_list [ 4; 5; 6 ]);
+    close w;
+    let d = read_all t in
+    stabilize ();
+    assert (read_result d = [ 1; 2; 3; 4; 5; 6 ])
+  ;;
+
+  TEST_UNIT =
+    let r, w = create () in
+    let t = interleave_pipe r in
+    write_without_pushback w (of_list [ 1; 2; 3 ]);
+    write_without_pushback w (of_list [ 4; 5; 6 ]);
+    stabilize ();
+    begin match read_now' t with
+    | `Nothing_available
+    | `Eof  -> assert false
+    | `Ok q -> assert (Queue.length q = 6)
+    end;
+    write_without_pushback w (of_list [ 7; 8; 9 ]);
+    close w;
+    let d = read_all t in
+    stabilize ();
+    assert (read_result d = [ 7; 8; 9 ])
+  ;;
+
+  TEST_UNIT = (* output remains open as long as an input pipe does *)
+    let outer_r, outer_w = create () in
+    let t = interleave_pipe outer_r in
+    let inner_r, inner_w = create () in
+    stabilize ();
+    assert (not (is_closed t));
+    write_without_pushback outer_w inner_r;
+    stabilize ();
+    assert (not (is_closed t));
+    close outer_w;
+    assert (not (is_closed t));
+    write_without_pushback inner_w 13;
+    stabilize ();
+    begin match read_now' t with
+    | `Nothing_available | `Eof -> assert false
+    | `Ok q -> assert (Queue.to_list q = [ 13 ])
+    end;
+    close inner_w;
+    stabilize ();
+    begin match read_now' t with
+    | `Eof -> ()
+    | `Nothing_available | `Ok _ -> assert false
+    end;
   ;;
 
   (* ==================== merge ==================== *)

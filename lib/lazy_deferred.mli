@@ -9,7 +9,7 @@
     returned by [force] ([wait], [peek], etc.), or will be raised to the monitor in effect
     when [force_exn] ([wait_exn], [peek_exn], etc.) was called. *)
 
-open Core.Std
+open Core_kernel.Std
 
 type 'a t
 

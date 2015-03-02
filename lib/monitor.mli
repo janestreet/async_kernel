@@ -38,7 +38,7 @@
     and you wish to run code within it you have no choice but to use [Scheduler.within].
     [try_with] creates its own monitor and uses [Scheduler.within], so it does not have
     this problem. *)
-open Core.Std
+open Core_kernel.Std
 
 type t = Raw_monitor.t with sexp_of
 

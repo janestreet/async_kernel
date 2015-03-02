@@ -1,8 +1,9 @@
-open Core.Std
+open! Core_kernel.Std
+open! Import
 
 module Monitor = Raw_monitor
 
-type t =
+type t = Types.Execution_context.t =
   { monitor            : Monitor.t
   ; priority           : Priority.t
   ; local_storage      : Univ_map.t

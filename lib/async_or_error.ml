@@ -1,4 +1,4 @@
-open Core.Std
+open Core_kernel.Std
 
 include (Deferred.Result : Monad.S2 with type ('a, 'b) t := ('a, 'b) Deferred.Result.t)
 
@@ -116,11 +116,11 @@ end
 TEST_MODULE = struct
 
   (* Ounit generates code using [List.rev], but we rebound [List] above, so we need to
-     [open Core.Std] to get [List].  But that shadows a couple other things we need, so we
+     [open Core_kernel.Std] to get [List].  But that shadows a couple other things we need, so we
      bind them first. *)
   module Seqlist = List
 
-  module List = Core.Std.List
+  module List = Core_kernel.Std.List
 
   let tasks = Queue.create ()
 

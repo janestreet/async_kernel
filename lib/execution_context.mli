@@ -1,8 +1,9 @@
 (** The context in which an Async job runs. *)
 
-open Core.Std
+open Core_kernel.Std
+open Import
 
-type t =
+type t = Types.Execution_context.t =
   { monitor            : Raw_monitor.t
   ; priority           : Priority.t
   ; local_storage      : Univ_map.t

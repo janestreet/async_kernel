@@ -1,9 +1,9 @@
 (** Internal to Async -- see {!Ivar} for the public API. *)
 
-open Core.Std
+open Core_kernel.Std
 open Import
 
-type 'a t with sexp_of
+type 'a t = 'a Types.Ivar.t with sexp_of
 type 'a ivar = 'a t
 
 include Invariant.S1 with type 'a t := 'a t

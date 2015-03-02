@@ -4,10 +4,10 @@
     filled.  An ivar is similar to an ['a option ref], except it is an error to fill an
     already full ivar. *)
 
-open Core.Std
+open Core_kernel.Std
 open Import
 
-type 'a t with bin_io, sexp_of
+type 'a t = 'a Types.Ivar.t with bin_io, sexp_of
 type 'a ivar = 'a t
 
 include Invariant.S1 with type 'a t := 'a t

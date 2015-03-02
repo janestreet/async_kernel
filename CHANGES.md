@@ -1,3 +1,28 @@
+## 112.24.00
+
+- Now depends on `Core_kernel` instead of `Core`.
+
+  `Async_kernel.Clock` uses `Core_kernel.Time_ns` and
+  `Core_kernel.Timing_wheel_ns` rather than `Core.Time` and
+  `Core.Timing_wheel_float`.
+
+- Added `Async_kernel.Types` module to deal with the mutual recrsion of
+  `Async_kernel`'s types.
+
+  This should help eliminate the complexity and make it easier to make changes
+  without running into as many constraints due to module/type ordering.
+
+  Merged `Types.Jobs` into `Types.Scheduler`.
+
+- Improved the performance of `Deferred.bind`, eliminating an allocation in
+  `Ivar.connect`.
+
+- Optimized `Deferred.bind`, removing a closure allocation by inlining
+  `Deferred.create`.
+
+- Added `Pipe.interleave_pipe`, which is like `interleave`, but takes a pipe
+  rather than a list.
+
 ## 112.17.00
 
 - Fixed a space leak in `Clock.Event.abort`, making it free the job

@@ -19,7 +19,7 @@
     finish.  Jobs enqueued into a killed throttle will be immediately aborted.
 *)
 
-open Core.Std
+open Core_kernel.Std
 
 (** We use a phantom type to distinguish between throttles, which have
     [max_concurrent_jobs >= 1], and sequencers, which have [max_concurrent_jobs = 1].  All

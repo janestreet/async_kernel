@@ -1,4 +1,4 @@
-open Core.Std
+open Core_kernel.Std
 open Import
 
 module type Throttle = module type of Throttle

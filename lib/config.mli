@@ -11,10 +11,10 @@
     v}
 *)
 
-open Core.Std
+open Core_kernel.Std
 
 module Epoll_max_ready_events              : Validated with type raw := int
-module Max_inter_cycle_timeout             : Validated with type raw := Time.Span.t
+module Max_inter_cycle_timeout             : Validated with type raw := Time_ns.Span.t
 module Max_num_threads                     : Validated with type raw := int
 module Max_num_jobs_per_priority_per_cycle : Validated with type raw := int
 
@@ -27,7 +27,7 @@ end
 
 module Dump_core_on_job_delay : sig
   type watch =
-    { dump_if_delayed_by : Time.Span.t
+    { dump_if_delayed_by : Time_ns.Span.t
     ; how_to_dump        : [ `Default | `Call_abort | `Call_gcore ]
     }
   with sexp
@@ -67,7 +67,7 @@ end
 
 (** Documentation on these is in strings in config.ml, so it can be output in the
     help message. *)
-val abort_after_thread_pool_stuck_for   : Time.Span.t
+val abort_after_thread_pool_stuck_for   : Time_ns.Span.t
 val check_invariants                    : bool
 val detect_invalid_access_from_thread   : bool
 val dump_core_on_job_delay              : Dump_core_on_job_delay.t
@@ -78,5 +78,5 @@ val max_num_jobs_per_priority_per_cycle : Max_num_jobs_per_priority_per_cycle.t
 val max_num_open_file_descrs            : Max_num_open_file_descrs.t
 val max_num_threads                     : Max_num_threads.t
 val record_backtraces                   : bool
-val report_thread_pool_stuck_for        : Time.Span.t
-val timing_wheel_config                 : Timing_wheel.Config.t
+val report_thread_pool_stuck_for        : Time_ns.Span.t
+val timing_wheel_config                 : Timing_wheel_ns.Config.t

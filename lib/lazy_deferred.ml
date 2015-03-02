@@ -1,4 +1,4 @@
-open Core.Std
+open Core_kernel.Std
 open Deferred_std
 
 module T = struct

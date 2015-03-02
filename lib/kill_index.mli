@@ -25,7 +25,7 @@
     [global_kill_index].
 *)
 
-open Core.Std
+open Core_kernel.Std
 
 type t with sexp_of
 

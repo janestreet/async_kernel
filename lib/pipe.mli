@@ -19,7 +19,7 @@
 
     There are distinct [Reader] and [Writer] modules and types, but all of the operations
     on readers and writers are available directly from the [Pipe] module. *)
-open Core.Std
+open Core_kernel.Std
 
 type ('a, 'phantom) t with sexp_of
 type ('a, 'phantom) pipe = ('a, 'phantom) t with sexp_of
@@ -510,7 +510,8 @@ val filter : 'a Reader.t -> f:('a -> bool) -> 'a Reader.t
     input.  The operation is complete when either all the [inputs] produce EOF, or when
     [output] is closed by the downstream consumer (in which case [interleave] closes all
     the [inputs]). *)
-val interleave : 'a Reader.t list -> 'a Reader.t
+val interleave  : 'a Reader.t list     -> 'a Reader.t
+val interleave_pipe : 'a Reader.t Reader.t -> 'a Reader.t
 
 (** [merge inputs ~cmp] returns a reader, [output], that merges all the inputs.  Assuming
     that for each input, values are sorted according to the comparison function [cmp],

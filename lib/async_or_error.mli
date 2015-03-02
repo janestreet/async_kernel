@@ -22,7 +22,7 @@
     If you have to deal with a function that does not respect this idiom, you can use
     [Deferred.Or_error.try_with_join] to wrap its execution and enforce this property. *)
 
-open Core.Std
+open Core_kernel.Std
 
 type 'a t = 'a Or_error.t Deferred.t
 

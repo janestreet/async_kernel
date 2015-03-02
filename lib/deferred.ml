@@ -1,4 +1,4 @@
-open Core.Std
+open Core_kernel.Std
 open Deferred_intf
 
 module Scheduler = Raw_scheduler
@@ -300,7 +300,7 @@ module Array = struct
 
   let seqmap t ~f =
     fold t ~init:[] ~f:(fun bs a -> f a >>| fun b -> b :: bs)
-    >>| fun bs -> Array.of_list (Core.Std.List.rev bs)
+    >>| fun bs -> Array.of_list (Core_kernel.Std.List.rev bs)
   ;;
 
   let all ds = seqmap ds ~f:Fn.id
