@@ -23,7 +23,7 @@ val create : ('a Ivar.t -> unit) -> 'a t
     [v]. *)
 val upon : 'a t -> ('a -> unit) -> unit
 
-(** [peek t] returns [Some v] iff [t] is determined with value [t]. *)
+(** [peek t] returns [Some v] iff [t] is determined with value [v]. *)
 val peek : 'a t -> 'a option
 
 (** [is_determined t] returns [true] iff [t] is determined. *)
