@@ -22,7 +22,7 @@ Description:
   largest industrial user of OCaml.
 
 Library async_kernel
-  Path:               lib
+  Path:               src
   FindlibName:        async_kernel
   Pack:               true
   Modules:            Async_condition,
