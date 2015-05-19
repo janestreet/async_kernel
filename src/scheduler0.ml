@@ -1,11 +1,9 @@
 open Core_kernel.Std
-open Import    let _ = _squelch_unused_module_warning_
-
-module Scheduler = Types.Scheduler
+open Import
 
 let debug = Debug.scheduler
 
-type t = Scheduler.t =
+type t = Types.Scheduler.t =
   { (* [check_access] optionally holds a function to run to check whether access to [t] is
        currently allowed.  It is used to detect invalid access to the scheduler from a
        thread. *)
@@ -34,14 +32,24 @@ type t = Scheduler.t =
 
      The way to do it is to queue a thunk in [external_jobs] and call
      [thread_safe_external_job_hook], which is responsible for notifying the scheduler
-     that new actions are available.  [thread_safe_external_job_hook] is set in
-     [Async_unix] to call [Interruptor.thread_safe_interrupt], which will wake up the
+     that new actions are available.
+
+     When using Async on unix, [thread_safe_external_job_hook] is set in [Async_unix]
+     to call [Interruptor.thread_safe_interrupt], which will wake up the
      [Async_unix] scheduler and run a cycle.
+
+     Note that this hook might be used in other context (js_of_ocaml, mirage).
 
      When running a cycle, we pull external actions at every job and perform them
      immediately. *)
   ; external_jobs                               : External_job.t Thread_safe_queue.t
-  ; mutable thread_safe_external_job_hook       : (unit -> unit)
+  ; mutable thread_safe_external_job_hook       : unit -> unit
+
+  (* [job_queued_hook] and [event_added_hook] aim to be used by js_of_ocaml. *)
+  (* We use [_ option] here because those hooks will not be set in the common case
+     and we want to avoid extra function calls. *)
+  ; mutable job_queued_hook                     : (Priority.t -> unit) option
+  ; mutable event_added_hook                    : (Time_ns.t  -> unit) option
 
   ; mutable yield_ivar                          : unit Types.Ivar.t sexp_opaque option
 
@@ -85,6 +93,8 @@ let invariant t : unit =
       ~events:(check (Timing_wheel_ns.invariant Job.invariant))
       ~external_jobs:ignore
       ~thread_safe_external_job_hook:ignore
+      ~job_queued_hook:ignore
+      ~event_added_hook:ignore
       ~yield_ivar:ignore
       ~check_invariants:ignore
       ~max_num_jobs_per_priority_per_cycle:ignore
@@ -118,8 +128,10 @@ let create () =
     ; events
     ; external_jobs                       = Thread_safe_queue.create ()
     ; thread_safe_external_job_hook       = ignore
+    ; job_queued_hook                     = None
+    ; event_added_hook                    = None
     ; yield_ivar                          = None
-    (* configuration*)
+    (* configuration *)
     ; check_invariants                    = Config.check_invariants
     ; max_num_jobs_per_priority_per_cycle = Config.max_num_jobs_per_priority_per_cycle
     ; record_backtraces                   = Config.record_backtraces;
@@ -159,7 +171,7 @@ let current_execution_context t =
 ;;
 
 let set_execution_context t execution_context =
-  Scheduler.set_execution_context t execution_context;
+  Types.Scheduler.set_execution_context t execution_context;
 ;;
 
 let with_execution_context t tmp_context ~f =
@@ -181,12 +193,17 @@ let enqueue t (execution_context : Execution_context.t) f a =
   (* If there's been an uncaught exn, we don't add the job, since we don't want any jobs
      to run once there's been an uncaught exn. *)
   if is_none t.uncaught_exn then begin
+    let priority = execution_context.priority in
     let job_queue =
-      match execution_context.priority with
+      match priority with
       | Normal -> t.normal_priority_jobs
       | Low    -> t.low_priority_jobs
     in
-    Job_queue.enqueue job_queue execution_context f a
+    Job_queue.enqueue job_queue execution_context f a;
+    begin match t.job_queued_hook with
+    | None -> ()
+    | Some f -> f priority
+    end;
   end;
 ;;
 
@@ -199,12 +216,21 @@ let enqueue_job t job ~free_job =
   if free_job then Pool.free t.job_pool job;
 ;;
 
+let schedule_job t ~at execution_context f a =
+  let alarm = Timing_wheel_ns.add t.events ~at (create_job t execution_context f a) in
+  begin match t.event_added_hook with
+  | None -> ()
+  | Some f -> f at
+  end;
+  alarm
+;;
+
 let monitor_is_alive t monitor =
-  Raw_monitor.is_alive monitor ~global_kill_index:(global_kill_index t)
+  Monitor0.is_alive monitor ~global_kill_index:(global_kill_index t)
 ;;
 
 let kill_monitor t monitor =
-  if Debug.monitor then Debug.log "kill_monitor" monitor <:sexp_of< Raw_monitor.t >>;
+  if Debug.monitor then Debug.log "kill_monitor" monitor <:sexp_of< Monitor0.t >>;
   monitor.kill_index <- Kill_index.dead;
   t.global_kill_index <- Kill_index.next t.global_kill_index;
 ;;
@@ -243,5 +269,7 @@ let stabilize t =
   start_cycle t
     ~max_num_jobs_per_priority:(Max_num_jobs_per_priority_per_cycle.create_exn
                                   Int.max_value);
-  run_jobs t;
+  match run_jobs t with
+  | Ok () -> Ok ()
+  | Error (exn, _backtrace) -> Error exn
 ;;

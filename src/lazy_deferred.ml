@@ -1,6 +1,7 @@
 open Core_kernel.Std
 open Deferred_std
 
+
 module T = struct
 
   type 'a t =
@@ -39,12 +40,6 @@ include T
 include Monad.Make (T)
 
 let bind' t f = bind t (fun a -> create (fun () -> f a))
-
-let follow t f =
-  let ret = bind' t f in
-  upon (wait t) (fun _ -> start ret);
-  ret
-;;
 
 let is_forced t = Ivar.is_full t.start
 
@@ -110,7 +105,7 @@ TEST_MODULE = struct
     | None -> false
   ;;
 
-  let make_bind_test ?(follow=false) make final =
+  let make_bind_test make final =
     let def1 = create Deferred.return in
     let def2 = make def1 in
     stabilize();
@@ -125,10 +120,7 @@ TEST_MODULE = struct
     stabilize();
     assert (determined consumer1 ());
     assert (determined force1 ());
-    if follow
-    then assert (determined consumer2 final)
-    else assert (not (Deferred.is_determined consumer2))
-    ;
+    assert (not (Deferred.is_determined consumer2));
     let force2 = force_exn def2 in
     stabilize();
     assert (determined force2 final);
@@ -149,12 +141,6 @@ TEST_MODULE = struct
       bind def1 (fun () -> create (fun () -> Deferred.return "foo"))
     in
     make_bind_test make final;
-  ;;
-
-  TEST_UNIT =
-    let final = "foo" in
-    let make def1 = follow def1 (fun () -> Deferred.return "foo") in
-    make_bind_test ~follow:true make final;
   ;;
 
   let determined def value =

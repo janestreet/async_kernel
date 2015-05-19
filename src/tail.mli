@@ -2,6 +2,8 @@
 
 open Import
 
+module Deferred = Deferred1
+
 type 'a t with sexp_of
 
 (** [create ()] returns a new tail. *)

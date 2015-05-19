@@ -1,3 +1,118 @@
+## 112.35.00
+
+- Added `Clock.Event.run_at` and `run_after`.
+- Eliminated a space leak in `Clock.with_timeout`.
+
+    Previously `Clock.with_timeout span d` created a deferred that
+    waited for `span` even if `d` (and hence `with_timeout`) became
+    determined sooner.   Now, `with_timeout` aborts the clock alarm if
+    `d` becomes determined, which saves space in Async's timing wheel.
+
+- Added `Clock.Event.fired`, and removed the `fired` value that was
+  returned by `at` and `after`.
+
+        val fired : t -> [ `Happened | `Aborted ] Deferred.t
+
+- Added `Clock.Event.reschedule_{at,after}`.
+- Fixed the space leak that caused nested `Monitor.try_with` to use
+  linear space rather than constant space.
+
+    Changed `Monitor.try_with_ignored_exn_handling` so that with
+    ``Eprintf` or `` `Run f ``, the error processing runs in
+    `Monitor.main` rather than in the monitor that called
+    `Monitor.try_with`.  This avoids space leaks due to chains of
+    monitors, e.g.:
+
+        open! Core.Std
+        open! Async.Std
+
+        let () =
+          Monitor.try_with_ignored_exn_handling := `Run ignore;
+          let num_monitors = 10_000_000 in
+          let num_remaining = ref num_monitors in
+          let rec loop n : unit =
+            if n > 0
+            then
+              upon
+                (Monitor.try_with
+                  (fun () ->
+                      loop (n - 1);
+                      return ()))
+                (function
+                  | Error _ -> assert false
+                  | Ok () ->
+                    decr num_remaining;
+                    if !num_remaining = 0 then shutdown 0)
+          in
+          loop num_monitors;
+          never_returns (Scheduler.go ());
+        ;;
+
+    Added a unit test to detect if nested monitors leak space.
+
+- Removed `Lazy_deferred.follow`, which is not used in the tree anymore.
+
+    Removing this function allows `Lazy_deferred.t` to be implemented as:
+
+        type 'a t = 'a Deferred.t Lazy.t
+
+    although that's not done yet.
+
+- Added hooks to `Async_kernel.Scheduler` for `js_of_ocaml`.
+
+    This hook aims to be called every time one add a job to the
+    scheduler (enqueue + timing_wheel).
+
+- Made `Async_kernel` not depend on thread.
+- Added `Deferred.Memo`, which wraps functions in `Core.Memo` to
+  correctly handle asynchronous exceptions.
+- Renamed `Pipe` and `Thread_safe_pipe` functions that clear their input
+  queue so that their name starts with `transfer_in`, to make it clearer
+  that they side effect their input.
+
+    | old name                  | new name                       |
+    | ------------------------- | ------------------------------ |
+    | `write'`                  | `transfer_in`                  |
+    | `write_without_pushback'` | `transfer_in_without_pushback` |
+
+- Added `Pipe.init_reader`, symmetric to `Pipe.init`.
+
+        val init        : ('a Writer.t -> unit Deferred.t) -> 'a Reader.t
+        val init_reader : ('a Reader.t -> unit Deferred.t) -> 'a Writer.t
+
+- Changed `Async_kernel.Job_queue.run_jobs` to call `Exn.backtrace`
+  immediately after catching an unhandled exception
+
+    There should be no change in behavior.  This change was to make it
+    more clear that there is no intervening code that interferes with
+    the global backtrace state.
+
+- Made `Deferred` functions that take an argument
+  `?how:[ `Parallel | `Sequential ]` accept
+  `` `Max_concurrent_jobs of int``, which operates in a sequence in
+  parallel, limited via a throttle.
+
+- Made `Deferred.Or_error` match `Applicative.S`.
+- Fixed `Scheduler.run_cycles_until_no_jobs_remain` so that it continues
+  running if one has done `Scheduler.yield`.
+- Split the implementation of `Deferred` into a number of files, to
+  solve some problems with circularities.
+
+    Split into:
+
+    - deferred.ml
+    - deferred_sequence.ml
+    - deferred_list.ml
+    - deferred_array.ml
+    - deferred_queue.ml
+    - deferred_map.ml
+    - deferred_result.ml
+    - deferred_option.ml
+
+    For a sequence of multiple modules used to construct a module,
+    switched from the `Raw_*` prefix convention to the numeric suffix
+    convention.  E.g. we now have `Deferred0`, `Deferred1`, `Deferred`.
+
 ## 112.24.00
 
 - Now depends on `Core_kernel` instead of `Core`.

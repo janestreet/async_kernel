@@ -21,6 +21,8 @@
 
 open Core_kernel.Std
 
+module Deferred = Deferred1
+
 (** We use a phantom type to distinguish between throttles, which have
     [max_concurrent_jobs >= 1], and sequencers, which have [max_concurrent_jobs = 1].  All
     operations are available on both.  We make the distinction because it is sometimes
@@ -61,6 +63,19 @@ type 'a outcome = [ `Ok of 'a | `Aborted | `Raised of exn ] with sexp_of
     will send an exception to the monitor in effect). *)
 val enqueue' : ('a, _) T2.t -> ('a -> 'b Deferred.t) -> 'b outcome Deferred.t
 val enqueue  : ('a, _) T2.t -> ('a -> 'b Deferred.t) -> 'b         Deferred.t
+
+(** [monad_sequence_how ~how ~f] returns a function that behaves like [f], except that it
+    uses a throttle to limit the number of concurrent invocations can be running
+    simultaneously.  The throttle has [continue_on_error = false]. *)
+val monad_sequence_how
+  :  ?how : Monad_sequence.how
+  -> f    : ('a -> 'b Deferred.t)
+  -> ('a -> 'b Deferred.t) Staged.t
+
+val monad_sequence_how2
+  :  ?how : Monad_sequence.how
+  -> f    : ('a1 -> 'a2 -> 'b Deferred.t)
+  -> ('a1 -> 'a2 -> 'b Deferred.t) Staged.t
 
 (** [prior_jobs_done t] becomes determined when all of the jobs that were previously
     enqueued in [t] have completed. *)

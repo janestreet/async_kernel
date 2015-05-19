@@ -1,6 +1,6 @@
-open Core_kernel.Std
-open Import  let _ = _squelch_unused_module_warning_
-open Deferred_std
+open! Core_kernel.Std
+open! Import
+open! Deferred_std
 
 let stabilize = Scheduler.run_cycles_until_no_jobs_remain
 
@@ -19,7 +19,7 @@ let deferred_result d =
 
 open Deferred.Sequence
 
-type nonrec 'a t = 'a t
+type nonrec 'a t = 'a Sequence.t
 
 let fold = fold
 

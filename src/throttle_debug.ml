@@ -10,6 +10,8 @@ module Debug (Throttle : Throttle) : Throttle = struct
 
   open Throttle
 
+  module Deferred = Deferred
+
   let debug name ts arg sexp_of_arg sexp_of_result f =
     let invariant = T2.invariant ignore ignore in
     if !show_messages
@@ -60,6 +62,9 @@ module Debug (Throttle : Throttle) : Throttle = struct
     debug "at_kill" [t] () <:sexp_of< unit >> <:sexp_of< unit >>
       (fun () -> at_kill t f)
   ;;
+
+  let monad_sequence_how  = monad_sequence_how
+  let monad_sequence_how2 = monad_sequence_how2
 
   module Sequencer = Sequencer
 end

@@ -20,7 +20,7 @@ TEST_MODULE = struct
 
   module Deferred_map = struct
     module M = Deferred.Map
-    type how = Deferred_intf.how with sexp_of
+    type how = Monad_sequence.how with sexp_of
     let hows = [ `Sequential; `Parallel ]
     type t = string Int.Map.t with sexp_of
     type k = int with sexp_of
@@ -180,7 +180,7 @@ TEST_MODULE = struct
   end
 
   (* [Deferred.{Array,List,Queue}.{init,foldi}] *)
-  module F (M : Deferred.Monad_sequence) = struct
+  module F (M : Deferred1.Monad_sequence) = struct
     TEST_UNIT =
       List.iter
         [ []

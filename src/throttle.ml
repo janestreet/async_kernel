@@ -1,6 +1,8 @@
-open Core_kernel.Std
-open Import  let _ = _squelch_unused_module_warning_
-open Deferred_std
+open! Core_kernel.Std
+open! Import
+open! Deferred_std
+
+module Deferred = Deferred1
 
 type 'a outcome = [ `Ok of 'a | `Aborted | `Raised of exn ] with sexp_of
 
@@ -203,9 +205,9 @@ module Sequencer = struct
 end
 
 let create ~continue_on_error ~max_concurrent_jobs =
-  if max_concurrent_jobs <= 0 then
-    failwiths "Throttle.create requires positive max_concurrent_jobs, but got"
-      max_concurrent_jobs <:sexp_of< int >>;
+  if max_concurrent_jobs <= 0
+  then failwiths "Throttle.create requires positive max_concurrent_jobs, but got"
+         max_concurrent_jobs <:sexp_of< int >>;
   create_with ~continue_on_error (List.init max_concurrent_jobs ~f:ignore)
 ;;
 
@@ -242,6 +244,34 @@ let enqueue t f =
   | `Ok a -> a
   | `Aborted -> failwith "throttle aborted job"
   | `Raised exn -> raise exn
+;;
+
+let monad_sequence_how ?(how = `Sequential) ~f =
+  stage
+    (match how with
+     | `Parallel -> f
+     | `Sequential | `Max_concurrent_jobs _ as how ->
+       let max_concurrent_jobs =
+         match how with
+         | `Sequential -> 1
+         | `Max_concurrent_jobs max_concurrent_jobs -> max_concurrent_jobs
+       in
+       let t = create ~continue_on_error:false ~max_concurrent_jobs in
+       fun a -> enqueue t (fun () -> f a))
+;;
+
+let monad_sequence_how2 ?(how = `Sequential) ~f =
+  stage
+    (match how with
+     | `Parallel -> f
+     | `Sequential | `Max_concurrent_jobs _ as how ->
+       let max_concurrent_jobs =
+         match how with
+         | `Sequential -> 1
+         | `Max_concurrent_jobs max_concurrent_jobs -> max_concurrent_jobs
+       in
+       let t = create ~continue_on_error:false ~max_concurrent_jobs in
+       fun a1 a2 -> enqueue t (fun () -> f a1 a2))
 ;;
 
 let prior_jobs_done t =

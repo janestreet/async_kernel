@@ -340,13 +340,6 @@ let close t =
   end;
 ;;
 
-let init f =
-  let r, w = create () in
-  don't_wait_for (Monitor.protect (fun () -> f w)
-                    ~finally:(fun () -> close w; Deferred.unit));
-  r
-;;
-
 let close_read t =
   if !show_debug_messages then eprints "close_read" t <:sexp_of< (_, _) t >>;
   if !check_invariant then invariant t;
@@ -358,6 +351,20 @@ let close_read t =
     update_pushback t; (* we just cleared the buffer, so may need to fill [t.pushback] *)
     close t;
   end;
+;;
+
+let init f =
+  let r, w = create () in
+  don't_wait_for (Monitor.protect (fun () -> f w)
+                    ~finally:(fun () -> close w; Deferred.unit));
+  r
+;;
+
+let init_reader f =
+  let r, w = create () in
+  don't_wait_for (Monitor.protect (fun () -> f r)
+                    ~finally:(fun () -> close_read r; Deferred.unit));
+  w
 ;;
 
 let values_were_read t consumer =
@@ -447,16 +454,19 @@ let finish_write t =
   update_pushback t;
 ;;
 
-let write_without_pushback' t values =
+let transfer_in_without_pushback t ~from =
   start_write t;
-  Q.blit_transfer ~src:values ~dst:t.buffer ();
+  Q.blit_transfer ~src:from ~dst:t.buffer ();
   finish_write t;
 ;;
 
-let write' t values =
-  write_without_pushback' t values;
+let transfer_in t ~from =
+  transfer_in_without_pushback t ~from;
   pushback t;
 ;;
+
+(* [write'] is used internally *)
+let write' t q = transfer_in t ~from:q
 
 let write_without_pushback t value =
   start_write t;
@@ -1662,7 +1672,9 @@ TEST_MODULE = struct
   TEST_UNIT =
     let r = of_list [ (); () ] in
     let r2, w2 = create () in
-    upon (transfer r w2 ~f:(fun () -> close_read r)) (fun () -> close w2);
+    upon (transfer r w2 ~f:(fun () -> close_read r)) (fun () ->
+      assert (not (is_closed w2));
+      close w2);
     let res = to_list r2 in
     stabilize ();
     assert (Deferred.peek res = Some [ () ]);

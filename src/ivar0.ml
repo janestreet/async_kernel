@@ -1,7 +1,7 @@
-open Core_kernel.Std
-open Import    let _ = _squelch_unused_module_warning_
+open! Core_kernel.Std
+open! Import
 
-module Scheduler = Raw_scheduler
+module Scheduler = Scheduler0
 
 type any = [ `Empty | `Empty_one_handler | `Empty_one_or_more_handlers | `Full | `Indir ]
 

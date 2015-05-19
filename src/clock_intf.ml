@@ -47,33 +47,62 @@ module type Clock = sig
        | `Result of 'a
        ] Deferred.t
 
-  (** Events provide abortable versions of [at] and [after]. *)
+  (** Events provide versions of [at] and [after] that can be aborted and rescheduled. *)
   module Event: sig
     type t with sexp_of
 
     include Invariant.S with type t := t
 
-    (** If [status] returns [`Will_happen_at time], it is possible that [time < Time.now
+    val scheduled_at : t -> Time.t
+
+    (** If [status] returns [`Scheduled_at time], it is possible that [time < Time.now
         ()], if Async's scheduler hasn't yet gotten the chance to update its clock, e.g.
         due to user jobs running. *)
     val status
-      : t -> [ `Happened
-             | `Will_happen_at of Time.t
-             | `Aborted
+      : t -> [ `Aborted
+             | `Happened
+             | `Scheduled_at of Time.t
              ]
+
+    (** Once an event has fired, i.e. [fired t] is determined, Async doesn't use any space
+        for tracking it. *)
+    val fired : t -> [ `Happened | `Aborted ] Deferred.t
+
     val abort : t -> [ `Ok | `Previously_aborted | `Previously_happened ]
 
-    (* [at time] returns a pair [t, d], where [d] is like [at time], except that if one
-       calls [abort t] prior to [d] becoming determined, then [d] will become determined
-       with [`Aborted].
+    (** [at time] returns an event [t] whose [fired] becomes determined with [`Happened]
+        at [time], unless [abort t] is called first, in which case it becomes determined
+        with [`Aborted].
 
-       [after] is like [at], except that one specifies a time span rather than an absolute
-       time.
+        [after] is like [at], except that one specifies a time span rather than an
+        absolute time. *)
+    val at    : Time.t      -> t
+    val after : Time.Span.t -> t
 
-       For both [at] and [after], once an event is aborted, Async doesn't use any space
-       for tracking it. *)
-    val at    : Time.t      -> t * [ `Happened | `Aborted ] Deferred.t
-    val after : Time.Span.t -> t * [ `Happened | `Aborted ] Deferred.t
+    (** In [run_at at f x = t], it is guaranteed that [f] has been called iff [status t =
+        `Happened]. *)
+    val run_at    : Time.     t -> ('a -> unit) -> 'a -> t
+    val run_after : Time.Span.t -> ('a -> unit) -> 'a -> t
+
+    (** [reschedule_at t] and [reschedule_after t] change the time that [t] will fire, if
+        possible, and if not, give a reason why.  [`Too_late_to_reschedule] means that the
+        Async job to fire [t] has been enqueued, but has not yet run.
+
+        Like [run_at], if the requested time is in the past, the event will be scheduled
+        to run immediately.  If [reschedule_at t time = `Ok], then subsequently
+        [scheduled_at t = time].  *)
+    val reschedule_at
+      : t -> Time.t      -> [ `Ok
+                            | `Previously_aborted
+                            | `Previously_happened
+                            | `Too_late_to_reschedule
+                            ]
+    val reschedule_after
+      : t -> Time.Span.t -> [ `Ok
+                            | `Previously_aborted
+                            | `Previously_happened
+                            | `Too_late_to_reschedule
+                            ]
   end
 
   (** [at_varying_intervals f ?stop] returns a stream whose next element becomes

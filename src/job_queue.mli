@@ -15,5 +15,5 @@ val clear : t -> unit
 val set_jobs_left_this_cycle : t -> int -> unit
 val can_run_a_job : t -> bool
 val length : t -> int
-val run_jobs : t -> Scheduler.t -> (unit, exn) Result.t
+val run_jobs : t -> Scheduler.t -> (unit, exn * string (* backtrace *)) Result.t
 val num_jobs_run : t -> int

@@ -80,3 +80,8 @@ val max_num_threads                     : Max_num_threads.t
 val record_backtraces                   : bool
 val report_thread_pool_stuck_for        : Time_ns.Span.t
 val timing_wheel_config                 : Timing_wheel_ns.Config.t
+
+
+(** [!task_id] is used in debug messages.  It is is set in [Async_unix] to include
+    the thread and pid. *)
+val task_id : (unit -> Sexp.t) ref

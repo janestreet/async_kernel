@@ -1,8 +1,23 @@
-open Core_kernel.Std
+open! Core_kernel.Std
+open! Import
 
-include (Deferred.Result : Monad.S2 with type ('a, 'b) t := ('a, 'b) Deferred.Result.t)
+module Deferred = Deferred1
+
+include (Deferred_result : Monad.S2 with type ('a, 'b) t := ('a, 'b) Deferred_result.t)
 
 type 'a t = 'a Or_error.t Deferred.t
+
+include Applicative.Make (struct
+    type nonrec 'a t = 'a t
+    let return = return
+    let apply f x =
+      Deferred_result.combine f x
+        ~ok:(fun f x -> f x)
+        ~err:(fun e1 e2 -> Error.of_list [e1; e2])
+    let map = `Custom map
+  end)
+
+let ignore = ignore_m
 
 let fail error = Deferred.return (Result.fail error)
 
@@ -27,11 +42,11 @@ let tag_arg t message a sexp_of_a =
 let unimplemented msg = Deferred.return (Or_error.unimplemented msg)
 
 let combine_errors l =
-  Deferred.map (Deferred.List.all l) ~f:Or_error.combine_errors
+  Deferred.map (Deferred_list.all l) ~f:Or_error.combine_errors
 ;;
 
 let combine_errors_unit l =
-  Deferred.map (Deferred.List.all l) ~f:Or_error.combine_errors_unit
+  Deferred.map (Deferred_list.all l) ~f:Or_error.combine_errors_unit
 ;;
 
 let ok_unit = return ()
@@ -51,6 +66,7 @@ let try_with_join ?extract_exn ?(name = default_name) f =
 ;;
 
 module List = struct
+
   let foldi list ~init:acc ~f =
     let rec loop i acc = function
       | [] -> return acc
@@ -72,7 +88,8 @@ module List = struct
 
   let iteri ?(how = `Sequential) t ~f =
     match how with
-    | `Parallel -> all_unit (List.mapi t ~f)
+    | `Parallel | `Max_concurrent_jobs _ as how ->
+      all_unit (List.mapi t ~f:(unstage (Throttle.monad_sequence_how2 ~how ~f)))
     | `Sequential ->
       foldi t ~init:() ~f:(fun i () x -> f i x)
   ;;
@@ -81,7 +98,8 @@ module List = struct
 
   let map ?(how=`Sequential) t ~f =
     match how with
-    | `Parallel -> all (List.map t ~f)
+    | `Parallel | `Max_concurrent_jobs _ as how ->
+      all (List.map t ~f:(unstage (Throttle.monad_sequence_how ~how ~f)))
     | `Sequential -> seqmap t ~f
   ;;
 

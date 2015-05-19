@@ -4,7 +4,7 @@ open Core_kernel.Std
 open Import
 
 type t = Types.Execution_context.t =
-  { monitor            : Raw_monitor.t
+  { monitor            : Monitor0.t
   ; priority           : Priority.t
   ; local_storage      : Univ_map.t
   ; backtrace_history  : Backtrace.t list
@@ -22,9 +22,9 @@ include Invariant.S with type t := t
 val main : t
 
 val create_like
-  :  ?monitor:Raw_monitor.t
-  -> ?priority:Priority.t
-  -> ?local_storage:Univ_map.t
+  :  ?monitor       : Monitor0.t
+  -> ?priority      : Priority.t
+  -> ?local_storage : Univ_map.t
   -> t
   -> t
 

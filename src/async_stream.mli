@@ -8,7 +8,11 @@
     The basic primitive operation for getting the next element out of stream is
     [Stream.next], which (asynchronously) returns the element and the rest of the
     stream. *)
+
+open Core_kernel.Std
 open Import
+
+module Deferred = Deferred1
 
 type 'a t = 'a Tail.Stream.t with sexp_of
 (** [sexp_of_t t f] returns a sexp of all of the elements currently available in the

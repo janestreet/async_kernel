@@ -1,5 +1,5 @@
 open Core_kernel.Std
-open Import  let _ = _squelch_unused_module_warning_
+open Import
 open Deferred_std
 
 module Stream = Async_stream
@@ -12,114 +12,146 @@ let debug = Debug.clock
    current time, not some artifact of async implementation. *)
 let span_to_time span = Time_ns.add (Time_ns.now ()) span
 
-let run_at_internal (scheduler : Raw_scheduler.t) time f a =
+let run_at_internal (scheduler : Scheduler0.t) time f a =
   let events = scheduler.events in
-  let execution_context = Raw_scheduler.current_execution_context scheduler in
-  if Time_ns.( <= ) time (Timing_wheel_ns.now events)
-  then Raw_scheduler.enqueue scheduler execution_context f a
-  else ignore (Timing_wheel_ns.add events ~at:time
-                 (Raw_scheduler.create_job scheduler execution_context f a)
-               : _ Timing_wheel_ns.Alarm.t);
+  let execution_context = Scheduler0.current_execution_context scheduler in
+  if Time_ns.( > ) time (Timing_wheel_ns.now events)
+  then Scheduler0.schedule_job scheduler ~at:time execution_context f a
+  else begin
+    Scheduler0.enqueue scheduler execution_context f a;
+    Timing_wheel_ns.Alarm.null ();
+  end
 ;;
 
-let run_at time f a = run_at_internal (Raw_scheduler.t ()) time f a
+let run_at time f a =
+  ignore (run_at_internal (Scheduler0.t ()) time f a : _ Timing_wheel_ns.Alarm.t);
+;;
 
 let run_after span f a = run_at (span_to_time span) f a
 
 let at =
   let fill result = Ivar.fill result () in
   fun time ->
-    let scheduler = Raw_scheduler.t () in
+    let scheduler = Scheduler0.t () in
     if Time_ns.( <= ) time (Timing_wheel_ns.now scheduler.events)
     then Deferred.unit
     else
       let result = Ivar.create () in
-      run_at_internal scheduler time fill result;
+      ignore (run_at_internal scheduler time fill result : _ Timing_wheel_ns.Alarm.t);
       Ivar.read result;
 ;;
 
 let after span = at (span_to_time span)
 
 module Event = struct
-
   type t =
-    { alarm : Job.t Timing_wheel_ns.Alarm.t
-    ; ready : [ `Happened | `Aborted ] Ivar.t
+    { alarm                : Job.t Timing_wheel_ns.Alarm.t
+    (* [scheduled_at] is the time at which [t] has most recently been scheduled to fire.
+       While [t.alarm] is still in the timing wheel, this is the same as [Alarm.at
+       t.alarm]. *)
+    ; mutable scheduled_at : Time_ns.t
+    (* As long as [Ivar.is_empty fired], we have not yet committed to whether the event
+       will happen or be aborted.  When [Ivar.is_empty fired], the alarm may or may not be
+       in the timing wheel -- if it isn't, then there's a job in Async's job queue that
+       will fire the event, unless it is aborted before that job can run. *)
+    ; fired                : [ `Happened | `Aborted ] Ivar.t
     }
   with fields, sexp_of
 
+  let fired t = Ivar.read t.fired
+
   let invariant t =
     Invariant.invariant _here_ t <:sexp_of< t >> (fun () ->
-      let events = Raw_scheduler.(events (t ())) in
+      let events = Scheduler0.(events (t ())) in
       let check f = Invariant.check_field t f in
       Fields.iter
         ~alarm:(check (fun alarm ->
-          if Ivar.is_full t.ready
+          if Ivar.is_full t.fired
           then assert (not (Timing_wheel_ns.mem events alarm))))
-        ~ready:ignore)
+        ~scheduled_at:(check (fun scheduled_at ->
+          if Timing_wheel_ns.mem events t.alarm
+          then <:test_result< Time_ns.t >> scheduled_at
+                 ~expect:(Timing_wheel_ns.Alarm.at events t.alarm)))
+        ~fired:ignore)
   ;;
 
   let status t =
-    match Deferred.peek (Ivar.read t.ready) with
-    | Some x -> (x :> [ `Happened | `Aborted | `Will_happen_at of Time_ns.t ])
-    | None ->
-      let scheduler = Raw_scheduler.t () in
-      let events = scheduler.events in
-      if Timing_wheel_ns.mem events t.alarm
-      then `Will_happen_at (Timing_wheel_ns.Alarm.at events t.alarm)
-      else begin
-        (* [advance_clock] already scheduled [fire] and removed [t.alarm], but the [fire]
-           job didn't yet run.  We go ahead and pretend it happened though.  The
-           subsequent [fire] job will be a no-op. *)
-        Ivar.fill t.ready `Happened;
-        `Happened
-      end;
+    match Deferred.peek (Ivar.read t.fired) with
+    | None -> `Scheduled_at t.scheduled_at
+    | Some x -> (x :> [ `Happened | `Aborted | `Scheduled_at of Time_ns.t ])
   ;;
 
- let abort t =
+  let abort t =
     if debug then Debug.log "Clock_ns.Event.abort" t <:sexp_of< t >>;
-    match status t with
-    | `Aborted -> `Previously_aborted
-    | `Happened -> `Previously_happened
-    | `Will_happen_at _ ->
-      Ivar.fill t.ready `Aborted;
-      let scheduler = Raw_scheduler.t () in
+    match Deferred.peek (fired t) with
+    | Some `Aborted  -> `Previously_aborted
+    | Some `Happened -> `Previously_happened
+    | None ->
+      Ivar.fill t.fired `Aborted;
+      let scheduler = Scheduler0.t () in
       let events = scheduler.events in
       (* [t.alarm] might have been removed from [events] due to [advance_clock], even
          though the resulting [fire] job hasn't run yet.  So, we have to check before
          removing it. *)
       if Timing_wheel_ns.mem events t.alarm then begin
-        Raw_scheduler.free_job scheduler (Timing_wheel_ns.Alarm.value events t.alarm);
+        Scheduler0.free_job scheduler (Timing_wheel_ns.Alarm.value events t.alarm);
         Timing_wheel_ns.remove events t.alarm;
       end;
       `Ok
   ;;
 
-  let at time =
-    if debug then Debug.log "Clock_ns.Event.at" time <:sexp_of< Time_ns.t >>;
-    let scheduler = Raw_scheduler.t () in
-    let events = Raw_scheduler.events scheduler in
-    let t =
-      if Time_ns.( <= ) time (Timing_wheel_ns.now events)
-      then
-        { alarm = Timing_wheel_ns.Alarm.null ()
-        ; ready = Ivar.create_full `Happened
-        }
-      else
-        let ready = Ivar.create () in
-        let fire () = Ivar.fill_if_empty ready `Happened in
-        let alarm =
-          Timing_wheel_ns.add events ~at:time
-            (Raw_scheduler.create_job scheduler
-               (Raw_scheduler.current_execution_context scheduler)
-               fire ())
-        in
-        { alarm ; ready }
-    in
-    t, Ivar.read t.ready
+  let reschedule_at t at =
+    if debug
+    then Debug.log "Clock_ns.Event.reschedule_at" (t, at) <:sexp_of< t * Time_ns.t >>;
+    match Deferred.peek (fired t) with
+    | Some `Aborted  -> `Previously_aborted
+    | Some `Happened -> `Previously_happened
+    | None ->
+      let scheduler = Scheduler0.t () in
+      let events = Scheduler0.events scheduler in
+      let is_in_timing_wheel = Timing_wheel_ns.mem events t.alarm in
+      let am_trying_to_reschedule_in_the_future =
+        Time_ns.( > ) at (Timing_wheel_ns.now events)
+      in
+      if am_trying_to_reschedule_in_the_future && not is_in_timing_wheel
+      then `Too_late_to_reschedule
+      else begin
+        t.scheduled_at <- at;
+        if is_in_timing_wheel
+        then
+          if am_trying_to_reschedule_in_the_future
+          then Timing_wheel_ns.reschedule events t.alarm ~at
+          else begin
+            Scheduler0.enqueue_job scheduler ~free_job:true
+              (Timing_wheel_ns.Alarm.value events t.alarm);
+            Timing_wheel_ns.remove events t.alarm;
+          end;
+        `Ok
+      end;
   ;;
 
-  let after span = at (span_to_time span)
+  let reschedule_after t span = reschedule_at t (span_to_time span)
+
+  let run_at scheduled_at f a =
+    if debug
+    then Debug.log "Clock_ns.Event.run_at" scheduled_at <:sexp_of< Time_ns.t >>;
+    let scheduler = Scheduler0.t () in
+    let fired = Ivar.create () in
+    let fire a =
+      (* [fire] runs in an Async job.  The event may have been aborted after the job
+         was enqueued, so [fire] must check [fired]. *)
+      if Ivar.is_empty fired then begin
+        Ivar.fill fired `Happened;
+        f a
+      end
+    in
+    let alarm = run_at_internal scheduler scheduled_at fire a in
+    { alarm; scheduled_at; fired }
+  ;;
+
+  let at        time     = run_at time ignore ()
+  let run_after span f a = run_at (span_to_time span) f a
+  let after     span     =     at (span_to_time span)
 end
 
 open Monitor.Exported_for_scheduler
@@ -229,7 +261,30 @@ let run_at_intervals ?start ?stop ?continue_on_error interval f =
 ;;
 
 let with_timeout span d =
-  choose [ choice d            (fun v -> `Result v)
-         ; choice (after span) (fun _ -> `Timeout)
-         ]
+  let timeout = Event.after span in
+  choose
+    (* [choose] is supposed to call at most one choice function one time.  So, the bug
+       messages below, should they raise, likely indicate a bug in [choose] rather than
+       [with_timeout]. *)
+    [ choice d (fun v ->
+        begin match Event.abort timeout with
+        (* [`Previously_happened] can occur if both [d] and [wait] become determined at
+           the same time, e.g. [with_timeout (sec 0.) Deferred.unit]. *)
+        | `Ok | `Previously_happened -> ()
+        | `Previously_aborted ->
+          failwith "Clock_ns.with_timeout bug: should only abort once"
+        end;
+        `Result v)
+    ; choice (Event.fired timeout) (function
+        | `Happened -> `Timeout
+        | `Aborted -> failwith "Clock_ns.with_timeout bug: both completed and timed out")
+    ]
+;;
+
+TEST_UNIT "with_timeout doesn't clutter the async timing wheel" =
+  let timing_wheel_length () = Timing_wheel_ns.length (Scheduler0.t ()).events in
+  let length_before = timing_wheel_length () in
+  don't_wait_for (Deferred.ignore (with_timeout Time_ns.Span.day Deferred.unit));
+  Scheduler.run_cycles_until_no_jobs_remain ();
+  assert (timing_wheel_length () <= length_before);
 ;;

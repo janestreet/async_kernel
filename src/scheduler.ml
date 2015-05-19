@@ -1,17 +1,16 @@
 open Core_kernel.Std
-open Import    let _ = _squelch_unused_module_warning_
-open Raw_scheduler
+open Import
 
-module Stream = Async_stream
+module Deferred  = Deferred1
+module Scheduler = Scheduler0
+module Stream    = Async_stream
 
-let debug = Debug.scheduler
+include Scheduler
 
-type t = Raw_scheduler.t with sexp_of
-
-let t = Raw_scheduler.t
+let t = Scheduler.t
 
 include struct
-  open Raw_scheduler
+  open Scheduler
   let check_access              = check_access
   let check_access              = check_access
   let create_job                = create_job
@@ -82,6 +81,9 @@ let thread_safe_enqueue_external_job t execution_context f a =
   t.thread_safe_external_job_hook ();
 ;;
 
+let set_event_added_hook t f = t.event_added_hook <- Some f
+let set_job_queued_hook  t f = t.job_queued_hook  <- Some f
+
 let create_alarm t f =
   let execution_context = current_execution_context t in
   Gc.Expert.Alarm.create (fun () ->
@@ -144,10 +146,10 @@ let run_cycle t =
   advance_clock t ~now;
   start_cycle t ~max_num_jobs_per_priority:t.max_num_jobs_per_priority_per_cycle;
   let rec run_jobs () =
-    match Raw_scheduler.run_jobs t with
+    match Scheduler.run_jobs t with
     | Ok () -> ()
-    | Error exn ->
-      Monitor.send_exn (Monitor.current ()) exn ~backtrace:`Get;
+    | Error (exn, backtrace) ->
+      Monitor.send_exn (Monitor.current ()) exn ~backtrace:(`This backtrace);
       (* [run_jobs] stopped due to an exn.  There may still be jobs that could be run
          this cycle, so [run_jobs] again. *)
       run_jobs ()
@@ -187,7 +189,7 @@ let run_cycles_until_no_jobs_remain () =
     (* We pause just before checking if there are pending jobs, so that clock events that
        fire become jobs, and thus cause an additional [loop]. *)
     pause_for_events_in_the_past t;
-    if num_pending_jobs t > 0 then loop ();
+    if can_run_a_job t then loop ()
   in
   loop ();
   (* Reset the current execution context to maintain the invariant that when we're not in
@@ -200,7 +202,7 @@ let run_cycles_until_no_jobs_remain () =
 let reset_in_forked_process () =
   if debug then Debug.log_string "reset_in_forked_process";
   (* There is no need to empty [main_monitor_hole]. *)
-  Raw_scheduler.(t_ref := create ());
+  Scheduler.(t_ref := create ());
 ;;
 
 let check_invariants t = t.check_invariants

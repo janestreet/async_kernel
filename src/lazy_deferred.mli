@@ -34,12 +34,6 @@ include Monad with type 'a t := 'a t
     rather than an ['a t]. *)
 val bind' : 'a t -> ('a -> 'b Deferred.t) -> 'b t
 
-(** [follow t f] returns a new lazy deferred almost like [bind'] with the notable
-    difference that its computation will start as soon as the deferred it is following
-    becomes [determined].  Since the resulting deferred depends on the ['a] value computed
-    by [t] forcing the resulting of [follow] will force the compuation of [t]. *)
-val follow : 'a t -> ('a -> 'b Deferred.t) -> 'b t
-
 (** Read-only operations. *)
 
 (** [peek t = Deferred.peek (wait t)] *)

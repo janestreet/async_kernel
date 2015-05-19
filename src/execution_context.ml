@@ -1,7 +1,7 @@
 open! Core_kernel.Std
 open! Import
 
-module Monitor = Raw_monitor
+module Monitor = Monitor0
 
 type t = Types.Execution_context.t =
   { monitor            : Monitor.t

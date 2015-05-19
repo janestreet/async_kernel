@@ -1,11 +1,13 @@
 open Core_kernel.Std
-open Import  let _ = _squelch_unused_module_warning_
+open Import
 open Deferred_std
 
 module Stream = Async_stream
 
 module Throttle = Throttle_debug.Debug (Throttle)
 open Throttle
+
+module Deferred = Deferred
 
 let stabilize = Scheduler.run_cycles_until_no_jobs_remain
 
@@ -18,6 +20,9 @@ type nonrec 'a t = 'a t with sexp_of
 let invariant = invariant
 
 module Sequencer = Sequencer
+
+let monad_sequence_how  = monad_sequence_how
+let monad_sequence_how2 = monad_sequence_how2
 
 let create              = create
 let enqueue'            = enqueue'

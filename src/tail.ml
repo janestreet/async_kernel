@@ -1,4 +1,7 @@
-open Core_kernel.Std
+open! Core_kernel.Std
+open! Import
+
+module Deferred = Deferred1
 
 module Stream = struct
   type 'a t = 'a next Deferred.t

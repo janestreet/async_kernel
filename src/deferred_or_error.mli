@@ -1,4 +1,3 @@
-
 (** The deferred analog of [Core.Or_error].  It is exposed in std.ml as
     [Deferred.Or_error].
 
@@ -23,14 +22,20 @@
     [Deferred.Or_error.try_with_join] to wrap its execution and enforce this property. *)
 
 open Core_kernel.Std
+open Import
+
+module Deferred = Deferred1
 
 type 'a t = 'a Or_error.t Deferred.t
 
 (** [return x = Deferred.return (Ok x)] **)
-include Monad.S with type 'a t := 'a t
+include Applicative.S with type 'a t := 'a t
+include Monad.S       with type 'a t := 'a t
 
 (** [fail error = Deferred.return (Error error)] **)
 val fail : Error.t -> _ t
+
+val ignore : _ t -> unit t
 
 (** These functions are direct analogs of the corresponding [Core.Or_error] functions. *)
 val ok_exn : 'a t -> 'a Deferred.t
@@ -67,6 +72,6 @@ val try_with_join
   -> (unit -> 'a t)
   -> 'a t
 
-module List : Deferred_intf.Monad_sequence
+module List : Monad_sequence.S
   with type 'a monad := 'a t
   with type 'a t := 'a list

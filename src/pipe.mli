@@ -47,11 +47,18 @@ end
 (** [init f] creates a new pipe, applies [f] to its writer end, and returns its reader
     end.  [init] closes the writer end when the result of [f] becomes determined.  If [f]
     raises, the writer end is closed and the exception is raised to the caller of
-    [init]. *)
-val init : ('a Writer.t -> unit Deferred.t) -> 'a Reader.t
+    [init].
 
-(** [create ()] creates a new pipe.  It is preferable to use [init] instead of [create],
-    since [init] provides exception handling and automatic closing of the pipe. *)
+    [init_reader] is symmetric.  It creates a new pipe, applies [f] to its reader end, and
+    returns its writer end.  [init] calls [close_read] when the result of [f] becomes
+    determined or if [f] raises, and any exception is raised to the caller of
+    [init_reader]. *)
+val init        : ('a Writer.t -> unit Deferred.t) -> 'a Reader.t
+val init_reader : ('a Reader.t -> unit Deferred.t) -> 'a Writer.t
+
+(** [create ()] creates a new pipe.  It is preferable to use [init] or [init_reader]
+    instead of [create], since they provide exception handling and automatic
+    closing of the pipe. *)
 val create : unit -> 'a Reader.t * 'a Writer.t
 
 (** [of_list l] returns a closed pipe reader filled with the contents of [l]. *)
@@ -230,22 +237,27 @@ val is_empty : (_, _) t -> bool
     the pipe is empty. *)
 val pushback : 'a Writer.t -> unit Deferred.t
 
-(** [write' writer q] transfers the elements from [q] into the pipe, leaving [q] empty.
-    [write'] returns a pushback deferred, as described above.  Writing to a closed pipe
-    raises.
+(** [write writer a] enqueues [a] in [writer], returning a pushback deferred, as described
+    above.
 
-    [write writer v] is equivalent to [write' writer (Queue.singleton v)]. *)
-val write' : 'a Writer.t -> 'a Queue.t -> unit Deferred.t
-val write  : 'a Writer.t -> 'a         -> unit Deferred.t
+    [transfer_in writer ~from:q] transfers the elements from [q] into [writer], leaving
+    [q] empty, and returning a pushback deferred.
 
-(** [write_without_pushback'] and [write_without_pushback] are alternatives to [write']
-    and [write] that can be used when you don't care about the resultant deferred. The
-    data is added to the pipe and then we return immediately.
+    [write_without_pushback] and [transfer_in_without_pushback] are alternatives to
+    [transfer_in] and [write] that can be used when you don't care about the pushback
+    deferred.  They add data to the pipe and return immediately.
 
-    [write' t values] is equivalent to [write_without_pushback' t values; pushback t] (and
-    similarly for [write]). *)
-val write_without_pushback' : 'a Writer.t -> 'a Queue.t -> unit
-val write_without_pushback  : 'a Writer.t -> 'a         -> unit
+    The following equivalences hold:
+
+    - [write t a = write_without_pushback t a; pushback t]
+    - [transfer_in t ~from = transfer_in_without_pushback t ~from; pushback t]
+
+    If [is_closed writer], then all of these functions raise.
+*)
+val write                        : 'a Writer.t ->      'a         -> unit Deferred.t
+val write_without_pushback       : 'a Writer.t ->      'a         -> unit
+val transfer_in                  : 'a Writer.t -> from:'a Queue.t -> unit Deferred.t
+val transfer_in_without_pushback : 'a Writer.t -> from:'a Queue.t -> unit
 
 (** [write_when_ready writer ~f] waits until there is space available in the pipe, and
     then calls [f write], where [write] can be used by [f] to write a single value into

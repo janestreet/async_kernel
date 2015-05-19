@@ -1,7 +1,7 @@
-open Core_kernel.Std  let _ = _squelch_unused_module_warning_
-open Import    let _ = _squelch_unused_module_warning_
+open! Core_kernel.Std
+open! Import
 
-module Ivar = Raw_ivar
+module Ivar = Ivar0
 
 module Handler = Ivar.Handler
 
@@ -14,15 +14,17 @@ module Handler = Ivar.Handler
    representation as an ivar.  This [Obj.magic] is safe because the representation is
    always just an ivar, and the covariance follows from the fact that all the deferred
    operations are equivalent to those implemented directly on top of the
-   [essence_of_deferred]. *)
-(*
-   type (+'a, 'execution_context) essence_of_deferred =
-   { peek : unit -> 'a option;
-   is_determined : unit -> bool;
-   upon : ('a -> unit) -> unit;
-   upon' : ('a -> unit) -> Unregister.t;
-   install_removable_handler : ('a, 'execution_context) Raw_handler.t -> Unregister.t;
-   }
+   [essence_of_deferred].
+
+   {[
+     type (+'a, 'execution_context) essence_of_deferred =
+       { peek                      : unit -> 'a option
+       ; is_determined             : unit -> bool
+       ; upon                      : ('a -> unit) -> unit
+       ; upon'                     : ('a -> unit) -> Unregister.t
+       ; install_removable_handler : ('a, 'execution_context) Raw_handler.t -> Unregister.t;
+       }
+   ]}
 *)
 
 type +'a t  (* the abstract covariant type, equivalent to ivar *)

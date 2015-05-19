@@ -2,7 +2,7 @@ OASISFormat:      0.3
 OCamlVersion:     >= 4.00.0
 FindlibVersion:   >= 1.3.2
 Name:             async_kernel
-Version:          112.24.00
+Version:          112.35.00
 Synopsis:         Jane Street Capital's asynchronous execution library (core)
 Authors:          Jane Street Group, LLC <opensource@janestreet.com>
 Copyrights:       (C) 2008-2013 Jane Street Group LLC <opensource@janestreet.com>
@@ -27,14 +27,23 @@ Library async_kernel
   Pack:               true
   Modules:            Async_condition,
                       Async_gc,
-                      Async_or_error,
                       Async_stream,
                       Clock_intf,
                       Clock_ns,
                       Config,
                       Debug,
                       Deferred,
-                      Deferred_intf,
+                      Deferred0,
+                      Deferred1,
+                      Deferred_array,
+                      Deferred_list,
+                      Deferred_map,
+                      Deferred_memo,
+                      Deferred_option,
+                      Deferred_or_error,
+                      Deferred_queue,
+                      Deferred_result,
+                      Deferred_sequence,
                       Deferred_sequence_unit_tests,
                       Deferred_std,
                       Deferred_unit_tests,
@@ -43,22 +52,22 @@ Library async_kernel
                       Handler,
                       Import,
                       Ivar,
+                      Ivar0,
                       Job,
                       Job_pool,
                       Job_queue,
                       Kill_index,
                       Lazy_deferred,
+                      Monad_sequence,
+                      Monad_sequence_unit_tests,
                       Monitor,
+                      Monitor0,
                       Monitor_unit_tests,
                       Pipe,
                       Priority,
-                      Raw_deferred,
-                      Raw_handler,
-                      Raw_ivar,
-                      Raw_monitor,
-                      Raw_scheduler,
                       Raw_stream,
                       Scheduler,
+                      Scheduler0,
                       Std,
                       Tail,
                       Test,
@@ -79,7 +88,6 @@ Library async_kernel
                       pa_test.syntax,
                       sexplib,
                       sexplib.syntax,
-                      threads,
                       herelib,
                       herelib.syntax
   XMETARequires:      sexplib,
@@ -88,5 +96,4 @@ Library async_kernel
                       fieldslib,
                       bin_prot,
                       core_kernel,
-                      threads,
                       herelib

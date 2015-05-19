@@ -5,9 +5,9 @@ open Import
 type +'a t with sexp_of
 type 'a deferred = 'a t
 
-val of_ivar : 'a Raw_ivar.t -> 'a t
+val of_ivar : 'a Ivar0.t -> 'a t
 
-val create : ('a Raw_ivar.t -> unit) -> 'a t
+val create : ('a Ivar0.t -> unit) -> 'a t
 val peek : 'a t -> 'a option
 val is_determined : _ t -> bool
 val return : 'a -> 'a t

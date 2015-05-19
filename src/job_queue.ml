@@ -166,5 +166,10 @@ let run_jobs (type a) t scheduler =
       run_external_jobs t scheduler;
     done;
     Result.ok_unit
-  with exn -> Error exn
+  with exn ->
+    (* We call [Exn.backtrace] immediately after catching an unhandled exception, to
+       ensure there is no intervening code that interferes with the global backtrace
+       state. *)
+    let backtrace = Exn.backtrace () in
+    Error (exn, backtrace)
 ;;

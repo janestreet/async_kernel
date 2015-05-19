@@ -110,7 +110,9 @@ and Scheduler : sig
     ; mutable last_cycle_num_jobs                 : int
     ; events                                      : Job.t Timing_wheel_ns.t
     ; external_jobs                               : External_job.t Thread_safe_queue.t
-    ; mutable thread_safe_external_job_hook       : (unit -> unit)
+    ; mutable thread_safe_external_job_hook       : unit -> unit
+    ; mutable job_queued_hook                     : (Priority.t -> unit) option
+    ; mutable event_added_hook                    : (Time_ns.t  -> unit) option
     ; mutable yield_ivar                          : unit Ivar.t option
     ; mutable check_invariants                    : bool
     ; mutable max_num_jobs_per_priority_per_cycle : Max_num_jobs_per_priority_per_cycle.t

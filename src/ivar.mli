@@ -36,24 +36,6 @@ val is_empty : 'a t -> bool
 (** [is_full t] returns true if [t] is full *)
 val is_full : 'a t -> bool
 
-(** The [Deferred] module exposed here is for Async's internal use only. *)
-module Deferred : sig
-
-  type +'a t with sexp_of
-
-  module Handler : sig type 'a t with sexp_of end
-
-  val create : ('a ivar -> unit) -> 'a t
-  val peek : 'a t -> 'a option
-  val is_determined : _ t -> bool
-  val return : 'a -> 'a t
-  val upon  : 'a t -> ('a -> unit) -> unit
-  val bind  : 'a t -> ('a -> 'b t) -> 'b t
-  val add_handler : 'a t -> ('a -> unit) -> Execution_context.t -> 'a Handler.t
-  val remove_handler : 'a t -> 'a Handler.t -> unit
-
-end
-
 (** [read t] returns a deferred that becomes enabled with value [v] after the ivar is
     filled with [v]. *)
-val read : 'a t -> 'a Deferred.t
+val read : 'a t -> 'a Deferred0.t

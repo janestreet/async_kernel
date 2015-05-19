@@ -40,7 +40,9 @@
     this problem. *)
 open Core_kernel.Std
 
-type t = Raw_monitor.t with sexp_of
+module Deferred = Deferred1
+
+type t = Monitor0.t with sexp_of
 
 type 'a with_optional_monitor_name =
   ?here : Source_code_position.t
@@ -126,11 +128,35 @@ val send_exn : t -> ?backtrace:[ `Get | `This of string ] -> exn -> unit
     [extract_exn = false] due to the additional information.  However, sometimes one wants
     the concision of [extract_exn = true]. *)
 val try_with
-  : (?extract_exn : bool (** default is [false] *)
+  : (?extract_exn : bool             (** default is [false] *)
      -> ?run : [ `Now | `Schedule ]  (** default is [`Schedule] *)
      -> ?rest : [ `Ignore | `Raise ] (** default is [`Ignore] *)
      -> (unit -> 'a Deferred.t)
      -> ('a, exn) Result.t Deferred.t
+    ) with_optional_monitor_name
+
+(** [try_with_or_error] is like [try_with] but returns ['a Or_error.t Deferred.t]
+    instead of [('a,exn) Result.t Deferred.t].  More precisely:
+
+    {[
+      try_with_or_error f ?extract_exn
+      = try_with f ?extract_exn ~run:`Now ~rest:`Ignore >>| Or_error.of_exn_result
+    ]}
+
+    [~run:`Now] is different from [try_with]'s default, [~run:`Schedule].  Based on
+    experience, we think [~run:`Now] is a better behavior.
+*)
+val try_with_or_error
+  : (?extract_exn : bool  (** default is [false] *)
+     -> (unit -> 'a Deferred.t)
+     -> 'a Or_error.t Deferred.t
+    ) with_optional_monitor_name
+
+(** [try_with_join_or_error f = try_with_or_error f >>| Or_error.join]. *)
+val try_with_join_or_error
+  : (?extract_exn : bool  (** default is [false] *)
+     -> (unit -> 'a Or_error.t Deferred.t)
+     -> 'a Or_error.t Deferred.t
     ) with_optional_monitor_name
 
 (** [try_with_rest_handling] determines how [try_with f ~rest] determines the [rest] value
@@ -149,10 +175,14 @@ val try_with_rest_handling
     value is [`Ignore], as determined by [!try_with_rest_handling] and the [~rest]
     supplied to [try_with].
 
-    Initially, [!try_with_ignored_exn_handling = `Ignore]. *)
+    For [`Run f], [f exn] runs in [Monitor.main].
+
+    This value is set to [`Run] by [Async.Log] during initialization, which causes ignored
+    errors to be sent to the global error log.  Programs that want to change this should
+    change this value after module initialization. *)
 val try_with_ignored_exn_handling
   : [ `Ignore              (* really ignore the exception *)
-    | `Eprintf             (* eprintf the exception *)
+    | `Eprintf             (* eprintf the exception in a blocking manner *)
     | `Run of exn -> unit  (* apply the function to the exception *)
     ] ref
 
@@ -210,10 +240,10 @@ module Exported_for_scheduler : sig
     -> ?priority:Priority.t
     -> 'a
   val within'   : ((unit -> 'a Deferred.t) -> 'a Deferred.t) with_options
-  val within    : ((unit -> unit         ) -> unit         ) with_options
-  val within_v  : ((unit -> 'a           ) -> 'a option    ) with_options
+  val within    : ((unit -> unit          ) -> unit          ) with_options
+  val within_v  : ((unit -> 'a            ) -> 'a option     ) with_options
   val schedule' : ((unit -> 'a Deferred.t) -> 'a Deferred.t) with_options
-  val schedule  : ((unit -> unit         ) -> unit         ) with_options
+  val schedule  : ((unit -> unit          ) -> unit          ) with_options
 
   val within_context : Execution_context.t -> (unit -> 'a) -> ('a, unit) Result.t
 

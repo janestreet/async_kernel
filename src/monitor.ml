@@ -1,11 +1,12 @@
 open Core_kernel.Std
-open Import  let _ = _squelch_unused_module_warning_
+open Import
 open Deferred_std
 
-module Scheduler = Raw_scheduler
+module Deferred = Deferred1
+module Scheduler = Scheduler0
 module Stream = Tail.Stream
 
-module Monitor = Raw_monitor
+module Monitor = Monitor0
 include Monitor
 
 type monitor = t with sexp_of
@@ -146,8 +147,8 @@ let send_exn t ?backtrace exn =
              scheduler raise an uncaught exception is the necessary behavior for programs
              that call [Scheduler.go] and want to handle it. *)
           Scheduler.(got_uncaught_exn (t ()))
-            (Error.create "unhandled exception" (exn, `Pid (Unix.getpid ()))
-               <:sexp_of< exn * [ `Pid of int ] >>)
+            (Error.create "unhandled exception" (exn, !Config.task_id ())
+               <:sexp_of< exn * Sexp.t>>)
         end;
   in
   loop t
@@ -212,7 +213,7 @@ module Exported_for_scheduler = struct
   let preserve_execution_context f =
     let scheduler = Scheduler.t () in
     let execution_context = Scheduler.current_execution_context scheduler in
-    stage (fun a -> Raw_scheduler.enqueue scheduler execution_context f a)
+    stage (fun a -> Scheduler.enqueue scheduler execution_context f a)
   ;;
 
   let preserve_execution_context' f =
@@ -221,10 +222,9 @@ module Exported_for_scheduler = struct
     let call_and_fill (f, a, i) = upon (f a) (fun r -> Ivar.fill i r) in
     stage (fun a ->
       Deferred.create (fun i ->
-        Raw_scheduler.enqueue scheduler
+        Scheduler.enqueue scheduler
           execution_context call_and_fill (f, a, i)))
   ;;
-
 end
 
 open Exported_for_scheduler
@@ -256,11 +256,15 @@ let internal_try_with_handle_errors ?rest errors monitor =
     match !try_with_ignored_exn_handling with
     | `Ignore -> ()
     | `Eprintf | `Run _ as x ->
-      stream_iter errors ~f:(fun exn ->
-        match x with
-        | `Run f -> f exn
-        | `Eprintf ->
-          Debug.log "try_with ignored exception" (exn, monitor) <:sexp_of< exn * t >>);
+      (* We run [within ~monitor:main] to avoid a space leak when a chain of [try_with]'s
+         are run each nested within the previous one.  Without the [within], the error
+         handling for the innermost [try_with] would keep alive the entire chain. *)
+      within ~monitor:main (fun () ->
+        stream_iter errors ~f:(fun exn ->
+          match x with
+          | `Run f -> f exn
+          | `Eprintf ->
+            Debug.log "try_with ignored exception" (exn, monitor) <:sexp_of< exn * t >>));
 ;;
 
 let try_with ?here ?info
@@ -293,6 +297,15 @@ let try_with ?here ?info
     >>| fun (res, errors) ->
     internal_try_with_handle_errors ?rest errors monitor;
     res
+;;
+
+let try_with_or_error ?here ?info ?(name = "try_with_or_error") ?extract_exn f =
+  try_with f ?here ?info ~name ?extract_exn ~run:`Now ~rest:`Ignore
+  >>| Or_error.of_exn_result
+;;
+
+let try_with_join_or_error ?here ?info ?(name = "try_with_join_or_error") ?extract_exn f =
+  try_with_or_error f ?here ?info ~name ?extract_exn >>| Or_error.join
 ;;
 
 let protect ?here ?info ?(name = "Monitor.protect") f ~finally =

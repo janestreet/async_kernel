@@ -1,18 +1,14 @@
 open Core_kernel.Std
 
-module Deferred = Raw_deferred
+module Deferred = Deferred0
 
-include Raw_ivar
+include Ivar0
 
 let read = Deferred.of_ivar
 
 let fill_if_empty t v = if is_empty t then fill t v
 
-include Bin_prot.Utils.Make_binable1 (struct
-  module Binable = struct
-    type 'a t = 'a option with bin_io
-  end
-
+include Binable.Of_binable1 (Option) (struct
   type nonrec 'a t = 'a t
 
   let to_binable t = peek t

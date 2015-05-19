@@ -1,5 +1,7 @@
 module Inria_sys = Sys
+module Time_ns_in_this_directory = Time_ns
 open Core_kernel.Std
+module Time_ns = Time_ns_in_this_directory
 
 let sec = Time_ns.Span.of_sec
 
@@ -484,3 +486,5 @@ let t =
   ; timing_wheel_config                 = Some timing_wheel_config
   }
 ;;
+
+let task_id = ref (fun () -> Sexp.Atom "<no task id>")

@@ -6,9 +6,18 @@
 
 open Core_kernel.Std
 open Import
-open Deferred_intf
 
-type +'a t = 'a Ivar.Deferred.t with sexp_of
+module Array    : module type of Deferred_array
+module List     : module type of Deferred_list
+module Map      : module type of Deferred_map
+module Memo     : module type of Deferred_memo
+module Option   : module type of Deferred_option
+module Or_error : module type of Deferred_or_error
+module Queue    : module type of Deferred_queue
+module Result   : module type of Deferred_result
+module Sequence : module type of Deferred_sequence
+
+type +'a t = 'a Deferred1.t with sexp_of
 
 (** [sexp_of_t t f] returns a sexp of the deferred's value, if it is determined, or an
     informative string otherwise.
@@ -23,7 +32,7 @@ val create : ('a Ivar.t -> unit) -> 'a t
     [v]. *)
 val upon : 'a t -> ('a -> unit) -> unit
 
-(** [peek t] returns [Some v] iff [t] is determined with value [t]. *)
+(** [peek t] returns [Some v] iff [t] is determined with value [v]. *)
 val peek : 'a t -> 'a option
 
 (** [is_determined t] returns [true] iff [t] is determined. *)
@@ -78,6 +87,8 @@ end
 (** [unit] is a deferred that is always determined with value [()] *)
 val unit : unit t
 
+val ignore : _ t -> unit t
+
 (** [never ()] returns a deferred that never becomes determined *)
 val never : unit -> _ t
 
@@ -98,25 +109,6 @@ val any : 'a t list -> 'a t
 (** [any_unit ts] like [any] but ignores results of the component deferreds *)
 val any_unit : 'a t list -> unit t
 
-module type Monad_sequence = Monad_sequence with type 'a monad := 'a t
-
-module Array    : Monad_sequence with type 'a t = 'a array
-module List     : Monad_sequence with type 'a t = 'a list
-(** All [Queue] iteration functions first copy the queue (to a list) and then start
-    calling the user function [f].  So, if [f] modifies the queue, that will have no
-    effect on the iteration. *)
-module Queue    : Monad_sequence with type 'a t = 'a Queue.t
-module Sequence : Monad_sequence with type 'a t = 'a Sequence.t
-
-module Map : Deferred_map
-
-module Result : sig
-  include Monad.S2 with type ('a, 'b) t = ('a, 'b) Result.t t
-  val map_error : ('ok, 'error1) t -> f:('error1 -> 'error2) -> ('ok, 'error2) t
-end
-
-module Option : Monad.S  with type 'a t = 'a option t
-
 (** [don't_wait_for t] ignores t completely.  It is like [Fn.ignore], but is more
     constrained because it requires a [unit Deferred.t].
 
@@ -127,7 +119,7 @@ module Option : Monad.S  with type 'a t = 'a option t
 val don't_wait_for : unit t -> unit
 
 (** [choice] is used to produce an argument to [enabled] or [choose].  See below. *)
-type +'a choice
+type +'a choice = 'a Deferred1.choice
 
 val choice : 'a t -> ('a -> 'b) -> 'b choice
 
@@ -139,18 +131,20 @@ val choice : 'a t -> ('a -> 'b) -> 'b choice
     not all [ti] are determined. *)
 val enabled : 'b choice list -> (unit -> 'b list) t
 
-(** {[
+(**
+   {[
      choose [ choice t1 f1
             ; ...
-              ; choice tn fn
+            ; choice tn fn
             ]
    ]}
 
    returns a deferred [t] that becomes determined with value [fi ai] after some [ti]
-   becomes determined with value [ai].  There is no guarantee that the [ti] that becomes
-   determined earliest in time will be the one whose value determines the [choose].  Nor
-   is it guaranteed that the value in [t] is the first value (in place order) from
-   [choices] that is determined at the time [t] is examined.
+   becomes determined with value [ai].  It is guaranteed that [choose] calls at most one
+   of the [fi]s, the one that determines its result.  There is no guarantee
+   that the [ti] that becomes determined earliest in time will be the one whose value
+   determines the [choose].  Nor is it guaranteed that the value in [t] is the first value
+   (in place order) from [choices] that is determined at the time [t] is examined.
 
    For example, in:
 

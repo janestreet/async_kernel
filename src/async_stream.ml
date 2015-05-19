@@ -1,6 +1,8 @@
 open Core_kernel.Std
 open Deferred_std
 
+module Deferred = Deferred1
+
 include Tail.Stream
 
 let first_exn t =
