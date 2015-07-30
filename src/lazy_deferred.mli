@@ -7,7 +7,18 @@
 
     Exceptions (both synchronous and asynchronous) raised by a delayed computation are
     returned by [force] ([wait], [peek], etc.), or will be raised to the monitor in effect
-    when [force_exn] ([wait_exn], [peek_exn], etc.) was called. *)
+    when [force_exn] ([wait_exn], [peek_exn], etc.) was called.
+
+    The type is not exposed nor defined as ['a Deferred.t Lazy.t] or ['a Or_error.t
+    Deferred.t Lazy.t], because there is a difference in power with these types.  There is
+    no way to hook an asynchronous computation to a lazy value in OCaml to be triggered
+    when the lazy gets computed.  This functionality is indeed offered by this module
+    (see [wait]).  Plus, dealing with exception raised by the closures provided is
+    slightly easier when done consistently through this API.
+
+    There is no [val of_lazy : 'a Deferred.t Lazy.t -> 'a t] because of the difference
+    in power.
+*)
 
 open Core_kernel.Std
 
@@ -18,12 +29,12 @@ val create : (unit -> 'a Deferred.t) -> 'a t
 
 (** [force t] forces evaluation of [t] and returns a deferred that becomes determined
     when the deferred computation becomes determined or raises. *)
-val force     : 'a t -> ('a, exn) Result.t Deferred.t
+val force     : 'a t -> 'a Or_error.t Deferred.t
 val force_exn : 'a t -> 'a Deferred.t
 
-(** [wait t] waits for [t] to be forced.  If no one ever calls [force t], [wait] will wait
-    forever. *)
-val wait     : 'a t -> ('a, exn) Result.t Deferred.t
+(** [wait t] and [wait_exn t] waits for [t] to be forced.  If no one ever calls
+    [force t], they will wait forever. *)
+val wait     : 'a t -> 'a Or_error.t Deferred.t
 val wait_exn : 'a t -> 'a Deferred.t
 
 (** [bind t f] in the lazy-deferred monad creates a computation that, when forced, will
@@ -37,7 +48,7 @@ val bind' : 'a t -> ('a -> 'b Deferred.t) -> 'b t
 (** Read-only operations. *)
 
 (** [peek t = Deferred.peek (wait t)] *)
-val peek     : 'a t -> ('a, exn) Result.t option
+val peek     : 'a t -> 'a Or_error.t option
 val peek_exn : 'a t -> 'a option
 
 val is_determined : _ t -> bool

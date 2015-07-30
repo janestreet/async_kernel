@@ -1,3 +1,22 @@
+## 113.00.00
+
+- Switched `Lazy_deferred` to use `Or_error.t` rather than `('a, exn) Result.t`.
+
+    Note: There is difference in the `run` argument between `Monitor.try_with`
+    and `Monitor.try_with_or_error`.  In this module, the function is called
+    already in a closure inside a bind, so that difference is acceptable.
+
+- Made `Deferred` match `Invariant.S1`.
+
+- Improved `Async_kernel.Scheduler.run_cycles_until_no_jobs_remain` to use
+  `Timing_wheel.fire_past_alarms` rather than sleeping.
+
+- Added `Quickcheck` module.
+
+- Reworked the initialization of `Monitor.try_with_ignored_exn_handling` to log
+  exceptions using `Async.Log` so that it doesn't rely on top-level effects,
+  which may not happen without packed libraries.
+
 ## 112.35.00
 
 - Added `Clock.Event.run_at` and `run_after`.

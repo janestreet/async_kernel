@@ -1,30 +1,29 @@
 open Core_kernel.Std
 open Deferred_std
 
-
 module T = struct
 
   type 'a t =
     { start  : unit Ivar.t
-    ; result : ('a, exn) Result.t Deferred.t
+    ; result : 'a Or_error.t Deferred.t
     }
 
   let create f =
     let start = Ivar.create () in
     { start
-    ; result = Ivar.read start >>= (fun () -> Monitor.try_with f);
+    ; result = Ivar.read start >>= (fun () -> Monitor.try_with_or_error f);
     }
   ;;
 
   let wait t = t.result
 
-  let wait_exn t = wait t >>| Result.ok_exn
+  let wait_exn t = wait t >>| ok_exn
 
   let start t = Ivar.fill_if_empty t.start ()
 
   let force t = start t; wait t
 
-  let force_exn t = force t >>| Result.ok_exn
+  let force_exn t = force t >>| ok_exn
 
   let return a = create (fun () -> return a)
 
@@ -47,7 +46,7 @@ let is_determined t = Deferred.is_determined t.result
 
 let peek t = Deferred.peek t.result
 
-let peek_exn t = Option.map (peek t) ~f:Result.ok_exn
+let peek_exn t = Option.map (peek t) ~f:ok_exn
 
 TEST_MODULE = struct
 
@@ -143,22 +142,22 @@ TEST_MODULE = struct
     make_bind_test make final;
   ;;
 
-  let determined def value =
-    match Deferred.peek def with
-    | Some (Ok _ as v) -> value = v
-    | Some (Error exn) -> value = (Error (Monitor.extract_exn exn))
-    | None -> false
-  ;;
-
   exception E_for_test
 
+  let determined_as_E_for_test def =
+    match Deferred.peek def with
+    | None | Some (Ok _) -> false
+    | Some (Error err)   ->
+      String.is_substring ~substring:(Exn.to_string E_for_test) (Error.to_string_hum err)
+  ;;
+
   TEST_UNIT =
     let def = create (fun _ -> raise E_for_test) in
     stabilize();
     assert (not (is_determined def));
     let def = force def in
     stabilize();
-    assert (determined def (Error E_for_test));
+    assert (determined_as_E_for_test def);
   ;;
 
   TEST_UNIT =
@@ -168,16 +167,16 @@ TEST_MODULE = struct
     assert (not (is_determined def));
     let def = force def in
     stabilize();
-    assert (determined def (Error E_for_test));
+    assert (determined_as_E_for_test def);
   ;;
 
   TEST_UNIT =
     let def = create (fun _ -> raise E_for_test) in
     stabilize();
     assert (not (is_determined def));
-    let def = Monitor.try_with (fun () -> force_exn def) in
+    let def = Monitor.try_with_or_error ~extract_exn:true (fun () -> force_exn def) in
     stabilize();
-    assert (determined def (Error E_for_test));
+    assert (determined_as_E_for_test def);
   ;;
 
   TEST_UNIT =
@@ -185,9 +184,9 @@ TEST_MODULE = struct
     let def = bind def (fun _ -> raise E_for_test) in
     stabilize();
     assert (not (is_determined def));
-    let def = Monitor.try_with (fun () -> force_exn def) in
+    let def = Monitor.try_with_or_error ~extract_exn:true (fun () -> force_exn def) in
     stabilize();
-    assert (determined def (Error E_for_test));
+    assert (determined_as_E_for_test def);
   ;;
 
 end

@@ -49,9 +49,14 @@ module Max_num_jobs_per_priority_per_cycle =
   end)
 
 module Dump_core_on_job_delay = struct
+  module How_to_dump = struct
+    type t = Default | Call_abort | Call_gcore
+    with sexp
+  end
+
   type watch =
     { dump_if_delayed_by : Time_ns.Span.t
-    ; how_to_dump        : [ `Default | `Call_abort | `Call_gcore ]
+    ; how_to_dump        : How_to_dump.t
     }
   with sexp
 

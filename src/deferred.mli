@@ -19,6 +19,8 @@ module Sequence : module type of Deferred_sequence
 
 type +'a t = 'a Deferred1.t with sexp_of
 
+include Invariant.S1 with type 'a t := 'a t
+
 (** [sexp_of_t t f] returns a sexp of the deferred's value, if it is determined, or an
     informative string otherwise.
 

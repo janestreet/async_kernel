@@ -234,7 +234,7 @@ val is_empty : (_, _) t -> bool
     exit. *)
 
 (** [pushback writer] becomes determined when either [writer] has been closed or
-    the pipe is empty. *)
+    the pipe can accept a new write. *)
 val pushback : 'a Writer.t -> unit Deferred.t
 
 (** [write writer a] enqueues [a] in [writer], returning a pushback deferred, as described
@@ -522,7 +522,7 @@ val filter : 'a Reader.t -> f:('a -> bool) -> 'a Reader.t
     input.  The operation is complete when either all the [inputs] produce EOF, or when
     [output] is closed by the downstream consumer (in which case [interleave] closes all
     the [inputs]). *)
-val interleave  : 'a Reader.t list     -> 'a Reader.t
+val interleave      : 'a Reader.t list     -> 'a Reader.t
 val interleave_pipe : 'a Reader.t Reader.t -> 'a Reader.t
 
 (** [merge inputs ~cmp] returns a reader, [output], that merges all the inputs.  Assuming

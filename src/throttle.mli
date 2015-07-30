@@ -43,15 +43,15 @@ include Invariant.S1 with type 'a t := 'a t
     If some job raises an exception, then the throttle will be killed, unless
     [continue_on_error] is true. *)
 val create
-  :  continue_on_error:bool
-  -> max_concurrent_jobs:int
+  :  continue_on_error   : bool
+  -> max_concurrent_jobs : int
   -> unit t
 
 (** [create_with ~continue_on_error job_resources] returns a throttle that will run up to
     [List.length job_resources] concurrently, and will ensure that all running jobs are
     supplied distinct elements of [job_resources]. *)
 val create_with
-  :  continue_on_error:bool
+  :  continue_on_error : bool
   -> 'a list
   -> 'a t
 

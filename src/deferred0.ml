@@ -35,6 +35,8 @@ let of_ivar (type a) (ivar : a Ivar.t) = (Obj.magic ivar : a t)
 
 let to_ivar (type a) t = (Obj.magic (t : a t) : a Ivar.t)
 
+let invariant invariant_a t = Ivar.invariant invariant_a (to_ivar t)
+
 let sexp_of_t sexp_of_a t = Ivar.sexp_of_t sexp_of_a (to_ivar t)
 
 let peek t = Ivar.peek (to_ivar t)

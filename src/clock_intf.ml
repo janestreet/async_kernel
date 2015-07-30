@@ -47,42 +47,55 @@ module type Clock = sig
        | `Result of 'a
        ] Deferred.t
 
-  (** Events provide versions of [at] and [after] that can be aborted and rescheduled. *)
+  (** Events provide variants of [run_at] and [run_after] with the ability to abort or
+      reschedule an event that hasn't yet happened.  Once an event happens or is aborted,
+      Async doesn't use any space for tracking it. *)
   module Event: sig
-    type t with sexp_of
+    type ('a, 'h) t with sexp_of
+    type t_unit = (unit, unit) t with sexp_of
 
-    include Invariant.S with type t := t
+    include Invariant.S2 with type ('a, 'b) t := ('a, 'b) t
 
-    val scheduled_at : t -> Time.t
+    val scheduled_at : (_, _) t -> Time.t
 
     (** If [status] returns [`Scheduled_at time], it is possible that [time < Time.now
         ()], if Async's scheduler hasn't yet gotten the chance to update its clock, e.g.
         due to user jobs running. *)
     val status
-      : t -> [ `Aborted
-             | `Happened
-             | `Scheduled_at of Time.t
-             ]
+      : ('a, 'h) t -> [ `Aborted      of 'a
+                      | `Happened     of 'h
+                      | `Scheduled_at of Time.t
+                      ]
 
-    (** Once an event has fired, i.e. [fired t] is determined, Async doesn't use any space
-        for tracking it. *)
-    val fired : t -> [ `Happened | `Aborted ] Deferred.t
+    (** Let [t = run_at time f z].  At [time], this runs [f z] and transitions [status t]
+        to [`Happened h], where [h] is result of [f z].
 
-    val abort : t -> [ `Ok | `Previously_aborted | `Previously_happened ]
+        More precisely, at [time], provided [abort t a] has not previously been called,
+        this will call [f z], with the guarantee that [status t = `Scheduled_at time].  If
+        [f z] returns [h] and did not call [abort t a], then [status t] becomes [`Happened
+        h].  If [f z] calls [abort t a], then the result of [f] is ignored, and [status t]
+        is [`Aborted a].
 
-    (** [at time] returns an event [t] whose [fired] becomes determined with [`Happened]
-        at [time], unless [abort t] is called first, in which case it becomes determined
-        with [`Aborted].
+        If [f z] raises, then [status t] does not transition and remains [`Scheduled_at
+        time], and the exception is sent to the monitor in effect when [run_at] was
+        called. *)
+    val run_at    : Time.     t -> ('z -> 'h) -> 'z -> (_, 'h) t
+    val run_after : Time.Span.t -> ('z -> 'h) -> 'z -> (_, 'h) t
 
-        [after] is like [at], except that one specifies a time span rather than an
-        absolute time. *)
-    val at    : Time.t      -> t
-    val after : Time.Span.t -> t
+    (** [abort t] changes [status t] to [`Aborted] and returns [`Ok], unless [t]
+        previously happened or was previously aborted. *)
+    val abort : ('a, 'h) t -> 'a -> [ `Ok
+                                    | `Previously_aborted  of 'a
+                                    | `Previously_happened of 'h
+                                    ]
 
-    (** In [run_at at f x = t], it is guaranteed that [f] has been called iff [status t =
-        `Happened]. *)
-    val run_at    : Time.     t -> ('a -> unit) -> 'a -> t
-    val run_after : Time.Span.t -> ('a -> unit) -> 'a -> t
+    (** [abort_exn t a] returns unit if [abort t a = `Ok], and otherwise raises. *)
+    val abort_exn : ('a, 'h) t -> 'a -> unit
+
+    (** [abort_if_possible t a = ignore (abort t a)]. *)
+    val abort_if_possible : ('a, _) t -> 'a -> unit
+
+    val fired : ('a, 'h) t -> [ `Aborted of 'a | `Happened of 'h ] Deferred.t
 
     (** [reschedule_at t] and [reschedule_after t] change the time that [t] will fire, if
         possible, and if not, give a reason why.  [`Too_late_to_reschedule] means that the
@@ -92,17 +105,70 @@ module type Clock = sig
         to run immediately.  If [reschedule_at t time = `Ok], then subsequently
         [scheduled_at t = time].  *)
     val reschedule_at
-      : t -> Time.t      -> [ `Ok
-                            | `Previously_aborted
-                            | `Previously_happened
-                            | `Too_late_to_reschedule
-                            ]
+      : ('a, 'h) t -> Time.t      -> [ `Ok
+                                     | `Previously_aborted     of 'a
+                                     | `Previously_happened    of 'h
+                                     | `Too_late_to_reschedule
+                                     ]
     val reschedule_after
-      : t -> Time.Span.t -> [ `Ok
-                            | `Previously_aborted
-                            | `Previously_happened
-                            | `Too_late_to_reschedule
-                            ]
+      : ('a, 'h) t -> Time.Span.t -> [ `Ok
+                                     | `Previously_aborted     of 'a
+                                     | `Previously_happened    of 'h
+                                     | `Too_late_to_reschedule
+                                     ]
+
+    (** [at time]    is [run_at    time ignore ()].
+        [after time] is [run_after time ignore ()].
+
+        You should generally prefer to use the [run_*] functions, which allow one to
+        *synchronously* update state via a user-supplied function when the event
+        transitions to [`Happened].  That is, there is an important difference between:
+
+        {[
+          let t = run_at time f ()
+        ]}
+
+        and:
+
+        {[
+          let t = at time in
+          fired t
+          >>> function
+          | `Happened () -> f ()
+          | `Aborted () -> ()
+        ]}
+
+        With [run_at], if [status t = `Happened], one knows that [f] has run.  With [at]
+        and [fired], one does not know whether [f] has yet run; it may still be scheduled
+        to run.  Thus, with [at] and [fired], it is easy to introduce a race.  For
+        example, consider these two code snippets:
+
+        {[
+          let t = Event.after (sec 2.) in
+          upon (Event.fired t) (function
+            | `Aborted () -> ()
+            | `Happened () -> printf "Timer fired");
+          upon deferred_event (fun () ->
+            match Event.abort t () with
+            | `Ok -> printf "Event occurred"
+            | `Previously_aborted () -> assert false
+            | `Previously_happened () -> printf "Event occurred after timer fired");
+        ]}
+
+        {[
+          let t = Event.run_after (sec 2.) printf "Timer fired" in;
+          upon deferred_event (fun () ->
+            match Event.abort t () with
+            | `Ok -> printf "Event occurred"
+            | `Previously_aborted () -> assert false
+            | `Previously_happened () -> printf "Event occurred after timer fired");
+        ]}
+
+        In both snippets, if [Event.abort] returns [`Ok], "Timer fired" is never printed.
+        However, the first snippet might print "Event occurred after timer fired" and then
+        "Timer fired".  This confused ordering cannot happen with [Event.run_after]. *)
+    val at    : Time.t      -> (_, unit) t
+    val after : Time.Span.t -> (_, unit) t
   end
 
   (** [at_varying_intervals f ?stop] returns a stream whose next element becomes
@@ -132,9 +198,9 @@ module type Clock = sig
     -> Time.Span.t
     -> unit Async_stream.t
 
-  (** [every' ?start ?stop span f] runs [f()] every [span] amount of time starting when
+  (** [every' ?start ?stop span f] runs [f ()] every [span] amount of time starting when
       [start] becomes determined and stopping when [stop] becomes determined.  [every]
-      waits until the result of [f()] becomes determined before waiting for the next
+      waits until the result of [f ()] becomes determined before waiting for the next
       [span].
 
       It is guaranteed that if [stop] becomes determined, even during evaluation of [f],
@@ -142,8 +208,13 @@ module type Clock = sig
 
       It is an error for [span] to be nonpositive.
 
+      With [~continue_on_error:true], when [f] asynchronously raises, iteration continues.
+      With [~continue_on_error:false], if [f] asynchronously raises, then iteration only
+      continues when the result of [f] becomes determined.
+
       Exceptions raised by [f] are always sent to monitor in effect when [every'] was
-      called, even with [~continue_on_error:true]. *)
+      called, even with [~continue_on_error:true].
+  *)
   val every'
     :  ?start : unit Deferred.t   (** default is [Deferred.unit] *)
     -> ?stop : unit Deferred.t    (** default is [Deferred.never ()] *)

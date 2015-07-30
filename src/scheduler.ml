@@ -127,9 +127,12 @@ let force_current_cycle_to_end t =
   Job_queue.set_jobs_left_this_cycle t.normal_priority_jobs 0
 ;;
 
+let handle_fired t alarm =
+  enqueue_job t (Timing_wheel_ns.Alarm.value t.events alarm) ~free_job:true
+;;
+
 let advance_clock t ~now =
-  Timing_wheel_ns.advance_clock t.events ~to_:now ~handle_fired:(fun alarm ->
-    enqueue_job t (Timing_wheel_ns.Alarm.value t.events alarm) ~free_job:true);
+  Timing_wheel_ns.advance_clock t.events ~to_:now ~handle_fired:(handle_fired t)
 ;;
 
 let run_cycle t =
@@ -163,19 +166,9 @@ let run_cycle t =
          <:sexp_of< Error.t option * bool >>;
 ;;
 
-(* Pause long enough so that events in the current timing-wheel interval, some of which
-   may be before [Time_ns.now ()], are fired by the [Timing_wheel_ns.advance_clock] in
-   [run_cycle].  This is necessary because timing-wheel events are guaranteed to fire only
-   by [event_precision] after their scheduled time. *)
-let pause_for_events_in_the_past t =
-  Option.iter (next_upcoming_event t) ~f:(fun next_upcoming_event ->
-    let precision = event_precision t in
-    let next_event_fires_in = Time_ns.diff next_upcoming_event (Time_ns.now ()) in
-    if Time_ns.Span.( <= ) next_event_fires_in precision
-    then begin
-      Time_ns.pause precision;
-      advance_clock t ~now:(Time_ns.now ());
-    end);
+let fire_past_events t =
+  advance_clock t ~now:(Time_ns.now ());
+  Timing_wheel_ns.fire_past_alarms t.events ~handle_fired:(handle_fired t)
 ;;
 
 let run_cycles_until_no_jobs_remain () =
@@ -186,9 +179,9 @@ let run_cycles_until_no_jobs_remain () =
          <:sexp_of< t >>;
   let rec loop () =
     run_cycle t;
-    (* We pause just before checking if there are pending jobs, so that clock events that
-       fire become jobs, and thus cause an additional [loop]. *)
-    pause_for_events_in_the_past t;
+    (* We [fire_past_events] just before checking if there are pending jobs, so that clock
+       events that fire become jobs, and thus cause an additional [loop]. *)
+    fire_past_events t;
     if can_run_a_job t then loop ()
   in
   loop ();

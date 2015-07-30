@@ -1,9 +1,12 @@
 (** Internal to Async -- see {!Deferred} for the public API. *)
 
+open Core_kernel.Std
 open Import
 
 type +'a t with sexp_of
 type 'a deferred = 'a t
+
+include Invariant.S1 with type 'a t := 'a t
 
 val of_ivar : 'a Ivar0.t -> 'a t
 
