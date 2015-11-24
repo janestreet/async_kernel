@@ -361,6 +361,7 @@ val read_now_at_most
   -> [ `Eof | `Nothing_available | `Ok of 'a Queue.t]
 
 val peek : 'a Reader.t -> 'a option
+val peek' : 'a Reader.t -> 'a Queue.t
 
 (** [clear reader] consumes all of the values currently in [reader], and all blocked
     flushes become determined with [`Ok]. *)

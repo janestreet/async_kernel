@@ -521,6 +521,7 @@ let read_now_at_most ?consumer t ~num_values =
 ;;
 
 let peek t = Queue.peek t.buffer
+let peek' t = Queue.copy t.buffer
 
 let clear t =
   match read_now' t with
