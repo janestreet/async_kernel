@@ -21,8 +21,8 @@
     on readers and writers are available directly from the [Pipe] module. *)
 open Core_kernel.Std
 
-type ('a, 'phantom) t with sexp_of
-type ('a, 'phantom) pipe = ('a, 'phantom) t with sexp_of
+type ('a, 'phantom) t [@@deriving sexp_of]
+type ('a, 'phantom) pipe = ('a, 'phantom) t [@@deriving sexp_of]
 
 (** {1 Reader and Writer modules} *)
 (******************************************************************************)
@@ -30,14 +30,14 @@ type ('a, 'phantom) pipe = ('a, 'phantom) t with sexp_of
 
 module Writer : sig
   type phantom
-  type 'a t = ('a, phantom) pipe with sexp_of
+  type 'a t = ('a, phantom) pipe [@@deriving sexp_of]
 
   val invariant : _ t -> unit
 end
 
 module Reader : sig
   type phantom
-  type 'a t = ('a, phantom) pipe with sexp_of
+  type 'a t = ('a, phantom) pipe [@@deriving sexp_of]
 
   val invariant : _ t -> unit
 end
@@ -63,6 +63,31 @@ val create : unit -> 'a Reader.t * 'a Writer.t
 
 (** [of_list l] returns a closed pipe reader filled with the contents of [l]. *)
 val of_list : 'a list -> 'a Reader.t
+
+(** [unfold ~init ~f] returns a pipe that it fills with ['a]s by repeatedly applying [f]
+    to values of the state type ['s].  When [f] returns [None], the resulting pipe is
+    closed.  [unfold] respects pushback on the resulting pipe.
+
+    For example, to create a pipe of natural numbers:
+
+      {[
+        Pipe.unfold ~init:0 ~f:(fun n -> return (Some (n, n+1)))
+      ]}
+*)
+val unfold : init:'s -> f:('s -> ('a * 's) option Deferred.t) -> 'a Reader.t
+
+(** [of_sequence sequence] returns a pipe reader that gets filled with the elements of
+    [sequence].  [of_sequence] respects pushback on the resulting pipe. *)
+val of_sequence : 'a Sequence.t -> 'a Reader.t
+
+(** [to_sequence reader] returns a sequence that can be consumed to extract values from
+    [reader].  If [Wait_for d] is returned the consumer must wait for [d] to become
+    determined before pulling the next value.  Repeatedly asking for the next value
+    without waiting on [d] will infinite loop. *)
+type 'a to_sequence_elt =
+  | Value    of 'a
+  | Wait_for  : _ Deferred.t -> _ to_sequence_elt
+val to_sequence : 'a Reader.t -> 'a to_sequence_elt Sequence.t
 
 (** {1 Closing} *)
 (******************************************************************************)
@@ -101,7 +126,7 @@ val closed : (_, _) t -> unit Deferred.t
 (******************************************************************************)
 
 module Flushed_result : sig
-  type t = [ `Ok | `Reader_closed ] with sexp_of
+  type t = [ `Ok | `Reader_closed ] [@@deriving sexp_of]
 end
 
 (** Deferreds returned by [upstream_flushed] and [downstream_flushed] become determined
@@ -268,6 +293,22 @@ val write_when_ready
   -> f:(('a -> unit) -> 'b)
   -> [ `Closed | `Ok of 'b ] Deferred.t
 
+(** [write_if_open w e] is equivalent to:
+
+    {[
+      let x = e in
+      if not (is_closed w) then write w x else Deferred.unit
+    ]}
+
+    Note the difference in allocation and potential side effects when [w] is closed and
+    [e] is a complex expression.
+
+    [write_without_pushback_if_open] is the same as [write_if_open], except it calls
+    [write_without_pushback] instead of [write].
+*)
+val write_if_open                  : 'a Writer.t -> 'a -> unit Deferred.t
+val write_without_pushback_if_open : 'a Writer.t -> 'a -> unit
+
 (** {1 Reading} *)
 (******************************************************************************)
 (** With two special exceptions, all read procedures have a best-effort/forward-progress
@@ -293,12 +334,13 @@ val write_when_ready
     which loops until it has read the entire amount requested (or encountered EOF), thus
     abandoning the best-effort guarantee of timeliness. *)
 
-(** [read' pipe] reads all of the values available in the pipe, as soon as any value
-    becomes available.  The resulting queue will satisfy [Q.length q > 0].  The [consumer]
-    is used to extend the meaning of values being flushed (see the [Consumer] module
-    above). *)
+(** [read' pipe] reads values available in the pipe, as soon as any value becomes
+    available.  The resulting queue will satisfy [0 < Queue.length q <= max_queue_length].
+    [read'] raises if [max_queue_length <= 0].  The [consumer] is used to extend the
+    meaning of values being flushed (see the [Consumer] module above). *)
 val read'
-  : ?consumer:Consumer.t
+  :  ?consumer         : Consumer.t
+  -> ?max_queue_length : int  (** default is [100] *)
   -> 'a Reader.t
   -> [ `Eof | `Ok of 'a Queue.t ] Deferred.t
 
@@ -309,11 +351,7 @@ val read
   -> 'a Reader.t
   -> [ `Eof | `Ok of 'a ] Deferred.t
 
-(** [read_at_most r ~num_values] reads up to [num_values] values from the pipe's currently
-    available data, blocking if the pipe is empty.  The resulting queue will satisfy [0 <
-    Queue.length q <= num_values].  [read_at_most] raises if [num_values <= 0].  The
-    [consumer] is used to extend the meaning of values being flushed (see the [Consumer]
-    module above). *)
+(** [read_at_most t ~num_values] is [read' t ~max_queue_length:num_values]. *)
 val read_at_most
   :  ?consumer:Consumer.t
   -> 'a Reader.t
@@ -336,29 +374,30 @@ val read_exactly
      | `Exactly of 'a Queue.t (* Q.length q = num_values *)
      ] Deferred.t
 
-(** [read_now' reader] reads all of the values from [reader] that are immediately
-    available.  The resulting queue will satisfy [Q.length q > 0].  If [reader] is closed,
-    [read_now'] returns [`Eof].  If [reader] is empty, [read_now'] returns
-    [`Nothing_available].  [read_now'] has the danger of permitting the computation to
-    "spin" doing empty reads; it is only useful in exotic circumstances.  The [consumer]
-    is used to extend the meaning of values being flushed (see the [Consumer] module
-    above).
-
-    [read_now] is like [read_now'], except that it reads a single value rather than
-    everything that is available. *)
+(** [read_now' reader] reads values from [reader] that are immediately available.  The
+    resulting queue will satisfy [0 <= Q.length q <= max_queue_length].  If [reader] is
+    closed, [read_now'] returns [`Eof].  If [reader] is empty, [read_now'] returns
+    [`Nothing_available].  The [consumer] is used to extend the meaning of values being
+    flushed (see the [Consumer] module above). *)
 val read_now'
-  :  ?consumer : Consumer.t
+  :  ?consumer         : Consumer.t
+  -> ?max_queue_length : int  (** default is [100] *)
   -> 'a Reader.t
   -> [ `Eof | `Nothing_available | `Ok of 'a Queue.t ]
+
+(** [read_now] is like [read_now'], except that it reads a single value rather than
+    everything that is available. *)
 val read_now
   :  ?consumer : Consumer.t
   -> 'a Reader.t
   -> [ `Eof | `Nothing_available | `Ok of 'a ]
+
+(** [read_now_at_most t ~num_values] is [read_now' t ~max_queue_length:num_values] *)
 val read_now_at_most
   :  ?consumer  : Consumer.t
   -> 'a Reader.t
   -> num_values : int
-  -> [ `Eof | `Nothing_available | `Ok of 'a Queue.t]
+  -> [ `Eof | `Nothing_available | `Ok of 'a Queue.t ]
 
 val peek : 'a Reader.t -> 'a option
 
@@ -400,8 +439,8 @@ val values_available : _ Reader.t -> [ `Eof | `Ok ] Deferred.t
     some upstream pipe to some downstream pipe, perhaps with some processing inserted
     in-between.  These copying tasks finish under two circumstances.  The standard,
     "normal" case is when the copying task gets EOF from the upstream pipe -- there is no
-    more data to copy.  In this case, the copying task closes the downstream pipe and
-    exits.
+    more data to copy.  In this case, the copying task closes the downstream pipe, if
+    necessary, and exits.
 
     Somewhat less common is when the downstream consumer decides to stop reading early,
     while the upstream producer is still sending data to the copy task.  (E.g., perhaps
@@ -413,102 +452,118 @@ val values_available : _ Reader.t -> [ `Eof | `Ok ] Deferred.t
 
 (** [fold' reader ~init ~f] reads a batch of elements from [reader], supplies them to [f],
     waits for [f] to finish, and then repeats.  [fold'] finishes when the call to [f] on
-    the final batch of elements from [reader] finishes.
-
-    [fold reader ~init ~f] folds over the elements of [reader], consuming them as they
-    come in.  [fold] finishes when the final call to [f] returns.
-
-    The [consumer] is used to extend the meaning of values being flushed (see the
-    [Consumer] module above). *)
-type ('a, 'b, 'c, 'accum) fold =
-  ?consumer:Consumer.t
+    the final batch of elements from [reader] finishes. *)
+val fold'
+  :  ?consumer         : Consumer.t
+  -> ?max_queue_length : int  (** default is [100] *)
   -> 'a Reader.t
-  -> init:'accum
-  -> f:('accum -> 'b -> 'c)
+  -> init              : 'accum
+  -> f                 : ('accum -> 'a Queue.t -> 'accum Deferred.t)
   -> 'accum Deferred.t
 
-val fold'                 : ('a , 'a Queue.t , 'accum Deferred.t , 'accum) fold
-val fold                  : ('a , 'a         , 'accum Deferred.t , 'accum) fold
-val fold_without_pushback : ('a , 'a         , 'accum            , 'accum) fold
+(** [fold reader ~init ~f] folds over the elements of [reader], consuming them as they
+    come in.  [fold] finishes when the final call to [f] returns. *)
+val fold
+  :  ?consumer : Consumer.t
+  -> 'a Reader.t
+  -> init      : 'accum
+  -> f         : ('accum -> 'a -> 'accum Deferred.t)
+  -> 'accum Deferred.t
 
-(** [iter' reader ~f] repeatedly applies [f] to batches of elements of [reader], waiting
+val fold_without_pushback
+  :  ?consumer : Consumer.t
+  -> 'a Reader.t
+  -> init      : 'accum
+  -> f         : ('accum -> 'a -> 'accum)
+  -> 'accum Deferred.t
+
+(** [iter' reader ~f ] repeatedly applies [f] to batches of elements of [reader], waiting
     for each call to [f] to finish before continuing.  The deferred returned by [iter']
     becomes determined when the call to [f] on the final batch of elements finishes.
-
-    Supplying [~continue_on_error:true] causes the iteration to continue even if [f]
-    raises.
-
-    The [~consumer] is used to extend the meaning of values being flushed (see the
-    [Consumer] module above).
-
-    [iter] is a specialization of [iter'] that applies the supplied [f] to each element in
-    the batch, waiting for one call to [f] to finish before making the next call to [f].
-
-    [iter_without_pushback] is a specialized version that applies [f] to each element
-    that arrives on the pipe, without giving [f] a chance to pushback on the iteration
-    continuing.  [iter_without_pushback t ~f] is equivalent to:
-
-    {[
-      iter t ~f:(fun a -> f a; Deferred.unit)
-    ]}
-
-    It is not equivalent to:
-
-    {[
-      iter' t ~f:(fun q -> Queue.iter q ~f; Deferred.unit)
-    ]}
-
-    because of different behavior with [~continue_on_error:false] when [f] raises.
-    [iter_without_pushback] is guaranteed to read nothing from [t] after the element on
-    which [f] raises.
-*)
-type ('a, 'b, 'c) iter =
-  ?consumer:Consumer.t
-  -> ?continue_on_error:bool (** default is [false] *)
+    [~continue_on_error:true] causes the iteration to continue even if [f] raises.
+    [~consumer] is used to extend the meaning of values being flushed (see the [Consumer]
+    module above). *)
+val iter'
+  :  ?consumer          : Consumer.t
+  -> ?continue_on_error : bool  (** default is [false] *)
+  -> ?max_queue_length : int  (** default is [100] *)
   -> 'a Reader.t
-  -> f:('b -> 'c)
+  -> f:('a Queue.t -> unit Deferred.t)
   -> unit Deferred.t
 
-val iter'                 : ('a, 'a Queue.t, unit Deferred.t) iter
-val iter                  : ('a, 'a        , unit Deferred.t) iter
-val iter_without_pushback : ('a, 'a        , unit           ) iter
+(** [iter t f] is a specialization of [iter'] that applies the [f] to each element in the
+    batch, waiting for one call to [f] to finish before making the next call to [f]. *)
+val iter
+  :  ?consumer          : Consumer.t
+  -> ?continue_on_error : bool  (** default is [false] *)
+  -> 'a Reader.t
+  -> f                  : ('a -> unit Deferred.t)
+  -> unit Deferred.t
+
+(** [iter_without_pushback t ~f] applies [f] to each element in [t], without giving [f] a
+    chance to pushback on the iteration continuing.  If [f] raises on some element of [t],
+    [iter_without_pushback] will not consume any further elements.
+    [iter_without_pushback] will not make more than [max_iterations_per_job] calls to [f]
+    in a single Async_job; this can be used to increase Async-scheduling fairness. *)
+val iter_without_pushback
+  :  ?consumer               : Consumer.t
+  -> ?continue_on_error      : bool  (** default is [false] *)
+  -> ?max_iterations_per_job : int   (** default is [100] *)
+  -> 'a Reader.t
+  -> f : ('a -> unit)
+  -> unit Deferred.t
 
 (** [transfer' input output ~f] repeatedly reads a batch of elements from [input], applies
     [f] to the batch, writes the result as a batch to [output], and then waits on
     [pushback] in [output] before continuing.  [transfer'] finishes if [input] is closed
-    or [output] is closed.  If [output] is closed, then [transfer'] closes [input].
-
-    [transfer] is like [transfer'], except that it processes one element at time.
-
-    [transfer_id] is a specialization of [transfer'] with [f = Fn.id]. *)
+    or [output] is closed.  If [output] is closed, then [transfer'] closes [input]. *)
 val transfer'
-  : 'a Reader.t -> 'b Writer.t -> f:('a Queue.t -> 'b Queue.t Deferred.t) -> unit Deferred.t
-val transfer
-  : 'a Reader.t -> 'b Writer.t -> f:('a         -> 'b                   ) -> unit Deferred.t
+  :  ?max_queue_length : int  (** default is [100] *)
+  -> 'a Reader.t
+  -> 'b Writer.t
+  -> f : ('a Queue.t -> 'b Queue.t Deferred.t)
+  -> unit Deferred.t
+
+(** [transfer] is like [transfer'], except that it processes one element at time. *)
+val transfer : 'a Reader.t -> 'b Writer.t -> f:('a -> 'b ) -> unit Deferred.t
+
+(** [transfer_id] is a specialization of [transfer'] with [f = Fn.id]. *)
 val transfer_id
-  : 'a Reader.t -> 'a Writer.t                                            -> unit Deferred.t
+  :  ?max_queue_length : int  (** default is [100] *)
+  -> 'a Reader.t
+  -> 'a Writer.t
+  -> unit Deferred.t
 
 (** [map' input ~f] returns a reader, [output], and repeatedly applies [f] to batches of
     elements from [input], with the results appearing in [output].  If values are not
     being consumed from [output], [map'] will pushback and stop consuming values from
-    [input].
+    [input]. If [output] is closed, then [map'] will close [input]. *)
+val map'
+  :  ?max_queue_length : int  (** default is [100] *)
+  -> 'a Reader.t
+  -> f:('a Queue.t -> 'b Queue.t Deferred.t)
+  -> 'b Reader.t
 
-    If [output] is closed, then [map'] will close [input].
-
-    [map] is like [map'], except that it processes one element at time. *)
-val map' : 'a Reader.t -> f:('a Queue.t -> 'b Queue.t Deferred.t) -> 'b Reader.t
-val map  : 'a Reader.t -> f:('a         -> 'b                   ) -> 'b Reader.t
+(** [map] is like [map'], except that it processes one element at time. *)
+val map : 'a Reader.t -> f:('a -> 'b) -> 'b Reader.t
 
 (** [filter_map' input ~f] returns a reader, [output], and repeatedly applies [f] to
     elements from [input], with the results that aren't [None] appearing in [output].  If
     values are not being consumed from [output], [filter_map'] will pushback and stop
-    consuming values from [input].
+    consuming values from [input].  If [output] is closed, then [filter_map'] will close
+    [input]. *)
+val filter_map'
+  :  ?max_queue_length : int  (** default is [100] *)
+  -> 'a Reader.t
+  -> f:('a -> 'b option Deferred.t)
+  -> 'b Reader.t
 
-    If [output] is closed, then [filter_map'] will close [input].
-
-    [filter_map] is a specialized version of [filter_map']. *)
-val filter_map' : 'a Reader.t -> f:('a -> 'b option Deferred.t) -> 'b Reader.t
-val filter_map  : 'a Reader.t -> f:('a -> 'b option           ) -> 'b Reader.t
+(** [filter_map] is a specialized version of [filter_map']. *)
+val filter_map
+  :  ?max_queue_length : int  (** default is [100] *)
+  -> 'a Reader.t
+  -> f:('a -> 'b option)
+  -> 'b Reader.t
 
 (** [filter input ~f] returns a reader, [output], and copies to [output] each element from
     [input] that satisfies the predicate [f].  If [output] is closed, then [filter] closes

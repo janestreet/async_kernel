@@ -46,7 +46,7 @@ val add_finalizer_exn : 'a -> ('a -> unit) -> unit
 (** A GC alarm calls a user function after the end of each major GC cycle. *)
 module Alarm : sig
 
-  type t with sexp_of
+  type t [@@deriving sexp_of]
 
   (** [create f] arranges for [f] to be called after the end of each major GC cycle,
       starting with the current cycle or the next one.  [f] will be run in the monitor

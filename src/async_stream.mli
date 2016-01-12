@@ -14,7 +14,7 @@ open Import
 
 module Deferred = Deferred1
 
-type 'a t = 'a Tail.Stream.t with sexp_of
+type 'a t = 'a Tail.Stream.t [@@deriving sexp_of]
 (** [sexp_of_t t f] returns a sexp of all of the elements currently available in the
     stream.  It is just for display purposes.  There is no [t_of_sexp]. *)
 
@@ -111,7 +111,7 @@ val iter' : 'a t -> f:('a -> unit Deferred.t) -> unit Deferred.t
 
 (** [closed t] returns a deferred that becomes determined when the end of [t] is
     reached.  *)
-val closed : 'a t -> unit Deferred.t
+val closed : _ t -> unit Deferred.t
 
 (** [iter t ~f] = [don't_wait_for (iter' t ~f:(fun a -> f a; Deferred.unit))] *)
 val iter : 'a t -> f:('a -> unit) -> unit

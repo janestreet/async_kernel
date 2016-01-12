@@ -1,7 +1,7 @@
 open Core_kernel.Std
 open Std
 
-TEST_MODULE = struct
+let%test_module _ = (module struct
 
   open Deferred
 
@@ -11,7 +11,7 @@ TEST_MODULE = struct
     if not (Deferred.is_determined t) then failwith "unit test didn't finish";
   ;;
 
-  TEST_UNIT = (* [enabled] returns choices in order *)
+  let%test_unit _ = (* [enabled] returns choices in order *)
     test (fun () ->
       enabled [ choice (return 13) Fn.id
               ; choice (return 14) Fn.id
@@ -22,7 +22,7 @@ TEST_MODULE = struct
       | _ -> assert false)
   ;;
 
-  TEST_UNIT =
+  let%test_unit _ =
     (* [choose] returns the first (in the list) choice that was set with no intervening
        asynchrony. *)
     test (fun () ->
@@ -33,10 +33,10 @@ TEST_MODULE = struct
                ; choice (Ivar.read t2) Fn.id
                ]
         >>| fun i ->
-        <:test_result< int >> i ~expect:13
+        [%test_result: int] i ~expect:13
       in
       Ivar.fill t2 14;
       Ivar.fill t1 13;
       t)
   ;;
-end
+end)

@@ -8,7 +8,7 @@ let show_debug_messages = ref false
 let check_invariant = ref false
 
 module Flushed_result = struct
-  type t = [ `Ok | `Reader_closed ] with sexp_of
+  type t = [ `Ok | `Reader_closed ] [@@deriving sexp_of]
 
   let combine (l : t Deferred.t list) =
     Deferred.all l
@@ -34,7 +34,7 @@ end
    If no [Consumer.t] is supplied when a value is read then the value is defined to be
    flushed at that time. *)
 module Consumer : sig
-  type t with sexp_of
+  type t [@@deriving sexp_of]
 
   include Invariant.S with type t := t
 
@@ -58,7 +58,7 @@ end = struct
        passed downstream have been flushed all the way down the chain of pipes. *)
     ; downstream_flushed  : unit -> Flushed_result.t Deferred.t
     }
-  with fields, sexp_of
+  [@@deriving fields, sexp_of]
 
   let invariant t : unit =
     try
@@ -70,7 +70,7 @@ end = struct
           | `Have_not_been_sent_downstream ivar -> assert (Ivar.is_empty ivar)))
         ~downstream_flushed:ignore;
     with exn ->
-      failwiths "Pipe.Consumer.invariant failed" (exn, t) <:sexp_of< exn * t >>
+      failwiths "Pipe.Consumer.invariant failed" (exn, t) [%sexp_of: exn * t]
   ;;
 
   let create ~pipe_id ~downstream_flushed =
@@ -116,28 +116,27 @@ module Blocked_read = struct
   type 'a wants =
     | Zero    of       [ `Eof | `Ok           ] Ivar.t
     | One     of       [ `Eof | `Ok of 'a     ] Ivar.t
-    | All     of       [ `Eof | `Ok of 'a Q.t ] Ivar.t
     | At_most of int * [ `Eof | `Ok of 'a Q.t ] Ivar.t
-  with sexp_of
+  [@@deriving sexp_of]
 
   type 'a t =
     { wants : 'a wants
     ; consumer : Consumer.t option
     }
-  with fields, sexp_of
+  [@@deriving fields, sexp_of]
 
   let invariant t : unit =
     try
       let check f field = f (Field.get field t) in
       Fields.iter
         ~wants:(check (function
-          | Zero _ | All _ | One _ -> ()
+          | Zero _ | One _ -> ()
           | At_most (i, _) -> assert (i > 0)))
         ~consumer:(check (function
           | None -> ()
           | Some consumer -> Consumer.invariant consumer));
     with exn ->
-      failwiths "Pipe.Blocked_read.invariant failed" (exn, t) <:sexp_of< exn * _ t >>
+      failwiths "Pipe.Blocked_read.invariant failed" (exn, t) [%sexp_of: exn * _ t]
   ;;
 
   let create wants consumer = { wants; consumer }
@@ -146,7 +145,6 @@ module Blocked_read = struct
     match t.wants with
     | Zero        i  -> Ivar.is_empty i
     | One         i  -> Ivar.is_empty i
-    | All         i  -> Ivar.is_empty i
     | At_most (_, i) -> Ivar.is_empty i
   ;;
 
@@ -154,7 +152,6 @@ module Blocked_read = struct
     match t.wants with
     | Zero        i  -> Ivar.fill i `Eof
     | One         i  -> Ivar.fill i `Eof
-    | All         i  -> Ivar.fill i `Eof
     | At_most (_, i) -> Ivar.fill i `Eof
   ;;
 end
@@ -174,7 +171,7 @@ module Blocked_flush = struct
     { fill_when_num_values_read : int
     ; ready : [ `Ok | `Reader_closed ] Ivar.t
     }
-  with fields, sexp_of
+  [@@deriving fields, sexp_of]
 
   let fill t v = Ivar.fill t.ready v
 end
@@ -226,11 +223,11 @@ type ('a, 'phantom) t =
      That function walks to the head(s) of the upstream pipe, and calls
      [downstream_flushed] on the head(s).  See the definition of [upstream_flushed]
      below. *)
-  ; mutable upstream_flusheds : (unit -> Flushed_result.t Deferred.t) list
+  ; upstream_flusheds         : (unit -> Flushed_result.t Deferred.t) Bag.t
   }
-with fields, sexp_of
+[@@deriving fields, sexp_of]
 
-type ('a, 'phantom) pipe = ('a, 'phantom) t with sexp_of
+type ('a, 'phantom) pipe = ('a, 'phantom) t [@@deriving sexp_of]
 
 let hash t = Hashtbl.hash t.id
 
@@ -282,18 +279,18 @@ let invariant t : unit =
           assert (Consumer.pipe_id consumer = t.id))))
       ~upstream_flusheds:ignore
   with exn ->
-    failwiths "Pipe.invariant failed" (exn, t) <:sexp_of< exn * (_, _) t >>
+    failwiths "Pipe.invariant failed" (exn, t) [%sexp_of: exn * (_, _) t]
 ;;
 
 module Reader = struct
-  type phantom with sexp_of
-  type 'a t = ('a, phantom) pipe with sexp_of
+  type phantom [@@deriving sexp_of]
+  type 'a t = ('a, phantom) pipe [@@deriving sexp_of]
   let invariant = invariant
 end
 
 module Writer = struct
-  type phantom with sexp_of
-  type 'a t = ('a, phantom) pipe with sexp_of
+  type phantom [@@deriving sexp_of]
+  type 'a t = ('a, phantom) pipe [@@deriving sexp_of]
   let invariant = invariant
 end
 
@@ -312,7 +309,7 @@ let create () =
     ; blocked_flushes   = Q.create    ()
     ; blocked_reads     = Q.create    ()
     ; consumers         = []
-    ; upstream_flusheds = []
+    ; upstream_flusheds = Bag.create  ()
     }
   in
   Ivar.fill t.pushback (); (* initially, the pipe does not pushback *)
@@ -328,7 +325,7 @@ let update_pushback t =
 ;;
 
 let close t =
-  if !show_debug_messages then eprints "close" t <:sexp_of< (_, _) t >>;
+  if !show_debug_messages then eprints "close" t [%sexp_of: (_, _) t];
   if !check_invariant then invariant t;
   if not (is_closed t) then begin
     Ivar.fill t.closed ();
@@ -341,7 +338,7 @@ let close t =
 ;;
 
 let close_read t =
-  if !show_debug_messages then eprints "close_read" t <:sexp_of< (_, _) t >>;
+  if !show_debug_messages then eprints "close_read" t [%sexp_of: (_, _) t];
   if !check_invariant then invariant t;
   if not (is_read_closed t) then begin
     Ivar.fill t.read_closed ();
@@ -406,17 +403,15 @@ let consume_one t consumer =
   result
 ;;
 
-(* [consume_at_most t num_values] reads [min num_values (length t)] items.  It is an
-   error if [is_empty t] or [num_values < 0]. *)
-let consume_at_most t num_values consumer =
-  assert (num_values >= 0);
-  if num_values >= length t
+let consume t ~max_queue_length consumer =
+  assert (max_queue_length >= 0);
+  if max_queue_length >= length t
   then consume_all t consumer
   else begin
-    t.num_values_read <- t.num_values_read + num_values;
+    t.num_values_read <- t.num_values_read + max_queue_length;
     values_were_read t consumer;
-    let result = Q.create ~capacity:num_values () in
-    Q.blit_transfer ~src:t.buffer ~dst:result ~len:num_values ();
+    let result = Q.create ~capacity:max_queue_length () in
+    Q.blit_transfer ~src:t.buffer ~dst:result ~len:max_queue_length ();
     update_pushback t;
     result
   end
@@ -424,7 +419,7 @@ let consume_at_most t num_values consumer =
 
 let set_size_budget t size_budget =
   if size_budget < 0
-  then failwiths "negative size_budget" size_budget <:sexp_of< int >>;
+  then failwiths "negative size_budget" size_budget [%sexp_of: int];
   t.size_budget <- size_budget;
   update_pushback t;
 ;;
@@ -434,19 +429,19 @@ let fill_blocked_reads t =
     let blocked_read = Q.dequeue_exn t.blocked_reads in
     let consumer = blocked_read.consumer in
     match blocked_read.wants with
-    | Zero        ivar  -> Ivar.fill ivar  `Ok
-    | One         ivar  -> Ivar.fill ivar (`Ok (consume_one     t   consumer))
-    | All         ivar  -> Ivar.fill ivar (`Ok (consume_all     t   consumer))
-    | At_most (n, ivar) -> Ivar.fill ivar (`Ok (consume_at_most t n consumer))
+    | Zero ivar  -> Ivar.fill ivar  `Ok
+    | One  ivar  -> Ivar.fill ivar (`Ok (consume_one t consumer))
+    | At_most (max_queue_length, ivar) ->
+      Ivar.fill ivar (`Ok (consume t ~max_queue_length consumer))
   done;
 ;;
 
 (* checks all invariants, calls a passed in f to handle a write, then updates reads and
    pushback *)
 let start_write t =
-  if !show_debug_messages then eprints "write" t <:sexp_of< (_, _) t >>;
+  if !show_debug_messages then eprints "write" t [%sexp_of: (_, _) t];
   if !check_invariant then invariant t;
-  if is_closed t then failwiths "write to closed pipe" t <:sexp_of< (_, _) t >>;
+  if is_closed t then failwiths "write to closed pipe" t [%sexp_of: (_, _) t];
 ;;
 
 let finish_write t =
@@ -487,17 +482,25 @@ let write_when_ready t ~f =
   else `Ok (f (fun x -> write_without_pushback t x))
 ;;
 
+let write_if_open t x =
+  if not (is_closed t) then write t x else Deferred.unit;
+;;
+
+let write_without_pushback_if_open t x =
+  if not (is_closed t) then write_without_pushback t x;
+;;
+
 let ensure_consumer_matches ?consumer t =
   match consumer with
   | None -> ()
   | Some consumer ->
     if t.id <> Consumer.pipe_id consumer
     then failwiths "Attempt to use consumer with wrong pipe" (consumer, t)
-           <:sexp_of< Consumer.t * _ Reader.t >>
+           [%sexp_of: Consumer.t * _ Reader.t]
 ;;
 
 let start_read ?consumer t label =
-  if !show_debug_messages then eprints label t <:sexp_of< (_, _) t >>;
+  if !show_debug_messages then eprints label t [%sexp_of: (_, _) t];
   if !check_invariant then invariant t;
   ensure_consumer_matches t ?consumer;
 ;;
@@ -514,10 +517,24 @@ let gen_read_now ?consumer t consume =
   end
 ;;
 
-let read_now' ?consumer t = gen_read_now t ?consumer consume_all
-let read_now  ?consumer t = gen_read_now t ?consumer consume_one
+let get_max_queue_length ~max_queue_length =
+  match max_queue_length with
+  | None -> 100
+  | Some max_queue_length ->
+    if max_queue_length <= 0
+    then failwiths "max_queue_length <= 0" max_queue_length [%sexp_of: int];
+    max_queue_length
+;;
+
+let read_now' ?consumer ?max_queue_length t =
+  let max_queue_length = get_max_queue_length ~max_queue_length in
+  gen_read_now t ?consumer (fun t consumer -> consume t ~max_queue_length consumer)
+;;
+
+let read_now ?consumer t = gen_read_now t ?consumer consume_one
+
 let read_now_at_most ?consumer t ~num_values =
-  gen_read_now t ?consumer (fun t consumer -> consume_at_most t num_values consumer)
+  read_now' t ?consumer ~max_queue_length:num_values
 ;;
 
 let peek t = Queue.peek t.buffer
@@ -527,13 +544,15 @@ let clear t =
   | `Eof | `Nothing_available | `Ok _ -> ()
 ;;
 
-let read' ?consumer t =
+let read' ?consumer ?max_queue_length t =
+  let max_queue_length = get_max_queue_length ~max_queue_length in
   start_read t "read'" ?consumer;
-  match read_now' t ?consumer with
+  match read_now' t ?consumer ~max_queue_length with
   | (`Ok _ | `Eof) as r -> return r
   | `Nothing_available  ->
     Deferred.create (fun ivar ->
-      Q.enqueue t.blocked_reads (Blocked_read.(create (All ivar)) consumer))
+      Q.enqueue t.blocked_reads
+        (Blocked_read.create (At_most (max_queue_length, ivar)) consumer))
 ;;
 
 let read ?consumer t =
@@ -551,20 +570,7 @@ let read ?consumer t =
 ;;
 
 let read_at_most ?consumer t ~num_values =
-  start_read t "read_at_most" ?consumer;
-  if num_values <= 0
-  then failwiths "Pipe.read_at_most num_values < 0" num_values <:sexp_of< int >>;
-  if is_empty t then begin
-    if is_closed t
-    then return `Eof
-    else
-      Deferred.create (fun ivar ->
-        Q.enqueue t.blocked_reads
-          (Blocked_read.(create (At_most (num_values, ivar))) consumer))
-  end else begin
-    assert (Q.is_empty t.blocked_reads);
-    return (`Ok (consume_at_most t num_values consumer))
-  end
+  read' t ?consumer ~max_queue_length:num_values
 ;;
 
 let values_available t =
@@ -582,7 +588,7 @@ let values_available t =
 let read_exactly ?consumer t ~num_values =
   start_read t "read_exactly" ?consumer;
   if num_values <= 0
-  then failwiths "Pipe.read_exactly got num_values <= 0" num_values <:sexp_of< int >>;
+  then failwiths "Pipe.read_exactly got num_values <= 0" num_values [%sexp_of: int];
   Deferred.create (fun finish ->
     let result = Q.create () in
     let rec loop () =
@@ -620,17 +626,20 @@ let downstream_flushed t =
         })
 ;;
 
-(* In practice, along with [link] and [add_upstream_flushed], [upstream_flushed] traverses
-   the graph of linked pipes up to the heads and then calls [downstream_flushed] on
-   them. *)
+(* In practice, along with [Link.create] and [add_upstream_flushed], [upstream_flushed]
+   traverses the graph of linked pipes up to the heads and then calls [downstream_flushed]
+   on them. *)
 let upstream_flushed t =
-  if List.is_empty t.upstream_flusheds
+  if Bag.is_empty t.upstream_flusheds
   then downstream_flushed t
-  else Flushed_result.combine (List.map t.upstream_flusheds ~f:(fun f -> f ()))
+  else
+    Bag.to_list t.upstream_flusheds
+    |> List.map ~f:(fun f -> f ())
+    |> Flushed_result.combine
 ;;
 
 let add_upstream_flushed t upstream_flushed =
-  t.upstream_flusheds <- upstream_flushed :: t.upstream_flusheds;
+  Bag.add t.upstream_flusheds upstream_flushed
 ;;
 
 let add_consumer t ~downstream_flushed =
@@ -639,18 +648,40 @@ let add_consumer t ~downstream_flushed =
   consumer;
 ;;
 
-(* [link ~upstream ~downstream] links flushing of two pipes together. *)
-let link ~upstream ~downstream =
-  add_upstream_flushed downstream (fun () -> upstream_flushed upstream);
-  add_consumer upstream ~downstream_flushed:(fun () -> downstream_flushed downstream);
-;;
+(* A [Link.t] links flushing of two pipes together. *)
+module Link : sig
+  type t
 
-type ('a, 'b, 'c, 'accum) fold =
-  ?consumer:Consumer.t
-  -> 'a Reader.t
-  -> init:'accum
-  -> f:('accum -> 'b -> 'c)
-  -> 'accum Deferred.t
+  val create : upstream:(_, _) pipe -> downstream:(_, _) pipe -> t
+  val consumer : t -> Consumer.t
+
+  (* [unlink_upstream] removes downstream's reference to upstream. *)
+  val unlink_upstream : t -> unit
+end = struct
+  type ('a, 'b) unpacked =
+    { downstream                : ('a, 'b) t
+    ; consumer                  : Consumer.t
+    ; upstream_flusheds_bag_elt : (unit -> Flushed_result.t Deferred.t) Bag.Elt.t
+    }
+
+  type t = T : (_, _) unpacked -> t
+
+  let consumer (T t) = t.consumer
+
+  let create ~upstream ~downstream =
+    T { downstream
+      ; consumer =
+          add_consumer upstream
+            ~downstream_flushed:(fun () -> downstream_flushed downstream)
+      ; upstream_flusheds_bag_elt =
+          add_upstream_flushed downstream (fun () -> upstream_flushed upstream)
+      }
+  ;;
+
+  let unlink_upstream (T t) =
+    Bag.remove t.downstream.upstream_flusheds t.upstream_flusheds_bag_elt
+  ;;
+end
 
 let fold_gen (read_now : ?consumer:Consumer.t -> _ Reader.t -> _) ?consumer t ~init ~f =
   if !check_invariant then invariant t;
@@ -668,24 +699,18 @@ let fold_gen (read_now : ?consumer:Consumer.t -> _ Reader.t -> _) ?consumer t ~i
     loop init)
 ;;
 
-let fold' ?consumer t ~init ~f =
-  fold_gen read_now' ?consumer t ~init ~f:(fun b q loop -> f b q >>> loop)
+let fold' ?consumer ?max_queue_length t ~init ~f =
+  fold_gen (read_now' ?max_queue_length) ?consumer
+    t ~init ~f:(fun b q loop -> f b q >>> loop)
 ;;
 
 let fold ?consumer t ~init ~f =
-  fold_gen read_now  ?consumer t ~init ~f:(fun b a loop -> f b a >>> loop)
+  fold_gen read_now ?consumer t ~init ~f:(fun b a loop -> f b a >>> loop)
 ;;
 
 let fold_without_pushback ?consumer t ~init ~f =
-  fold_gen read_now  ?consumer t ~init ~f:(fun b a loop -> loop (f b a))
+  fold_gen read_now ?consumer t ~init ~f:(fun b a loop -> loop (f b a))
 ;;
-
-type ('a, 'b, 'c) iter =
-  ?consumer:Consumer.t
-  -> ?continue_on_error:bool (** default is [false] *)
-  -> 'a Reader.t
-  -> f:('b -> 'c)
-  -> unit Deferred.t
 
 let with_error_to_current_monitor ?(continue_on_error = false) f a =
   if not continue_on_error
@@ -698,8 +723,8 @@ let with_error_to_current_monitor ?(continue_on_error = false) f a =
   end;
 ;;
 
-let iter' ?consumer ?continue_on_error t ~f =
-  fold' ?consumer t ~init:() ~f:(fun () q ->
+let iter' ?consumer ?continue_on_error ?max_queue_length t ~f =
+  fold' ?max_queue_length ?consumer t ~init:() ~f:(fun () q ->
     with_error_to_current_monitor ?continue_on_error f q)
 ;;
 
@@ -713,8 +738,21 @@ let iter ?consumer ?continue_on_error t ~f =
 (* [iter_without_pushback] is a common case, so we implement it in an optimized manner,
    rather than via [iter].  The implementation reads only one element at a time, so that
    if [f] closes [t] or raises, no more elements will be read. *)
-let iter_without_pushback ?consumer ?(continue_on_error = false) t ~f =
+let iter_without_pushback
+      ?consumer
+      ?(continue_on_error = false)
+      ?max_iterations_per_job
+      t ~f =
   ensure_consumer_matches t ?consumer;
+  let max_iterations_per_job =
+    match max_iterations_per_job with
+    | None -> 100
+    | Some max_iterations_per_job ->
+      if max_iterations_per_job <= 0
+      then raise_s [%message "iter_without_pushback got non-positive max_iterations_per_job"
+                               (max_iterations_per_job : int)];
+      max_iterations_per_job
+  in
   let f =
     if not continue_on_error
     then f
@@ -724,13 +762,20 @@ let iter_without_pushback ?consumer ?(continue_on_error = false) t ~f =
     (* We do [Deferred.unit >>>] to ensure that [f] is only called asynchronously. *)
     Deferred.unit
     >>> fun () ->
-    let rec loop () =
-      match read_now t ?consumer with
-      | `Eof -> Ivar.fill finished ()
-      | `Ok a -> f a; loop ()
-      | `Nothing_available -> values_available t >>> fun _ -> loop ()
+    let rec start () = loop ~remaining:max_iterations_per_job
+    and loop ~remaining =
+      if remaining = 0
+      then (
+        return ()
+        >>> fun () ->
+        start ())
+      else
+        match read_now t ?consumer with
+        | `Eof -> Ivar.fill finished ()
+        | `Ok a -> f a; loop ~remaining:(remaining - 1)
+        | `Nothing_available -> values_available t >>> fun _ -> start ()
     in
-    loop ());
+    start ())
 ;;
 
 let drain t = iter' t ~f:(fun _ -> Deferred.unit)
@@ -799,52 +844,59 @@ let transfer_gen
     invariant input;
     invariant output;
   end;
-  let consumer = link ~upstream:input ~downstream:output in
-  Deferred.create (fun result ->
-    (* We do [Deferred.unit >>>] to ensure that [f] is only called asynchronously. *)
-    Deferred.unit
-    >>> fun () ->
-    let output_closed () =
-      close_read input;
-      Ivar.fill result ()
-    in
-    let rec loop () =
-      if is_closed output
-      then output_closed ()
-      else
-        match read_now input ~consumer with
-        | `Eof -> Ivar.fill result ()
-        | `Ok x -> f x continue
-        | `Nothing_available ->
-          choose [ choice (values_available input) ignore
-                 ; choice (closed output)          ignore
-                 ]
-          >>> fun () ->
-          loop ()
-    and continue y =
-      if is_closed output
-      then output_closed ()
-      else begin
-        let pushback = write output y in
-        Consumer.values_sent_downstream consumer;
-        pushback
-        >>> fun () ->
-        loop ()
-      end
-    in
-    loop ())
+  let link = Link.create ~upstream:input ~downstream:output in
+  let consumer = Link.consumer link in
+  Monitor.protect
+    (* When result is filled, we're done with [input].  We unlink to remove pointers from
+       [output] to [input], which would cause a space leak if we had single long-lived
+       output into which we transfer lots of short-lived inputs. *)
+    ~finally:(fun () -> Link.unlink_upstream link; Deferred.unit)
+    (fun () ->
+       Deferred.create (fun result ->
+         (* We do [Deferred.unit >>>] to ensure that [f] is only called asynchronously. *)
+         Deferred.unit
+         >>> fun () ->
+         let output_closed () =
+           close_read input;
+           Ivar.fill result ()
+         in
+         let rec loop () =
+           if is_closed output
+           then output_closed ()
+           else
+             match read_now input ~consumer with
+             | `Eof -> Ivar.fill result ()
+             | `Ok x -> f x continue
+             | `Nothing_available ->
+               choose [ choice (values_available input) ignore
+                      ; choice (closed output)          ignore
+                      ]
+               >>> fun () ->
+               loop ()
+         and continue y =
+           if is_closed output
+           then output_closed ()
+           else begin
+             let pushback = write output y in
+             Consumer.values_sent_downstream consumer;
+             pushback
+             >>> fun () ->
+             loop ()
+           end
+         in
+         loop ()))
 ;;
 
-let transfer' input output ~f =
-  transfer_gen read_now' write' input output ~f:(fun q k -> f q >>> k)
+let transfer' ?max_queue_length input output ~f =
+  transfer_gen (read_now' ?max_queue_length) write' input output ~f:(fun q k -> f q >>> k)
 ;;
 
 let transfer input output ~f =
   transfer_gen read_now write input output ~f:(fun a k -> k (f a))
 ;;
 
-let transfer_id input output =
-  transfer_gen read_now' write' input output ~f:(fun q k -> k q)
+let transfer_id ?max_queue_length input output =
+  transfer_gen (read_now' ?max_queue_length) write' input output ~f:(fun q k -> k q)
 ;;
 
 let map_gen read write input ~f =
@@ -853,13 +905,18 @@ let map_gen read write input ~f =
   result
 ;;
 
-let map' input ~f = map_gen read_now' write' input ~f:(fun q k -> f q >>> k)
+let map' ?max_queue_length input ~f =
+  map_gen (read_now' ?max_queue_length) write' input ~f:(fun q k -> f q >>> k)
+;;
+
 let map  input ~f = map_gen read_now  write  input ~f:(fun a k -> k (f a))
 
-let filter_map' input ~f = map' input ~f:(fun q -> Deferred.Queue.filter_map q ~f)
+let filter_map' ?max_queue_length input ~f =
+  map' ?max_queue_length input ~f:(fun q -> Deferred.Queue.filter_map q ~f)
+;;
 
-let filter_map input ~f =
-  map_gen read_now' write' input ~f:(fun q k ->
+let filter_map ?max_queue_length input ~f =
+  map_gen (read_now' ?max_queue_length) write' input ~f:(fun q k ->
     k (Queue.filter_map q ~f:(fun x -> if is_read_closed input then None else f x)))
 ;;
 
@@ -870,6 +927,70 @@ let of_list l =
   don't_wait_for (write' writer (Q.of_list l));
   close writer;
   reader
+;;
+
+let unfold ~init:s ~f =
+  (* To get some batching, we run the continuation immediately if the deferred is
+     determined.  However, we always check for pushback.  Because size budget can't be
+     infinite, the below loop is guaranteed to eventually yield to the scheduler. *)
+  let (>>=~) d f =
+    match Deferred.peek d with
+    | None -> d >>= f
+    | Some x -> f x
+  in
+  init (fun writer ->
+    let rec loop s =
+      f s
+      >>=~ function
+      | None -> return ()
+      | Some (a, s) ->
+        if is_closed writer
+        then return ()
+        else begin
+          write writer a
+          >>=~ fun () ->
+          loop s
+        end
+    in
+    loop s)
+;;
+
+let of_sequence sequence =
+  init (fun writer ->
+    let rec enqueue_n sequence i =
+      if i <= 0
+      then sequence
+      else
+        match Sequence.next sequence with
+        | None -> sequence
+        | Some (a, sequence) ->
+          Queue.enqueue writer.buffer a;
+          enqueue_n sequence (i - 1)
+    in
+    let rec loop sequence =
+      if is_closed writer || Sequence.is_empty sequence
+      then Deferred.unit
+      else (
+        start_write writer;
+        let sequence = enqueue_n sequence (1 + writer.size_budget - length writer) in
+        finish_write writer;
+        pushback writer
+        >>= fun () ->
+        loop sequence)
+    in
+    loop sequence)
+;;
+
+type 'a to_sequence_elt =
+  | Value    of 'a
+  | Wait_for  : _ Deferred.t -> _ to_sequence_elt
+
+let to_sequence t =
+  Sequence.unfold ~init:() ~f:(fun () ->
+    match read_now t with
+    | `Eof               -> None
+    | `Ok a              -> Some (Value a, ())
+    | `Nothing_available -> Some (Wait_for (values_available t), ()))
 ;;
 
 let interleave_pipe inputs =
@@ -957,747 +1078,840 @@ let concat inputs =
   r
 ;;
 
-TEST_MODULE = struct
-  let () =
-    check_invariant := true;
-    show_debug_messages := false;
-  ;;
+let%test_module _ =
+  (module struct
+    let () =
+      check_invariant := true;
+      show_debug_messages := false;
+    ;;
 
-  let stabilize = Scheduler.run_cycles_until_no_jobs_remain
+    let stabilize = Scheduler.run_cycles_until_no_jobs_remain
 
-  let read_result d = Q.to_list (Option.value_exn (Deferred.peek d))
+    let read_result d = Q.to_list (Option.value_exn (Deferred.peek d))
 
-  TEST_UNIT =
-    List.iter (List.init 10 ~f:(fun i -> List.init i ~f:Fn.id))
-      ~f:(fun l ->
-        let reader = of_list l in
-        upon (read_all reader) (fun q -> assert (Q.to_list q = l)));
-    stabilize ();
-  ;;
+    let%test_unit _ =
+      List.iter (List.init 10 ~f:(fun i -> List.init i ~f:Fn.id))
+        ~f:(fun l ->
+          let reader = of_list l in
+          upon (read_all reader) (fun q -> assert (Q.to_list q = l)));
+      stabilize ()
+    ;;
 
-  (* ==================== close, close_read ==================== *)
-  TEST_UNIT =
-    let (reader, writer) = create () in
-    assert (not (is_closed writer));
-    close writer;
-    assert (Deferred.is_determined (closed reader));
-    assert (is_closed reader);
-    assert (is_closed writer);
-  ;;
-
-  TEST_UNIT =
-    let (reader, writer) = create () in
-    assert (not (is_closed writer));
-    close_read reader;
-    assert (Deferred.is_determined (closed reader));
-    assert (is_closed reader);
-    assert (is_closed writer);
-  ;;
-
-  TEST_UNIT =
-    let check_read read =
+    (* ==================== close, close_read ==================== *)
+    let%test_unit _ =
       let (reader, writer) = create () in
-      let d = read reader in
-      assert (Deferred.peek d = None);
+      assert (not (is_closed writer));
+      close writer;
+      assert (Deferred.is_determined (closed reader));
+      assert (is_closed reader);
+      assert (is_closed writer)
+    ;;
+
+    let%test_unit _ =
+      let (reader, writer) = create () in
+      assert (not (is_closed writer));
+      close_read reader;
+      assert (Deferred.is_determined (closed reader));
+      assert (is_closed reader);
+      assert (is_closed writer)
+    ;;
+
+    let%test_unit _ =
+      let check_read read =
+        let (reader, writer) = create () in
+        let d = read reader in
+        assert (Deferred.peek d = None);
+        close writer;
+        stabilize ();
+        assert (Deferred.peek d = Some `Eof);
+        let d = read reader in
+        stabilize ();
+        assert (Deferred.peek d = Some `Eof);
+      in
+      check_read read';
+      check_read read;
+      check_read (fun reader -> read_at_most reader ~num_values:1);
+      check_read (fun reader -> read_exactly reader ~num_values:1);
+      check_read values_available
+    ;;
+
+    let%test_unit _ =
+      let check_read read get_values =
+        let (reader, writer) = create () in
+        don't_wait_for (write writer 13);
+        close writer;
+        let d = read reader in
+        stabilize ();
+        match Deferred.peek d with
+        | Some z -> assert ([ 13 ] = get_values z)
+        | None -> assert false
+      in
+      check_read read' (function `Ok q -> Q.to_list q | _ -> assert false);
+      check_read read (function `Ok a -> [ a ] | _ -> assert false);
+      check_read (fun r -> read_at_most r ~num_values:1)
+        (function `Ok q -> Q.to_list q | _ -> assert false);
+      check_read (fun r -> read_exactly r ~num_values:1)
+        (function `Exactly q -> Q.to_list q | _ -> assert false);
+      check_read (fun r -> return (read_now' r))
+        (function `Ok q -> Q.to_list q | _ -> assert false);
+      check_read read_all Q.to_list
+    ;;
+
+    let%test_unit _ =
+      let (reader, writer) = create () in
+      let f1 = downstream_flushed writer in
+      don't_wait_for (write writer 13);
+      let f2 = downstream_flushed writer in
+      close_read reader;
+      stabilize ();
+      assert (Deferred.peek f1 = Some `Ok);
+      assert (Deferred.peek f2 = Some `Reader_closed)
+    ;;
+
+    (* ==================== init ==================== *)
+    let%test_unit _ =
+      let reader = init (fun _ -> Deferred.never ()) in
+      stabilize ();
+      assert (not (is_closed reader));
+      assert (Option.is_none (peek reader))
+    ;;
+
+    let%test_unit _ =
+      let reader = init (fun writer ->
+        write_without_pushback writer ();
+        Deferred.unit) in
+      stabilize ();
+      assert (is_closed reader);
+      assert (Option.is_some (peek reader))
+    ;;
+
+    let%test_unit _ =
+      let finish = Ivar.create () in
+      let reader = init (fun writer ->
+        write_without_pushback writer ();
+        Ivar.read finish)
+      in
+      stabilize ();
+      assert (not (is_closed reader));
+      assert (Option.is_some (peek reader));
+      Ivar.fill finish ();
+      let d = to_list reader in
+      stabilize ();
+      assert (is_closed reader);
+      assert (Deferred.peek d = Some [ () ])
+    ;;
+
+    let%test_unit _ =
+      for max = 0 to 5 do
+        let list =
+          unfold ~init:0 ~f:(fun n ->
+            if n >= max
+            then return None
+            else return (Some (n, n+1)))
+          |> to_list
+        in
+        stabilize ();
+        [%test_result: int list option]
+          (Deferred.peek list)
+          ~expect:(Some (List.init max ~f:Fn.id))
+      done
+    ;;
+
+    (* ==================== pushback ==================== *)
+
+    let%test_unit _ =
+      let (_, writer) = create () in
+      let p = write writer () in
       close writer;
       stabilize ();
-      assert (Deferred.peek d = Some `Eof);
-      let d = read reader in
-      stabilize ();
-      assert (Deferred.peek d = Some `Eof);
-    in
-    check_read read';
-    check_read read;
-    check_read (fun reader -> read_at_most reader ~num_values:1);
-    check_read (fun reader -> read_exactly reader ~num_values:1);
-    check_read values_available;
-  ;;
+      assert (Deferred.peek p = Some ())
+    ;;
 
-  TEST_UNIT =
-    let check_read read get_values =
+    let%test_unit _ =
+      let (reader, writer) = create () in
+      let p = write writer () in
+      close_read reader;
+      stabilize ();
+      assert (Deferred.peek p = Some ())
+    ;;
+
+    let%test_unit _ =
+      let (reader, writer) = create () in
+      let p = write writer () in
+      stabilize ();
+      assert (Deferred.peek p = None);
+      ignore (read_now' reader);
+      stabilize ();
+      assert (Deferred.peek p = Some ())
+    ;;
+
+    let%test_unit _ =
+      let (reader, writer) = create () in
+      let p = write writer () in
+      let _ = write writer () in
+      assert (length writer = 2);
+      stabilize ();
+      assert (Deferred.peek p = None);
+      ignore (read reader);
+      stabilize ();
+      assert (length writer = 1);
+      assert (Deferred.peek p = None);
+      ignore (read reader);
+      stabilize ();
+      assert (length writer = 0);
+      assert (Deferred.peek p = Some ())
+    ;;
+
+    (* ==================== read_all ==================== *)
+
+
+    let%test_unit _ =
+      let (reader, writer) = create () in
+      close writer;
+      let d = read_all reader in
+      stabilize ();
+      assert (read_result d = [])
+    ;;
+
+    let%test_unit _ =
       let (reader, writer) = create () in
       don't_wait_for (write writer 13);
       close writer;
-      let d = read reader in
+      let d = read_all reader in
       stabilize ();
-      match Deferred.peek d with
-      | Some z -> assert ([ 13 ] = get_values z)
-      | None -> assert false
-    in
-    check_read read' (function `Ok q -> Q.to_list q | _ -> assert false);
-    check_read read (function `Ok a -> [ a ] | _ -> assert false);
-    check_read (fun r -> read_at_most r ~num_values:1)
-      (function `Ok q -> Q.to_list q | _ -> assert false);
-    check_read (fun r -> read_exactly r ~num_values:1)
-      (function `Exactly q -> Q.to_list q | _ -> assert false);
-    check_read (fun r -> return (read_now' r))
-      (function `Ok q -> Q.to_list q | _ -> assert false);
-    check_read read_all Q.to_list;
-  ;;
+      assert (read_result d = [ 13 ])
+    ;;
 
-  TEST_UNIT =
-    let (reader, writer) = create () in
-    let f1 = downstream_flushed writer in
-    don't_wait_for (write writer 13);
-    let f2 = downstream_flushed writer in
-    close_read reader;
-    stabilize ();
-    assert (Deferred.peek f1 = Some `Ok);
-    assert (Deferred.peek f2 = Some `Reader_closed);
-  ;;
+    (* ==================== read_at_most ==================== *)
 
-  (* ==================== init ==================== *)
-  TEST_UNIT =
-    let reader = init (fun _ -> Deferred.never ()) in
-    stabilize ();
-    assert (not (is_closed reader));
-    assert (Option.is_none (peek reader));
-  ;;
+    let%test_unit _ =
+      let (reader, writer) = create () in
+      don't_wait_for (write' writer (Q.of_list [ 12; 13; 14 ]));
+      close writer;
+      let d =
+        read_at_most reader ~num_values:2
+        >>| function
+        | `Eof -> assert false
+        | `Ok q -> q
+      in
+      stabilize ();
+      assert (read_result d = [ 12; 13 ])
+    ;;
 
-  TEST_UNIT =
-    let reader = init (fun writer ->
-      write_without_pushback writer ();
-      Deferred.unit) in
-    stabilize ();
-    assert (is_closed reader);
-    assert (Option.is_some (peek reader));
-  ;;
+    let%test_unit _ =
+      let (reader, writer) = create () in
+      don't_wait_for (write' writer (Q.of_list [ 12; 13; 14 ]));
+      close writer;
+      let d =
+        read_at_most reader ~num_values:4
+        >>| function
+        | `Eof -> assert false
+        | `Ok q -> q
+      in
+      stabilize ();
+      assert (read_result d = [ 12; 13; 14 ])
+    ;;
 
-  TEST_UNIT =
-    let finish = Ivar.create () in
-    let reader = init (fun writer ->
-      write_without_pushback writer ();
-      Ivar.read finish)
-    in
-    stabilize ();
-    assert (not (is_closed reader));
-    assert (Option.is_some (peek reader));
-    Ivar.fill finish ();
-    let d = to_list reader in
-    stabilize ();
-    assert (is_closed reader);
-    assert (Deferred.peek d = Some [ () ]);
-  ;;
+    (* ==================== clear ==================== *)
 
-  (* ==================== pushback ==================== *)
+    let%test_unit _ =
+      let l = [ 12; 13 ] in
+      let (reader, writer) = create () in
+      let p = write' writer (Q.of_list l) in
+      clear reader;
+      stabilize ();
+      assert (Deferred.peek p = Some ());
+      assert (length reader = 0);
+      don't_wait_for (write' writer (Q.of_list l));
+      close writer;
+      let d = read_all reader in
+      stabilize ();
+      assert (read_result d = l)
+    ;;
 
-  TEST_UNIT =
-    let (_, writer) = create () in
-    let p = write writer () in
-    close writer;
-    stabilize ();
-    assert (Deferred.peek p = Some ());
-  ;;
+    (* ==================== map ==================== *)
 
-  TEST_UNIT =
-    let (reader, writer) = create () in
-    let p = write writer () in
-    close_read reader;
-    stabilize ();
-    assert (Deferred.peek p = Some ());
-  ;;
+    let%test_unit _ =
+      let (reader, writer) = create () in
+      let reader = map reader ~f:(fun x -> x + 13) in
+      don't_wait_for (write' writer (Q.of_list [ 1; 2; 3 ]));
+      let d =
+        read_exactly reader ~num_values:2
+        >>| function
+        | `Eof | `Fewer _ -> assert false
+        | `Exactly q -> close_read reader; q
+      in
+      stabilize ();
+      assert (is_closed writer);
+      assert (read_result d = [ 14; 15 ])
+    ;;
 
-  TEST_UNIT =
-    let (reader, writer) = create () in
-    let p = write writer () in
-    stabilize ();
-    assert (Deferred.peek p = None);
-    ignore (read_now' reader);
-    stabilize ();
-    assert (Deferred.peek p = Some ());
-  ;;
+    (* ==================== of_stream_deprecated ==================== *)
 
-  TEST_UNIT =
-    let (reader, writer) = create () in
-    let p = write writer () in
-    let _ = write writer () in
-    assert (length writer = 2);
-    stabilize ();
-    assert (Deferred.peek p = None);
-    ignore (read reader);
-    stabilize ();
-    assert (length writer = 1);
-    assert (Deferred.peek p = None);
-    ignore (read reader);
-    stabilize ();
-    assert (length writer = 0);
-    assert (Deferred.peek p = Some ());
-  ;;
+    let%test_unit _ =
+      let tail = Tail.create () in
+      let pipe = of_stream_deprecated (Tail.collect tail) in
+      stabilize ();
+      assert (length pipe = 0);
+      Tail.extend tail 13;
+      stabilize ();
+      assert (length pipe = 1);
+      Tail.extend tail 14;
+      Tail.extend tail 15;
+      stabilize ();
+      assert (length pipe = 3);
+      let d = read_all pipe in
+      Tail.close_exn tail;
+      stabilize ();
+      assert (read_result d = [ 13; 14; 15 ])
+    ;;
 
-  (* ==================== read_all ==================== *)
+    (* ==================== of_sequence ==================== *)
 
+    let%test_unit _ =
+      for i = 0 to 5 do
+        let data = List.init i ~f:Fn.id in
+        let sequence = Sequence.of_list data in
+        let pipe = of_sequence sequence in
+        let data_roundtripped = to_list pipe in
+        stabilize ();
+        [%test_result: int list option] ~expect:(Some data) (Deferred.peek data_roundtripped);
+        assert (is_closed pipe);
+      done;
+    ;;
 
-  TEST_UNIT =
-    let (reader, writer) = create () in
-    close writer;
-    let d = read_all reader in
-    stabilize ();
-    assert (read_result d = []);
-  ;;
+    let%test_unit "closing the pipe produced by [of_sequence] early" =
+      let sequence =
+        Sequence.unfold ~init:0 ~f:(fun i ->
+          Some (i, succ i))
+      in
+      let pipe = of_sequence sequence in
+      stabilize ();
+      assert (not (is_closed pipe));
+      [%test_result: [`Eof | `Nothing_available | `Ok of int]] ~expect:(`Ok 0) (read_now pipe);
+      stabilize ();
+      assert (not (is_closed pipe));
+      [%test_result: [`Eof | `Nothing_available | `Ok of int]] ~expect:(`Ok 1) (read_now pipe);
+      close_read pipe;
+      stabilize ();
+      assert (is_closed pipe);
+    ;;
 
-  TEST_UNIT =
-    let (reader, writer) = create () in
-    don't_wait_for (write writer 13);
-    close writer;
-    let d = read_all reader in
-    stabilize ();
-    assert (read_result d = [ 13 ]);
-  ;;
+    (* ==================== to_sequence =================== *)
 
-  (* ==================== read_at_most ==================== *)
+    let%test_unit "to_sequence produces immediate values when available" =
+      let data = [ 1; 2; 3; 4; 5 ] in
+      let r = of_list data in
+      let data' =
+        Sequence.to_list (to_sequence r)
+        |> List.map ~f:(function
+          | Value v    -> v
+          | Wait_for _ -> assert false)
+      in
+      [%test_result: int list] data' ~expect:data;
+    ;;
 
-  TEST_UNIT =
-    let (reader, writer) = create () in
-    don't_wait_for (write' writer (Q.of_list [ 12; 13; 14 ]));
-    close writer;
-    let d =
-      read_at_most reader ~num_values:2
-      >>| function
-      | `Eof -> assert false
-      | `Ok q -> q
-    in
-    stabilize ();
-    assert (read_result d = [ 12; 13 ]);
-  ;;
+    let%test_unit "to_sequence produces deferred values when it should block" =
+      let r, w = create () in
+      write_without_pushback w 1;
+      let v, seq = Sequence.next (to_sequence r) |> Option.value_exn in
+      assert (v = Value 1);
+      let d, seq = Sequence.next seq |> Option.value_exn in
+      match d with
+      | Value _ -> assert false
+      | Wait_for _ ->
+        (* check that Wait_for will be returned again if we pull without waiting *)
+        begin match Sequence.next seq with
+        | None | Some (Value _, _) -> assert false
+        | Some (Wait_for _, _) -> ()
+        end
+    ;;
 
-  TEST_UNIT =
-    let (reader, writer) = create () in
-    don't_wait_for (write' writer (Q.of_list [ 12; 13; 14 ]));
-    close writer;
-    let d =
-      read_at_most reader ~num_values:4
-      >>| function
-      | `Eof -> assert false
-      | `Ok q -> q
-    in
-    stabilize ();
-    assert (read_result d = [ 12; 13; 14 ]);
-  ;;
+    (* ==================== interleave ==================== *)
 
-  (* ==================== clear ==================== *)
+    let%test_unit _ =
+      let t = interleave [] in
+      let d = read_all t in
+      stabilize ();
+      assert (read_result d = [])
+    ;;
 
-  TEST_UNIT =
-    let l = [ 12; 13 ] in
-    let (reader, writer) = create () in
-    let p = write' writer (Q.of_list l) in
-    clear reader;
-    stabilize ();
-    assert (Deferred.peek p = Some ());
-    assert (length reader = 0);
-    don't_wait_for (write' writer (Q.of_list l));
-    close writer;
-    let d = read_all reader in
-    stabilize ();
-    assert (read_result d = l);
-  ;;
+    let%test_unit _ =
+      let l = [ 1; 2; 3 ] in
+      let t = interleave [ of_list l ] in
+      let d = read_all t in
+      stabilize ();
+      assert (read_result d = l)
+    ;;
 
-  (* ==================== map ==================== *)
+    let%test_unit _ =
+      let l = [ 1; 2; 3 ] in
+      let t = interleave [ of_list l; of_list l ] in
+      let d = read_all t in
+      stabilize ();
+      assert (List.length (read_result d) = 2 * List.length l)
+    ;;
 
-  TEST_UNIT =
-    let (reader, writer) = create () in
-    let reader = map reader ~f:(fun x -> x + 13) in
-    don't_wait_for (write' writer (Q.of_list [ 1; 2; 3 ]));
-    let d =
-      read_exactly reader ~num_values:2
-      >>| function
-      | `Eof | `Fewer _ -> assert false
-      | `Exactly q -> close_read reader; q
-    in
-    stabilize ();
-    assert (is_closed writer);
-    assert (read_result d = [ 14; 15 ]);
-  ;;
+    (* ==================== interleave_pipe ================== *)
 
-  (* ==================== of_stream_deprecated ==================== *)
+    let%test_unit _ =
+      let r, w = create () in
+      let t = interleave_pipe r in
+      close w;
+      let d = read_all t in
+      stabilize ();
+      assert (read_result d = [])
+    ;;
 
-  TEST_UNIT =
-    let tail = Tail.create () in
-    let pipe = of_stream_deprecated (Tail.collect tail) in
-    stabilize ();
-    assert (length pipe = 0);
-    Tail.extend tail 13;
-    stabilize ();
-    assert (length pipe = 1);
-    Tail.extend tail 14;
-    Tail.extend tail 15;
-    stabilize ();
-    assert (length pipe = 3);
-    let d = read_all pipe in
-    Tail.close_exn tail;
-    stabilize ();
-    assert (read_result d = [ 13; 14; 15 ]);
-  ;;
+    let%test_unit _ =
+      let r, w = create () in
+      let t = interleave_pipe r in
+      write_without_pushback w (of_list [ 1; 2; 3 ]);
+      stabilize ();
+      write_without_pushback w (of_list [ 4; 5; 6 ]);
+      close w;
+      let d = read_all t in
+      stabilize ();
+      assert (read_result d = [ 1; 2; 3; 4; 5; 6 ])
+    ;;
 
-  (* ==================== interleave ==================== *)
+    let%test_unit _ =
+      let r, w = create () in
+      let t = interleave_pipe r in
+      write_without_pushback w (of_list [ 1; 2; 3 ]);
+      write_without_pushback w (of_list [ 4; 5; 6 ]);
+      stabilize ();
+      begin match read_now' t with
+      | `Nothing_available
+      | `Eof  -> assert false
+      | `Ok q -> assert (Queue.length q = 6)
+      end;
+      write_without_pushback w (of_list [ 7; 8; 9 ]);
+      close w;
+      let d = read_all t in
+      stabilize ();
+      assert (read_result d = [ 7; 8; 9 ])
+    ;;
 
-  TEST_UNIT =
-    let t = interleave [] in
-    let d = read_all t in
-    stabilize ();
-    assert (read_result d = []);
-  ;;
+    let%test_unit _ = (* output remains open as long as an input pipe does *)
+      let outer_r, outer_w = create () in
+      let t = interleave_pipe outer_r in
+      let inner_r, inner_w = create () in
+      stabilize ();
+      assert (not (is_closed t));
+      write_without_pushback outer_w inner_r;
+      stabilize ();
+      assert (not (is_closed t));
+      close outer_w;
+      assert (not (is_closed t));
+      write_without_pushback inner_w 13;
+      stabilize ();
+      begin match read_now' t with
+      | `Nothing_available | `Eof -> assert false
+      | `Ok q -> assert (Queue.to_list q = [ 13 ])
+      end;
+      close inner_w;
+      stabilize ();
+      begin match read_now' t with
+      | `Eof -> ()
+      | `Nothing_available | `Ok _ -> assert false
+      end
+    ;;
 
-  TEST_UNIT =
-    let l = [ 1; 2; 3 ] in
-    let t = interleave [ of_list l ] in
-    let d = read_all t in
-    stabilize ();
-    assert (read_result d = l);
-  ;;
-
-  TEST_UNIT =
-    let l = [ 1; 2; 3 ] in
-    let t = interleave [ of_list l; of_list l ] in
-    let d = read_all t in
-    stabilize ();
-    assert (List.length (read_result d) = 2 * List.length l);
-  ;;
-
-  (* ==================== interleave_pipe ================== *)
-
-  TEST_UNIT =
-    let r, w = create () in
-    let t = interleave_pipe r in
-    close w;
-    let d = read_all t in
-    stabilize ();
-    assert (read_result d = [])
-  ;;
-
-  TEST_UNIT =
-    let r, w = create () in
-    let t = interleave_pipe r in
-    write_without_pushback w (of_list [ 1; 2; 3 ]);
-    stabilize ();
-    write_without_pushback w (of_list [ 4; 5; 6 ]);
-    close w;
-    let d = read_all t in
-    stabilize ();
-    assert (read_result d = [ 1; 2; 3; 4; 5; 6 ])
-  ;;
-
-  TEST_UNIT =
-    let r, w = create () in
-    let t = interleave_pipe r in
-    write_without_pushback w (of_list [ 1; 2; 3 ]);
-    write_without_pushback w (of_list [ 4; 5; 6 ]);
-    stabilize ();
-    begin match read_now' t with
-    | `Nothing_available
-    | `Eof  -> assert false
-    | `Ok q -> assert (Queue.length q = 6)
-    end;
-    write_without_pushback w (of_list [ 7; 8; 9 ]);
-    close w;
-    let d = read_all t in
-    stabilize ();
-    assert (read_result d = [ 7; 8; 9 ])
-  ;;
-
-  TEST_UNIT = (* output remains open as long as an input pipe does *)
-    let outer_r, outer_w = create () in
-    let t = interleave_pipe outer_r in
-    let inner_r, inner_w = create () in
-    stabilize ();
-    assert (not (is_closed t));
-    write_without_pushback outer_w inner_r;
-    stabilize ();
-    assert (not (is_closed t));
-    close outer_w;
-    assert (not (is_closed t));
-    write_without_pushback inner_w 13;
-    stabilize ();
-    begin match read_now' t with
-    | `Nothing_available | `Eof -> assert false
-    | `Ok q -> assert (Queue.to_list q = [ 13 ])
-    end;
-    close inner_w;
-    stabilize ();
-    begin match read_now' t with
-    | `Eof -> ()
-    | `Nothing_available | `Ok _ -> assert false
-    end;
-  ;;
-
-  (* ==================== merge ==================== *)
-  TEST_UNIT =
-    let cases =
-      [ []
-      ; [ [] ]
-      ; [ [ 1; 3; 7 ] ]
-      ; [ []; []; []; ]
-      ; [ [ 1; 7; 10 ] ]
-      ; [ [ 1; 5; 12 ]; [ 3; 3; 4; 22 ]; [ 1 ]; [ 40 ] ]
-      ; [ [ 1; 5; 12 ]; [ 3; 3; 4; 22 ]; []; [] ]
-      ; [ [ 27 ]; [ 1; 3; 3; 4; 22 ]; [ 2; 27; 49 ] ]
-      ; [ [ 27 ]; [ 1; 3; 3; 4; 22; 27; 31; 59; 72 ]; [ 2; 27; 49 ] ]
-      ; [ [ 2; 9; 12; 27; 101 ]
-        ; [ 1; 3; 3; 4; 22; 27; 31; 59; 72 ]
-        ; [ 2; 27; 49; 127; 311 ]
+    (* ==================== merge ==================== *)
+    let%test_unit _ =
+      let cases =
+        [ []
+        ; [ [] ]
+        ; [ [ 1; 3; 7 ] ]
+        ; [ []; []; []; ]
+        ; [ [ 1; 7; 10 ] ]
+        ; [ [ 1; 5; 12 ]; [ 3; 3; 4; 22 ]; [ 1 ]; [ 40 ] ]
+        ; [ [ 1; 5; 12 ]; [ 3; 3; 4; 22 ]; []; [] ]
+        ; [ [ 27 ]; [ 1; 3; 3; 4; 22 ]; [ 2; 27; 49 ] ]
+        ; [ [ 27 ]; [ 1; 3; 3; 4; 22; 27; 31; 59; 72 ]; [ 2; 27; 49 ] ]
+        ; [ [ 2; 9; 12; 27; 101 ]
+          ; [ 1; 3; 3; 4; 22; 27; 31; 59; 72 ]
+          ; [ 2; 27; 49; 127; 311 ]
+          ]
         ]
-      ]
-    in
-    let transfer_by = [ 1; 2; 3; 5; 10 ] in
-    let cmp = Int.compare in
-    let finished =
-      Deferred.List.iter cases ~f:(fun lists ->
-        (* The merge function assumes that the pipes return ordered values. *)
-        let lists = List.map lists ~f:(fun list -> List.sort list ~cmp) in
-        let expected_result = List.sort ~cmp (List.concat lists) in
-        Deferred.List.iter transfer_by ~f:(fun transfer_by ->
-          let pipes = List.map lists ~f:(fun _ -> create ()) in
-          let merged_pipe = merge (List.map pipes ~f:fst) ~cmp in
-          List.iter2_exn lists pipes ~f:(fun list (_, writer) ->
-            let rec loop index = function
-              | [] -> close writer
-              | a :: tail ->
-                write_without_pushback writer a;
-                if index mod transfer_by > 0
-                then loop (index + 1) tail
-                else begin
-                  pushback writer
-                  >>> fun () ->
-                  pushback merged_pipe
-                  >>> fun () ->
-                  loop (index + 1) tail
-                end
-            in
-            loop 1 list);
-          to_list merged_pipe
-          >>| fun actual_result ->
-          if not (actual_result = expected_result)
-          then failwiths "mismatch" (actual_result, expected_result)
-                 <:sexp_of< int list * int list >>))
-    in
-    stabilize ();
-    assert (Deferred.is_determined finished);
-  ;;
+      in
+      let transfer_by = [ 1; 2; 3; 5; 10 ] in
+      let cmp = Int.compare in
+      let finished =
+        Deferred.List.iter cases ~f:(fun lists ->
+          (* The merge function assumes that the pipes return ordered values. *)
+          let lists = List.map lists ~f:(fun list -> List.sort list ~cmp) in
+          let expected_result = List.sort ~cmp (List.concat lists) in
+          Deferred.List.iter transfer_by ~f:(fun transfer_by ->
+            let pipes = List.map lists ~f:(fun _ -> create ()) in
+            let merged_pipe = merge (List.map pipes ~f:fst) ~cmp in
+            List.iter2_exn lists pipes ~f:(fun list (_, writer) ->
+              let rec loop index = function
+                | [] -> close writer
+                | a :: tail ->
+                  write_without_pushback writer a;
+                  if index mod transfer_by > 0
+                  then loop (index + 1) tail
+                  else begin
+                    pushback writer
+                    >>> fun () ->
+                    pushback merged_pipe
+                    >>> fun () ->
+                    loop (index + 1) tail
+                  end
+              in
+              loop 1 list);
+            to_list merged_pipe
+            >>| fun actual_result ->
+            if not (actual_result = expected_result)
+            then failwiths "mismatch" (actual_result, expected_result)
+                   [%sexp_of: int list * int list]))
+      in
+      stabilize ();
+      assert (Deferred.is_determined finished)
+    ;;
 
-  TEST_UNIT = (* [merge] stops and closes its input when its output is closed *)
-    let r, w = create () in
-    write_without_pushback w 1;
-    let t = merge [ r ] ~cmp:Int.compare in
-    close_read t;
-    stabilize ();
-    assert (is_closed w);
-  ;;
+    let%test_unit _ = (* [merge] stops and closes its input when its output is closed *)
+      let r, w = create () in
+      write_without_pushback w 1;
+      let t = merge [ r ] ~cmp:Int.compare in
+      close_read t;
+      stabilize ();
+      assert (is_closed w)
+    ;;
 
-  (* ==================== iter' ==================== *)
+    (* ==================== iter' ==================== *)
 
-  TEST_UNIT =
-    let r = ref 0 in
-    let l = [ 1; 2; 3 ] in
-    let t = of_list l in
-    let iter_finished = ref false in
-    upon (iter' t ~f:(fun q -> Queue.iter q ~f:(fun i -> r := !r + i); Deferred.unit))
-      (fun () -> iter_finished := true);
-    stabilize ();
-    assert (!r = 6);
-    assert !iter_finished;
-  ;;
+    let%test_unit _ =
+      let r = ref 0 in
+      let l = [ 1; 2; 3 ] in
+      let t = of_list l in
+      let iter_finished = ref false in
+      upon (iter' t ~f:(fun q -> Queue.iter q ~f:(fun i -> r := !r + i); Deferred.unit))
+        (fun () -> iter_finished := true);
+      stabilize ();
+      assert (!r = 6);
+      assert !iter_finished
+    ;;
 
-  TEST_UNIT =
-    let count = ref 0 in
-    let r, w = create () in
-    write_without_pushback w 13;
-    let iter_finished = ref false in
-    ignore
-      (Monitor.try_with
-         (fun () ->
-            let finished =
-              iter' r ~f:(fun q ->
-                Queue.iter q ~f:(fun i ->
-                  if i = 17 then failwith "" else count := !count + i);
-                Deferred.unit)
-            in
-            upon finished (fun () -> iter_finished := true);
-            finished));
-    stabilize ();
-    write_without_pushback w 17;
-    stabilize ();
-    assert (!count = 13);
-    assert (not !iter_finished);
-  ;;
+    let%test_unit _ =
+      let count = ref 0 in
+      let r, w = create () in
+      write_without_pushback w 13;
+      let iter_finished = ref false in
+      ignore
+        (Monitor.try_with
+           (fun () ->
+              let finished =
+                iter' r ~f:(fun q ->
+                  Queue.iter q ~f:(fun i ->
+                    if i = 17 then failwith "" else count := !count + i);
+                  Deferred.unit)
+              in
+              upon finished (fun () -> iter_finished := true);
+              finished));
+      stabilize ();
+      write_without_pushback w 17;
+      stabilize ();
+      assert (!count = 13);
+      assert (not !iter_finished)
+    ;;
 
-  TEST_UNIT =
-    let count = ref 0 in
-    let r, w = create () in
-    write_without_pushback w 13;
-    let iter_finished = ref false in
-    ignore
-      (Monitor.try_with
-         (fun () ->
-            let finished =
-              iter' r ~continue_on_error:true ~f:(fun q ->
-                Queue.iter q ~f:(fun i ->
-                  if i = 17 then failwith "" else count := !count + i);
-                Deferred.unit)
-            in
-            upon finished (fun () -> iter_finished := true);
-            finished));
-    stabilize ();
-    assert (not !iter_finished);
-    write_without_pushback w 17;
-    stabilize ();
-    assert (not !iter_finished);
-    write_without_pushback w 19;
-    stabilize ();
-    assert (!count = 32);
-    assert (not !iter_finished);
-    close w;
-    stabilize ();
-    assert (!iter_finished);
-  ;;
+    let%test_unit _ =
+      let count = ref 0 in
+      let r, w = create () in
+      write_without_pushback w 13;
+      let iter_finished = ref false in
+      ignore
+        (Monitor.try_with
+           (fun () ->
+              let finished =
+                iter' r ~continue_on_error:true ~f:(fun q ->
+                  Queue.iter q ~f:(fun i ->
+                    if i = 17 then failwith "" else count := !count + i);
+                  Deferred.unit)
+              in
+              upon finished (fun () -> iter_finished := true);
+              finished));
+      stabilize ();
+      assert (not !iter_finished);
+      write_without_pushback w 17;
+      stabilize ();
+      assert (not !iter_finished);
+      write_without_pushback w 19;
+      stabilize ();
+      assert (!count = 32);
+      assert (not !iter_finished);
+      close w;
+      stabilize ();
+      assert (!iter_finished)
+    ;;
 
-  (* ==================== iter ==================== *)
+    (* ==================== iter ==================== *)
 
-  TEST_UNIT =
-    let r = ref 0 in
-    let l = [ 1; 2; 3 ] in
-    let t = of_list l in
-    let iter_finished = ref false in
-    upon (iter t ~f:(fun i -> r := !r + i; Deferred.unit))
-      (fun () -> iter_finished := true);
-    stabilize ();
-    assert (!r = 6);
-    assert !iter_finished;
-  ;;
+    let%test_unit _ =
+      let r = ref 0 in
+      let l = [ 1; 2; 3 ] in
+      let t = of_list l in
+      let iter_finished = ref false in
+      upon (iter t ~f:(fun i -> r := !r + i; Deferred.unit))
+        (fun () -> iter_finished := true);
+      stabilize ();
+      assert (!r = 6);
+      assert !iter_finished
+    ;;
 
-  TEST_UNIT =
-    let r = ref 0 in
-    let l = [ 13; 17 ] in
-    let t = of_list l in
-    let iter_finished = ref false in
-    ignore
-      (Monitor.try_with
-         (fun () ->
-            let finished =
-              iter t ~f:(fun i ->
-                if i = 17 then failwith "" else r := !r + i;
-                Deferred.unit)
-            in
-            upon finished (fun () -> iter_finished := true);
-            finished));
-    stabilize ();
-    assert (!r = 13);
-    assert (not !iter_finished);
-  ;;
+    let%test_unit _ =
+      let r = ref 0 in
+      let l = [ 13; 17 ] in
+      let t = of_list l in
+      let iter_finished = ref false in
+      ignore
+        (Monitor.try_with
+           (fun () ->
+              let finished =
+                iter t ~f:(fun i ->
+                  if i = 17 then failwith "" else r := !r + i;
+                  Deferred.unit)
+              in
+              upon finished (fun () -> iter_finished := true);
+              finished));
+      stabilize ();
+      assert (!r = 13);
+      assert (not !iter_finished)
+    ;;
 
-  TEST_UNIT =
-    let r = ref 0 in
-    let l = [ 1; 2; 3 ] in
-    let t = of_list l in
-    let iter_finished = ref false in
-    ignore
-      (Monitor.try_with
-         (fun () ->
-            let finished =
-              iter t ~continue_on_error:true ~f:(fun i ->
-                if i = 2 then failwith "" else r := !r + i;
-                Deferred.unit)
-            in
-            upon finished (fun () -> iter_finished := true);
-            finished));
-    stabilize ();
-    assert (!r = 4);
-    assert !iter_finished;
-  ;;
+    let%test_unit _ =
+      let r = ref 0 in
+      let l = [ 1; 2; 3 ] in
+      let t = of_list l in
+      let iter_finished = ref false in
+      ignore
+        (Monitor.try_with
+           (fun () ->
+              let finished =
+                iter t ~continue_on_error:true ~f:(fun i ->
+                  if i = 2 then failwith "" else r := !r + i;
+                  Deferred.unit)
+              in
+              upon finished (fun () -> iter_finished := true);
+              finished));
+      stabilize ();
+      assert (!r = 4);
+      assert !iter_finished
+    ;;
 
-  (* ==================== iter_without_pushback ==================== *)
+    (* ==================== iter_without_pushback ==================== *)
 
-  TEST_UNIT =
-    let r = ref 0 in
-    let l = [ 1; 2; 3 ] in
-    let t = of_list l in
-    let iter_finished = ref false in
-    upon (iter_without_pushback t ~f:(fun i -> r := !r + i))
-      (fun () -> iter_finished := true);
-    stabilize ();
-    assert (!r = 6);
-    assert !iter_finished;
-  ;;
+    let%test_unit _ =
+      let r = ref 0 in
+      let l = [ 1; 2; 3 ] in
+      let t = of_list l in
+      let iter_finished = ref false in
+      upon (iter_without_pushback t ~f:(fun i -> r := !r + i))
+        (fun () -> iter_finished := true);
+      stabilize ();
+      assert (!r = 6);
+      assert !iter_finished
+    ;;
 
-  TEST_UNIT =
-    let r = ref 0 in
-    let l = [ 13; 17 ] in
-    let t = of_list l in
-    let iter_finished = ref false in
-    ignore
-      (Monitor.try_with
-         (fun () ->
-            let finished =
-              iter_without_pushback t ~f:(fun i ->
-                if i = 17 then failwith "" else r := !r + i)
-            in
-            upon finished (fun () -> iter_finished := true);
-            finished));
-    stabilize ();
-    assert (!r = 13);
-    assert (not !iter_finished);
-  ;;
+    let%test_unit _ =
+      let r = ref 0 in
+      let l = [ 13; 17 ] in
+      let t = of_list l in
+      let iter_finished = ref false in
+      ignore
+        (Monitor.try_with
+           (fun () ->
+              let finished =
+                iter_without_pushback t ~f:(fun i ->
+                  if i = 17 then failwith "" else r := !r + i)
+              in
+              upon finished (fun () -> iter_finished := true);
+              finished));
+      stabilize ();
+      assert (!r = 13);
+      assert (not !iter_finished)
+    ;;
 
-  TEST_UNIT =
-    let r = ref 0 in
-    let l = [ 1; 2; 3 ] in
-    let t = of_list l in
-    let iter_finished = ref false in
-    ignore
-      (Monitor.try_with
-         (fun () ->
-            let finished =
-              iter_without_pushback t ~continue_on_error:true ~f:(fun i ->
-                if i = 2 then failwith "" else r := !r + i)
-            in
-            upon finished (fun () -> iter_finished := true);
-            finished));
-    stabilize ();
-    assert (!r = 4);
-    assert !iter_finished;
-  ;;
+    let%test_unit _ =
+      let r = ref 0 in
+      let l = [ 1; 2; 3 ] in
+      let t = of_list l in
+      let iter_finished = ref false in
+      ignore
+        (Monitor.try_with
+           (fun () ->
+              let finished =
+                iter_without_pushback t ~continue_on_error:true ~f:(fun i ->
+                  if i = 2 then failwith "" else r := !r + i)
+              in
+              upon finished (fun () -> iter_finished := true);
+              finished));
+      stabilize ();
+      assert (!r = 4);
+      assert !iter_finished
+    ;;
 
-  (* ==================== flush chaining ==================== *)
-  TEST_UNIT =
-    let flushed f = match Deferred.peek f with Some `Ok -> true | _ -> false in
-    let r, w = create () in
-    assert (Deferred.peek (downstream_flushed w) = Some `Ok);
-    let flushed_downstream = ref (return `Ok) in
-    let consumer = add_consumer r ~downstream_flushed:(fun () -> !flushed_downstream) in
-    let f1 = downstream_flushed w in
-    stabilize ();
-    assert (Deferred.peek f1 = Some `Ok);
-    write_without_pushback w ();
-    let f2 = downstream_flushed w in
-    assert (Deferred.peek (read r ~consumer) = Some (`Ok ()));
-    let f3 = downstream_flushed w in
-    assert (not (flushed f2));
-    assert (not (flushed f3));
-    Consumer.values_sent_downstream consumer;
-    let flushed_downstream_ivar = Ivar.create () in
-    flushed_downstream := Ivar.read flushed_downstream_ivar;
-    let f4 = downstream_flushed w in
-    stabilize ();
-    let f5 = downstream_flushed w in
-    assert (not (flushed f2));
-    assert (not (flushed f3));
-    assert (not (flushed f4));
-    assert (not (flushed f5));
-    Ivar.fill flushed_downstream_ivar `Ok;
-    let f6 = downstream_flushed w in
-    write_without_pushback w ();
-    let f7 = downstream_flushed w in
-    stabilize ();
-    assert (flushed f2);
-    assert (flushed f3);
-    assert (flushed f4);
-    assert (flushed f5);
-    assert (flushed f6);
-    assert (not (flushed f7));
-  ;;
+    (* ==================== flush chaining ==================== *)
+    let%test_unit _ =
+      let flushed f = match Deferred.peek f with Some `Ok -> true | _ -> false in
+      let r, w = create () in
+      assert (Deferred.peek (downstream_flushed w) = Some `Ok);
+      let flushed_downstream = ref (return `Ok) in
+      let consumer = add_consumer r ~downstream_flushed:(fun () -> !flushed_downstream) in
+      let f1 = downstream_flushed w in
+      stabilize ();
+      assert (Deferred.peek f1 = Some `Ok);
+      write_without_pushback w ();
+      let f2 = downstream_flushed w in
+      assert (Deferred.peek (read r ~consumer) = Some (`Ok ()));
+      let f3 = downstream_flushed w in
+      assert (not (flushed f2));
+      assert (not (flushed f3));
+      Consumer.values_sent_downstream consumer;
+      let flushed_downstream_ivar = Ivar.create () in
+      flushed_downstream := Ivar.read flushed_downstream_ivar;
+      let f4 = downstream_flushed w in
+      stabilize ();
+      let f5 = downstream_flushed w in
+      assert (not (flushed f2));
+      assert (not (flushed f3));
+      assert (not (flushed f4));
+      assert (not (flushed f5));
+      Ivar.fill flushed_downstream_ivar `Ok;
+      let f6 = downstream_flushed w in
+      write_without_pushback w ();
+      let f7 = downstream_flushed w in
+      stabilize ();
+      assert (flushed f2);
+      assert (flushed f3);
+      assert (flushed f4);
+      assert (flushed f5);
+      assert (flushed f6);
+      assert (not (flushed f7))
+    ;;
 
-  TEST_UNIT =
-    let flushed f = match Deferred.peek f with Some `Ok -> true | _ -> false in
-    let r_, w = create () in
-    let r = map r_ ~f:Fn.id in
-    let f1 = downstream_flushed r in
-    stabilize ();
-    assert (Deferred.peek f1 = Some `Ok);
-    write_without_pushback w ();
-    let f2 = downstream_flushed w in
-    let f3 = upstream_flushed r in
-    stabilize ();
-    assert (is_empty w);
-    assert (not (is_empty r));
-    assert (not (flushed f2));
-    assert (not (flushed f3));
-    let f4 = downstream_flushed w in
-    let f5 = upstream_flushed r in
-    assert (Deferred.peek (read r) = Some (`Ok ()));
-    let f6 = downstream_flushed w in
-    let f7 = upstream_flushed r in
-    write_without_pushback w ();
-    let f8 = downstream_flushed w in
-    let f9 = upstream_flushed r in
-    stabilize ();
-    assert (flushed f2);
-    assert (flushed f3);
-    assert (flushed f4);
-    assert (flushed f5);
-    assert (flushed f6);
-    assert (flushed f7);
-    assert (not (flushed f8));
-    assert (not (flushed f9));
-  ;;
+    let%test_unit _ =
+      let flushed f = match Deferred.peek f with Some `Ok -> true | _ -> false in
+      let r_, w = create () in
+      let r = map r_ ~f:Fn.id in
+      let f1 = downstream_flushed r in
+      stabilize ();
+      assert (Deferred.peek f1 = Some `Ok);
+      write_without_pushback w ();
+      let f2 = downstream_flushed w in
+      let f3 = upstream_flushed r in
+      stabilize ();
+      assert (is_empty w);
+      assert (not (is_empty r));
+      assert (not (flushed f2));
+      assert (not (flushed f3));
+      let f4 = downstream_flushed w in
+      let f5 = upstream_flushed r in
+      assert (Deferred.peek (read r) = Some (`Ok ()));
+      let f6 = downstream_flushed w in
+      let f7 = upstream_flushed r in
+      write_without_pushback w ();
+      let f8 = downstream_flushed w in
+      let f9 = upstream_flushed r in
+      stabilize ();
+      assert (flushed f2);
+      assert (flushed f3);
+      assert (flushed f4);
+      assert (flushed f5);
+      assert (flushed f6);
+      assert (flushed f7);
+      assert (not (flushed f8));
+      assert (not (flushed f9))
+    ;;
 
-  (* ==================== consumer mismatch ==================== *)
-  TEST_UNIT =
-    let r1, _w1 = create () in
-    let r2, _w2 = create () in
-    let consumer = add_consumer r1 ~downstream_flushed:(const (return `Ok)) in
-    assert (Result.is_error (Result.try_with (fun () -> read_now r2 ~consumer)));
-  ;;
+    let%test_unit "after transfer finishes, the upstream pipe can be GCed" =
+      let r1, w1 = create () in
+      let finalized2 = ref false in
+      let is_finalized () = Gc.major (); Gc.major (); !finalized2 in
+      let r2, w2 = create () in
+      Gc.Expert.add_finalizer_exn w2 (fun _ -> finalized2 := true);
+      ignore (transfer_id r2 w1 : unit Deferred.t);
+      stabilize ();
+      assert (not (is_finalized ()));
+      close w2;
+      stabilize ();
+      assert (is_finalized ());
+      Gc.keep_alive r1;
+    ;;
 
-  (* ==================== close_read and single-item processors ==================== *)
-  TEST_UNIT =
-    let i = ref 0 in
-    let r = of_list [ (); () ] in
-    don't_wait_for (fold r ~init:() ~f:(fun () () -> incr i; close_read r; Deferred.unit));
-    stabilize ();
-    assert (!i = 1);
-  ;;
+    (* ==================== consumer mismatch ==================== *)
+    let%test_unit _ =
+      let r1, _w1 = create () in
+      let r2, _w2 = create () in
+      let consumer = add_consumer r1 ~downstream_flushed:(const (return `Ok)) in
+      assert (Result.is_error (Result.try_with (fun () -> read_now r2 ~consumer)))
+    ;;
 
-  TEST_UNIT =
-    let i = ref 0 in
-    let r = of_list [ (); () ] in
-    don't_wait_for (fold_without_pushback r ~init:() ~f:(fun () () -> incr i; close_read r));
-    stabilize ();
-    assert (!i = 1);
-  ;;
+    (* ==================== close_read and single-item processors ==================== *)
+    let%test_unit _ =
+      let i = ref 0 in
+      let r = of_list [ (); () ] in
+      don't_wait_for (fold r ~init:() ~f:(fun () () -> incr i; close_read r; Deferred.unit));
+      stabilize ();
+      assert (!i = 1)
+    ;;
 
-  TEST_UNIT =
-    let i = ref 0 in
-    let r = of_list [ (); () ] in
-    don't_wait_for (iter r ~f:(fun () -> incr i; close_read r; Deferred.unit));
-    stabilize ();
-    assert (!i = 1);
-  ;;
+    let%test_unit _ =
+      let i = ref 0 in
+      let r = of_list [ (); () ] in
+      don't_wait_for (fold_without_pushback r ~init:() ~f:(fun () () -> incr i; close_read r));
+      stabilize ();
+      assert (!i = 1)
+    ;;
 
-  TEST_UNIT =
-    let i = ref 0 in
-    let r = of_list [ (); () ] in
-    don't_wait_for (iter_without_pushback r ~f:(fun () -> incr i; close_read r));
-    stabilize ();
-    assert (!i = 1);
-  ;;
+    let%test_unit _ =
+      let i = ref 0 in
+      let r = of_list [ (); () ] in
+      don't_wait_for (iter r ~f:(fun () -> incr i; close_read r; Deferred.unit));
+      stabilize ();
+      assert (!i = 1)
+    ;;
 
-  TEST_UNIT =
-    let r = of_list [ (); () ] in
-    let r2, w2 = create () in
-    upon (transfer r w2 ~f:(fun () -> close_read r)) (fun () ->
-      assert (not (is_closed w2));
-      close w2);
-    let res = to_list r2 in
-    stabilize ();
-    assert (Deferred.peek res = Some [ () ]);
-  ;;
+    let%test_unit _ =
+      let i = ref 0 in
+      let r = of_list [ (); () ] in
+      don't_wait_for (iter_without_pushback r ~f:(fun () -> incr i; close_read r));
+      stabilize ();
+      assert (!i = 1)
+    ;;
 
-  TEST_UNIT =
-    let r = of_list [ (); () ] in
-    let res = to_list (map r ~f:(fun () -> close_read r)) in
-    stabilize ();
-    assert (Deferred.peek res = Some [ () ]);
-  ;;
+    let%test_unit _ =
+      let r = of_list [ (); () ] in
+      let r2, w2 = create () in
+      upon (transfer r w2 ~f:(fun () -> close_read r)) (fun () ->
+        assert (not (is_closed w2));
+        close w2);
+      let res = to_list r2 in
+      stabilize ();
+      assert (Deferred.peek res = Some [ () ])
+    ;;
 
-  TEST_UNIT =
-    let r = of_list [ (); () ] in
-    let res = to_list (filter_map r ~f:(fun () -> close_read r; Some ())) in
-    stabilize ();
-    assert (Deferred.peek res = Some [ () ]);
-  ;;
+    let%test_unit _ =
+      let r = of_list [ (); () ] in
+      let res = to_list (map r ~f:(fun () -> close_read r)) in
+      stabilize ();
+      assert (Deferred.peek res = Some [ () ])
+    ;;
 
-  TEST_UNIT =
-    let r = of_list [ (); () ] in
-    let res = to_list (filter r ~f:(fun () -> close_read r; true)) in
-    stabilize ();
-    assert (Deferred.peek res = Some [ () ]);
-  ;;
-end
+    let%test_unit _ =
+      let r = of_list [ (); () ] in
+      let res = to_list (filter_map r ~f:(fun () -> close_read r; Some ())) in
+      stabilize ();
+      assert (Deferred.peek res = Some [ () ])
+    ;;
+
+    let%test_unit _ =
+      let r = of_list [ (); () ] in
+      let res = to_list (filter r ~f:(fun () -> close_read r; true)) in
+      stabilize ();
+      assert (Deferred.peek res = Some [ () ])
+    ;;
+  end)

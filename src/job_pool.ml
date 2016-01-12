@@ -10,9 +10,9 @@ let dummy_f : Obj.t -> unit = ignore
 let dummy_a : Obj.t = Obj.repr ()
 
 type slots = (Execution_context.t, Obj.t -> unit, Obj.t sexp_opaque) Slots.t3
-with sexp_of
+[@@deriving sexp_of]
 
-type t = slots Pool.t with sexp_of
+type t = slots Pool.t [@@deriving sexp_of]
 
 let invariant t = Pool.invariant ignore t
 

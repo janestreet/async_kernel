@@ -13,21 +13,21 @@ let add_finalizer_exn heap_block f = Scheduler.(add_finalizer_exn (t ())) heap_b
 module Alarm = struct
   module Alarm = Gc.Expert.Alarm
 
-  type t = Alarm.t with sexp_of
+  type t = Alarm.t [@@deriving sexp_of]
 
   let create f = Scheduler.(create_alarm (t ())) f
 
   let delete = Alarm.delete
 end
 
-TEST_MODULE = struct
+let%test_module _ = (module struct
 
   let stabilize () =
     Gc.full_major ();
     Scheduler.run_cycles_until_no_jobs_remain ();
   ;;
 
-  TEST_UNIT =
+  let%test_unit _ =
     let x = ref 0 in
     let r = ref 13 in
     add_finalizer_exn x (fun z -> r := !z);
@@ -35,10 +35,10 @@ TEST_MODULE = struct
     assert (!r = 13);
     x := 17;
     stabilize ();
-    assert (!r = 17);
+    assert (!r = 17)
   ;;
 
-  TEST_UNIT =
+  let%test_unit _ =
     let r = ref false in
     let alarm = Alarm.create (fun () -> r := true) in
     stabilize ();
@@ -49,6 +49,6 @@ TEST_MODULE = struct
     Alarm.delete alarm;
     r := false;
     stabilize ();
-    assert (not !r);
+    assert (not !r)
   ;;
-end
+end)

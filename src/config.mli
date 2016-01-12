@@ -15,6 +15,7 @@ open Core_kernel.Std
 
 module Epoll_max_ready_events              : Validated with type raw := int
 module Max_inter_cycle_timeout             : Validated with type raw := Time_ns.Span.t
+module Min_inter_cycle_timeout             : Validated with type raw := Time_ns.Span.t
 module Max_num_threads                     : Validated with type raw := int
 module Max_num_jobs_per_priority_per_cycle : Validated with type raw := int
 
@@ -28,22 +29,22 @@ end
 module Dump_core_on_job_delay : sig
   module How_to_dump : sig
     type t = Default | Call_abort | Call_gcore
-    with sexp
+    [@@deriving sexp]
   end
 
   type watch =
     { dump_if_delayed_by : Time_ns.Span.t
     ; how_to_dump        : How_to_dump.t
     }
-  with sexp
+  [@@deriving sexp]
 
   type t =
     | Watch of watch
     | Do_not_watch
-  with sexp
+  [@@deriving sexp]
 end
 
-type t with sexp_of
+type t [@@deriving sexp_of]
 
 val t : t
 
@@ -67,7 +68,7 @@ module Print_debug_messages_for : sig
 end
 
 module File_descr_watcher : sig
-  type t = Epoll_if_timerfd | Epoll | Select with sexp_of
+  type t = Epoll_if_timerfd | Epoll | Select [@@deriving sexp_of]
 end
 
 (** Documentation on these is in strings in config.ml, so it can be output in the
@@ -82,6 +83,7 @@ val max_inter_cycle_timeout             : Max_inter_cycle_timeout.t
 val max_num_jobs_per_priority_per_cycle : Max_num_jobs_per_priority_per_cycle.t
 val max_num_open_file_descrs            : Max_num_open_file_descrs.t
 val max_num_threads                     : Max_num_threads.t
+val min_inter_cycle_timeout             : Min_inter_cycle_timeout.t
 val record_backtraces                   : bool
 val report_thread_pool_stuck_for        : Time_ns.Span.t
 val timing_wheel_config                 : Timing_wheel_ns.Config.t

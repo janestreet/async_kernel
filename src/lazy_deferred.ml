@@ -48,41 +48,41 @@ let peek t = Deferred.peek t.result
 
 let peek_exn t = Option.map (peek t) ~f:ok_exn
 
-TEST_MODULE = struct
+let%test_module _ = (module struct
 
   let stabilize = Scheduler.run_cycles_until_no_jobs_remain
 
-  TEST_UNIT =
+  let%test_unit _ =
     let def = create Deferred.return in
     stabilize();
     let consumer = wait def in
     stabilize();
     assert (not (Deferred.is_determined consumer));
     assert (not (is_forced def));
-    assert (not (is_determined def));
+    assert (not (is_determined def))
   ;;
 
-  TEST_UNIT =
+  let%test_unit _ =
     let def = create Deferred.return in
     stabilize();
     let opt = peek def in
     stabilize();
     assert (opt = None);
     assert (not (is_forced def));
-    assert (not (is_determined def));
+    assert (not (is_determined def))
   ;;
 
-  TEST_UNIT =
+  let%test_unit _ =
     let def = create Deferred.return in
     stabilize();
     let consumer = force def in
     stabilize();
     assert (Deferred.is_determined consumer);
     assert (is_determined def);
-    assert (is_forced def);
+    assert (is_forced def)
   ;;
 
-  TEST_UNIT =
+  let%test_unit _ =
     let def = create Deferred.return in
     stabilize();
     let consumer = wait def in
@@ -95,7 +95,7 @@ TEST_MODULE = struct
     assert (peek def <> None);
     assert (Deferred.is_determined consumer);
     assert (Deferred.is_determined consumer2);
-    assert (is_forced def);
+    assert (is_forced def)
   ;;
 
   let determined def value =
@@ -126,20 +126,20 @@ TEST_MODULE = struct
   ;;
 
   (* bind' *)
-  TEST_UNIT =
+  let%test_unit _ =
     let final = "foo" in
     let make def1 =
       bind' def1 (fun () -> Deferred.return final)
     in
-    make_bind_test make final;
+    make_bind_test make final
   ;;
 
-  TEST_UNIT =
+  let%test_unit _ =
     let final = "foo" in
     let make def1 =
       bind def1 (fun () -> create (fun () -> Deferred.return "foo"))
     in
-    make_bind_test make final;
+    make_bind_test make final
   ;;
 
   exception E_for_test
@@ -151,42 +151,42 @@ TEST_MODULE = struct
       String.is_substring ~substring:(Exn.to_string E_for_test) (Error.to_string_hum err)
   ;;
 
-  TEST_UNIT =
+  let%test_unit _ =
     let def = create (fun _ -> raise E_for_test) in
     stabilize();
     assert (not (is_determined def));
     let def = force def in
     stabilize();
-    assert (determined_as_E_for_test def);
+    assert (determined_as_E_for_test def)
   ;;
 
-  TEST_UNIT =
+  let%test_unit _ =
     let def = create (fun () -> Deferred.return "foo") in
     let def = bind def (fun _ -> raise E_for_test) in
     stabilize();
     assert (not (is_determined def));
     let def = force def in
     stabilize();
-    assert (determined_as_E_for_test def);
+    assert (determined_as_E_for_test def)
   ;;
 
-  TEST_UNIT =
+  let%test_unit _ =
     let def = create (fun _ -> raise E_for_test) in
     stabilize();
     assert (not (is_determined def));
     let def = Monitor.try_with_or_error ~extract_exn:true (fun () -> force_exn def) in
     stabilize();
-    assert (determined_as_E_for_test def);
+    assert (determined_as_E_for_test def)
   ;;
 
-  TEST_UNIT =
+  let%test_unit _ =
     let def = create (fun () -> Deferred.return "foo") in
     let def = bind def (fun _ -> raise E_for_test) in
     stabilize();
     assert (not (is_determined def));
     let def = Monitor.try_with_or_error ~extract_exn:true (fun () -> force_exn def) in
     stabilize();
-    assert (determined_as_E_for_test def);
+    assert (determined_as_E_for_test def)
   ;;
 
-end
+end)

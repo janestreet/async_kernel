@@ -8,13 +8,15 @@ type t = Types.Monitor.t =
   ; here                            : Source_code_position.t option
   ; id                              : int
   ; parent                          : t option
-  ; mutable handlers_for_next_error : (exn -> unit) list
-  ; mutable handlers_for_all_errors : (exn -> unit) Bag.t
+  ; mutable next_error              : exn Types.Ivar.t
+  (* [Monitor.send_exn] schedules a job for each element of [handlers_for_all_errors]. *)
+  ; mutable handlers_for_all_errors : (Types.Execution_context.t * (exn -> unit)) Bag.t
+  (* [Monitor.send_exn] extends each tail in [tails_for_all_errors]. *)
+  ; mutable tails_for_all_errors    : exn Types.Tail.t list
   ; mutable has_seen_error          : bool
   ; mutable is_detached             : bool
-  ; mutable kill_index              : Kill_index.t
   }
-with fields
+[@@deriving fields]
 
 module Pretty = struct
   type one =
@@ -23,23 +25,23 @@ module Pretty = struct
     ; id             : int
     ; has_seen_error : bool
     ; is_detached    : bool
-    ; kill_index     : Kill_index.t
     }
-  with sexp_of
+  [@@deriving sexp_of]
 
   type t = one list
-  with sexp_of
+  [@@deriving sexp_of]
 end
 
 let to_pretty =
   let rec loop
-            { name; here; id; parent; has_seen_error; is_detached; kill_index
-            ; handlers_for_next_error = _
+            { name; here; id; parent; has_seen_error; is_detached
+            ; next_error = _
             ; handlers_for_all_errors = _
+            ; tails_for_all_errors = _
             }
             ac =
     let ac =
-      { Pretty. name; here; id; has_seen_error; is_detached; kill_index } :: ac
+      { Pretty. name; here; id; has_seen_error; is_detached } :: ac
     in
     match parent with
     | None -> List.rev ac
@@ -62,19 +64,19 @@ let create_with_parent ?here ?info ?name parent =
     | Some i, None   -> i
     | Some i, Some s -> Info.tag i s
     | None  , Some s -> Info.of_string s
-    | None  , None   -> Info.create "id" id <:sexp_of< int >>
+    | None  , None   -> Info.create "id" id [%sexp_of: int]
   in
   let t =
     { name; here; parent
     ; id
-    ; handlers_for_next_error = []
+    ; next_error              = { cell = Empty }
     ; handlers_for_all_errors = Bag.create ()
+    ; tails_for_all_errors    = []
     ; has_seen_error          = false
     ; is_detached             = false
-    ; kill_index              = Kill_index.initial
     }
   in
-  if debug then Debug.log "created monitor" t <:sexp_of< t >>;
+  if debug then Debug.log "created monitor" t [%sexp_of: t];
   t
 ;;
 
@@ -82,34 +84,10 @@ let main = create_with_parent ~name:"main" None
 
 exception Shutdown
 
-(* [update_kill_index t ~global_kill_index] finds the nearest ancestor of [t] (possibly
-   [t] itself) whose kill index is up to date, i.e. is either [dead] or
-   [global_kill_index].  It then sets the kill index of each monitor on the path from [t]
-   to that ancestor's kill index. *)
-let update_kill_index =
-  let rec determine_kill_index t ~global_kill_index =
-    if   Kill_index.equal t.kill_index Kill_index.dead
-      || Kill_index.equal t.kill_index global_kill_index
-    then t.kill_index
-    else
-      match t.parent with
-      | None -> global_kill_index
-      | Some t -> determine_kill_index t ~global_kill_index
-  in
-  let rec set_kill_index t ~kill_index =
-    if not (Kill_index.equal t.kill_index kill_index) then begin
-      t.kill_index <- kill_index;
-      match t.parent with
-      | None -> ()
-      | Some t -> set_kill_index t ~kill_index
-    end
-  in
-  fun t ~global_kill_index ->
-    let kill_index = determine_kill_index t ~global_kill_index in
-    set_kill_index t ~kill_index;
-;;
-
-let is_alive t ~global_kill_index =
-  update_kill_index t ~global_kill_index;
-  Kill_index.equal t.kill_index global_kill_index
+(* [try_with_log_exn] is defined here so that it is available via [Monitor0], because we
+   don't want to expose it in [Monitor].  It is set in [Async_unix] to a function that
+   logs ignored exceptions. *)
+let try_with_log_exn : (exn -> unit) ref =
+  ref (fun exn ->
+    failwiths "failed to set Monitor0.try_with_log_exn" exn [%sexp_of: Exn.t])
 ;;

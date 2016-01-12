@@ -1,3 +1,6 @@
+open! Core_kernel.Std
+open! Import
+
 module Clock_ns          = Clock_ns
 module Condition         = Async_condition
 module Deferred          = Deferred
@@ -35,8 +38,8 @@ let with_timeout   = Clock_ns.with_timeout
 let within         = Scheduler.within
 let within'        = Scheduler.within'
 
-let ( >>=  ) = Deferred.Infix. ( >>= )
 let ( >>>  ) = Deferred.Infix. ( >>> )
-let ( >>|  ) = Deferred.Infix. ( >>| )
 let ( >>=? ) = Deferred.Result.( >>= )
 let ( >>|? ) = Deferred.Result.( >>| )
+
+include (Deferred : sig include Monad.Infix with type 'a t := 'a Deferred.t end)

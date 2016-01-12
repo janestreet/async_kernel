@@ -17,7 +17,7 @@ module Queue    : module type of Deferred_queue
 module Result   : module type of Deferred_result
 module Sequence : module type of Deferred_sequence
 
-type +'a t = 'a Deferred1.t with sexp_of
+type +'a t = 'a Deferred1.t [@@deriving sexp_of]
 
 include Invariant.S1 with type 'a t := 'a t
 
@@ -36,6 +36,10 @@ val upon : 'a t -> ('a -> unit) -> unit
 
 (** [peek t] returns [Some v] iff [t] is determined with value [v]. *)
 val peek : 'a t -> 'a option
+
+(** [value_exn t] returns [v] if [t] is determined with value [v], and raises
+    otherwise. *)
+val value_exn : 'a t -> 'a
 
 (** [is_determined t] returns [true] iff [t] is determined. *)
 val is_determined : 'a t -> bool
@@ -111,8 +115,8 @@ val any : 'a t list -> 'a t
 (** [any_unit ts] like [any] but ignores results of the component deferreds *)
 val any_unit : 'a t list -> unit t
 
-(** [don't_wait_for t] ignores t completely.  It is like [Fn.ignore], but is more
-    constrained because it requires a [unit Deferred.t].
+(** [don't_wait_for t] ignores [t].  It is like [Fn.ignore], but is more constrained
+    because it requires a [unit Deferred.t].
 
     Rather than [ignore (t : _ t)], do [don't_wait_for (Deferred.ignore t)].
 

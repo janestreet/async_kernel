@@ -5,7 +5,7 @@ open! Deferred_std
 module Deferred = Deferred1
 
 module Make
-    (M : sig type 'a t with compare, sexp_of end)
+    (M : sig type 'a t [@@deriving compare, sexp_of] end)
     (S : Deferred.Monad_sequence with type 'a t := 'a M.t)
   : sig
   end = struct
@@ -17,7 +17,7 @@ module Make
     assert (is_some !deferred_result);
   ;;
 
-  TEST_UNIT =
+  let%test_unit _ =
     for max_concurrent_jobs = 1 to 10 do
       for length = 0 to 10 do
         deferred_result begin
@@ -35,8 +35,8 @@ module Make
               decr parallel_cur;
               return x)
           >>| fun res ->
-          <:test_result< int M.t >> res ~expect:numbers;
-          <:test_result< int >> !parallel_max ~expect:(min max_concurrent_jobs length)
+          [%test_result: int M.t] res ~expect:numbers;
+          [%test_result: int] !parallel_max ~expect:(min max_concurrent_jobs length)
         end
       done
     done

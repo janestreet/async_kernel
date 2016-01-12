@@ -7,8 +7,8 @@ include Config.Print_debug_messages_for
 let log message a sexp_of_a =
   eprintf "%s\n%!"
     (Sexp.to_string_hum
-       (<:sexp_of< Sexp.t * Time_ns.t * string * a >>
+       ([%sexp_of: Sexp.t * Time_ns.t * string * a]
           (!Config.task_id (), Time_ns.now (), message, a)))
 ;;
 
-let log_string message = log message () <:sexp_of< unit >>
+let log_string message = log message () [%sexp_of: unit]

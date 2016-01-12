@@ -5,7 +5,7 @@ open Import
 
 module Deferred = Deferred1
 
-type t with sexp_of
+type t [@@deriving sexp_of]
 
 val t : unit -> t
 
@@ -25,7 +25,9 @@ val main_execution_context : Execution_context.t
 val cycle_start : t -> Time_ns.t
 val run_cycle : t -> unit
 val run_cycles_until_no_jobs_remain : unit -> unit
-val next_upcoming_event : t -> Time_ns.t option
+val has_upcoming_event : t -> bool
+val next_upcoming_event     : t -> Time_ns.t option
+val next_upcoming_event_exn : t -> Time_ns.t
 val event_precision : t -> Time_ns.Span.t
 val uncaught_exn : t -> Error.t option
 val num_pending_jobs : t -> int

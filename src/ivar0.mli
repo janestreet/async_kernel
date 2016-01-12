@@ -3,7 +3,7 @@
 open Core_kernel.Std
 open Import
 
-type 'a t = 'a Types.Ivar.t with sexp_of
+type 'a t = 'a Types.Ivar.t [@@deriving sexp_of]
 type 'a ivar = 'a t
 
 include Invariant.S1 with type 'a t := 'a t
@@ -11,7 +11,9 @@ include Invariant.S1 with type 'a t := 'a t
 val create : unit -> _ t
 val create_full : 'a -> 'a t
 
-val peek     : 'a t -> 'a option
+val peek      : 'a t -> 'a option
+val value_exn : 'a t -> 'a
+
 val is_empty : _ t -> bool
 val is_full  : _ t -> bool
 
@@ -21,7 +23,7 @@ val connect : bind_result:'a t -> bind_rhs:'a t -> unit
 val fill : 'a t -> 'a  -> unit
 
 module Handler : sig
-  type 'a t with sexp_of
+  type 'a t [@@deriving sexp_of]
 end
 
 val add_handler : 'a t -> ('a -> unit) -> Execution_context.t -> 'a Handler.t

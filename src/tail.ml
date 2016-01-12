@@ -5,7 +5,7 @@ module Deferred = Deferred1
 
 module Stream = struct
   type 'a t = 'a next Deferred.t
-  and 'a next = Nil | Cons of 'a * 'a t
+  and 'a next = 'a Types.Stream.next = Nil | Cons of 'a * 'a t
 
   let sexp_of_t sexp_of_a t =
     let rec loop d ac : Sexp.t =
@@ -20,11 +20,11 @@ module Stream = struct
   let next t = t
 end
 
-type 'a t =
+type 'a t = 'a Types.Tail.t =
   { (* [next] points at the tail of the stream *)
     mutable next: 'a Stream.next Ivar.t
   }
-with fields
+[@@deriving fields]
 
 let sexp_of_t _ t : Sexp.t =
   Atom (if Ivar.is_empty t.next then "<open tail>" else "<closed tail>")

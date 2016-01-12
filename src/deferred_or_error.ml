@@ -3,7 +3,9 @@ open! Import
 
 module Deferred = Deferred1
 
-include (Deferred_result : Monad.S2 with type ('a, 'b) t := ('a, 'b) Deferred_result.t)
+include (Deferred_result : Monad.S2
+         with type ('a, 'b) t := ('a, 'b) Deferred_result.t
+         with module Let_syntax := Deferred_result.Let_syntax)
 
 type 'a t = 'a Or_error.t Deferred.t
 
@@ -16,6 +18,15 @@ include Applicative.Make (struct
         ~err:(fun e1 e2 -> Error.of_list [e1; e2])
     let map = `Custom map
   end)
+
+module Let_syntax = struct
+  let return = return
+  let map    = map
+  let bind   = bind
+  let both   = both (* from Applicative.Make *)
+  module Open_on_rhs  = struct let return = return end
+  module Open_in_body = struct let return = return end
+end
 
 let ignore = ignore_m
 
@@ -131,7 +142,7 @@ module List = struct
 
 end
 
-TEST_MODULE = struct
+let%test_module _ = (module struct
 
   (* Ounit generates code using [List.rev], but we rebound [List] above, so we need to
      [open Core_kernel.Std] to get [List].  But that shadows a couple other things we need, so we
@@ -171,34 +182,34 @@ TEST_MODULE = struct
     | None -> false
   ;;
 
-  TEST_UNIT =
+  let%test_unit _ =
     let def = return 123 in
     stabilize ();
-    assert (determined def 123);
+    assert (determined def 123)
   ;;
 
-  TEST_UNIT =
+  let%test_unit _ =
     let def = never () in
     stabilize ();
-    assert (Deferred.peek def = None);
+    assert (Deferred.peek def = None)
   ;;
 
-  TEST_UNIT =
+  let%test_unit _ =
     let def =
       Seqlist.fold [ 0 ; 1 ; 2 ] ~init:"" ~f:(fun acc value ->
         return (acc ^ Int.to_string value))
     in
     stabilize ();
-    assert (determined def "012");
+    assert (determined def "012")
   ;;
 
-  TEST_UNIT =
+  let%test_unit _ =
     let def = Seqlist.init 3 ~f:(fun value -> return (string_of_int value)) in
     stabilize ();
-    assert (determined def [ "0" ; "1" ; "2" ]);
+    assert (determined def [ "0" ; "1" ; "2" ])
   ;;
 
-  TEST_UNIT =
+  let%test_unit _ =
     let r = ref 0 in
     let n = 3 in
     let def =
@@ -207,28 +218,28 @@ TEST_MODULE = struct
     in
     stabilize ();
     assert (determined def ());
-    assert (!r = n * (n - 1) / 2);
+    assert (!r = n * (n - 1) / 2)
   ;;
 
-  TEST_UNIT =
+  let%test_unit _ =
     let def =
       Seqlist.map [ 0 ; 1 ; 2 ]
         ~f:(fun value -> return (succ value))
     in
     stabilize ();
-    assert (determined def [ 1 ; 2 ; 3 ]);
+    assert (determined def [ 1 ; 2 ; 3 ])
   ;;
 
-  TEST_UNIT =
+  let%test_unit _ =
     let def =
       Seqlist.filter [ 0 ; 1 ; 2 ; 3 ; 4 ]
         ~f:(fun value -> return (value mod 2 = 0))
     in
     stabilize ();
-    assert (determined def [ 0 ; 2 ; 4 ]);
+    assert (determined def [ 0 ; 2 ; 4 ])
   ;;
 
-  TEST_UNIT =
+  let%test_unit _ =
     let def =
       Seqlist.filter_map [ 0 ; 1 ; 2 ; 3 ; 4 ]
         ~f:(fun value ->
@@ -236,17 +247,17 @@ TEST_MODULE = struct
             if value mod 2 = 0 then Some (succ value) else None))
     in
     stabilize ();
-    assert (determined def [ 1 ; 3 ; 5 ]);
+    assert (determined def [ 1 ; 3 ; 5 ])
   ;;
 
-  TEST_UNIT =
+  let%test_unit _ =
     let list = List.init 3 ~f:(fun i -> return i) in
     let def = Seqlist.all list in
     stabilize ();
-    assert (determined def [ 0 ; 1 ; 2 ]);
+    assert (determined def [ 0 ; 1 ; 2 ])
   ;;
 
-  TEST =
+  let%test _ =
     let f _ = Deferred.return (Error (Error.of_string "error")) in
     let def = try_with (fun () -> Seqlist.iter ~f [0]) in
     stabilize ();
@@ -255,7 +266,7 @@ TEST_MODULE = struct
     | _ -> false
   ;;
 
-  TEST =
+  let%test _ =
     let f _ = raise Not_found in
     let def = try_with (fun () -> Seqlist.iter ~f [0]) in
     stabilize ();
@@ -288,11 +299,11 @@ TEST_MODULE = struct
     | _ -> false
   ;;
 
-  TEST =
-    eq (fail err) (Error err);
+  let%test _ =
+    eq (fail err) (Error err)
   ;;
 
-  TEST_UNIT =
+  let%test_unit _ =
     assert (eq' (ok_exn (return 1)) 1);
     assert begin
       let rv = Monitor.try_with (fun () -> ok_exn (fail err)) in
@@ -300,30 +311,30 @@ TEST_MODULE = struct
       match Deferred.peek rv with
       | Some (Error _) -> true
       | _ -> false
-    end;
+    end
   ;;
 
-  TEST =
-    eq (of_exn (Failure "foo")) (Or_error.of_exn (Failure "foo"));
+  let%test _ =
+    eq (of_exn (Failure "foo")) (Or_error.of_exn (Failure "foo"))
   ;;
 
-  TEST_UNIT =
+  let%test_unit _ =
     assert (eq (of_exn_result (return 1)) (Ok 1));
     let exn_result = Error (Failure "foo") in
     assert (eq (of_exn_result (Deferred.return exn_result))
-              (Or_error.of_exn_result exn_result));
+              (Or_error.of_exn_result exn_result))
   ;;
 
-  TEST =
-    eq (error "foo" "bar" String.sexp_of_t) (Or_error.error "foo" "bar" String.sexp_of_t);
+  let%test _ =
+    eq (error "foo" "bar" String.sexp_of_t) (Or_error.error "foo" "bar" String.sexp_of_t)
   ;;
 
-  TEST =
-    eq (error_string "foo") (Or_error.error_string "foo");
+  let%test _ =
+    eq (error_string "foo") (Or_error.error_string "foo")
   ;;
 
-  TEST =
-    eq (unimplemented "foo") (Or_error.unimplemented "foo");
+  let%test _ =
+    eq (unimplemented "foo") (Or_error.unimplemented "foo")
   ;;
 
   let check deferred_f immediate_f =
@@ -338,22 +349,22 @@ TEST_MODULE = struct
     check [ true; false; false];
   ;;
 
-  TEST_UNIT =
-    check combine_errors Or_error.combine_errors;
+  let%test_unit _ =
+    check combine_errors Or_error.combine_errors
   ;;
 
-  TEST_UNIT =
-    check combine_errors_unit Or_error.combine_errors_unit;
+  let%test_unit _ =
+    check combine_errors_unit Or_error.combine_errors_unit
   ;;
 
-  TEST =
+  let%test _ =
     eq ok_unit (Ok ())
   ;;
 
-  TEST =
+  let%test _ =
     let rv = never () in
     stabilize ();
-    Option.is_none (Deferred.peek rv);
+    Option.is_none (Deferred.peek rv)
   ;;
 
   let expect_failure_with_prefix ~prefix deferred =
@@ -370,21 +381,21 @@ TEST_MODULE = struct
     | _ -> false
   ;;
 
-  TEST_UNIT =
+  let%test_unit _ =
     assert (eq (try_with (fun () -> Deferred.return 1)) (Ok 1));
     assert (expect_failure_with_prefix (try_with (fun () -> failwith "foo"))
               ~prefix:"\
 (monitor.ml.Error_
- ((exn (Failure foo))");
+ ((exn (Failure foo))")
   ;;
 
-  TEST_UNIT =
+  let%test_unit _ =
     assert (eq (try_with_join (fun () -> return 1)) (Ok 1));
     assert (eq (try_with_join (fun () -> fail err)) (Error err));
     assert (expect_failure_with_prefix (try_with (fun () -> failwith "foo"))
               ~prefix:"\
 (monitor.ml.Error_
- ((exn (Failure foo))");
+ ((exn (Failure foo))")
   ;;
 
-end
+end)

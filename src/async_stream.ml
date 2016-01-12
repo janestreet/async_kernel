@@ -44,7 +44,11 @@ let length t = fold t ~init:0 ~f:(fun n _ -> n + 1)
 
 let iter' t ~f = fold' t ~init:() ~f:(fun () v -> f v)
 
-let closed t = iter' t ~f:(fun _ -> Deferred.unit)
+let closed t =
+  match Deferred.peek (next t) with
+  | Some Nil -> Deferred.unit
+  | _ -> iter' t ~f:(fun _ -> Deferred.unit)
+;;
 
 let iter t ~f = don't_wait_for (iter' t ~f:(fun a -> f a; Deferred.unit))
 
@@ -54,6 +58,11 @@ let create f =
   let t = Tail.collect tail in
   f tail;
   t
+;;
+
+let%test _ =
+  let s = create Tail.close_exn in
+  Deferred.is_determined (closed s)
 ;;
 
 let unfold b ~f =

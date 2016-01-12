@@ -26,5 +26,3 @@ include Monad_sequence_unit_tests.Make
       let compare cmp t1 t2 = compare cmp t1 t2
     end)
     (List)
-
-

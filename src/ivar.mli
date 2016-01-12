@@ -7,7 +7,7 @@
 open Core_kernel.Std
 open Import
 
-type 'a t = 'a Types.Ivar.t with bin_io, sexp_of
+type 'a t = 'a Types.Ivar.t [@@deriving bin_io, sexp_of]
 type 'a ivar = 'a t
 
 include Invariant.S1 with type 'a t := 'a t
@@ -39,3 +39,9 @@ val is_full : 'a t -> bool
 (** [read t] returns a deferred that becomes enabled with value [v] after the ivar is
     filled with [v]. *)
 val read : 'a t -> 'a Deferred0.t
+
+(** [peek t] returns [Some v] iff [t] is full with value [v]. *)
+val peek : 'a t -> 'a option
+
+(** [value_exn t] returns [v] if [t] is full with value [v], and raises otherwise. *)
+val value_exn : 'a t -> 'a

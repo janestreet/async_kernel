@@ -1,3 +1,184 @@
+## 113.24.00
+
+N.B. some interface change in Core (notably to `Hashtbl` and `Map`) implied some
+interface change in this package as well, although they are not mentionned in
+this changelog.
+
+- Switched to ppx.
+
+- Improved the Async scheduler's to allocate a `handle_fired` function
+  once, rather than every time it calls `advance_clock`.
+
+- Removed configurability of Monitor's `try_with`-ignored-exception
+  handling, i.e. removed `Monitor.try_with_rest_handling` and
+  `Monitor.try_with_ignored_exn_handling`.
+
+  The behavior of exceptions raised to a monitor after it returns is
+  unchanged -- i.e. they are logged, as they have been since 112.28.
+
+  Changed `Monitor.try_with`'s `?rest` argument from:
+
+    ?rest : ` `Ignore | `Raise `
+    ?rest : ` `Log | `Raise `
+
+  This naming reflects the fact that subsequent exceptions are logged,
+  not ignored.
+
+- In `Async_kernel`, moved `Scheduler.set_execution_context` from the
+  `Types.Scheduler` module to its own file.  Because `Types` is a
+  `module rec`, `set_execution_context` hadn't been inlined and was
+  called via `caml_apply2`.  In its own file, it will be inlined.
+
+  This release creates a new scheduler0.ml, and moves the old
+  scheduler0.ml to scheduler1.ml.
+
+- Fixed a space leak in `Pipe` due to a pipe holding pointers to its
+  `upstream_flusheds` after they are closed.  The leak shows up in
+  `Pipe.transfer` and related functions, e.g. with:
+
+    Pipe.transfer temporary_pipe long_lived_pipe
+
+  called repeatedly, in which `long_lived_pipe` would accumulate a large
+  number of `upstream_flusheds`.
+
+  The fix is to maintain `upstream_flusheds` as a `Bag.t`, and to remove
+  an upstream pipe when it is closed.
+
+- Implement `Pipe.of_sequence`
+
+- Improved the error message when an exception is raised to a
+  `Monitor.try_with` that has returned before Async has initialized
+  `Monitor.try_with_log_exn`.
+
+- Improved the implementation of `Monitor.get_next_error`, by replacing
+  the monitor's list of handlers:
+
+    ; mutable handlers_for_next_error : (exn -> unit) list
+
+  with a single ivar:
+
+    ; mutable next_error              : exn Ivar.t
+
+  I think this wasn't done originally because of a dependency cycle.
+  But now that we have types.ml, we can do the clear thing.
+
+- Improved the implementation of Monitor exception handling,
+  i.e. `detach_and_iter_errors`to make it clear that `Monitor.send_exn`
+  does not run user code -- it only schedules jobs.
+
+- Fix an error message in `Pipe` to match the condition that led to it.
+
+- Add a new pipe constructor:
+
+    val unfold : 'b -> f:('b -> ('a * 'b) option Deferred.t) -> 'a Reader.t
+
+  `unfold` is more powerful than the combination of
+
+  Useful for, e.g., creating a pipe of natural numbers:
+
+    Pipe.unfold 0 ~f:(fun n -> return (Some (n, n+1)))
+
+- Add `Deferred.Map.all` similar to `Deferred.List.all`.
+
+  This does what you would expect:
+
+    val all
+      :  ('a, 'b Deferred.t, 'cmp) Map.t
+      -> ('a, 'b, 'cmp) Map.t Deferred.t
+
+- Added some simple functions that seem missing from `Deferred` and `Ivar`.
+
+    val Ivar.peek : 'a t -> 'a option
+    val Ivar.value_exn : 'a t -> 'a
+    val Deferred.value_exn : 'a t -> 'a
+
+- Add `Monitor.catch_error`, which provides error handling for
+  processes/subsystems intended to run forever.
+
+- Added to the Async scheduler a configurable:
+
+    min_inter_cycle_timeout : Time_ns.Span.t
+
+  When scheduler calls epoll(), it uses a timeout of at least
+  `min_inter_cycle_timeout`.
+
+  `min_inter_cycle_timeout` can be configured via `ASYNC_CONFIG` or via
+
+    val Scheduler.set_min_inter_cycle_timeout : Time_ns.Span.t -> unit
+
+
+  This allows one to tweak the scheduler to be more fair w.r.t. threads,
+  e.g. with:
+
+    Scheduler.set_min_inter_cycle_timeout <- Time_ns.Span.of_us 1.;
+
+- Optimized `Scheduler.schedule'` to avoid a closure allocation.
+
+- Removed `Monitor.kill`, which was unused internally. This removes the
+  `kill_index` field from `Execution_context.t`, which saves us a word
+  everytime we allocate or store an execution context.
+
+- Assert that `Deferred.forever` never returns statically, rather than dynamically.
+
+- Changed `Async.Std` to not include `Deferred.Monad_syntax`, so that
+  one must explicitly opt in (via `open Deferred.Monad_syntax`) to use
+  `let%bind` syntax with Async.
+
+- Add `Pipe.to_sequence`
+
+
+- Make `Stream.closed s` return immediately when `s` is already closed.
+
+  Currently the following property holds:
+
+     for any s, Deferred.peek (Stream.closed s) = None
+
+- For `Pipe` functions that deal with batches of elements in a queue,
+  added an optional argument:
+
+    ?max_queue_length : int  (** default is `Int.max_value` *)
+
+  This limits the size of the queue that is used, which can improve
+  Async fairness.
+
+  Affected functions are:
+
+    filter_map
+    filter_map'
+    fold'
+    iter'
+    map'
+    read'
+    read_now'
+    transfer'
+    transfer_id
+
+  This also obviates `read_at_most` and `read_now_at_most`, which we
+  will deprecate in a later release.
+
+  Removed a couple helper types, `iter` and `fold`, that had been used
+  to express commonality among functions, but were becoming unwieldy due
+  to differences.
+
+- Changed `Pipe`'s default `max_queue_length` from `Int.max_value` to
+  100.
+
+- Added to `Pipe.iter_without_pushback` an optional argument:
+
+    ?max_iterations_per_job : int  (** default is `Int.max_value` *)
+
+  `iter_without_pushback` will not make more than
+  `max_iterations_per_job` calls to `f` in a single Async_job; this can
+  be used to increase Async-scheduling fairness.
+
+- Added `Pipe.write_if_open` which does exactly what it says.  This is a
+  common pattern.  Also added a pushback-oblivious variant
+  `write_without_pushback_if_open`.
+
+  Call sites for these two new functions were introduced wherever I
+  found that doing so would not introduce any side effects (even
+  counting allocation) in the case of a closed pipe.
+
 ## 113.00.00
 
 - Switched `Lazy_deferred` to use `Or_error.t` rather than `('a, exn) Result.t`.

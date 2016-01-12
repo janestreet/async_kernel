@@ -2,7 +2,7 @@ open Core_kernel.Std
 open Import
 
 module Deferred  = Deferred1
-module Scheduler = Scheduler0
+module Scheduler = Scheduler1
 module Stream    = Async_stream
 
 include Scheduler
@@ -47,7 +47,11 @@ let main_execution_context = (t ()).main_execution_context
 
 let can_run_a_job t = num_pending_jobs t > 0 || Option.is_some t.yield_ivar
 
+let has_upcoming_event t = not (Timing_wheel_ns.is_empty t.events)
+
 let next_upcoming_event t = Timing_wheel_ns.next_alarm_fires_at t.events
+
+let next_upcoming_event_exn t = Timing_wheel_ns.next_alarm_fires_at_exn t.events
 
 let event_precision t = Timing_wheel_ns.alarm_precision t.events
 
@@ -127,16 +131,12 @@ let force_current_cycle_to_end t =
   Job_queue.set_jobs_left_this_cycle t.normal_priority_jobs 0
 ;;
 
-let handle_fired t alarm =
-  enqueue_job t (Timing_wheel_ns.Alarm.value t.events alarm) ~free_job:true
-;;
-
 let advance_clock t ~now =
-  Timing_wheel_ns.advance_clock t.events ~to_:now ~handle_fired:(handle_fired t)
+  Timing_wheel_ns.advance_clock t.events ~to_:now ~handle_fired:t.handle_fired
 ;;
 
 let run_cycle t =
-  if debug then Debug.log "run_cycle starting" t <:sexp_of< t >>;
+  if debug then Debug.log "run_cycle starting" t [%sexp_of: t];
   let now = Time_ns.now () in
   t.cycle_count <- t.cycle_count + 1;
   t.cycle_start <- now;
@@ -163,12 +163,12 @@ let run_cycle t =
   if debug
   then Debug.log "run_cycle finished"
          (uncaught_exn t, is_some (next_upcoming_event t))
-         <:sexp_of< Error.t option * bool >>;
+         [%sexp_of: Error.t option * bool];
 ;;
 
 let fire_past_events t =
   advance_clock t ~now:(Time_ns.now ());
-  Timing_wheel_ns.fire_past_alarms t.events ~handle_fired:(handle_fired t)
+  Timing_wheel_ns.fire_past_alarms t.events ~handle_fired:t.handle_fired
 ;;
 
 let run_cycles_until_no_jobs_remain () =
@@ -176,7 +176,7 @@ let run_cycles_until_no_jobs_remain () =
   let t = t () in
   if is_dead t
   then failwiths "run_cycles_until_no_jobs_remain cannot proceed -- scheduler is dead" t
-         <:sexp_of< t >>;
+         [%sexp_of: t];
   let rec loop () =
     run_cycle t;
     (* We [fire_past_events] just before checking if there are pending jobs, so that clock
@@ -218,7 +218,7 @@ let yield t =
 
 let yield_every ~n =
   if n <= 0
-  then failwiths "Scheduler.yield_every got nonpositive count" n <:sexp_of< int >>
+  then failwiths "Scheduler.yield_every got nonpositive count" n [%sexp_of: int]
   else if n = 1
   then stage (fun t -> yield t)
   else
@@ -233,64 +233,20 @@ let yield_every ~n =
       end)
 ;;
 
-TEST_MODULE = struct
-  (* [Monitor.kill] *)
-  TEST_UNIT =
-    let m = Monitor.create ~name:"m" () in
-    assert (Monitor.is_alive m);
-    Monitor.kill m;
-    assert (not (Monitor.is_alive m));
-    assert Monitor.(is_alive main);
-    let r = ref true in
-    schedule ~monitor:m (fun () -> r := false);
-    run_cycles_until_no_jobs_remain ();
-    assert !r;
-    assert Monitor.(is_alive main);
-  ;;
-
-  (* [Monitor.kill] -- killing parent also kills child. *)
-  TEST_UNIT =
-    let m = Monitor.create ~name:"parent" () in
-    let r = ref true in
-    schedule ~monitor:m (fun () ->
-      schedule ~monitor:(Monitor.create ~name:"child" ()) (fun () -> r := false);
-      Monitor.kill m);
-    run_cycles_until_no_jobs_remain ();
-    assert !r;
-    assert Monitor.(is_alive main);
-  ;;
-
-  (* [Monitor.kill] -- killing child does not kill parent. *)
-  TEST_UNIT =
-    let m = Monitor.create ~name:"parent 2" () in
-    let r = ref false in
-    let r' = ref true in
-    let m' =
-      Option.value_exn (within_v ~monitor:m (fun () -> Monitor.create ~name:"child" ()))
-    in
-    Monitor.kill m';
-    schedule ~monitor:m  (fun () -> r  := true );
-    schedule ~monitor:m' (fun () -> r' := false);
-    run_cycles_until_no_jobs_remain ();
-    assert (Monitor.is_alive m);
-    assert (not (Monitor.is_alive m'));
-    assert Monitor.(is_alive main);
-    assert !r ;
-    assert !r';
-  ;;
+let%test_module _ = (module struct
 
   (* [Monitor.catch_stream]. *)
-  TEST_UNIT =
+  let%test_unit _ =
     let d = Stream.next (Monitor.catch_stream (fun () -> failwith "")) in
     run_cycles_until_no_jobs_remain ();
-    assert (is_some (Deferred.peek d));
+    assert (is_some (Deferred.peek d))
   ;;
 
   (* [Monitor.catch]. *)
-  TEST_UNIT =
+  let%test_unit _ =
     let d = Monitor.catch (fun () -> failwith "") in
     run_cycles_until_no_jobs_remain ();
-    assert (is_some (Deferred.peek d));
+    assert (is_some (Deferred.peek d))
   ;;
 
-end
+end)

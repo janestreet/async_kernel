@@ -7,11 +7,17 @@ module List = Deferred_list
 
 type ('a, 'b, 'c) t = ('a, 'b, 'c) Map.t
 
-let change t k f = f (Map.find t k) >>| fun opt -> Map.change t k (fun _ -> opt)
+let change t k ~f = f (Map.find t k) >>| fun opt -> Map.change t k ~f:(fun _ -> opt)
 
-let iter ?how t ~f =
+let update t k ~f = f (Map.find t k) >>| fun data -> Map.add t ~key:k ~data
+
+let iteri ?how t ~f =
   List.iter ?how (Map.to_alist t) ~f:(fun (key, data) -> f ~key ~data)
 ;;
+
+(* DEPRECATED - leaving here for a little while so as to ease the transition for
+   external core users. (But marking as deprecated in the mli *)
+let iter = iteri
 
 let fold t ~init ~f =
   let alist_in_increasing_key_order =
@@ -35,7 +41,7 @@ module Job = struct
     ; data           : 'b
     ; mutable result : 'c option
     }
-  with fields
+  [@@deriving fields]
 end
 
 let filter_mapi ?how t ~f =
@@ -54,12 +60,16 @@ let filter_mapi ?how t ~f =
 
 let filter_map ?how t ~f = filter_mapi ?how t ~f:(fun ~key:_ ~data -> f data)
 
-let filter ?how t ~f =
+let filteri ?how t ~f =
   filter_mapi ?how t ~f:(fun ~key ~data ->
     f ~key ~data
     >>| fun b ->
     if b then Some data else None)
 ;;
+
+(* DEPRECATED - leaving here for a little while so as to ease the transition for
+   external core users. (But marking as deprecated in the mli *)
+let filter = filteri
 
 let mapi ?how t ~f =
   filter_mapi ?how t ~f:(fun ~key ~data -> f ~key ~data >>| fun z -> Some z)
@@ -71,3 +81,5 @@ let merge ?how t1 t2 ~f =
   filter_map ?how (Map.merge t1 t2 ~f:(fun ~key z -> Some (fun () -> f ~key z)))
     ~f:(fun thunk -> thunk ())
 ;;
+
+let all t = map t ~f:Fn.id

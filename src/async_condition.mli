@@ -9,7 +9,7 @@
 
 open Core_kernel.Std
 
-type 'a t with sexp_of
+type 'a t [@@deriving sexp_of]
 
 val create : unit -> _ t
 val signal : 'a t -> 'a -> unit

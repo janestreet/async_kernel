@@ -4,10 +4,10 @@ open! Deferred_std
 
 module Deferred = Deferred1
 
-type 'a outcome = [ `Ok of 'a | `Aborted | `Raised of exn ] with sexp_of
+type 'a outcome = [ `Ok of 'a | `Aborted | `Raised of exn ] [@@deriving sexp_of]
 
 module Internal_job : sig
-  type 'a t with sexp_of
+  type 'a t [@@deriving sexp_of]
 
   val create : ('a -> 'b Deferred.t) -> 'a t * 'b outcome Deferred.t
 
@@ -19,7 +19,7 @@ end  = struct
     { start   : [ `Abort | `Start of 'a ] Ivar.t
     ; outcome : [ `Ok | `Aborted | `Raised ] Deferred.t
     }
-  with sexp_of
+  [@@deriving sexp_of]
 
   let create work =
     let start = Ivar.create () in
@@ -85,7 +85,7 @@ type 'a t =
      i.e. after [t] is killed and all its clean functions complete. *)
   ; cleaned                           : unit Ivar.t
   }
-with fields, sexp_of
+[@@deriving fields, sexp_of]
 
 let invariant invariant_a t : unit =
   try
@@ -119,11 +119,11 @@ let invariant invariant_a t : unit =
       ~cleaned:(check (fun cleaned ->
         if Ivar.is_full cleaned then assert (t.num_resources_not_cleaned = 0)))
   with exn ->
-    failwiths "Throttle.invariant failed" (exn, t) <:sexp_of< exn * _ t >>
+    failwiths "Throttle.invariant failed" (exn, t) [%sexp_of: exn * _ t]
 ;;
 
 module T2 = struct
-  type nonrec ('a, 'kind) t = 'a t with sexp_of
+  type nonrec ('a, 'kind) t = 'a t [@@deriving sexp_of]
 
   let invariant invariant_a _ t = invariant invariant_a t
 end
@@ -199,7 +199,7 @@ let create_with ~continue_on_error job_resources =
 ;;
 
 module Sequencer = struct
-  type nonrec 'a t = 'a t with sexp_of
+  type nonrec 'a t = 'a t [@@deriving sexp_of]
 
   let create ?(continue_on_error = false) a = create_with ~continue_on_error [ a ]
 end
@@ -207,7 +207,7 @@ end
 let create ~continue_on_error ~max_concurrent_jobs =
   if max_concurrent_jobs <= 0
   then failwiths "Throttle.create requires positive max_concurrent_jobs, but got"
-         max_concurrent_jobs <:sexp_of< int >>;
+         max_concurrent_jobs [%sexp_of: int];
   create_with ~continue_on_error (List.init max_concurrent_jobs ~f:ignore)
 ;;
 
@@ -280,7 +280,7 @@ let prior_jobs_done t =
      to get started before finishing. *)
   Deferred.create (fun all_dummy_jobs_running ->
     let dummy_jobs_running = ref 0 in
-    for _i = 1 to t.max_concurrent_jobs do
+    for _ = 1 to t.max_concurrent_jobs do
       don't_wait_for (enqueue t (fun _ ->
         incr dummy_jobs_running;
         if !dummy_jobs_running = t.max_concurrent_jobs

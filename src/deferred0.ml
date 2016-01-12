@@ -27,7 +27,7 @@ module Handler = Ivar.Handler
    ]}
 *)
 
-type +'a t  (* the abstract covariant type, equivalent to ivar *)
+type +'a t = 'a Types.Deferred.t  (* the abstract covariant type, equivalent to ivar *)
 
 type 'a deferred = 'a t
 
@@ -44,6 +44,12 @@ let peek t = Ivar.peek (to_ivar t)
 let return a = of_ivar (Ivar.create_full a)
 
 let is_determined t = Ivar.is_full (to_ivar t)
+
+let value_exn t =
+  if is_determined t
+  then Ivar.value_exn (to_ivar t)
+  else failwith "Deferred.value_exn called on undetermined deferred"
+;;
 
 let upon t f = Ivar.upon (to_ivar t) f
 

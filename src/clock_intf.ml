@@ -51,8 +51,8 @@ module type Clock = sig
       reschedule an event that hasn't yet happened.  Once an event happens or is aborted,
       Async doesn't use any space for tracking it. *)
   module Event: sig
-    type ('a, 'h) t with sexp_of
-    type t_unit = (unit, unit) t with sexp_of
+    type ('a, 'h) t [@@deriving sexp_of]
+    type t_unit = (unit, unit) t [@@deriving sexp_of]
 
     include Invariant.S2 with type ('a, 'b) t := ('a, 'b) t
 
@@ -156,7 +156,7 @@ module type Clock = sig
         ]}
 
         {[
-          let t = Event.run_after (sec 2.) printf "Timer fired" in;
+          let t = Event.run_after (sec 2.) printf "Timer fired" in
           upon deferred_event (fun () ->
             match Event.abort t () with
             | `Ok -> printf "Event occurred"

@@ -29,11 +29,11 @@ module Deferred = Deferred1
     useful to know from the type of a throttle that it is a sequencer and that at most one
     job can be running at a time. *)
 module T2 : sig
-  type ('a, 'kind) t with sexp_of
+  type ('a, 'kind) t [@@deriving sexp_of]
   include Invariant.S2 with type ('a, 'b) t := ('a, 'b) t
 end
 
-type 'a t = ('a, [`throttle]) T2.t with sexp_of
+type 'a t = ('a, [`throttle]) T2.t [@@deriving sexp_of]
 
 include Invariant.S1 with type 'a t := 'a t
 
@@ -55,7 +55,7 @@ val create_with
   -> 'a list
   -> 'a t
 
-type 'a outcome = [ `Ok of 'a | `Aborted | `Raised of exn ] with sexp_of
+type 'a outcome = [ `Ok of 'a | `Aborted | `Raised of exn ] [@@deriving sexp_of]
 
 (** [enqueue t job] schedules [job] to be run as soon as possible.  Jobs are guaranteed to
     be started in the order they are [enqueue]d and to not be started during the call to
@@ -93,7 +93,7 @@ val num_jobs_running : (_, _) T2.t -> int
 
 (** [num_jobs_waiting_to_start t] returns the number of jobs that have been [enqueue]d but
     have not yet started. *)
-val num_jobs_waiting_to_start : (_ , _) T2.t -> int
+val num_jobs_waiting_to_start : (_, _) T2.t -> int
 
 (** [capacity_available t] becomes determined the next time that [t] has fewer than
     [max_concurrent_jobs t] running, and hence an [enqueue]d job would start
@@ -104,27 +104,27 @@ val capacity_available : (_, _) T2.t -> unit Deferred.t
     enqueued in the future.  [kill] also initiates the [at_kill] clean functions.
 
     If [t] has already been killed, then calling [kill t] has no effect. *)
-val kill : _ t -> unit
+val kill : (_, _) T2.t -> unit
 
 (** [is_dead t] returns [true] if [t] was killed, either by [kill] or by an unhandled
     exception in a job. *)
-val is_dead : _ t -> bool
+val is_dead : (_, _) T2.t -> bool
 
 (** [at_kill t clean] runs [clean] on each resource when [t] is killed, either by [kill]
     or an unhandled exception.  [clean] is called on each resource as it becomes
     available, i.e. immediately if the resource isn't currently in use, otherwise when the
     job currently using the resource finishes.  If a call to [clean] fails, the exception
     is raised to the monitor in effect when [at_kill] was called. *)
-val at_kill : 'a t -> ('a -> unit Deferred.t) -> unit
+val at_kill : ('a, _) T2.t -> ('a -> unit Deferred.t) -> unit
 
 (** [cleaned t] becomes determined after [t] is killed and all of its [at_kill] clean
     functions have completed. *)
-val cleaned : _ t -> unit Deferred.t
+val cleaned : (_, _) T2.t -> unit Deferred.t
 
 (** A sequencer is a throttle that is specialized to only allow one job at a time and to,
     by default, not continue on error. *)
 module Sequencer : sig
-  type 'a t = ('a, [`sequencer]) T2.t with sexp_of
+  type 'a t = ('a, [`sequencer]) T2.t [@@deriving sexp_of]
 
   val create : ?continue_on_error:bool (** default is [false] *) -> 'a -> 'a t
 end

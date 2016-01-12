@@ -1,6 +1,6 @@
 open Core_kernel.Std
 
-module Scheduler = Scheduler0
+module Scheduler = Scheduler1
 
 include Deferred0
 
@@ -24,18 +24,19 @@ let unit = return ()
 
 let ignore = ignore_m
 
-module Infix = struct
-  include Monad_infix
-
-  let (>>>) = upon
-end
-
-open Infix
-
 let both t1 t2 =
   create (fun result ->
     upon t1 (fun a1 -> upon t2 (fun a2 -> Ivar.fill result (a1, a2))))
 ;;
+
+module Infix = struct
+  include Monad_infix
+
+  let (>>>) = upon
+  let ppx_both = both
+end
+
+open Infix
 
 let don't_wait_for (_ : unit t) = ()
 
@@ -124,11 +125,10 @@ let repeat_until_finished state f =
 
 let forever state f =
   repeat_until_finished state (fun state -> f state >>| fun state -> `Repeat state)
-  >>> fun () ->
-  assert false
+  >>> never_returns
 ;;
 
-type how = Monad_sequence.how with sexp_of
+type how = Monad_sequence.how [@@deriving sexp_of]
 
 module type Monad_sequence = Monad_sequence.S
   with type 'a monad := 'a t

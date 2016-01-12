@@ -1,3 +1,13 @@
+(* This file defines the mutually recursive types at the heart of Async.  The functions
+   associated with the types are defined in the corresponding file(s) for each module.
+   This file should define onlye types, not functions, since functions defined inside the
+   recursive modules are not inlined.
+
+   If you need to add functionality to a module but doing so would create a dependency
+   cycle, split the file into pieces as needed to break the cycle, e.g. scheduler0.ml,
+   scheduler1.ml, scheduler.ml.
+*)
+
 open! Core_kernel.Std
 open! Import
 
@@ -11,15 +21,19 @@ module rec Cell : sig
     ]
 
   type ('a, 'b) t =
-  | Empty_one_or_more_handlers
-    :  ('a -> unit) * Execution_context.t * 'a Handler.t * 'a Handler.t
-    ->                                       ('a, [> `Empty_one_or_more_handlers ]) t
-  | Empty_one_handler
-    :  ('a -> unit) * Execution_context.t -> ('a, [> `Empty_one_handler          ]) t
-  | Empty                                  : ('a, [> `Empty                      ]) t
-  | Full                             : 'a -> ('a, [> `Full                       ]) t
-  | Indir                     : 'a Ivar.t -> ('a, [> `Indir                      ]) t
+    | Empty_one_or_more_handlers
+      :  ('a -> unit) * Execution_context.t * 'a Handler.t * 'a Handler.t
+      ->                                       ('a, [> `Empty_one_or_more_handlers ]) t
+    | Empty_one_handler
+      :  ('a -> unit) * Execution_context.t -> ('a, [> `Empty_one_handler          ]) t
+    | Empty                                  : ('a, [> `Empty                      ]) t
+    | Full                             : 'a -> ('a, [> `Full                       ]) t
+    | Indir                     : 'a Ivar.t -> ('a, [> `Indir                      ]) t
 end = Cell
+
+and Deferred : sig
+  type +'a t
+end = Deferred
 
 and Execution_context : sig
   type t =
@@ -27,7 +41,6 @@ and Execution_context : sig
     ; priority           : Priority.t
     ; local_storage      : Univ_map.t
     ; backtrace_history  : Backtrace.t list
-    ; mutable kill_index : Kill_index.t
     }
 end = Execution_context
 
@@ -85,11 +98,11 @@ and Monitor : sig
     ; here                            : Source_code_position.t option
     ; id                              : int
     ; parent                          : t option
-    ; mutable handlers_for_next_error : (exn -> unit) list
-    ; mutable handlers_for_all_errors : (exn -> unit) Bag.t
+    ; mutable next_error              : exn Ivar.t
+    ; mutable handlers_for_all_errors : (Execution_context.t * (exn -> unit)) Bag.t
+    ; mutable tails_for_all_errors    : exn Tail.t list
     ; mutable has_seen_error          : bool
     ; mutable is_detached             : bool
-    ; mutable kill_index              : Kill_index.t
     }
 end = Monitor
 
@@ -101,7 +114,6 @@ and Scheduler : sig
     ; low_priority_jobs                           : Job_queue.t
     ; mutable main_execution_context              : Execution_context.t
     ; mutable current_execution_context           : Execution_context.t
-    ; mutable global_kill_index                   : Kill_index.t
     ; mutable uncaught_exn                        : Error.t option
     ; mutable cycle_count                         : int
     ; mutable cycle_start                         : Time_ns.t
@@ -109,6 +121,7 @@ and Scheduler : sig
     ; mutable last_cycle_time                     : Time_ns.Span.t
     ; mutable last_cycle_num_jobs                 : int
     ; events                                      : Job.t Timing_wheel_ns.t
+    ; mutable handle_fired                        : Job.t Timing_wheel_ns.Alarm.t -> unit
     ; external_jobs                               : External_job.t Thread_safe_queue.t
     ; mutable thread_safe_external_job_hook       : unit -> unit
     ; mutable job_queued_hook                     : (Priority.t -> unit) option
@@ -118,14 +131,15 @@ and Scheduler : sig
     ; mutable max_num_jobs_per_priority_per_cycle : Max_num_jobs_per_priority_per_cycle.t
     ; mutable record_backtraces                   : bool
     }
+end = Scheduler
 
-  val set_execution_context : t -> Execution_context.t -> unit
-end = struct
-  include Scheduler
+and Stream : sig
+  type 'a t = 'a next Deferred.t
+  and 'a next = Nil | Cons of 'a * 'a t
+end = Stream
 
-  let set_execution_context t execution_context =
-    (* Avoid a caml_modify in most cases. *)
-    if not (phys_equal t.current_execution_context execution_context)
-    then t.current_execution_context <- execution_context;
-  ;;
-end
+and Tail : sig
+  type 'a t =
+    { mutable next: 'a Stream.next Ivar.t
+    }
+end = Tail

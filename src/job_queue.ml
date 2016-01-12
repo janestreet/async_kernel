@@ -1,7 +1,7 @@
 open! Core_kernel.Std
 open! Import
 
-module Scheduler = Types.Scheduler
+module Scheduler = Scheduler0
 
 let dummy_e = Execution_context.main
 let dummy_f : Obj.t -> unit = ignore
@@ -28,14 +28,14 @@ type t = Types.Job_queue.t =
   ; mutable front                : int
   ; mutable length               : int
   }
-with fields, sexp_of
+[@@deriving fields, sexp_of]
 
 let offset t i = ((t.front + i) land t.mask) * slots_per_elt
 
 let capacity t = t.mask + 1
 
 let invariant t : unit =
-  Invariant.invariant _here_ t <:sexp_of< t >> (fun () ->
+  Invariant.invariant [%here] t [%sexp_of: t] (fun () ->
     let check f = Invariant.check_field t f in
     Fields.iter
       ~num_jobs_run:(check (fun num_jobs_run ->
@@ -109,20 +109,16 @@ let enqueue t execution_context f a =
 let set_jobs_left_this_cycle t n =
   if n < 0
   then failwiths "Jobs.set_jobs_left_this_cycle got negative number" (n, t)
-         <:sexp_of< int * t >>;
+         [%sexp_of: int * t];
   t.jobs_left_this_cycle <- n;
 ;;
 
 let can_run_a_job t = t.length > 0 && t.jobs_left_this_cycle > 0
 
 let run_job t (scheduler : Scheduler.t) execution_context f a =
-  if Execution_context.is_alive execution_context
-       ~global_kill_index:scheduler.global_kill_index
-  then begin
-    t.num_jobs_run <- t.num_jobs_run + 1;
-    Scheduler.set_execution_context scheduler execution_context;
-    f a;
-  end;
+  t.num_jobs_run <- t.num_jobs_run + 1;
+  Scheduler.set_execution_context scheduler execution_context;
+  f a;
 ;;
 
 let run_external_jobs t (scheduler : Scheduler.t) =

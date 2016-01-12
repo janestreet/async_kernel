@@ -1,6 +1,9 @@
 open Core_kernel.Std
 open Async_quickcheck_intf
 
-include Quickcheck_async
+module Generator = Quickcheck.Generator
+module Observer  = Quickcheck.Observer
 
-module Configure (Config : Quickcheck_config) : Quickcheck_async
+include Quickcheck_async_configured
+
+module Configure (Config : Quickcheck_config) : Quickcheck_async_configured

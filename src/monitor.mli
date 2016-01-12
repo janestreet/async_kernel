@@ -42,7 +42,9 @@ open Core_kernel.Std
 
 module Deferred = Deferred1
 
-type t = Monitor0.t with sexp_of
+type t = Monitor0.t [@@deriving sexp_of]
+
+include Invariant.S with type t := t
 
 type 'a with_optional_monitor_name =
   ?here : Source_code_position.t
@@ -106,13 +108,12 @@ val has_seen_error : t -> bool
     using [Exn.backtrace ()]. *)
 val send_exn : t -> ?backtrace:[ `Get | `This of string ] -> exn -> unit
 
-
 (** [try_with f] runs [f ()] in a monitor and returns the result as [Ok x] if [f] finishes
     normally, or returns [Error e] if there is some error.  It either runs [f] now, if
     [run = `Now], or schedules a job to run [f], if [run = `Schedule].  Once a result is
-    returned, the rest of the errors raised by [f] are ignored or re-raised, as per
-    [rest].  [try_with] never raises synchronously, and may only raise asynchronously with
-    [rest = `Raise].
+    returned, the rest of the errors raised by [f] are logged or re-raised, as per [rest].
+    [try_with] never raises synchronously, and may only raise asynchronously with [rest =
+    `Raise].
 
     The [name] argument is used to give a name to the monitor the computation will be
     running in.  This name will appear when printing errors.
@@ -130,7 +131,7 @@ val send_exn : t -> ?backtrace:[ `Get | `This of string ] -> exn -> unit
 val try_with
   : (?extract_exn : bool             (** default is [false] *)
      -> ?run : [ `Now | `Schedule ]  (** default is [`Schedule] *)
-     -> ?rest : [ `Ignore | `Raise ] (** default is [`Ignore] *)
+     -> ?rest : [ `Log | `Raise ]    (** default is [`Log] *)
      -> (unit -> 'a Deferred.t)
      -> ('a, exn) Result.t Deferred.t
     ) with_optional_monitor_name
@@ -140,7 +141,7 @@ val try_with
 
     {[
       try_with_or_error f ?extract_exn
-      = try_with f ?extract_exn ~run:`Now ~rest:`Ignore >>| Or_error.of_exn_result
+      = try_with f ?extract_exn ~run:`Now ~rest:`Log >>| Or_error.of_exn_result
     ]}
 
     [~run:`Now] is different from [try_with]'s default, [~run:`Schedule].  Based on
@@ -158,33 +159,6 @@ val try_with_join_or_error
      -> (unit -> 'a Or_error.t Deferred.t)
      -> 'a Or_error.t Deferred.t
     ) with_optional_monitor_name
-
-(** [try_with_rest_handling] determines how [try_with f ~rest] determines the [rest] value
-    it actually uses.  If [!try_with_rest_handling = `Default d], then [d] is the default
-    value for [rest], but can be overriden by supplying [rest] to [try_with].  If
-    [!try_with_rest_handling = Force f], then the [rest] supplied to [try_with] is not
-    used, and [f] is.
-
-    Initially, [!try_with_rest_handling = `Default `Ignore]. *)
-val try_with_rest_handling
-  : [ `Default of [ `Ignore | `Raise ]
-    | `Force of   [ `Ignore | `Raise ]
-    ] ref
-
-(** [try_with_ignored_exn_handling] describes what should happen when [try_with]'s [rest]
-    value is [`Ignore], as determined by [!try_with_rest_handling] and the [~rest]
-    supplied to [try_with].
-
-    For [`Run f], [f exn] runs in [Monitor.main].
-
-    This value is set to [`Run] by [Async.Log] during initialization, which causes ignored
-    errors to be sent to the global error log.  Programs that want to change this should
-    change this value after module initialization. *)
-val try_with_ignored_exn_handling
-  : [ `Ignore              (* really ignore the exception *)
-    | `Eprintf             (* eprintf the exception in a blocking manner *)
-    | `Run of exn -> unit  (* apply the function to the exception *)
-    ] ref
 
 (** [handle_errors ?name f handler] runs [f ()] inside a new monitor with the optionally
     supplied name, and calls [handler error] on every error raised to that monitor.  Any
@@ -207,6 +181,10 @@ val catch_stream : ((unit -> unit) -> exn Tail.Stream.t) with_optional_monitor_n
     raised to [m]. *)
 val catch : ((unit -> unit) -> exn Deferred.t) with_optional_monitor_name
 
+(** [catch_error ?name f] runs [f ()] inside of a new monitor [m] and returns the first
+    error raised to [m]. *)
+val catch_error : ((unit -> unit) -> Error.t Deferred.t) with_optional_monitor_name
+
 (** [protect f ~finally] runs [f ()] and then [finally] regardless of the success or
     failure of [f].  It re-raises any exception thrown by [f] or returns whatever [f]
     returned.
@@ -222,17 +200,6 @@ val protect
 (** This it the initial monitor and is the root of the monitor tree.  Unhandled exceptions
     are raised to this monitor. *)
 val main : t
-
-(** [kill t] causes [t] and all of [t]'s descendants to never start another job.  The job
-    that calls [kill] will complete, even if it is a descendant of [t].
-
-    [kill] can break user expectations.  For example, users expect in [protect f ~finally]
-    that [finally] will eventually run.  However, if the monitor in which [finally] would
-    run is killed, then [finally] will never run. *)
-val kill : t -> unit
-
-(** [is_alive t] returns [true] iff none of [t] or its ancestors have been killed. *)
-val is_alive : t -> bool
 
 module Exported_for_scheduler : sig
   type 'a with_options =

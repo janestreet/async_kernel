@@ -2,11 +2,11 @@ open Core_kernel.Std
 open Std
 open Monitor
 
-TEST_MODULE = struct
+let%test_module _ = (module struct
 
   let stabilize = Scheduler.run_cycles_until_no_jobs_remain
 
-  TEST_UNIT =
+  let%test_unit _ =
     let t1_got_error = ref false in
     let t1 = create () in
     detach_and_iter_errors t1 ~f:(fun _ -> t1_got_error := true);
@@ -19,10 +19,10 @@ TEST_MODULE = struct
     in
     stabilize ();
     assert (Deferred.is_determined d);
-    assert !t1_got_error;
+    assert !t1_got_error
   ;;
 
-  TEST_UNIT =
+  let%test_unit _ =
     List.iter
       [ `Raise , 0, 0
       ; `Raise , 1, 1
@@ -41,23 +41,23 @@ TEST_MODULE = struct
               match handler with
               | `Raise -> raise e
               | `Ignore -> ());
-            for _i = 1 to num_exns_to_send do
+            for _ = 1 to num_exns_to_send do
               send_exn t Not_found
             done;
             Deferred.unit
           in
           don't_wait_for (handle_errors thunk ignore);
           stabilize ();
-          <:test_result< int >> (!error_count) ~expect:expect_error_count;
+          [%test_result: int] (!error_count) ~expect:expect_error_count;
         with exn ->
           failwiths "failure" (exn, handler, `num_exns_to_send num_exns_to_send)
-            <:sexp_of< exn * [ `Raise | `Ignore ] * [ `num_exns_to_send of int ] >>)
+            [%sexp_of: exn * [ `Raise | `Ignore ] * [ `num_exns_to_send of int ]])
   ;;
 
   (* Test the lifetime of Async monitors:
      (1) [try_with] does not hold on to its enclosing monitor
      (2) Monitors are freed when the last job refering to them has been freed. *)
-  TEST_UNIT =
+  let%test_unit _ =
     let outer_monitor_finalized = ref false in
     let inner_monitor_finalized = ref false in
     let inner_job_ran           = ref false in
@@ -100,6 +100,6 @@ TEST_MODULE = struct
     assert (not !inner_monitor_finalized);
     Scheduler.run_cycles_until_no_jobs_remain ();
     (* check that the inner monitor has been collected. *)
-    assert !inner_monitor_finalized;
+    assert !inner_monitor_finalized
   ;;
-end
+end)

@@ -3,13 +3,28 @@ open Import
 open Deferred_std
 
 module Deferred = Deferred1
-module Scheduler = Scheduler0
+module Scheduler = Scheduler1
 module Stream = Tail.Stream
 
 module Monitor = Monitor0
 include Monitor
 
-type monitor = t with sexp_of
+type monitor = t [@@deriving sexp_of]
+
+let invariant t =
+  Invariant.invariant [%here] t [%sexp_of: t] (fun () ->
+    let check f = Invariant.check_field t f in
+    Fields.iter
+      ~name:ignore
+      ~here:ignore
+      ~id:ignore
+      ~parent:ignore
+      ~next_error:(check (fun next_error -> assert (Ivar.is_empty next_error)))
+      ~handlers_for_all_errors:ignore
+      ~tails_for_all_errors:ignore
+      ~has_seen_error:ignore
+      ~is_detached:ignore)
+;;
 
 let current_execution_context () = Scheduler.(current_execution_context (t ()))
 
@@ -32,17 +47,9 @@ type 'a with_optional_monitor_name =
 
 let detach t = t.is_detached <- true
 
-(* After [add_handler_for_all_errors t f], [f] runs in the middle of [send_exn], in an
-   arbitrary execution context.  So, [f] should not depend on the current execution
-   context.  If [f] needs to do anything that does depend on the execution context, it
-   must explicitly run within the desired execution context.  [f] also runs in the middle
-   of [Bag.iter t.handlers_for_all_errors], so [f] should not side effect
-   [t.handlers_for_all_errors]. *)
-let add_handler_for_all_errors t ~f = Bag.add t.handlers_for_all_errors f
-
 type handler_state =
   | Uninitialized
-  | Running of (exn -> unit) Bag.Elt.t
+  | Running of (Execution_context.t * (exn -> unit)) Bag.Elt.t
   | Terminated
 
 let detach_and_iter_errors t ~f =
@@ -65,24 +72,17 @@ let detach_and_iter_errors t ~f =
         raise inner_exn
   in
   handler_state_ref :=
-    Running (add_handler_for_all_errors t ~f:(fun exn ->
-      Scheduler.enqueue scheduler execution_context run_f exn));
+    Running (Bag.add t.handlers_for_all_errors (execution_context, run_f));
 ;;
 
 let detach_and_get_error_stream t =
   detach t;
   let tail = Tail.create () in
-  ignore (add_handler_for_all_errors t ~f:(fun exn -> Tail.extend tail exn)
-          : _ Bag.Elt.t);
+  t.tails_for_all_errors <- tail :: t.tails_for_all_errors;
   Tail.collect tail
 ;;
 
-let get_next_error t =
-  Deferred.create (fun ivar ->
-    t.handlers_for_next_error <-
-      (fun exn -> Ivar.fill ivar exn)
-      :: t.handlers_for_next_error)
-;;
+let get_next_error t = Ivar.read t.next_error
 
 let detach_and_get_next_error t =
   detach t;
@@ -101,10 +101,10 @@ module Exn_for_monitor = struct
     ; backtrace_history : Backtrace.t sexp_list
     ; monitor           : Monitor.t
     }
-  with fields, sexp_of
+  [@@deriving fields, sexp_of]
 end
 
-exception Error_ of Exn_for_monitor.t with sexp
+exception Error_ of Exn_for_monitor.t [@@deriving sexp]
 
 let extract_exn exn =
   match exn with
@@ -127,16 +127,19 @@ let send_exn t ?backtrace exn =
     | _ -> Error_ { Exn_for_monitor. exn; backtrace; backtrace_history; monitor = t }
   in
   if Debug.monitor_send_exn
-  then Debug.log "Monitor.send_exn" (t, exn) <:sexp_of< t * exn >>;
+  then Debug.log "Monitor.send_exn" (t, exn) [%sexp_of: t * exn];
   t.has_seen_error <- true;
+  let scheduler = Scheduler.t () in
   let rec loop t =
-    List.iter t.handlers_for_next_error ~f:(fun f -> f exn);
-    t.handlers_for_next_error <- [];
+    Ivar.fill t.next_error exn;
+    t.next_error <- Ivar.create ();
     if t.is_detached then begin
       if Debug.monitor_send_exn
       then Debug.log "Monitor.send_exn found listening monitor" (t, exn)
-             <:sexp_of< t * exn >>;
-      Bag.iter t.handlers_for_all_errors ~f:(fun f -> f exn);
+             [%sexp_of: t * exn];
+      Bag.iter t.handlers_for_all_errors ~f:(fun (execution_context, f) ->
+        Scheduler.enqueue scheduler execution_context f exn);
+      List.iter t.tails_for_all_errors ~f:(fun tail -> Tail.extend tail exn);
     end else
       match t.parent with
       | Some t' -> loop t'
@@ -148,7 +151,7 @@ let send_exn t ?backtrace exn =
              that call [Scheduler.go] and want to handle it. *)
           Scheduler.(got_uncaught_exn (t ()))
             (Error.create "unhandled exception" (exn, !Config.task_id ())
-               <:sexp_of< exn * Sexp.t>>)
+               [%sexp_of: exn * Sexp.t])
         end;
   in
   loop t
@@ -196,18 +199,24 @@ module Exported_for_scheduler = struct
     | Ok () -> ()
   ;;
 
-  let schedule ?monitor ?priority work =
+  let schedule_with_data ?monitor ?priority work x =
     let scheduler = Scheduler.t () in
     Scheduler.enqueue scheduler
       (Execution_context.create_like (Scheduler.current_execution_context scheduler)
          ?monitor ?priority)
-      work ()
+      work x
   ;;
 
-  let schedule' ?monitor ?priority work =
-    Deferred.create (fun i ->
-      schedule  ?monitor ?priority
-        (fun () -> upon (work ()) (fun a -> Ivar.fill i a)))
+  let schedule ?monitor ?priority work = schedule_with_data ?monitor ?priority work ()
+
+  let schedule' =
+    (* For performance, we use [schedule_with_data] with a closed function, and inline
+       [Deferred.create]. *)
+    let upon_work_fill_i (work, i) = upon (work ()) (fun a -> Ivar.fill i a) in
+    fun ?monitor ?priority work ->
+      let i = Ivar.create () in
+      schedule_with_data ?monitor ?priority upon_work_fill_i (work, i);
+      Ivar.read i
   ;;
 
   let preserve_execution_context f =
@@ -239,32 +248,15 @@ let stream_iter stream ~f =
   loop stream
 ;;
 
-let try_with_rest_handling = ref (`Default `Ignore)
-
-let try_with_ignored_exn_handling = ref `Ignore
-
-let internal_try_with_handle_errors ?rest errors monitor =
-  let rest =
-    match !try_with_rest_handling with
-    | `Default default -> Option.value rest ~default
-    | `Force rest -> rest
-  in
+let internal_try_with_handle_errors ?(rest = `Log) errors =
   match rest with
-  | `Raise ->
-    stream_iter errors ~f:(fun e -> send_exn (current ()) e ?backtrace:None);
-  | `Ignore ->
-    match !try_with_ignored_exn_handling with
-    | `Ignore -> ()
-    | `Eprintf | `Run _ as x ->
-      (* We run [within ~monitor:main] to avoid a space leak when a chain of [try_with]'s
-         are run each nested within the previous one.  Without the [within], the error
-         handling for the innermost [try_with] would keep alive the entire chain. *)
-      within ~monitor:main (fun () ->
-        stream_iter errors ~f:(fun exn ->
-          match x with
-          | `Run f -> f exn
-          | `Eprintf ->
-            Debug.log "try_with ignored exception" (exn, monitor) <:sexp_of< exn * t >>));
+  | `Raise -> stream_iter errors ~f:(fun e -> send_exn (current ()) e ?backtrace:None);
+  | `Log ->
+    (* We run [within ~monitor:main] to avoid a space leak when a chain of [try_with]'s
+       are run each nested within the previous one.  Without the [within], the error
+       handling for the innermost [try_with] would keep alive the entire chain. *)
+    within ~monitor:main (fun () ->
+      stream_iter errors ~f:(fun exn -> !try_with_log_exn exn))
 ;;
 
 let try_with ?here ?info
@@ -284,7 +276,7 @@ let try_with ?here ?info
     | `Schedule -> schedule' ~monitor f
   in
   match Deferred.peek d with
-  | Some a -> (internal_try_with_handle_errors ?rest errors monitor; return (Ok a))
+  | Some a -> (internal_try_with_handle_errors ?rest errors; return (Ok a))
   | None ->
     choose [ choice d (fun a -> (Ok a, errors))
            ; choice (Stream.next errors)
@@ -295,12 +287,12 @@ let try_with ?here ?info
                    (Error err, errors));
            ]
     >>| fun (res, errors) ->
-    internal_try_with_handle_errors ?rest errors monitor;
+    internal_try_with_handle_errors ?rest errors;
     res
 ;;
 
 let try_with_or_error ?here ?info ?(name = "try_with_or_error") ?extract_exn f =
-  try_with f ?here ?info ~name ?extract_exn ~run:`Now ~rest:`Ignore
+  try_with f ?here ?info ~name ?extract_exn ~run:`Now ~rest:`Log
   >>| Or_error.of_exn_result
 ;;
 
@@ -315,7 +307,7 @@ let protect ?here ?info ?(name = "Monitor.protect") f ~finally =
   >>| fun fr ->
   match r, fr with
   | Error e, Error finally_e  ->
-    failwiths "Async finally" (e, finally_e) <:sexp_of< exn * exn >>
+    failwiths "Async finally" (e, finally_e) [%sexp_of: exn * exn]
   | Error e        , Ok ()
   | Ok _           , Error e -> raise e
   | Ok r           , Ok ()   -> r
@@ -341,6 +333,10 @@ let catch ?here ?info ?name f =
   | Nil -> failwith "Monitor.catch got unexpected empty stream"
 ;;
 
-let is_alive t = Scheduler.monitor_is_alive (Scheduler.t ()) t
+let catch_error ?here ?info ?name f =
+  catch ?here ?info ?name f
+  >>| Error.of_exn
+;;
 
-let kill t = Scheduler.kill_monitor (Scheduler.t ()) t
+
+

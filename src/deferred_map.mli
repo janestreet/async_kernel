@@ -7,10 +7,23 @@ type ('a, 'b, 'c) t = ('a, 'b, 'c) Map.t
 val change
   :  ('k, 'v, 'comparator) t
   -> 'k
-  -> ('v option -> 'v option Deferred.t)
+  -> f:('v option -> 'v option Deferred.t)
+  -> ('k, 'v, 'comparator) t Deferred.t
+
+val update
+  :  ('k, 'v, 'comparator) t
+  -> 'k
+  -> f:('v option -> 'v Deferred.t)
   -> ('k, 'v, 'comparator) t Deferred.t
 
 val iter
+  :  ?how : Monad_sequence.how
+  -> ('k, 'v, _) t
+  -> f:(key:'k -> data:'v -> unit Deferred.t)
+  -> unit Deferred.t
+  [@@ocaml.deprecated "[since 2015-10] Use iteri instead"]
+
+val iteri
   :  ?how : Monad_sequence.how
   -> ('k, 'v, _) t
   -> f:(key:'k -> data:'v -> unit Deferred.t)
@@ -41,6 +54,13 @@ val fold_right
   -> 'a Deferred.t
 
 val filter
+  :  ?how : Monad_sequence.how
+  -> ('k, 'v, 'comparable) t
+  -> f:(key:'k -> data:'v -> bool Deferred.t)
+  -> ('k, 'v, 'comparable) t Deferred.t
+  [@@ocaml.deprecated "[since 2015-10] Use filteri instead"]
+
+val filteri
   :  ?how : Monad_sequence.how
   -> ('k, 'v, 'comparable) t
   -> f:(key:'k -> data:'v -> bool Deferred.t)
@@ -78,6 +98,10 @@ val merge
         -> [ `Left of 'v1 | `Right of 'v2 | `Both of 'v1 * 'v2 ]
         -> 'v3 option Deferred.t)
   -> ('k, 'v3, 'comparator) t Deferred.t
+
+val all
+  :  ('k, 'v Deferred.t, 'comparator) t
+  -> ('k, 'v           , 'comparator) t Deferred.t
 
 (* val fold_range_inclusive
  *   :  ('k, 'v, 'comparator) t

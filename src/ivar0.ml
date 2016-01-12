@@ -1,7 +1,7 @@
 open! Core_kernel.Std
 open! Import
 
-module Scheduler = Scheduler0
+module Scheduler = Scheduler1
 
 type any = [ `Empty | `Empty_one_handler | `Empty_one_or_more_handlers | `Full | `Indir ]
 
@@ -23,7 +23,7 @@ module Handler = struct
     ; mutable prev      : 'a t sexp_opaque
     ; mutable next      : 'a t sexp_opaque
     }
-  with sexp_of
+  [@@deriving sexp_of]
 
   let create run execution_context =
     (* An optimized implementation of:
@@ -227,14 +227,14 @@ and ('a, 'b) cell = ('a, 'b) Types.Cell.t =
 
 type 'a ivar = 'a t
 
-TEST_UNIT =
+let%test_unit _ =
   let handler = Handler.create ignore Execution_context.main in
   let o1 =
     Obj.repr (Empty_one_or_more_handlers (ignore, Execution_context.main, handler, handler))
   in
   let o2 = Obj.repr handler in
   assert (Obj.tag o1 = Obj.tag o2);
-  assert (Obj.size o1 = Obj.size o2);
+  assert (Obj.size o1 = Obj.size o2)
 ;;
 
 (* Conversion between mutable record and constructor. *)
@@ -312,6 +312,15 @@ let peek t =
   | Empty | Empty_one_handler _ | Empty_one_or_more_handlers _ -> None
 ;;
 
+let value_exn t =
+  let t = squash t in
+  match t.cell with
+  | Indir _ -> assert false (* fulfilled by [squash] *)
+  | Full a -> a
+  | Empty | Empty_one_handler _ | Empty_one_or_more_handlers _ ->
+    failwith "Ivar.value_exn called on empty ivar"
+;;
+
 let is_empty t =
   let t = squash t in
   match t.cell with
@@ -326,7 +335,7 @@ let fill t v =
   let t = squash t in
   match t.cell with
   | Indir _ -> assert false (* fulfilled by [squash] *)
-  | Full _ -> failwiths "Ivar.fill of full ivar" t <:sexp_of< _ t >>
+  | Full _ -> failwiths "Ivar.fill of full ivar" t [%sexp_of: _ t]
   | Empty -> t.cell <- Full v;
   | Empty_one_handler (run, execution_context) ->
     t.cell <- Full v;
@@ -504,7 +513,7 @@ let connect =
     end
 ;;
 
-TEST_MODULE = struct
+let%test_module _ = (module struct
 
   let (-->) i1 i2 =
     match i1.cell with
@@ -540,46 +549,46 @@ TEST_MODULE = struct
 
   (* ==================== peek, is_empty, is_full ==================== *)
 
-  TEST_UNIT =
+  let%test_unit _ =
     let t = create () in
     assert (is_empty t);
     assert (not (is_full t));
-    assert (peek t = None);
+    assert (peek t = None)
   ;;
 
-  TEST_UNIT =
+  let%test_unit _ =
     let t = create_full 13 in
     assert (not (is_empty t));
     assert (is_full t);
-    assert (peek t = Some 13);
+    assert (peek t = Some 13)
   ;;
 
   (* ==================== equal ==================== *)
 
-  TEST_UNIT =
+  let%test_unit _ =
     let t1 = create () in
     let t2 = create () in
     assert (equal t1 t1);
     assert (equal t2 t2);
-    assert (not (equal t1 t2));
+    assert (not (equal t1 t2))
   ;;
 
   (* ==================== squash ==================== *)
 
-  TEST_UNIT =
+  let%test_unit _ =
     let t = create () in
     squash t;
-    assert (t.cell = Empty);
+    assert (t.cell = Empty)
   ;;
 
-  TEST_UNIT =
+  let%test_unit _ =
     let t1 = create () in
     let t2 = create_with_cell (Indir t1) in
     squash t2;
-    assert (t2 --> t1);
+    assert (t2 --> t1)
   ;;
 
-  TEST_UNIT =
+  let%test_unit _ =
     let t1 = create () in
     let t2 = create_with_cell (Indir t1) in
     let t3 = create_with_cell (Indir t2) in
@@ -587,52 +596,52 @@ TEST_MODULE = struct
     squash t4;
     assert (t2 --> t1);
     assert (t3 --> t1);
-    assert (t4 --> t1);
+    assert (t4 --> t1)
   ;;
 
   (* ==================== fill ==================== *)
 
-  TEST_UNIT =
+  let%test_unit _ =
     let t = create () in
     fill t 13;
-    assert (peek t = Some 13);
+    assert (peek t = Some 13)
   ;;
 
-  TEST_UNIT =
+  let%test_unit _ =
     let t = create () in
     fill t 13;
-    assert (try fill t 14; false with _ -> true);
+    assert (try fill t 14; false with _ -> true)
   ;;
 
-  TEST_UNIT =
+  let%test_unit _ =
     let t1 = create () in
     let t2 = create_with_cell (Indir t1) in
     fill t2 13;
     assert (peek t1 = Some 13);
-    assert (peek t2 = Some 13);
+    assert (peek t2 = Some 13)
   ;;
 
-  TEST_UNIT =
+  let%test_unit _ =
     r := 13;
     let t = create_with_cell empty_one_handler in
     fill t 17;
     stabilize ();
     assert (t.cell = Full 17);
-    assert (!r = 30);
+    assert (!r = 30)
   ;;
 
-  TEST_UNIT =
+  let%test_unit _ =
     r := 13;
     let t = create_with_cell (cell_of_handler_list [ handler1; handler2]) in
     fill t 17;
     stabilize ();
     assert (t.cell = Full 17);
-    assert (!r = 47);
+    assert (!r = 47)
   ;;
 
   (* ==================== upon ==================== *)
 
-  TEST_UNIT =
+  let%test_unit _ =
     let t = create () in
     r := 1;
     upon t (fun i -> r := !r + i);
@@ -640,10 +649,10 @@ TEST_MODULE = struct
     assert (!r = 1);
     fill t 13;
     stabilize ();
-    assert (!r = 14);
+    assert (!r = 14)
   ;;
 
-  TEST_UNIT =
+  let%test_unit _ =
     let t = create () in
     r := 1;
     upon t (fun i -> r := !r + i);
@@ -652,36 +661,36 @@ TEST_MODULE = struct
     assert (!r = 1);
     fill t 13;
     stabilize ();
-    assert (!r = 27);
+    assert (!r = 27)
   ;;
 
-  TEST_UNIT =
+  let%test_unit _ =
     let t = create () in
     r := 1;
     let num_handlers = 1000 in
-    for _i = 1 to num_handlers do
+    for _ = 1 to num_handlers do
       upon t (fun i -> r := !r + i);
     done;
     stabilize ();
     assert (!r = 1);
     fill t 13;
     stabilize ();
-    assert (!r = num_handlers * 13 + 1);
+    assert (!r = num_handlers * 13 + 1)
   ;;
 
-  TEST_UNIT =
+  let%test_unit _ =
     let t1 = create () in
     let t2 = create_with_cell (Indir t1) in
     r := 1;
     upon t2 (fun i -> r := !r + i);
     fill t1 13;
     stabilize ();
-    assert (!r = 14);
+    assert (!r = 14)
   ;;
 
   (* ==================== upon' ==================== *)
 
-  TEST_UNIT =
+  let%test_unit _ =
     let t = create () in
     r := 1;
     let u = upon' t (fun i -> r := !r + i) in
@@ -690,10 +699,10 @@ TEST_MODULE = struct
     remove_handler t u;
     fill t 13;
     stabilize ();
-    assert (!r = 1);
+    assert (!r = 1)
   ;;
 
-  TEST_UNIT =
+  let%test_unit _ =
     let t = create () in
     r := 1;
     let u = upon' t (fun i -> r := !r + i) in
@@ -704,10 +713,10 @@ TEST_MODULE = struct
     assert (!r = 14);
     remove_handler t u;
     stabilize ();
-    assert (!r = 14);
+    assert (!r = 14)
   ;;
 
-  TEST_UNIT =
+  let%test_unit _ =
     let t = create () in
     r := 1;
     let u1 = upon' t (fun i -> r := !r + i) in
@@ -717,10 +726,10 @@ TEST_MODULE = struct
     remove_handler t u1;
     fill t 13;
     stabilize ();
-    assert (!r = 14);
+    assert (!r = 14)
   ;;
 
-  TEST_UNIT =
+  let%test_unit _ =
     let t1 = create () in
     let t2 = create () in
     r := 1;
@@ -730,21 +739,21 @@ TEST_MODULE = struct
     remove_handler t1 u1;
     fill t1 ();
     stabilize ();
-    assert (!r = 18);
+    assert (!r = 18)
   ;;
 
   (* ==================== connect ==================== *)
 
-  TEST_UNIT =
+  let%test_unit _ =
     let i1 = create () in
     let i2 = create () in
     connect i1 i2;
     stabilize ();
     assert (i1.cell = Empty);
-    assert (i2 --> i1);
+    assert (i2 --> i1)
   ;;
 
-  TEST_UNIT =
+  let%test_unit _ =
     let a1 = create () in
     let b1 = create () in
     let b2 = create_with_cell (Indir b1) in
@@ -752,10 +761,10 @@ TEST_MODULE = struct
     stabilize ();
     assert (a1.cell = Empty);
     assert (b1 --> a1);
-    assert (b2 --> a1);
+    assert (b2 --> a1)
   ;;
 
-  TEST_UNIT =
+  let%test_unit _ =
     let a1 = create () in
     let a2 = create_with_cell (Indir a1) in
     let b1 = create () in
@@ -765,10 +774,10 @@ TEST_MODULE = struct
     assert (a1.cell = Empty);
     assert (a2 --> a1);
     assert (b1 --> a1);
-    assert (b2 --> a1);
+    assert (b2 --> a1)
   ;;
 
-  TEST_UNIT =
+  let%test_unit _ =
     let a = create () in
     let b = create_with_cell (Indir a) in
     let c = create_with_cell (Indir a) in
@@ -776,53 +785,53 @@ TEST_MODULE = struct
     stabilize ();
     assert (a.cell = Empty);
     assert (b --> a);
-    assert (c --> a);
+    assert (c --> a)
   ;;
 
-  TEST_UNIT =
+  let%test_unit _ =
     let a1 = create () in
     connect a1 a1;
     stabilize ();
-    assert (a1.cell = Empty);
+    assert (a1.cell = Empty)
   ;;
 
-  TEST_UNIT =
+  let%test_unit _ =
     let a1 = create () in
     let a2 = create_with_cell (Indir a1) in
     connect a1 a2;
     stabilize ();
     assert (a1.cell = Empty);
-    assert (a2 --> a1);
+    assert (a2 --> a1)
   ;;
 
-  TEST_UNIT =
+  let%test_unit _ =
     let a1 = create () in
     let a2 = create_with_cell (Indir a1) in
     connect a2 a1;
     stabilize ();
     assert (a1.cell = Empty);
-    assert (a2 --> a1);
+    assert (a2 --> a1)
   ;;
 
-  TEST_UNIT =
+  let%test_unit _ =
     let a1 = create () in
     let b1 = create_with_cell empty_one_handler in
     connect a1 b1;
     stabilize ();
     assert (phys_equal a1.cell empty_one_handler);
-    assert (b1 --> a1);
+    assert (b1 --> a1)
   ;;
 
-  TEST_UNIT =
+  let%test_unit _ =
     let a1 = create_with_cell empty_one_handler in
     let b1 = create () in
     connect a1 b1;
     stabilize ();
     assert (phys_equal a1.cell empty_one_handler);
-    assert (b1 --> a1);
+    assert (b1 --> a1)
   ;;
 
-  TEST_UNIT =
+  let%test_unit _ =
     let a1 = create_with_cell empty_one_handler in
     let b1 = create_with_cell empty_one_handler in
     connect a1 b1;
@@ -835,10 +844,10 @@ TEST_MODULE = struct
         assert (phys_equal run' run));
     | _ -> assert false
     end;
-    assert (b1 --> a1);
+    assert (b1 --> a1)
   ;;
 
-  TEST_UNIT =
+  let%test_unit _ =
     let empty_many_handlers1 = cell_of_handler_list [ handler1 ] in
     let a1 = create_with_cell empty_many_handlers1 in
     let b1 = create_with_cell (cell_of_handler_list [ handler2 ]) in
@@ -855,10 +864,10 @@ TEST_MODULE = struct
       end
     | _ -> assert false
     end;
-    assert (b1 --> a1);
+    assert (b1 --> a1)
   ;;
 
-  TEST_UNIT =
+  let%test_unit _ =
     let empty_many_handlers1 = cell_of_handler_list [ handler1 ] in
     let a1 = create_with_cell empty_many_handlers1 in
     let b1 = create_with_cell empty_one_handler in
@@ -874,19 +883,19 @@ TEST_MODULE = struct
       end
     | _ -> assert false
     end;
-    assert (b1 --> a1);
+    assert (b1 --> a1)
   ;;
 
-  TEST_UNIT =
+  let%test_unit _ =
     let i1 = create () in
     let i2 = create_with_cell (Full 13) in
     connect i1 i2;
     stabilize ();
     assert (i1.cell = Full 13);
-    assert (i2.cell = Full 13);
+    assert (i2.cell = Full 13)
   ;;
 
-  TEST_UNIT =
+  let%test_unit _ =
     let a1 = create () in
     let b1 = create_with_cell (Full 13) in
     let b2 = create_with_cell (Indir b1) in
@@ -894,16 +903,16 @@ TEST_MODULE = struct
     stabilize ();
     assert (a1.cell = Full 13);
     assert (b1.cell = Full 13);
-    assert (b2 --> a1);
+    assert (b2 --> a1)
   ;;
 
-  TEST_UNIT =
+  let%test_unit _ =
     let a1 = create_with_cell empty_one_handler in
     let b1 = create_with_cell (Full 13) in
     connect a1 b1;
     stabilize ();
     assert (a1.cell = Full 13);
-    assert (b1.cell = Full 13);
+    assert (b1.cell = Full 13)
   ;;
 
-end
+end)

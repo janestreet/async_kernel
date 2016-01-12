@@ -6,7 +6,7 @@ type how =
   | `Sequential                 (** like [`Max_concurrent_jobs 1] *)
   | `Max_concurrent_jobs of int
   ]
-with sexp_of
+[@@deriving sexp_of]
 
 module type S = sig
   type 'a monad

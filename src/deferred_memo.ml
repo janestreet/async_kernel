@@ -22,7 +22,7 @@ let unit f =
   fun () -> f () >>| reraise
 ;;
 
-TEST_MODULE = struct
+let%test_module _ = (module struct
   let test memo ~should_raise =
     let num_calls_to_f = ref 0 in
     let f =
@@ -37,20 +37,20 @@ TEST_MODULE = struct
     let a = Monitor.try_with (fun () -> f ()) in
     let b = Monitor.try_with (fun () -> f ()) in
     Scheduler.run_cycles_until_no_jobs_remain ();
-    <:test_result< int >> !num_calls_to_f ~expect:1;
+    [%test_result: int] !num_calls_to_f ~expect:1;
     let is_correct =
       if should_raise
       then (function Some (Error _) -> true | _ -> false)
       else (function Some (Ok 7)    -> true | _ -> false)
     in
-    <:test_pred< (int, exn) Result.t option >> is_correct (Deferred.peek a);
-    <:test_pred< (int, exn) Result.t option >> is_correct (Deferred.peek b);
+    [%test_pred: (int, exn) Result.t option] is_correct (Deferred.peek a);
+    [%test_pred: (int, exn) Result.t option] is_correct (Deferred.peek b);
   ;;
 
   let general = general (module Unit)
 
-  TEST_UNIT = test general ~should_raise:false
-  TEST_UNIT = test unit    ~should_raise:false
-  TEST_UNIT = test general ~should_raise:true
-  TEST_UNIT = test unit    ~should_raise:true
-end
+  let%test_unit _ = test general ~should_raise:false
+  let%test_unit _ = test unit    ~should_raise:false
+  let%test_unit _ = test general ~should_raise:true
+  let%test_unit _ = test unit    ~should_raise:true
+end)

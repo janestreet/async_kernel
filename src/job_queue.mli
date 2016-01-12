@@ -3,9 +3,9 @@
 open Core_kernel.Std
 open Import
 
-module Scheduler = Types.Scheduler
+module Scheduler = Scheduler0
 
-type t = Types.Job_queue.t with sexp_of
+type t = Types.Job_queue.t [@@deriving sexp_of]
 
 include Invariant.S with type t := t
 

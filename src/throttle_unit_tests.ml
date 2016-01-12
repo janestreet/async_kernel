@@ -13,9 +13,9 @@ let stabilize = Scheduler.run_cycles_until_no_jobs_remain
 
 module T2 = T2
 
-type nonrec 'a outcome = 'a outcome with sexp_of
+type nonrec 'a outcome = 'a outcome [@@deriving sexp_of]
 
-type nonrec 'a t = 'a t with sexp_of
+type nonrec 'a t = 'a t [@@deriving sexp_of]
 
 let invariant = invariant
 
@@ -29,7 +29,7 @@ let enqueue'            = enqueue'
 let is_dead             = is_dead
 let max_concurrent_jobs = max_concurrent_jobs
 
-TEST =
+let%test _ =
   try
     ignore (create ~continue_on_error:false ~max_concurrent_jobs:0);
     false
@@ -37,7 +37,7 @@ TEST =
 ;;
 
 (* [enqueue] does not start the job immediately. *)
-TEST_UNIT =
+let%test_unit _ =
   let t = create ~continue_on_error:false ~max_concurrent_jobs:1 in
   let i = ref 0 in
   let (_ : unit Deferred.t) = enqueue t (fun () -> incr i; Deferred.unit) in
@@ -46,7 +46,7 @@ TEST_UNIT =
   assert (!i = 1)
 ;;
 
-TEST_UNIT =
+let%test_unit _ =
   (* Check [~continue_on_error:false]. *)
   let t = create ~continue_on_error:false ~max_concurrent_jobs:1 in
   assert (max_concurrent_jobs t = 1);
@@ -57,10 +57,10 @@ TEST_UNIT =
   assert (num_jobs_waiting_to_start t = 0);
   assert (is_dead t);
   assert (match Deferred.peek d1 with Some (`Raised _) -> true | _ -> false);
-  assert (match Deferred.peek d2 with Some `Aborted -> true | _ -> false);
+  assert (match Deferred.peek d2 with Some `Aborted -> true | _ -> false)
 ;;
 
-TEST_UNIT =
+let%test_unit _ =
   (* Check [~continue_on_error:true]. *)
   let t = create ~continue_on_error:true ~max_concurrent_jobs:1 in
   let d1 = enqueue' t (fun () -> failwith "") in
@@ -68,12 +68,12 @@ TEST_UNIT =
   stabilize ();
   assert (not (is_dead t));
   assert (match Deferred.peek d1 with Some (`Raised _) -> true | _ -> false);
-  assert (match Deferred.peek d2 with Some (`Ok 13) -> true | _ -> false);
+  assert (match Deferred.peek d2 with Some (`Ok 13) -> true | _ -> false)
 ;;
 
 let enqueue = enqueue
 
-TEST_UNIT =
+let%test_unit _ =
   (* Check that jobs are started in the order they are enqueued. *)
   let t = create ~continue_on_error:false ~max_concurrent_jobs:2 in
   assert (max_concurrent_jobs t = 2);
@@ -82,13 +82,13 @@ TEST_UNIT =
     don't_wait_for (enqueue t (fun () -> r := i :: !r; Deferred.unit));
   done;
   stabilize ();
-  assert (!r = List.rev (List.init 100 ~f:Fn.id));
+  assert (!r = List.rev (List.init 100 ~f:Fn.id))
 ;;
 
 let num_jobs_running          = num_jobs_running
 let num_jobs_waiting_to_start = num_jobs_waiting_to_start
 
-TEST_UNIT =
+let%test_unit _ =
   let t = create ~continue_on_error:false ~max_concurrent_jobs:2 in
   assert (num_jobs_waiting_to_start t = 0);
   let add_job () =
@@ -115,12 +115,12 @@ TEST_UNIT =
   Ivar.fill i1 ();
   stabilize ();
   assert (num_jobs_waiting_to_start t = 0);
-  assert (num_jobs_running t = 2);
+  assert (num_jobs_running t = 2)
 ;;
 
 let capacity_available = capacity_available
 
-TEST_UNIT =
+let%test_unit _ =
   let t = create ~continue_on_error:false ~max_concurrent_jobs:2 in
   let r = capacity_available t in
   stabilize ();
@@ -137,13 +137,13 @@ TEST_UNIT =
   assert (Option.is_none (Deferred.peek r));
   Ivar.fill i1 ();
   stabilize ();
-  assert (Option.is_some (Deferred.peek r));
+  assert (Option.is_some (Deferred.peek r))
 ;;
 
 let create_with     = create_with
 let prior_jobs_done = prior_jobs_done
 
-TEST_UNIT =
+let%test_unit _ =
   (* Check that [max_concurrent_jobs] limit works, and is fully utilized. *)
   List.iter [ 1; 10; 100; 1000 ] ~f:(fun num_jobs ->
     List.iter [ 1; 10; 100; 1000 ] ~f:(fun max_concurrent_jobs ->
@@ -198,7 +198,7 @@ TEST_UNIT =
 let at_kill = at_kill
 let cleaned = cleaned
 
-TEST_UNIT =
+let%test_unit _ =
   let test ~num_resources ~num_jobs_before_fail ~num_jobs_after_fail =
     let resources = List.init num_resources ~f:(fun _ -> ref true) in
     let t = create_with ~continue_on_error:false resources in
@@ -253,14 +253,14 @@ TEST_UNIT =
          `num_jobs_after_fail num_jobs_after_fail,
          `num_at_kill_started !num_at_kill_started,
          t)
-        <:sexp_of<
+        [%sexp_of:
           (exn
           * [ `num_resources of int ]
           * [ `num_jobs_before_fail of int ]
           * [ `num_jobs_after_fail of int ]
           * [ `num_at_kill_started of int ]
           * bool ref t
-          ) >>
+          )]
   in
   for num_resources = 1 to 3 do
     for num_jobs_before_fail = 0 to num_resources + 1 do
@@ -270,17 +270,17 @@ TEST_UNIT =
                (`num_resources num_resources,
                 `num_jobs_before_fail num_jobs_before_fail,
                 `num_jobs_after_fail num_jobs_after_fail)
-               <:sexp_of< ([ `num_resources of int ]
+               [%sexp_of: ([ `num_resources of int ]
                           * [ `num_jobs_before_fail of int ]
-                          * [ `num_jobs_after_fail of int ]) >>;
+                          * [ `num_jobs_after_fail of int ])];
         test ~num_resources ~num_jobs_before_fail ~num_jobs_after_fail;
       done;
     done;
-  done;
+  done
 ;;
 
 (* check that exceptions raised by clean function go to the correct monitor *)
-TEST_UNIT =
+let%test_unit _ =
   let t = create ~continue_on_error:false ~max_concurrent_jobs:1 in
   let monitor = Monitor.create () in
   let cleanup_ran = ref false in
@@ -293,13 +293,13 @@ TEST_UNIT =
   stabilize ();
   assert !cleanup_ran;
   assert !got_error;
-  assert (not (Deferred.is_determined c));
+  assert (not (Deferred.is_determined c))
 ;;
 
 let kill = kill
 
 (* jobs started before [kill] finish. *)
-TEST_UNIT =
+let%test_unit _ =
   let d =
     let t = create ~continue_on_error:false ~max_concurrent_jobs:1 in
     let started = Ivar.create () in
@@ -317,21 +317,21 @@ TEST_UNIT =
     | `Aborted | `Raised _ -> assert false
   in
   stabilize ();
-  assert (Deferred.is_determined d);
+  assert (Deferred.is_determined d)
 ;;
 
 (* jobs enqueued after [kill] are aborted. *)
-TEST_UNIT =
+let%test_unit _ =
   let t = create ~continue_on_error:false ~max_concurrent_jobs:1 in
   kill t;
   let r = ref true in
   let d = enqueue' t (fun () -> r := false; return ()) in
   stabilize ();
   assert (Deferred.peek d = Some `Aborted);
-  assert !r;
+  assert !r
 ;;
 
-TEST_UNIT = (* enqueueing withing a job doesn't lead to monitor nesting *)
+let%test_unit _ = (* enqueueing withing a job doesn't lead to monitor nesting *)
   let seq = Sequencer.create () in
   let rec loop n =
     if n = 0
@@ -344,5 +344,5 @@ TEST_UNIT = (* enqueueing withing a job doesn't lead to monitor nesting *)
   in
   let d = loop 100 in
   stabilize ();
-  assert (Deferred.peek d = Some ());
+  assert (Deferred.peek d = Some ())
 ;;
