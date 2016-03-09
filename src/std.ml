@@ -27,7 +27,7 @@ let catch          = Monitor.catch
 let choice         = Deferred.choice
 let choose         = Deferred.choose
 let don't_wait_for = Deferred.don't_wait_for
-let every          = Clock_ns .every
+let every          = Clock_ns.every
 let never          = Deferred.never
 let return         = Deferred.return
 let schedule       = Scheduler.schedule
@@ -43,3 +43,5 @@ let ( >>=? ) = Deferred.Result.( >>= )
 let ( >>|? ) = Deferred.Result.( >>| )
 
 include (Deferred : sig include Monad.Infix with type 'a t := 'a Deferred.t end)
+
+include Deferred.Let_syntax

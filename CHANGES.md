@@ -1,3 +1,75 @@
+## 113.33.00
+
+- In `Pipe`, deprecated `read_at_most` and `read_now_at_most`, and
+  replaced them with `read'` and `read_now'`, respectively.
+
+- Reverted a recent feature that changed `Pipe`'s default
+  `max_queue_length` from `Int.max_value` to `100`.  It looks like 100
+  is to small to keep `Pipe` overhead to a minimum -- we saw a
+  noticeable slowdown in Async.Log.  We're going to do some more
+  benchmarking and try to reduce the overhead and choose a better
+  number.
+
+- Added `Async.Std.Let_syntax = Deferred.Let_syntax`, which makes it
+  possible to use `%bind` and `%map` after `open Async.Std`.
+
+  This required fixing a few places where the new `Let_syntax` in scope
+  shadowed `Command.Param.Let_syntax`.
+
+- Improve stacktrace for unhandle async exception in js\_of\_ocaml.
+
+  Wrapping the unhandle exception with `Error.create` will serialize this exception
+  and prevent us to have good error reporting in Js\_of\_ocaml.
+
+- Reworked `Async_kernel`'s clock handling to make it possible to use a
+  notion of time distinct from the wall-clock time used by `Clock_ns`
+  and maintained by the Async scheduler.  There is now a self-contained
+  `Time_source` module, a data structure that holds a timing-wheel.  All
+  of the code that was in `Clock_ns` and implicitly used the Async
+  scheduler and its timing wheel is now in `Time_source`, and is
+  suitably parameterized to work on an arbitrary time source with an
+  arbitrary timing wheel.  `Clock_ns` is now a wrapper around
+  `Time_source` that implicitly uses the Async scheduler's time source.
+
+  `Time_source` still uses the Async scheduler for running jobs that
+  fire -- the new power comes from the user being able to advance time
+  distinctly from the wall clock.
+
+- Changed `Time_source.sexp_of_t` to display "<wall_clock>" for the
+  wall-clock time source.  We don't want to display the events because
+  that can be ridiculously large.
+
+  And, for non-wall-clock time sources, don't show the `Job.t`s in
+  events, because they are uninformative pool pointers.
+
+- Added `Time_source.advance_by`.
+
+- Added `Time_source.alarm_precision`.
+
+- Added to `Async.Scheduler` `Time_ns` analogs of `cycle_start` and
+  `cycle_times`:
+
+      val cycle_start_ns : unit -> Time_ns.t
+      val cycle_times_ns : unit -> Time_ns.Span.t Stream.t
+
+- Add `Deferred.map_choice` for transforming the output of `Deferred.choice`.
+
+- Remove an avoidable call to `is_determined` in `Deferred.value_exn`.  The patch is
+  meant to preserve current error messages without adding any allocation overhead
+  compared to the existing.
+
+  Context: implementation of Eager_deferred in the works that essentially wants to
+  redefine map, bind, etc, in the following way:
+
+      let map t ~f =
+        if Deferred.is_determined t
+        then return (f (Deferred.value_exn t))
+        else Deferred.map t ~f
+      ;;
+
+- Add `Pipe.read_choice` to encode the appropriate way of combining `values_available`
+  and `read_now` to conditionally read from a pipe.
+
 ## 113.24.00
 
 N.B. some interface change in Core (notably to `Hashtbl` and `Map`) implied some

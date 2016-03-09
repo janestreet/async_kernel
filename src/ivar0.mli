@@ -1,7 +1,7 @@
 (** Internal to Async -- see {!Ivar} for the public API. *)
 
-open Core_kernel.Std
-open Import
+open! Core_kernel.Std
+open! Import
 
 type 'a t = 'a Types.Ivar.t [@@deriving sexp_of]
 type 'a ivar = 'a t
@@ -13,6 +13,7 @@ val create_full : 'a -> 'a t
 
 val peek      : 'a t -> 'a option
 val value_exn : 'a t -> 'a
+val value     : 'a t -> if_empty_then_failwith:string -> 'a
 
 val is_empty : _ t -> bool
 val is_full  : _ t -> bool

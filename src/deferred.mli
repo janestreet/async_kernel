@@ -4,8 +4,8 @@
     at some point become determined with value v, and will henceforth always be determined
     with value v. *)
 
-open Core_kernel.Std
-open Import
+open! Core_kernel.Std
+open! Import
 
 module Array    : module type of Deferred_array
 module List     : module type of Deferred_list
@@ -124,10 +124,16 @@ val any_unit : 'a t list -> unit t
     where a value is accidentally ignored. *)
 val don't_wait_for : unit t -> unit
 
-(** [choice] is used to produce an argument to [enabled] or [choose].  See below. *)
-type +'a choice = 'a Deferred1.choice
+(** A [Choice.t] is used to produce an argument to [enabled] or [choose].  See below. *)
+module Choice : sig
+  type +'a t = 'a Deferred1.choice
 
-val choice : 'a t -> ('a -> 'b) -> 'b choice
+  val map : 'a t -> f:('a -> 'b) -> 'b t
+end
+
+type 'a choice = 'a Choice.t
+
+val choice : 'a t -> ('a -> 'b) -> 'b Choice.t
 
 (** [enabled [choice t1 f1; ... choice tn fn;]] returns a deferred [d] that becomes
     determined when any of the [ti] become determined.  The value of [d] is a function [f]
@@ -135,7 +141,7 @@ val choice : 'a t -> ('a -> 'b) -> 'b choice
     list of the results.  It is guaranteed that the list is in the same order as the
     choices supplied to [enabled], but of course it may be shorter than the input list if
     not all [ti] are determined. *)
-val enabled : 'b choice list -> (unit -> 'b list) t
+val enabled : 'b Choice.t list -> (unit -> 'b list) t
 
 (**
    {[
@@ -169,7 +175,7 @@ val enabled : 'b choice list -> (unit -> 'b list) t
    asynchrony, then the earliest choice in the list will become the value of the
    [choose].
 *)
-val choose : 'b choice list -> 'b t
+val choose : 'b Choice.t list -> 'b t
 
 (** [repeat_until_finished initial_state f] repeatedly runs [f] until [f] returns
     [`Finished].  The first call to [f] happens immediately when [repeat_until_finished]

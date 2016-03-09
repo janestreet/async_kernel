@@ -1,6 +1,6 @@
 (** Internal Async debugging functions. *)
 
-open Core_kernel.Std
+open! Core_kernel.Std
 
 include module type of Config.Print_debug_messages_for
 

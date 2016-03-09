@@ -19,7 +19,7 @@
 
     There are distinct [Reader] and [Writer] modules and types, but all of the operations
     on readers and writers are available directly from the [Pipe] module. *)
-open Core_kernel.Std
+open! Core_kernel.Std
 
 type ('a, 'phantom) t [@@deriving sexp_of]
 type ('a, 'phantom) pipe = ('a, 'phantom) t [@@deriving sexp_of]
@@ -340,7 +340,7 @@ val write_without_pushback_if_open : 'a Writer.t -> 'a -> unit
     meaning of values being flushed (see the [Consumer] module above). *)
 val read'
   :  ?consumer         : Consumer.t
-  -> ?max_queue_length : int  (** default is [100] *)
+  -> ?max_queue_length : int  (** default is [Int.max_value] *)
   -> 'a Reader.t
   -> [ `Eof | `Ok of 'a Queue.t ] Deferred.t
 
@@ -357,6 +357,7 @@ val read_at_most
   -> 'a Reader.t
   -> num_values:int
   -> [ `Eof | `Ok of 'a Queue.t ] Deferred.t
+  [@@deprecated "[since 2015-12] Use [read' ~max_queue_length]"]
 
 (** [read_exactly r ~num_values] reads exactly [num_values] items, unless EOF is
     encountered.  [read_exactly] performs a sequence of [read_at_most] operations, so
@@ -370,8 +371,8 @@ val read_exactly
   -> 'a Reader.t
   -> num_values:int
   -> [ `Eof
-     | `Fewer of 'a Queue.t   (* 0 < Q.length q < num_values *)
-     | `Exactly of 'a Queue.t (* Q.length q = num_values *)
+     | `Fewer of 'a Queue.t    (** [0 < Q.length q < num_values] *)
+     | `Exactly of 'a Queue.t  (** [Q.length q = num_values] *)
      ] Deferred.t
 
 (** [read_now' reader] reads values from [reader] that are immediately available.  The
@@ -381,7 +382,7 @@ val read_exactly
     flushed (see the [Consumer] module above). *)
 val read_now'
   :  ?consumer         : Consumer.t
-  -> ?max_queue_length : int  (** default is [100] *)
+  -> ?max_queue_length : int  (** default is [Int.max_value] *)
   -> 'a Reader.t
   -> [ `Eof | `Nothing_available | `Ok of 'a Queue.t ]
 
@@ -398,6 +399,7 @@ val read_now_at_most
   -> 'a Reader.t
   -> num_values : int
   -> [ `Eof | `Nothing_available | `Ok of 'a Queue.t ]
+  [@@deprecated "[since 2015-12] Use [read_now' ~max_queue_length"]
 
 val peek : 'a Reader.t -> 'a option
 
@@ -419,8 +421,36 @@ val read_all : 'a Reader.t -> 'a Queue.t Deferred.t
     [values_available] is useful when one wants to [choose] on values being available in a
     pipe, so that one can be sure and not remove values and drop them on the floor.
 
-    [values_available] is roughly equivalent to [read_at_most ~num_values:0]. *)
+    [values_available] is roughly equivalent to [read' ~max_queue_length:0]. *)
 val values_available : _ Reader.t -> [ `Eof | `Ok ] Deferred.t
+
+(** [read_choice reader] is:
+
+    {[
+      choice
+        (values_available reader)
+        (fun (_ : [ `Ok | `Eof ]) -> read_now reader)
+    ]}
+
+    [read_choice] consumes a value from [reader] iff the choice is taken.  [read_choice]
+    exists to discourage the broken idiom:
+
+    {[
+      choice (read reader) (fun ...)
+    ]}
+
+    which is broken because it reads from [reader] even if the choice isn't taken.
+    [`Nothing_available] can only be returned if there is a race condition with one or
+    more other consumers.
+
+    [read_choice_single_consumer_exn reader [%here]] is like [read_choice reader], but it
+    raises in the case of [`Nothing_available].  It is intended to be used when [reader]
+    has no other consumers. *)
+val read_choice : 'a Reader.t -> [ `Eof | `Ok of 'a | `Nothing_available ] Deferred.choice
+val read_choice_single_consumer_exn
+  : 'a Reader.t
+  -> Source_code_position.t
+  -> [ `Eof | `Ok of 'a ] Deferred.choice
 
 (** {1 Sequence functions} *)
 (******************************************************************************)
@@ -455,7 +485,7 @@ val values_available : _ Reader.t -> [ `Eof | `Ok ] Deferred.t
     the final batch of elements from [reader] finishes. *)
 val fold'
   :  ?consumer         : Consumer.t
-  -> ?max_queue_length : int  (** default is [100] *)
+  -> ?max_queue_length : int  (** default is [Int.max_value] *)
   -> 'a Reader.t
   -> init              : 'accum
   -> f                 : ('accum -> 'a Queue.t -> 'accum Deferred.t)
@@ -486,7 +516,7 @@ val fold_without_pushback
 val iter'
   :  ?consumer          : Consumer.t
   -> ?continue_on_error : bool  (** default is [false] *)
-  -> ?max_queue_length : int  (** default is [100] *)
+  -> ?max_queue_length : int  (** default is [Int.max_value] *)
   -> 'a Reader.t
   -> f:('a Queue.t -> unit Deferred.t)
   -> unit Deferred.t
@@ -508,7 +538,7 @@ val iter
 val iter_without_pushback
   :  ?consumer               : Consumer.t
   -> ?continue_on_error      : bool  (** default is [false] *)
-  -> ?max_iterations_per_job : int   (** default is [100] *)
+  -> ?max_iterations_per_job : int   (** default is [Int.max_value] *)
   -> 'a Reader.t
   -> f : ('a -> unit)
   -> unit Deferred.t
@@ -518,7 +548,7 @@ val iter_without_pushback
     [pushback] in [output] before continuing.  [transfer'] finishes if [input] is closed
     or [output] is closed.  If [output] is closed, then [transfer'] closes [input]. *)
 val transfer'
-  :  ?max_queue_length : int  (** default is [100] *)
+  :  ?max_queue_length : int  (** default is [Int.max_value] *)
   -> 'a Reader.t
   -> 'b Writer.t
   -> f : ('a Queue.t -> 'b Queue.t Deferred.t)
@@ -529,7 +559,7 @@ val transfer : 'a Reader.t -> 'b Writer.t -> f:('a -> 'b ) -> unit Deferred.t
 
 (** [transfer_id] is a specialization of [transfer'] with [f = Fn.id]. *)
 val transfer_id
-  :  ?max_queue_length : int  (** default is [100] *)
+  :  ?max_queue_length : int  (** default is [Int.max_value] *)
   -> 'a Reader.t
   -> 'a Writer.t
   -> unit Deferred.t
@@ -539,7 +569,7 @@ val transfer_id
     being consumed from [output], [map'] will pushback and stop consuming values from
     [input]. If [output] is closed, then [map'] will close [input]. *)
 val map'
-  :  ?max_queue_length : int  (** default is [100] *)
+  :  ?max_queue_length : int  (** default is [Int.max_value] *)
   -> 'a Reader.t
   -> f:('a Queue.t -> 'b Queue.t Deferred.t)
   -> 'b Reader.t
@@ -553,14 +583,14 @@ val map : 'a Reader.t -> f:('a -> 'b) -> 'b Reader.t
     consuming values from [input].  If [output] is closed, then [filter_map'] will close
     [input]. *)
 val filter_map'
-  :  ?max_queue_length : int  (** default is [100] *)
+  :  ?max_queue_length : int  (** default is [Int.max_value] *)
   -> 'a Reader.t
   -> f:('a -> 'b option Deferred.t)
   -> 'b Reader.t
 
 (** [filter_map] is a specialized version of [filter_map']. *)
 val filter_map
-  :  ?max_queue_length : int  (** default is [100] *)
+  :  ?max_queue_length : int  (** default is [Int.max_value] *)
   -> 'a Reader.t
   -> f:('a -> 'b option)
   -> 'b Reader.t

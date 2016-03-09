@@ -1,4 +1,4 @@
-open Core_kernel.Std
+open! Core_kernel.Std
 
 include Monad.S2 with type ('a, 'b) t = ('a, 'b) Result.t Deferred1.t
 

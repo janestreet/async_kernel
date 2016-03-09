@@ -20,7 +20,7 @@
     in power.
 *)
 
-open Core_kernel.Std
+open! Core_kernel.Std
 
 type 'a t
 

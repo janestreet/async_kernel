@@ -1,7 +1,7 @@
 (** The context in which an Async job runs. *)
 
-open Core_kernel.Std
-open Import
+open! Core_kernel.Std
+open! Import
 
 type t = Types.Execution_context.t =
   { monitor            : Monitor0.t

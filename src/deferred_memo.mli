@@ -1,8 +1,8 @@
 (** Memoization functions like in [Core_kernel.Std.Memo], with re-raising of exceptions
     thrown asynchronously. *)
 
-open Core_kernel.Std
-open Import
+open! Core_kernel.Std
+open! Import
 
 module Deferred = Deferred1
 

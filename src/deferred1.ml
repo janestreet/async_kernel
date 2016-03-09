@@ -40,7 +40,13 @@ open Infix
 
 let don't_wait_for (_ : unit t) = ()
 
-type +'a choice = Choice : 'b t * ('b -> 'a) -> 'a choice
+module Choice = struct
+  type +'a t = T : 'b Deferred0.t * ('b -> 'a) -> 'a t
+
+  let map (T (t, f1)) ~f:f2 = T (t, fun x -> f2 (f1 x))
+end
+
+type 'a choice = 'a Choice.t
 
 module Unregister = struct
   (* This representation saves 2n words for a list of n choices. *)
@@ -56,7 +62,7 @@ module Unregister = struct
   ;;
 end
 
-let choice t f = Choice (t, f)
+let choice t f = Choice.T (t, f)
 
 let enabled choices =
   let result = Ivar.create () in
@@ -66,7 +72,7 @@ let enabled choices =
       Unregister.process !unregisters;
       Ivar.fill result (fun () ->
         List.rev
-          (List.fold choices ~init:[] ~f:(fun ac (Choice (t, f)) ->
+          (List.fold choices ~init:[] ~f:(fun ac (Choice.T (t, f)) ->
              match peek t with
              | None -> ac
              | Some v -> f v :: ac)))
@@ -74,7 +80,7 @@ let enabled choices =
   in
   let execution_context = Scheduler.(current_execution_context (t ())) in
   unregisters :=
-    List.fold choices ~init:Unregister.Nil ~f:(fun acc (Choice (t, _)) ->
+    List.fold choices ~init:Unregister.Nil ~f:(fun acc (Choice.T (t, _)) ->
       Cons (t,
             Deferred0.add_handler t ready execution_context,
             acc));
@@ -84,7 +90,7 @@ let enabled choices =
 let rec choose_result choices =
   match choices with
   | [] -> assert false
-  | Choice (t, f) :: choices ->
+  | Choice.T (t, f) :: choices ->
     match peek t with
     | None -> choose_result choices
     | Some v -> f v
@@ -101,7 +107,7 @@ let choose choices =
   in
   let execution_context = Scheduler.(current_execution_context (t ())) in
   unregisters :=
-    List.fold choices ~init:Unregister.Nil ~f:(fun acc (Choice (t, _)) ->
+    List.fold choices ~init:Unregister.Nil ~f:(fun acc (Choice.T (t, _)) ->
       Cons (t,
             Deferred0.add_handler t ready execution_context,
             acc));

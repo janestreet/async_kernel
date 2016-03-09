@@ -149,9 +149,7 @@ let send_exn t ?backtrace exn =
           (* Do not change this branch to print the exception or to exit.  Having the
              scheduler raise an uncaught exception is the necessary behavior for programs
              that call [Scheduler.go] and want to handle it. *)
-          Scheduler.(got_uncaught_exn (t ()))
-            (Error.create "unhandled exception" (exn, !Config.task_id ())
-               [%sexp_of: exn * Sexp.t])
+          Scheduler.(got_uncaught_exn (t ())) exn (!Config.task_id ())
         end;
   in
   loop t

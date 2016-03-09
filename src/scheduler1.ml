@@ -3,6 +3,8 @@ open Import
 
 include (Scheduler0 : module type of Scheduler0 with type t := Scheduler0.t)
 
+module Time_source = Time_source0
+
 let debug = Debug.scheduler
 
 type t = Scheduler0.t =
@@ -19,16 +21,13 @@ type t = Scheduler0.t =
      monitor tree without being handled.  This function guarantees to never run another
      job after this by calling [clear] and because [enqueue_job] will never add another
      job. *)
-  ; mutable uncaught_exn                        : Error.t option
+  ; mutable uncaught_exn                        : (Exn.t * Sexp.t) option
   ; mutable cycle_count                         : int
   ; mutable cycle_start                         : Time_ns.t
   ; mutable run_every_cycle_start               : (unit -> unit) list
   ; mutable last_cycle_time                     : Time_ns.Span.t
   ; mutable last_cycle_num_jobs                 : int
-  ; events                                      : Job.t Timing_wheel_ns.t
-  (* We store [handle_fired] in [t] to avoid allocating it every time we call
-     [advance_clock]. *)
-  ; mutable handle_fired                        : Job.t Timing_wheel_ns.Alarm.t -> unit
+  ; mutable time_source                         : read_write Time_source.T1.t
   (* [external_jobs] is a queue of actions sent from outside of async.  This is for the
      case where we want to schedule a job or fill an ivar from a context where it is not
      safe to run async code, because the async lock isn't held.  For instance: - in an
@@ -64,6 +63,15 @@ type t = Scheduler0.t =
   }
 [@@deriving fields, sexp_of]
 
+let uncaught_exn_unwrapped = uncaught_exn
+
+let uncaught_exn t =
+  match t.uncaught_exn with
+  | None -> None
+  | Some (exn, sexp) ->
+    Some (Error.create "unhandled exception" (exn, sexp) [%sexp_of: Exn.t * Sexp.t])
+;;
+
 let num_pending_jobs t =
   Job_queue.length t.normal_priority_jobs + Job_queue.length t.low_priority_jobs
 ;;
@@ -91,8 +99,7 @@ let invariant t : unit =
       ~last_cycle_time:ignore
       ~last_cycle_num_jobs:(check (fun last_cycle_num_jobs ->
         assert (last_cycle_num_jobs >= 0)))
-      ~events:(check (Timing_wheel_ns.invariant Job.invariant))
-      ~handle_fired:ignore
+      ~time_source:(check Time_source.Read_write.invariant)
       ~external_jobs:ignore
       ~thread_safe_external_job_hook:ignore
       ~job_queued_hook:ignore
@@ -135,14 +142,15 @@ let enqueue_job t job ~free_job =
   if free_job then Pool.free t.job_pool job;
 ;;
 
+let handle_fired (time_source : _ Time_source.T1.t) alarm =
+  enqueue_job time_source.scheduler
+    (Timing_wheel_ns.Alarm.value time_source.events alarm)
+    ~free_job:true
+;;
+
 let create () =
   let now = Time_ns.now () in
-  let events =
-    Timing_wheel_ns.create
-      ~config:Config.timing_wheel_config
-      ~start:now
-  in
-  let t =
+  let rec t =
     { check_access                        = None
     ; job_pool                            = Job_pool.create ()
     ; normal_priority_jobs                = Job_queue.create ()
@@ -155,8 +163,7 @@ let create () =
     ; run_every_cycle_start               = []
     ; last_cycle_time                     = sec 0.
     ; last_cycle_num_jobs                 = 0
-    ; events
-    ; handle_fired                        = Fn.const () (* set below *)
+    ; time_source
     ; external_jobs                       = Thread_safe_queue.create ()
     ; thread_safe_external_job_hook       = ignore
     ; job_queued_hook                     = None
@@ -167,10 +174,15 @@ let create () =
     ; max_num_jobs_per_priority_per_cycle = Config.max_num_jobs_per_priority_per_cycle
     ; record_backtraces                   = Config.record_backtraces;
     }
+  and events = Timing_wheel_ns.create ~config:Config.timing_wheel_config ~start:now
+  and time_source =
+    { Time_source.T1.
+      events
+    ; handle_fired  = (fun alarm -> handle_fired time_source alarm)
+    ; is_wall_clock = true
+    ; scheduler     = t
+    }
   in
-  t.handle_fired <-
-    (fun alarm ->
-       enqueue_job t (Timing_wheel_ns.Alarm.value events alarm) ~free_job:true);
   t
 ;;
 
@@ -217,19 +229,10 @@ let create_job (type a) t execution_context f a =
     (Obj.repr (a : a));
 ;;
 
-let schedule_job t ~at execution_context f a =
-  let alarm = Timing_wheel_ns.add t.events ~at (create_job t execution_context f a) in
-  begin match t.event_added_hook with
-  | None -> ()
-  | Some f -> f at
-  end;
-  alarm
-;;
-
-let got_uncaught_exn t error =
-  if debug then Debug.log "got_uncaught_exn" error [%sexp_of: Error.t];
+let got_uncaught_exn t exn sexp =
+  if debug then Debug.log "got_uncaught_exn" (exn, sexp) [%sexp_of: Exn.t * Sexp.t];
   List.iter [ t.normal_priority_jobs ; t. low_priority_jobs ] ~f:Job_queue.clear;
-  t.uncaught_exn <- Some error;
+  t.uncaught_exn <- Some (exn, sexp);
 ;;
 
 (** [start_cycle t ~max_num_jobs_per_priority] enables subsequent calls of [run_jobs]

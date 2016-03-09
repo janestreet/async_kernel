@@ -1,6 +1,6 @@
 (** A pointer to the end of an {!Async_stream} that can be used to extend the stream. *)
 
-open Import
+open! Import
 
 module Deferred = Deferred1
 

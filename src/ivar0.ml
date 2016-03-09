@@ -312,13 +312,17 @@ let peek t =
   | Empty | Empty_one_handler _ | Empty_one_or_more_handlers _ -> None
 ;;
 
-let value_exn t =
+let value t ~if_empty_then_failwith =
   let t = squash t in
   match t.cell with
   | Indir _ -> assert false (* fulfilled by [squash] *)
   | Full a -> a
   | Empty | Empty_one_handler _ | Empty_one_or_more_handlers _ ->
-    failwith "Ivar.value_exn called on empty ivar"
+    failwith if_empty_then_failwith
+;;
+
+let value_exn t =
+  value t ~if_empty_then_failwith:"Ivar.value_exn called on empty ivar"
 ;;
 
 let is_empty t =

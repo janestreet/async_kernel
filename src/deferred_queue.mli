@@ -2,6 +2,6 @@
     start calling the user function [f].  So, if [f] modifies the queue, that will have no
     effect on the iteration. *)
 
-open Core_kernel.Std
+open! Core_kernel.Std
 
 include Deferred1.Monad_sequence with type 'a t = 'a Queue.t

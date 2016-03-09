@@ -19,7 +19,7 @@
     finish.  Jobs enqueued into a killed throttle will be immediately aborted.
 *)
 
-open Core_kernel.Std
+open! Core_kernel.Std
 
 module Deferred = Deferred1
 

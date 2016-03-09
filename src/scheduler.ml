@@ -5,7 +5,8 @@ module Deferred  = Deferred1
 module Scheduler = Scheduler1
 module Stream    = Async_stream
 
-include Scheduler
+include (Scheduler : (module type of Scheduler
+                       with module Time_source := Scheduler.Time_source))
 
 let t = Scheduler.t
 
@@ -47,13 +48,13 @@ let main_execution_context = (t ()).main_execution_context
 
 let can_run_a_job t = num_pending_jobs t > 0 || Option.is_some t.yield_ivar
 
-let has_upcoming_event t = not (Timing_wheel_ns.is_empty t.events)
+let has_upcoming_event t = not (Timing_wheel_ns.is_empty (events t))
 
-let next_upcoming_event t = Timing_wheel_ns.next_alarm_fires_at t.events
+let next_upcoming_event t = Timing_wheel_ns.next_alarm_fires_at (events t)
 
-let next_upcoming_event_exn t = Timing_wheel_ns.next_alarm_fires_at_exn t.events
+let next_upcoming_event_exn t = Timing_wheel_ns.next_alarm_fires_at_exn (events t)
 
-let event_precision t = Timing_wheel_ns.alarm_precision t.events
+let event_precision t = Timing_wheel_ns.alarm_precision (events t)
 
 let cycle_start t = t.cycle_start
 
@@ -61,9 +62,9 @@ let run_every_cycle_start t ~f =
   t.run_every_cycle_start <- f :: t.run_every_cycle_start;
 ;;
 
-let cycle_times t =
+let map_cycle_times t ~f =
   Stream.create (fun tail ->
-    run_every_cycle_start t ~f:(fun () -> Tail.extend tail t.last_cycle_time));
+    run_every_cycle_start t ~f:(fun () -> Tail.extend tail (f t.last_cycle_time)));
 ;;
 
 let cycle_num_jobs t =
@@ -131,9 +132,7 @@ let force_current_cycle_to_end t =
   Job_queue.set_jobs_left_this_cycle t.normal_priority_jobs 0
 ;;
 
-let advance_clock t ~now =
-  Timing_wheel_ns.advance_clock t.events ~to_:now ~handle_fired:t.handle_fired
-;;
+let advance_clock t ~now = Time_source.advance t.time_source ~to_:now
 
 let run_cycle t =
   if debug then Debug.log "run_cycle starting" t [%sexp_of: t];
@@ -166,11 +165,6 @@ let run_cycle t =
          [%sexp_of: Error.t option * bool];
 ;;
 
-let fire_past_events t =
-  advance_clock t ~now:(Time_ns.now ());
-  Timing_wheel_ns.fire_past_alarms t.events ~handle_fired:t.handle_fired
-;;
-
 let run_cycles_until_no_jobs_remain () =
   if debug then Debug.log_string "run_cycles_until_no_jobs_remain starting";
   let t = t () in
@@ -179,9 +173,10 @@ let run_cycles_until_no_jobs_remain () =
          [%sexp_of: t];
   let rec loop () =
     run_cycle t;
-    (* We [fire_past_events] just before checking if there are pending jobs, so that clock
+    advance_clock t ~now:(Time_ns.now ());
+    (* We [fire_past_alarms] just before checking if there are pending jobs, so that clock
        events that fire become jobs, and thus cause an additional [loop]. *)
-    fire_past_events t;
+    Time_source.fire_past_alarms t.time_source;
     if can_run_a_job t then loop ()
   in
   loop ();
@@ -189,7 +184,7 @@ let run_cycles_until_no_jobs_remain () =
      a job, [current_execution_context = main_execution_context]. *)
   set_execution_context t t.main_execution_context;
   if debug then Debug.log_string "run_cycles_until_no_jobs_remain finished";
-  Option.iter t.uncaught_exn ~f:Error.raise;
+  Option.iter (uncaught_exn t) ~f:Error.raise;
 ;;
 
 let reset_in_forked_process () =

@@ -11,7 +11,7 @@
     v}
 *)
 
-open Core_kernel.Std
+open! Core_kernel.Std
 
 module Epoll_max_ready_events              : Validated with type raw := int
 module Max_inter_cycle_timeout             : Validated with type raw := Time_ns.Span.t

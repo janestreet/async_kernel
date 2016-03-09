@@ -519,7 +519,7 @@ let gen_read_now ?consumer t consume =
 
 let get_max_queue_length ~max_queue_length =
   match max_queue_length with
-  | None -> 100
+  | None -> Int.max_value
   | Some max_queue_length ->
     if max_queue_length <= 0
     then failwiths "max_queue_length <= 0" max_queue_length [%sexp_of: int];
@@ -584,11 +584,27 @@ let values_available t =
       Q.enqueue t.blocked_reads (Blocked_read.(create (Zero ivar)) None))
 ;;
 
-(* [read_exactly t ~num_values] loops, getting you all [num_values] items, up to EOF. *)
+let read_choice t =
+  choice (values_available t) (fun (_ : [ `Ok | `Eof ]) -> read_now t)
+;;
+
+let read_choice_single_consumer_exn t here =
+  Deferred.Choice.map (read_choice t) ~f:(function
+    | `Ok _ | `Eof as x -> x
+    | `Nothing_available ->
+      raise_s [%message "\
+Pipe.read_choice_single_consumer_exn: choice was enabled but pipe is empty; \
+this is likely due to a race condition with one or more other consumers"
+                          (here : Source_code_position.t)])
+;;
+
+(* [read_exactly t ~num_values] loops, getting you all [num_values] items, up
+   to EOF. *)
 let read_exactly ?consumer t ~num_values =
   start_read t "read_exactly" ?consumer;
   if num_values <= 0
-  then failwiths "Pipe.read_exactly got num_values <= 0" num_values [%sexp_of: int];
+  then failwiths "Pipe.read_exactly got num_values <= 0" num_values
+         [%sexp_of: int];
   Deferred.create (fun finish ->
     let result = Q.create () in
     let rec loop () =
@@ -597,7 +613,7 @@ let read_exactly ?consumer t ~num_values =
       if already_read = num_values
       then Ivar.fill finish (`Exactly result)
       else begin
-        read_at_most ?consumer t ~num_values:(num_values - already_read)
+        read' ?consumer t ~max_queue_length:(num_values - already_read)
         >>> function
         | `Eof -> Ivar.fill finish (if already_read = 0 then `Eof else `Fewer result)
         | `Ok q ->
@@ -746,7 +762,7 @@ let iter_without_pushback
   ensure_consumer_matches t ?consumer;
   let max_iterations_per_job =
     match max_iterations_per_job with
-    | None -> 100
+    | None -> Int.max_value
     | Some max_iterations_per_job ->
       if max_iterations_per_job <= 0
       then raise_s [%message "iter_without_pushback got non-positive max_iterations_per_job"
@@ -868,9 +884,10 @@ let transfer_gen
              | `Eof -> Ivar.fill result ()
              | `Ok x -> f x continue
              | `Nothing_available ->
-               choose [ choice (values_available input) ignore
-                      ; choice (closed output)          ignore
-                      ]
+               choose
+                 [ choice (values_available input) ignore
+                 ; choice (closed output)          ignore
+                 ]
                >>> fun () ->
                loop ()
          and continue y =
@@ -1130,7 +1147,7 @@ let%test_module _ =
       in
       check_read read';
       check_read read;
-      check_read (fun reader -> read_at_most reader ~num_values:1);
+      check_read (fun reader -> read' reader ~max_queue_length:1);
       check_read (fun reader -> read_exactly reader ~num_values:1);
       check_read values_available
     ;;
@@ -1148,7 +1165,7 @@ let%test_module _ =
       in
       check_read read' (function `Ok q -> Q.to_list q | _ -> assert false);
       check_read read (function `Ok a -> [ a ] | _ -> assert false);
-      check_read (fun r -> read_at_most r ~num_values:1)
+      check_read (fun r -> read' r ~max_queue_length:1)
         (function `Ok q -> Q.to_list q | _ -> assert false);
       check_read (fun r -> read_exactly r ~num_values:1)
         (function `Exactly q -> Q.to_list q | _ -> assert false);
@@ -1282,14 +1299,14 @@ let%test_module _ =
       assert (read_result d = [ 13 ])
     ;;
 
-    (* ==================== read_at_most ==================== *)
+    (* ==================== read' ==================== *)
 
     let%test_unit _ =
       let (reader, writer) = create () in
       don't_wait_for (write' writer (Q.of_list [ 12; 13; 14 ]));
       close writer;
       let d =
-        read_at_most reader ~num_values:2
+        read' reader ~max_queue_length:2
         >>| function
         | `Eof -> assert false
         | `Ok q -> q
@@ -1303,7 +1320,7 @@ let%test_module _ =
       don't_wait_for (write' writer (Q.of_list [ 12; 13; 14 ]));
       close writer;
       let d =
-        read_at_most reader ~num_values:4
+        read' reader ~max_queue_length:4
         >>| function
         | `Eof -> assert false
         | `Ok q -> q

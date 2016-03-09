@@ -4,8 +4,8 @@
     filled.  An ivar is similar to an ['a option ref], except it is an error to fill an
     already full ivar. *)
 
-open Core_kernel.Std
-open Import
+open! Core_kernel.Std
+open! Import
 
 type 'a t = 'a Types.Ivar.t [@@deriving bin_io, sexp_of]
 type 'a ivar = 'a t

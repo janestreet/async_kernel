@@ -1,11 +1,11 @@
 (** Internal to Async -- see {!Async_unix.Scheduler} for the public API. *)
 
-open Core_kernel.Std
-open Import
+open! Core_kernel.Std
+open! Import
 
 module Deferred = Deferred1
 
-type t [@@deriving sexp_of]
+type t = Types.Scheduler.t [@@deriving sexp_of]
 
 val t : unit -> t
 
@@ -30,9 +30,10 @@ val next_upcoming_event     : t -> Time_ns.t option
 val next_upcoming_event_exn : t -> Time_ns.t
 val event_precision : t -> Time_ns.Span.t
 val uncaught_exn : t -> Error.t option
+val uncaught_exn_unwrapped : t -> (Exn.t * Sexp.t) option
 val num_pending_jobs : t -> int
 val num_jobs_run : t -> int
-val cycle_times : t -> Time_ns.Span.t Async_stream.t
+val map_cycle_times : t -> f:(Time_ns.Span.t -> 'a) -> 'a Async_stream.t
 val cycle_num_jobs : t -> int Async_stream.t
 val cycle_count : t -> int
 val set_max_num_jobs_per_priority_per_cycle : t -> int -> unit

@@ -1,6 +1,6 @@
 (** Async's analog of [Core_kernel.Std.Gc]. *)
 
-open Core_kernel.Std
+open! Core_kernel.Std
 
 include module type of Core_kernel.Std.Gc
   (** We remove the [Expert] module, which has functions that are superseded by

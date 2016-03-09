@@ -46,9 +46,8 @@ let return a = of_ivar (Ivar.create_full a)
 let is_determined t = Ivar.is_full (to_ivar t)
 
 let value_exn t =
-  if is_determined t
-  then Ivar.value_exn (to_ivar t)
-  else failwith "Deferred.value_exn called on undetermined deferred"
+  Ivar.value (to_ivar t)
+    ~if_empty_then_failwith:"Deferred.value_exn called on undetermined deferred"
 ;;
 
 let upon t f = Ivar.upon (to_ivar t) f

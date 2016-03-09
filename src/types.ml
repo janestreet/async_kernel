@@ -114,14 +114,13 @@ and Scheduler : sig
     ; low_priority_jobs                           : Job_queue.t
     ; mutable main_execution_context              : Execution_context.t
     ; mutable current_execution_context           : Execution_context.t
-    ; mutable uncaught_exn                        : Error.t option
+    ; mutable uncaught_exn                        : (Exn.t * Sexp.t) option
     ; mutable cycle_count                         : int
     ; mutable cycle_start                         : Time_ns.t
     ; mutable run_every_cycle_start               : (unit -> unit) list
     ; mutable last_cycle_time                     : Time_ns.Span.t
     ; mutable last_cycle_num_jobs                 : int
-    ; events                                      : Job.t Timing_wheel_ns.t
-    ; mutable handle_fired                        : Job.t Timing_wheel_ns.Alarm.t -> unit
+    ; mutable time_source                         : read_write Time_source.t1
     ; external_jobs                               : External_job.t Thread_safe_queue.t
     ; mutable thread_safe_external_job_hook       : unit -> unit
     ; mutable job_queued_hook                     : (Priority.t -> unit) option
@@ -143,3 +142,12 @@ and Tail : sig
     { mutable next: 'a Stream.next Ivar.t
     }
 end = Tail
+
+and Time_source : sig
+  type -'rw t1 =
+    { events        : Job.t Timing_wheel_ns.t
+    ; handle_fired  : Job.t Timing_wheel_ns.Alarm.t -> unit
+    ; is_wall_clock : bool
+    ; scheduler     : Scheduler.t
+    }
+end = Time_source

@@ -7,6 +7,8 @@
 
 open Core_kernel.Std
 
+module Deferred = Deferred1
+
 module type Clock = sig
   module Time : sig
     module Span : sig

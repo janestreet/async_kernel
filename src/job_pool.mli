@@ -1,5 +1,5 @@
-open Core_kernel.Std
-open Import
+open! Core_kernel.Std
+open! Import
 
 type slots = (Execution_context.t, Obj.t -> unit, Obj.t) Pool.Slots.t3 [@@deriving sexp_of]
 

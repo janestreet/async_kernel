@@ -1,7 +1,7 @@
 (** The priority of a job. *)
 
-open Core_kernel.Std
-open Import
+open! Core_kernel.Std
+open! Import
 
 type t = Normal | Low [@@deriving sexp_of]
 
