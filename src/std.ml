@@ -1,24 +1,28 @@
 open! Core_kernel.Std
 open! Import
 
-module Clock_ns          = Clock_ns
-module Condition         = Async_condition
-module Deferred          = Deferred
-module Execution_context = Execution_context
-module Gc                = Async_gc
-module Handler           = Handler
-module Ivar              = Ivar
-module Quickcheck_intf   = Async_quickcheck_intf
-module Quickcheck        = Async_quickcheck
-module Lazy_deferred     = Lazy_deferred
-module Monad_sequence    = Monad_sequence
-module Monitor           = Monitor
-module Pipe              = Pipe
-module Priority          = Priority
-module Sequencer         = Throttle.Sequencer
-module Stream            = Async_stream
-module Tail              = Tail
-module Throttle          = Throttle
+module Bvar                         = Bvar
+module Clock_ns                     = Clock_ns
+module Condition                    = Async_condition
+module Deferred                     = Deferred
+module Execution_context            = Execution_context
+module Gc                           = Async_gc
+module Handler                      = Handler
+module Ivar                         = Ivar
+module Quickcheck_intf              = Async_quickcheck_intf
+module Quickcheck                   = Async_quickcheck
+module Lazy_deferred                = Lazy_deferred
+module Monad_sequence               = Monad_sequence
+module Monitor                      = Monitor
+module Pipe                         = Pipe
+module Priority                     = Priority
+module Require_explicit_time_source = Require_explicit_time_source
+module Sequencer                    = Throttle.Sequencer
+module Stream                       = Async_stream
+module Synchronous_time_source      = Synchronous_time_source
+module Tail                         = Tail
+module Throttle                     = Throttle
+module Time_source                  = Time_source
 
 
 let after          = Clock_ns.after
@@ -29,7 +33,6 @@ let choose         = Deferred.choose
 let don't_wait_for = Deferred.don't_wait_for
 let every          = Clock_ns.every
 let never          = Deferred.never
-let return         = Deferred.return
 let schedule       = Scheduler.schedule
 let schedule'      = Scheduler.schedule'
 let try_with       = Monitor.try_with

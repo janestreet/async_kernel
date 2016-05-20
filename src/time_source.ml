@@ -81,10 +81,9 @@ let run_at_internal t time f a =
   let execution_context = Scheduler.current_execution_context t.scheduler in
   if Time_ns.( > ) time (Timing_wheel_ns.now t.events)
   then schedule_job t ~at:time execution_context f a
-  else begin
+  else (
     Scheduler.enqueue t.scheduler execution_context f a;
-    Alarm.null ();
-  end
+    Alarm.null ());
 ;;
 
 let run_at t time f a = ignore (run_at_internal t time f a : _ Alarm.t)
@@ -96,19 +95,19 @@ let at =
   fun t time ->
     if Time_ns.( <= ) time (Timing_wheel_ns.now t.events)
     then Deferred.unit
-    else
+    else (
       let result = Ivar.create () in
       ignore (run_at_internal t time fill result : _ Alarm.t);
-      Ivar.read result;
+      Ivar.read result);
 ;;
 
 let after t span = at t (span_to_time t span)
 
 let remove_alarm_if_scheduled t alarm =
-  if Timing_wheel_ns.mem t.events alarm then begin
+  if Timing_wheel_ns.mem t.events alarm
+  then (
     Scheduler.free_job t.scheduler (Alarm.value t.events alarm);
-    Timing_wheel_ns.remove t.events alarm;
-  end
+    Timing_wheel_ns.remove t.events alarm);
 ;;
 
 module Event = struct
@@ -196,18 +195,16 @@ module Event = struct
       in
       if am_trying_to_reschedule_in_the_future && not is_in_timing_wheel
       then `Too_late_to_reschedule
-      else begin
+      else (
         t.scheduled_at <- at;
         if is_in_timing_wheel
-        then
+        then (
           if am_trying_to_reschedule_in_the_future
           then Timing_wheel_ns.reschedule events t.alarm ~at
-          else begin
+          else (
             t.time_source.handle_fired t.alarm;
-            Timing_wheel_ns.remove events t.alarm;
-          end;
-        `Ok
-      end;
+            Timing_wheel_ns.remove events t.alarm));
+        `Ok);;
   ;;
 
   let reschedule_after t span = reschedule_at t (span_to_time t.time_source span)
@@ -220,11 +217,10 @@ module Event = struct
       (* [fire] runs in an Async job.  The event may have been aborted after the job
          was enqueued, so [fire] must check [fired]. *)
       if Ivar.is_empty fired
-      then begin
+      then (
         let result = f z in
         (* [f z] may have aborted the event, so we must check [fired] again. *)
-        if Ivar.is_empty fired then Ivar.fill fired (`Happened result);
-      end
+        if Ivar.is_empty fired then Ivar.fill fired (`Happened result));
     in
     let alarm = run_at_internal time_source scheduled_at fire z in
     { alarm; scheduled_at; fired; time_source = read_only time_source }
@@ -304,14 +300,14 @@ let run_repeatedly
   let rec run_f () =
     (* Before calling [f], we synchronously check whether [stop] is determined. *)
     if not (Deferred.is_determined stop)
-    then
+    then (
       if continue_on_error
       then Monitor.try_with f ~run:`Now ~rest:`Raise >>> continue_try_with
-      else
+      else (
         let d = f () in
         if Deferred.is_determined d
         then continue_f ()
-        else d >>> continue_f
+        else d >>> continue_f))
   and continue_f () =
     if not (Deferred.is_determined stop)
     then alarm := run_at_internal t (Continue.at continue t) run_f ()

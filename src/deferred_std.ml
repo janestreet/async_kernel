@@ -1,6 +1,7 @@
 open Deferred1
 
 include Infix
+include Let_syntax
 
 let choice         = choice
 let choose         = choose

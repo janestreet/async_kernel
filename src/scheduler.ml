@@ -6,29 +6,11 @@ module Scheduler = Scheduler1
 module Stream    = Async_stream
 
 include (Scheduler : (module type of Scheduler
+                       with module Bvar        := Scheduler.Bvar
+                       with module Ivar        := Scheduler.Ivar
                        with module Time_source := Scheduler.Time_source))
 
 let t = Scheduler.t
-
-include struct
-  open Scheduler
-  let check_access              = check_access
-  let check_access              = check_access
-  let create_job                = create_job
-  let current_execution_context = current_execution_context
-  let enqueue                   = enqueue
-  let enqueue_job               = enqueue_job
-  let free_job                  = free_job
-  let invariant                 = invariant
-  let is_dead                   = is_dead
-  let num_pending_jobs          = num_pending_jobs
-  let num_jobs_run              = num_jobs_run
-  let set_check_access          = set_check_access
-  let set_check_access          = set_check_access
-  let set_execution_context     = set_execution_context
-  let uncaught_exn              = uncaught_exn
-  let with_execution_context    = with_execution_context
-end
 
 include Monitor.Exported_for_scheduler
 
@@ -46,7 +28,7 @@ let with_local key value ~f =
 
 let main_execution_context = (t ()).main_execution_context
 
-let can_run_a_job t = num_pending_jobs t > 0 || Option.is_some t.yield_ivar
+let can_run_a_job t = num_pending_jobs t > 0 || Bvar.has_any_waiters t.yield
 
 let has_upcoming_event t = not (Timing_wheel_ns.is_empty (events t))
 
@@ -77,6 +59,10 @@ let cycle_count t = t.cycle_count
 let set_max_num_jobs_per_priority_per_cycle t int =
   t.max_num_jobs_per_priority_per_cycle <-
     Max_num_jobs_per_priority_per_cycle.create_exn int;
+;;
+
+let max_num_jobs_per_priority_per_cycle t =
+  Max_num_jobs_per_priority_per_cycle.raw t.max_num_jobs_per_priority_per_cycle
 ;;
 
 let set_thread_safe_external_job_hook t f = t.thread_safe_external_job_hook <- f
@@ -132,17 +118,19 @@ let force_current_cycle_to_end t =
   Job_queue.set_jobs_left_this_cycle t.normal_priority_jobs 0
 ;;
 
-let advance_clock t ~now = Time_source.advance t.time_source ~to_:now
+let advance_clock t ~now =
+  Time_source.advance t.time_source ~to_:now;
+  match t.advance_synchronous_wall_clock with
+  | None -> ()
+  | Some f -> f ~now;
+;;
 
 let run_cycle t =
   if debug then Debug.log "run_cycle starting" t [%sexp_of: t];
   let now = Time_ns.now () in
   t.cycle_count <- t.cycle_count + 1;
   t.cycle_start <- now;
-  begin match t.yield_ivar with
-  | None -> ()
-  | Some ivar -> Ivar.fill ivar (); t.yield_ivar <- None;
-  end;
+  Bvar.broadcast t.yield ();
   let num_jobs_run_at_start_of_cycle = num_jobs_run t in
   List.iter t.run_every_cycle_start ~f:(fun f -> f ());
   advance_clock t ~now;
@@ -159,6 +147,9 @@ let run_cycle t =
   run_jobs ();
   t.last_cycle_time <- Time_ns.diff (Time_ns.now ()) t.cycle_start;
   t.last_cycle_num_jobs <- num_jobs_run t - num_jobs_run_at_start_of_cycle;
+  if Bvar.has_any_waiters t.yield_until_no_jobs_remain
+  && Job_queue.length t.normal_priority_jobs + Job_queue.length t.low_priority_jobs = 0
+  then Bvar.broadcast t.yield_until_no_jobs_remain ();
   if debug
   then Debug.log "run_cycle finished"
          (uncaught_exn t, is_some (next_upcoming_event t))
@@ -187,6 +178,13 @@ let run_cycles_until_no_jobs_remain () =
   Option.iter (uncaught_exn t) ~f:Error.raise;
 ;;
 
+let make_async_unusable () =
+  let t = !t_ref in
+  t.check_access <-
+    Some (fun () ->
+      raise_s [%sexp "Async scheduler is unusable due to [make_async_unusable]"]);
+;;
+
 let reset_in_forked_process () =
   if debug then Debug.log_string "reset_in_forked_process";
   (* There is no need to empty [main_monitor_hole]. *)
@@ -199,33 +197,24 @@ let set_check_invariants t b = t.check_invariants <- b
 
 let set_record_backtraces t b = t.record_backtraces <- b
 
-let yield t =
-  let ivar =
-    match t.yield_ivar with
-    | Some ivar -> ivar
-    | None ->
-      let ivar = Ivar.create () in
-      t.yield_ivar <- Some ivar;
-      ivar
-  in
-  Ivar.read ivar
-;;
+let yield t = Bvar.wait t.yield
+
+let yield_until_no_jobs_remain t = Bvar.wait t.yield_until_no_jobs_remain
 
 let yield_every ~n =
   if n <= 0
   then failwiths "Scheduler.yield_every got nonpositive count" n [%sexp_of: int]
   else if n = 1
   then stage (fun t -> yield t)
-  else
+  else (
     let count_until_yield = ref n in
     stage (fun t ->
       decr count_until_yield;
       if !count_until_yield > 0
       then Deferred.unit
-      else begin
+      else (
         count_until_yield := n;
-        yield t;
-      end)
+        yield t)))
 ;;
 
 let%test_module _ = (module struct

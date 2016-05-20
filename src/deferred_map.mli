@@ -16,12 +16,17 @@ val update
   -> f:('v option -> 'v Deferred.t)
   -> ('k, 'v, 'comparator) t Deferred.t
 
+val iter_keys
+  :  ?how : Monad_sequence.how
+  -> ('k, _, _) t
+  -> f:('k -> unit Deferred.t)
+  -> unit Deferred.t
+
 val iter
   :  ?how : Monad_sequence.how
-  -> ('k, 'v, _) t
-  -> f:(key:'k -> data:'v -> unit Deferred.t)
+  -> (_, 'v, _) t
+  -> f:('v -> unit Deferred.t)
   -> unit Deferred.t
-  [@@ocaml.deprecated "[since 2015-10] Use iteri instead"]
 
 val iteri
   :  ?how : Monad_sequence.how
@@ -53,12 +58,17 @@ val fold_right
   -> f:(key:'k -> data:'v -> 'a -> 'a Deferred.t)
   -> 'a Deferred.t
 
+val filter_keys
+  :  ?how : Monad_sequence.how
+  -> ('k, 'v, 'comparable) t
+  -> f:('k -> bool Deferred.t)
+  -> ('k, 'v, 'comparable) t Deferred.t
+
 val filter
   :  ?how : Monad_sequence.how
   -> ('k, 'v, 'comparable) t
-  -> f:(key:'k -> data:'v -> bool Deferred.t)
+  -> f:('v -> bool Deferred.t)
   -> ('k, 'v, 'comparable) t Deferred.t
-  [@@ocaml.deprecated "[since 2015-10] Use filteri instead"]
 
 val filteri
   :  ?how : Monad_sequence.how

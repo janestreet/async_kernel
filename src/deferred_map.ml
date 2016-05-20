@@ -4,20 +4,29 @@ open Deferred_std
 module Deferred = Deferred1
 module List = Deferred_list
 
-
 type ('a, 'b, 'c) t = ('a, 'b, 'c) Map.t
 
-let change t k ~f = f (Map.find t k) >>| fun opt -> Map.change t k ~f:(fun _ -> opt)
+let change t k ~f =
+  let%map opt = f (Map.find t k) in
+  Map.change t k ~f:(fun _ -> opt)
+;;
 
-let update t k ~f = f (Map.find t k) >>| fun data -> Map.add t ~key:k ~data
+let update t k ~f =
+  let%map data = f (Map.find t k) in
+  Map.add t ~key:k ~data
+;;
+
+let iter_keys ?how t ~f =
+  List.iter ?how (Map.keys t) ~f
+;;
+
+let iter ?how t ~f =
+  List.iter ?how (Map.data t) ~f
+;;
 
 let iteri ?how t ~f =
   List.iter ?how (Map.to_alist t) ~f:(fun (key, data) -> f ~key ~data)
 ;;
-
-(* DEPRECATED - leaving here for a little while so as to ease the transition for
-   external core users. (But marking as deprecated in the mli *)
-let iter = iteri
 
 let fold t ~init ~f =
   let alist_in_increasing_key_order =
@@ -52,27 +61,36 @@ let filter_mapi ?how t ~f =
       jobs := job :: !jobs;
       job)
   in
-  List.iter ?how !jobs ~f:(function { Job. key; data; result=_ } as job ->
-    f ~key ~data >>| fun x -> job.result <- x)
-  >>| fun () ->
+  let%map () =
+    List.iter ?how !jobs ~f:(function { Job. key; data; result=_ } as job ->
+      let%map x = f ~key ~data in
+      job.result <- x)
+  in
   Map.filter_map job_map ~f:Job.result
 ;;
 
 let filter_map ?how t ~f = filter_mapi ?how t ~f:(fun ~key:_ ~data -> f data)
 
-let filteri ?how t ~f =
+let filter_keys ?how t ~f =
   filter_mapi ?how t ~f:(fun ~key ~data ->
-    f ~key ~data
-    >>| fun b ->
+    let%map b = f key in
     if b then Some data else None)
 ;;
 
-(* DEPRECATED - leaving here for a little while so as to ease the transition for
-   external core users. (But marking as deprecated in the mli *)
-let filter = filteri
+let filter ?how t ~f =
+  filter_mapi ?how t ~f:(fun ~key:_ ~data ->
+    let%map b = f data in
+    if b then Some data else None)
+;;
+
+let filteri ?how t ~f =
+  filter_mapi ?how t ~f:(fun ~key ~data ->
+    let%map b = f ~key ~data in
+    if b then Some data else None)
+;;
 
 let mapi ?how t ~f =
-  filter_mapi ?how t ~f:(fun ~key ~data -> f ~key ~data >>| fun z -> Some z)
+  filter_mapi ?how t ~f:(fun ~key ~data -> let%map z = f ~key ~data in Some z)
 ;;
 
 let map ?how t ~f = mapi ?how t ~f:(fun ~key:_ ~data -> f data)

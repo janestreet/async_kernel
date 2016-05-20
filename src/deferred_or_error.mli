@@ -42,9 +42,10 @@ val ok_exn : 'a t -> 'a Deferred.t
 val of_exn : exn -> _ t
 val of_exn_result : ('a, exn) Result.t Deferred.t -> 'a t
 val error : string -> 'a -> ('a -> Sexp.t) -> _ t
+val error_s : Sexp.t -> _ t
 val error_string : string -> _ t
 val errorf : ('a, unit, string, _ t) format4 -> 'a
-val tag : 'a t -> string -> 'a t
+val tag : 'a t -> tag:string -> 'a t
 val tag_arg : 'a t -> string -> 'b -> ('b -> Sexp.t) -> 'a t
 val unimplemented : string -> _ t
 val combine_errors : 'a t list -> 'a list t
@@ -63,11 +64,13 @@ val ok_unit : unit t
     or kept ([extract_exn:false]). *)
 val try_with
   :  ?extract_exn:bool (** default is [false] *)
+  -> ?here:Lexing.position
   -> ?name:string
   -> (unit -> 'a Deferred.t)
   -> 'a t
 val try_with_join
   : ?extract_exn:bool (** default is [false] *)
+  -> ?here:Lexing.position
   -> ?name:string
   -> (unit -> 'a t)
   -> 'a t

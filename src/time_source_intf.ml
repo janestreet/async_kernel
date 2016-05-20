@@ -39,10 +39,13 @@ module type Time_source = sig
 
   (** A time source with [now t] given by wall-clock time (i.e. [Time_ns.now]) and that is
       advanced automatically as time passes (specifically, at the start of each Async
-      cycle). *)
+      cycle).  There is only one wall-clock time source; every call to [wall_clock ()]
+      returns the same value.  The behavior of [now] is special for [wall_clock ()]; it
+      always calls [Time_ns.now ()], so it can return times that the time source has not
+      yet been advanced to. *)
   val wall_clock : unit -> t
 
-  (** Accessors. *)
+  (** Accessors.  [now (wall_clock ())] behaves specially; see [wall_clock] above. *)
   val alarm_precision : [> read] T1.t -> Time_ns.Span.t
   val now             : [> read] T1.t -> Time_ns.t
 

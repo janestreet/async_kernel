@@ -24,18 +24,15 @@ end  = struct
   let create work =
     let start = Ivar.create () in
     let result =
-      Ivar.read start
-      >>= function
+      match%bind Ivar.read start with
       | `Abort -> return `Aborted
       | `Start a ->
-        Monitor.try_with (fun () -> work a)
-        >>| function
+        match%map Monitor.try_with (fun () -> work a) with
         | Ok a -> `Ok a
         | Error exn -> `Raised exn
     in
     let outcome =
-      result
-      >>| function
+      match%map result with
       | `Ok _ -> `Ok
       | `Aborted -> `Aborted
       | `Raised _ -> `Raised
@@ -46,8 +43,7 @@ end  = struct
 
   let run t a =
     Ivar.fill t.start (`Start a);
-    t.outcome
-    >>| function
+    match%map t.outcome with
     | `Aborted -> assert false
     | `Ok | `Raised as x -> x
   ;;
@@ -138,13 +134,13 @@ let clean_resource t a =
 ;;
 
 let kill t =
-  if not t.is_dead then begin
+  if not t.is_dead
+  then (
     t.is_dead <- true;
     Queue.iter  t.jobs_waiting_to_start ~f:Internal_job.abort;
     Queue.clear t.jobs_waiting_to_start;
     Stack.iter  t.job_resources_not_in_use ~f:(fun a -> clean_resource t a);
-    Stack.clear t.job_resources_not_in_use;
-  end;
+    Stack.clear t.job_resources_not_in_use);
 ;;
 
 let at_kill t f =
@@ -172,15 +168,14 @@ let rec start_job t =
   end;
   if t.is_dead
   then clean_resource t job_resource
-  else begin
+  else (
     Stack.push t.job_resources_not_in_use job_resource;
     if not (Queue.is_empty t.jobs_waiting_to_start)
     then start_job t
-    else
+    else (
       match t.capacity_available with
       | None -> ()
-      | Some ivar -> Ivar.fill ivar (); t.capacity_available <- None;
-  end;
+      | Some ivar -> Ivar.fill ivar (); t.capacity_available <- None));
 ;;
 
 let create_with ~continue_on_error job_resources =
@@ -231,16 +226,14 @@ let enqueue' t f =
   let job = Job.create f in
   if t.is_dead
   then Job.abort job
-  else begin
+  else (
     Queue.enqueue t.jobs_waiting_to_start job.internal_job;
-    if t.num_jobs_running < t.max_concurrent_jobs then start_job t;
-  end;
+    if t.num_jobs_running < t.max_concurrent_jobs then start_job t);
   Job.result job;
 ;;
 
 let enqueue t f =
-  enqueue' t f
-  >>| function
+  match%map enqueue' t f with
   | `Ok a -> a
   | `Aborted -> failwith "throttle aborted job"
   | `Raised exn -> raise exn
@@ -292,8 +285,8 @@ let prior_jobs_done t =
 let capacity_available t =
   if num_jobs_running t < max_concurrent_jobs t
   then return ()
-  else
+  else (
     match t.capacity_available with
     | Some ivar -> Ivar.read ivar
-    | None -> Deferred.create (fun ivar -> t.capacity_available <- Some ivar)
+    | None -> Deferred.create (fun ivar -> t.capacity_available <- Some ivar))
 ;;

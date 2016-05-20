@@ -19,8 +19,8 @@ let foldi t ~init ~f =
 let fold t ~init ~f = foldi t ~init ~f:(fun _ a -> f a)
 
 let seqmap t ~f =
-  fold t ~init:[] ~f:(fun bs a -> f a >>| fun b -> b :: bs)
-  >>| fun bs -> Array.of_list (Core_kernel.Std.List.rev bs)
+  let%map bs = fold t ~init:[] ~f:(fun bs a -> f a >>| fun b -> b :: bs) in
+  Array.of_list (Core_kernel.Std.List.rev bs)
 ;;
 
 let all ds = seqmap ds ~f:Fn.id
@@ -46,8 +46,7 @@ let map ?(how = `Sequential) t ~f =
 let init ?how n ~f = map ?how (Array.init n ~f:Fn.id) ~f
 
 let filter ?how t ~f =
-  map t ?how ~f
-  >>| fun bools ->
+  let%map bools = map t ?how ~f in
   Array.of_list_rev
     (Array.fold2_exn t bools ~init:[] ~f:(fun ac x b ->
        if b then x :: ac else ac))
@@ -55,20 +54,27 @@ let filter ?how t ~f =
 
 let filter_map ?how t ~f = map t ?how ~f >>| Array.filter_opt
 
-let concat_map ?how t ~f = map t ?how ~f >>| fun t -> Array.concat (Array.to_list t)
+let concat_map ?how t ~f =
+  let%map t = map t ?how ~f in
+  Array.concat (Array.to_list t)
+;;
 
 let find_map t ~f =
   let rec aux i =
     if i = Array.length t
     then return None
-    else
-      f t.(i) >>= function
+    else (
+      match%bind f t.(i) with
       | None -> aux (i + 1)
-      | Some _ as some -> return some
+      | Some _ as some -> return some)
   in
   aux 0
 ;;
 
 let find t ~f =
-  find_map t ~f:(fun elt -> f elt >>| fun b -> if b then Some elt else None)
+  find_map t ~f:(fun elt ->
+    let%map b = f elt in
+    if b
+    then Some elt
+    else None)
 ;;

@@ -7,6 +7,23 @@ module Time_source = Time_source0
 
 let debug = Debug.scheduler
 
+module Ivar = struct
+  open Types.Ivar
+  let create_with_cell cell = { cell }
+  let create ()             = create_with_cell Empty
+  let create_full a         = create_with_cell (Full a)
+end
+
+module Bvar = struct
+  open Types.Bvar
+
+  let create () =
+    { has_any_waiters = false
+    ; ivar            = Ivar.create ()
+    }
+  ;;
+end
+
 type t = Scheduler0.t =
   { (* [check_access] optionally holds a function to run to check whether access to [t] is
        currently allowed.  It is used to detect invalid access to the scheduler from a
@@ -27,6 +44,7 @@ type t = Scheduler0.t =
   ; mutable run_every_cycle_start               : (unit -> unit) list
   ; mutable last_cycle_time                     : Time_ns.Span.t
   ; mutable last_cycle_num_jobs                 : int
+  ; mutable advance_synchronous_wall_clock      : (now:Time_ns.t -> unit) option
   ; mutable time_source                         : read_write Time_source.T1.t
   (* [external_jobs] is a queue of actions sent from outside of async.  This is for the
      case where we want to schedule a job or fill an ivar from a context where it is not
@@ -54,7 +72,8 @@ type t = Scheduler0.t =
   ; mutable job_queued_hook                     : (Priority.t -> unit) option
   ; mutable event_added_hook                    : (Time_ns.t  -> unit) option
 
-  ; mutable yield_ivar                          : unit Types.Ivar.t sexp_opaque option
+  ; mutable yield                               : unit Types.Bvar.t sexp_opaque
+  ; mutable yield_until_no_jobs_remain          : unit Types.Bvar.t sexp_opaque
 
   (* configuration*)
   ; mutable check_invariants                    : bool
@@ -99,12 +118,14 @@ let invariant t : unit =
       ~last_cycle_time:ignore
       ~last_cycle_num_jobs:(check (fun last_cycle_num_jobs ->
         assert (last_cycle_num_jobs >= 0)))
+      ~advance_synchronous_wall_clock:ignore
       ~time_source:(check Time_source.Read_write.invariant)
       ~external_jobs:ignore
       ~thread_safe_external_job_hook:ignore
       ~job_queued_hook:ignore
       ~event_added_hook:ignore
-      ~yield_ivar:ignore
+      ~yield:ignore
+      ~yield_until_no_jobs_remain:ignore
       ~check_invariants:ignore
       ~max_num_jobs_per_priority_per_cycle:ignore
       ~record_backtraces:ignore
@@ -118,7 +139,8 @@ let free_job t job = Pool.free t.job_pool job
 let enqueue t (execution_context : Execution_context.t) f a =
   (* If there's been an uncaught exn, we don't add the job, since we don't want any jobs
      to run once there's been an uncaught exn. *)
-  if is_none t.uncaught_exn then begin
+  if is_none t.uncaught_exn
+  then (
     let priority = execution_context.priority in
     let job_queue =
       match priority with
@@ -129,8 +151,7 @@ let enqueue t (execution_context : Execution_context.t) f a =
     begin match t.job_queued_hook with
     | None -> ()
     | Some f -> f priority
-    end;
-  end;
+    end);
 ;;
 
 let enqueue_job t job ~free_job =
@@ -151,28 +172,30 @@ let handle_fired (time_source : _ Time_source.T1.t) alarm =
 let create () =
   let now = Time_ns.now () in
   let rec t =
-    { check_access                        = None
-    ; job_pool                            = Job_pool.create ()
-    ; normal_priority_jobs                = Job_queue.create ()
-    ; low_priority_jobs                   = Job_queue.create ()
-    ; main_execution_context              = Execution_context.main
-    ; current_execution_context           = Execution_context.main
-    ; uncaught_exn                        = None
-    ; cycle_start                         = now
-    ; cycle_count                         = 0
-    ; run_every_cycle_start               = []
-    ; last_cycle_time                     = sec 0.
-    ; last_cycle_num_jobs                 = 0
+    { check_access                         = None
+    ; job_pool                             = Job_pool.create ()
+    ; normal_priority_jobs                 = Job_queue.create ()
+    ; low_priority_jobs                    = Job_queue.create ()
+    ; main_execution_context               = Execution_context.main
+    ; current_execution_context            = Execution_context.main
+    ; uncaught_exn                         = None
+    ; cycle_start                          = now
+    ; cycle_count                          = 0
+    ; run_every_cycle_start                = []
+    ; last_cycle_time                      = sec 0.
+    ; last_cycle_num_jobs                  = 0
+    ; advance_synchronous_wall_clock       = None
     ; time_source
-    ; external_jobs                       = Thread_safe_queue.create ()
-    ; thread_safe_external_job_hook       = ignore
-    ; job_queued_hook                     = None
-    ; event_added_hook                    = None
-    ; yield_ivar                          = None
+    ; external_jobs                        = Thread_safe_queue.create ()
+    ; thread_safe_external_job_hook        = ignore
+    ; job_queued_hook                      = None
+    ; event_added_hook                     = None
+    ; yield                                = Bvar.create ()
+    ; yield_until_no_jobs_remain           = Bvar.create ()
     (* configuration *)
-    ; check_invariants                    = Config.check_invariants
-    ; max_num_jobs_per_priority_per_cycle = Config.max_num_jobs_per_priority_per_cycle
-    ; record_backtraces                   = Config.record_backtraces;
+    ; check_invariants                     = Config.check_invariants
+    ; max_num_jobs_per_priority_per_cycle  = Config.max_num_jobs_per_priority_per_cycle
+    ; record_backtraces                    = Config.record_backtraces;
     }
   and events = Timing_wheel_ns.create ~config:Config.timing_wheel_config ~start:now
   and time_source =

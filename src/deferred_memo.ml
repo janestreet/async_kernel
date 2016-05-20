@@ -30,8 +30,7 @@ let%test_module _ = (module struct
         incr num_calls_to_f;
         (* We bind here so that exceptions are raised asynchronously.  It is in this case
            that functions from [Core_kernel.Std.Memo] behave badly and fail this test. *)
-        return ()
-        >>= fun () ->
+        let%bind () = return () in
         if should_raise then failwith "boom!" else return 7)
     in
     let a = Monitor.try_with (fun () -> f ()) in

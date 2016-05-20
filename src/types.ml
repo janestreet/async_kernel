@@ -11,7 +11,14 @@
 open! Core_kernel.Std
 open! Import
 
-module rec Cell : sig
+module rec Bvar : sig
+  type 'a t =
+    { mutable has_any_waiters : bool
+    ; mutable ivar            : 'a Ivar.t
+    }
+end = Bvar
+
+and Cell : sig
   type any =
     [ `Empty
     | `Empty_one_handler
@@ -120,12 +127,14 @@ and Scheduler : sig
     ; mutable run_every_cycle_start               : (unit -> unit) list
     ; mutable last_cycle_time                     : Time_ns.Span.t
     ; mutable last_cycle_num_jobs                 : int
+    ; mutable advance_synchronous_wall_clock      : (now:Time_ns.t -> unit) option
     ; mutable time_source                         : read_write Time_source.t1
     ; external_jobs                               : External_job.t Thread_safe_queue.t
     ; mutable thread_safe_external_job_hook       : unit -> unit
     ; mutable job_queued_hook                     : (Priority.t -> unit) option
-    ; mutable event_added_hook                    : (Time_ns.t  -> unit) option
-    ; mutable yield_ivar                          : unit Ivar.t option
+    ; mutable event_added_hook                    : (Time_ns.t -> unit) option
+    ; mutable yield                               : unit Bvar.t
+    ; mutable yield_until_no_jobs_remain          : unit Bvar.t
     ; mutable check_invariants                    : bool
     ; mutable max_num_jobs_per_priority_per_cycle : Max_num_jobs_per_priority_per_cycle.t
     ; mutable record_backtraces                   : bool

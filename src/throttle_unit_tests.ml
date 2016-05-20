@@ -31,7 +31,7 @@ let max_concurrent_jobs = max_concurrent_jobs
 
 let%test _ =
   try
-    ignore (create ~continue_on_error:false ~max_concurrent_jobs:0);
+    ignore (create ~continue_on_error:false ~max_concurrent_jobs:0 : _ t);
     false
   with _ -> true
 ;;
@@ -168,8 +168,7 @@ let%test_unit _ =
             max_observed_concurrent_jobs :=
               max !max_observed_concurrent_jobs !num_concurrent_jobs;
             assert (!num_concurrent_jobs <= max_concurrent_jobs);
-            Ivar.read continue
-            >>| fun () ->
+            let%map () = Ivar.read continue in
             decr num_concurrent_jobs;
             r := false)
         in
@@ -208,16 +207,14 @@ let%test_unit _ =
     try
       at_kill t (fun resource ->
         incr num_at_kill_started;
-        Ivar.read continue_at_kill
-        >>| fun () ->
+        let%map () = Ivar.read continue_at_kill in
         resource := false);
       let continue_jobs = Ivar.create () in
       let enqueue num_jobs =
         Deferred.all
           (List.init num_jobs ~f:(fun _ ->
              enqueue' t (fun _ ->
-               Ivar.read continue_jobs
-               >>| fun () ->
+               let%map () = Ivar.read continue_jobs in
                incr num_jobs_run)))
       in
       let before_fail = enqueue num_jobs_before_fail in
@@ -307,12 +304,10 @@ let%test_unit _ =
     let enqueue_result =
       enqueue' t (fun () -> Ivar.fill started (); Ivar.read finished)
     in
-    Ivar.read started
-    >>= fun () ->
+    let%bind () = Ivar.read started in
     kill t;
     Ivar.fill finished ();
-    enqueue_result
-    >>= function
+    match%bind enqueue_result with
     | `Ok () -> return ()
     | `Aborted | `Raised _ -> assert false
   in
@@ -336,11 +331,11 @@ let%test_unit _ = (* enqueueing withing a job doesn't lead to monitor nesting *)
   let rec loop n =
     if n = 0
     then Deferred.unit
-    else
+    else (
       enqueue seq (fun () ->
         assert (Monitor.depth (Monitor.current ()) < 5);
         don't_wait_for (loop (n - 1));
-        Deferred.unit)
+        Deferred.unit))
   in
   let d = loop 100 in
   stabilize ();

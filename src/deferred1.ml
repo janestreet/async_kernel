@@ -15,6 +15,8 @@ include Monad.Make (struct
   let map = `Custom map
 end)
 
+open Let_syntax
+
 (* We shadow [all] on-purpose here, since the default definition introduces a chain of
    binds as long as the list. *)
 let all = `Make_sure_to_define_all_elsewhere
@@ -68,15 +70,15 @@ let enabled choices =
   let result = Ivar.create () in
   let unregisters = ref Unregister.Nil in
   let ready _ =
-    if Ivar.is_empty result then begin
+    if Ivar.is_empty result
+    then (
       Unregister.process !unregisters;
       Ivar.fill result (fun () ->
         List.rev
           (List.fold choices ~init:[] ~f:(fun ac (Choice.T (t, f)) ->
              match peek t with
              | None -> ac
-             | Some v -> f v :: ac)))
-    end
+             | Some v -> f v :: ac))));
   in
   let execution_context = Scheduler.(current_execution_context (t ())) in
   unregisters :=
@@ -100,10 +102,10 @@ let choose choices =
   let result = Ivar.create () in
   let unregisters = ref Unregister.Nil in
   let ready _ =
-    if Ivar.is_empty result then begin
+    if Ivar.is_empty result
+    then (
       Unregister.process !unregisters;
-      Ivar.fill result (choose_result choices)
-    end
+      Ivar.fill result (choose_result choices));
   in
   let execution_context = Scheduler.(current_execution_context (t ())) in
   unregisters :=
@@ -130,7 +132,7 @@ let repeat_until_finished state f =
 ;;
 
 let forever state f =
-  repeat_until_finished state (fun state -> f state >>| fun state -> `Repeat state)
+  repeat_until_finished state (fun state -> let%map state = f state in `Repeat state)
   >>> never_returns
 ;;
 
@@ -158,4 +160,4 @@ let seqmap t ~f =
 
 let all ds = seqmap ds ~f:Fn.id
 
-let all_unit ds = ignore (fold ds ~init:() ~f:(fun () d -> d))
+let all_unit ds = fold ds ~init:() ~f:(fun () d -> d)

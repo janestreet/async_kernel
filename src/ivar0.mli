@@ -29,6 +29,7 @@ end
 
 val add_handler : 'a t -> ('a -> unit) -> Execution_context.t -> 'a Handler.t
 val remove_handler : 'a t -> 'a Handler.t -> unit
+val has_handlers : _ t -> bool
 
 val upon  : 'a t -> ('a -> unit) -> unit
 val upon' : 'a t -> ('a -> unit) -> 'a Handler.t

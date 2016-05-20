@@ -6,8 +6,7 @@ module Deferred = Deferred1
 include Tail.Stream
 
 let first_exn t =
-  next t
-  >>| function
+  match%map next t with
   | Nil -> failwith "Stream.first of empty stream"
   | Cons (x, _) -> x
 ;;
@@ -100,9 +99,11 @@ let concat t =
 
 let filter' t ~f =
   create (fun tail ->
-    upon (iter' t ~f:(fun v ->
-      f v
-      >>| (function false -> () | true -> Tail.extend tail v)))
+    upon
+      (iter' t ~f:(fun v ->
+         match%map f v with
+         | false -> ()
+         | true -> Tail.extend tail v))
       (fun () -> Tail.close_exn tail))
 ;;
 
@@ -110,8 +111,11 @@ let filter_deprecated t ~f = filter' t ~f:(fun a -> return (f a))
 
 let filter_map' t ~f =
   create (fun tail ->
-    upon (iter' t ~f:(fun v ->
-      f v >>| (function None -> () | Some v -> Tail.extend tail v)))
+    upon
+      (iter' t ~f:(fun v ->
+         match%map f v with
+         | None -> ()
+         | Some v -> Tail.extend tail v))
       (fun () -> Tail.close_exn tail))
 ;;
 
@@ -130,10 +134,10 @@ let first_n s n =
     let rec loop s n =
       if n = 0
       then Tail.close_exn tail
-      else
+      else (
         upon (next s) (function
           | Nil -> Tail.close_exn tail
-          | Cons (x, t) -> Tail.extend tail x; loop t (n - 1))
+          | Cons (x, t) -> Tail.extend tail x; loop t (n - 1)))
     in
     loop s n)
 ;;
@@ -171,9 +175,9 @@ let split ?(stop = Deferred.never ()) ?(f = (fun _ -> `Continue)) t =
 
 let find t ~f =
   let (_, found) = split t ~f:(fun a -> if f a then `Found a else `Continue) in
-  found >>| (function
-    | `Stopped _ -> assert false
-    | `End_of_stream | `Found _ as x -> x)
+  match%map found with
+  | `Stopped _ -> assert false
+  | `End_of_stream | `Found _ as x -> x
 ;;
 
 let ungroup t =
@@ -250,4 +254,4 @@ let iter_durably_report_end t ~f =
 
 let iter_durably t ~f = don't_wait_for (iter_durably_report_end t ~f)
 
-let of_fun f = unfold () ~f:(fun () -> f () >>| fun a -> Some (a, ()))
+let of_fun f = unfold () ~f:(fun () -> let%map a = f () in Some (a, ()))

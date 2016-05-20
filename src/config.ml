@@ -348,7 +348,7 @@ let field_descriptions () : string =
   before pausing to check for I/O.
 "
            ])
-      ~min_inter_cycle_timeout:(field [%sexp_of: Max_inter_cycle_timeout.t]
+      ~min_inter_cycle_timeout:(field [%sexp_of: Min_inter_cycle_timeout.t]
                                   ["
   The minimum timeout the scheduler will pass to the OS when it checks
   for I/O between cycles.  This is zero by default.  Setting it to a

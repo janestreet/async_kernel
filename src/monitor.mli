@@ -216,5 +216,4 @@ module Exported_for_scheduler : sig
 
   val preserve_execution_context  : ('a -> unit)          -> ('a -> unit)          Staged.t
   val preserve_execution_context' : ('a -> 'b Deferred.t) -> ('a -> 'b Deferred.t) Staged.t
-
 end

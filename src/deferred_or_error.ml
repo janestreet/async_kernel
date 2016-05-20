@@ -20,15 +20,17 @@ include Applicative.Make (struct
   end)
 
 module Let_syntax = struct
+  let return = return
   module Let_syntax = struct
     let return = return
     let map    = map
     let bind   = bind
     let both   = both (* from Applicative.Make *)
     module Open_on_rhs  = struct let return = return end
-    module Open_in_body = struct let return = return end
   end
 end
+
+open Let_syntax
 
 let ignore = ignore_m
 
@@ -42,11 +44,13 @@ let of_exn_result t = Deferred.map t ~f:Or_error.of_exn_result
 
 let error msg v sexp_of = Deferred.return (Or_error.error msg v sexp_of)
 
+let error_s sexp = Deferred.return (Or_error.error_s sexp)
+
 let error_string msg = Deferred.return (Or_error.error_string msg)
 
 let errorf format = ksprintf error_string format
 
-let tag t message = Deferred.map t ~f:(fun t -> Or_error.tag t message)
+let tag t ~tag = Deferred.map t ~f:(Or_error.tag ~tag)
 
 let tag_arg t message a sexp_of_a =
   Deferred.map t ~f:(fun t -> Or_error.tag_arg t message a sexp_of_a)
@@ -66,16 +70,14 @@ let ok_unit = return ()
 
 let never = Deferred.never
 
-let default_name = "Async.Std.Deferred.Or_error.try_with"
-
-let try_with ?extract_exn ?(name = default_name) f =
-  Deferred.map (Monitor.try_with ?extract_exn ~name f) ~f:(function
+let try_with ?extract_exn ?here ?name f =
+  Deferred.map (Monitor.try_with ?extract_exn ?here ?name f) ~f:(function
     | Error exn -> Error (Error.of_exn exn)
     | Ok _ as ok -> ok)
 ;;
 
-let try_with_join ?extract_exn ?(name = default_name) f =
-  Deferred.map (try_with ?extract_exn ~name f) ~f:Or_error.join
+let try_with_join ?extract_exn ?here ?name f =
+  Deferred.map (try_with ?here ?extract_exn ?name f) ~f:Or_error.join
 ;;
 
 module List = struct
@@ -83,7 +85,9 @@ module List = struct
   let foldi list ~init:acc ~f =
     let rec loop i acc = function
       | [] -> return acc
-      | hd :: tl -> f i acc hd >>= fun acc -> loop (i + 1) acc tl
+      | hd :: tl ->
+        let%bind acc = f i acc hd in
+        loop (i + 1) acc tl
     in
     loop 0 acc list
   ;;
@@ -91,7 +95,7 @@ module List = struct
   let fold t ~init ~f = foldi t ~init ~f:(fun _ a -> f a)
 
   let seqmap t ~f =
-    fold t ~init:[] ~f:(fun bs a -> f a >>| fun b -> b :: bs)
+    fold t ~init:[] ~f:(fun bs a -> let%map b = f a in b :: bs)
     >>| List.rev
   ;;
 
@@ -124,8 +128,7 @@ module List = struct
 
   let filter ?how t ~f =
     filter_map ?how t ~f:(fun x ->
-      f x
-      >>| fun b ->
+      let%map b = f x in
       if b then Some x else None)
   ;;
 
@@ -133,13 +136,13 @@ module List = struct
     match t with
     | [] -> return None
     | hd :: tl ->
-      f hd >>= function
+      match%bind f hd with
       | None -> find_map tl ~f
       | Some _ as some -> return some
   ;;
 
   let find t ~f =
-    find_map t ~f:(fun elt -> f elt >>| fun b -> if b then Some elt else None)
+    find_map t ~f:(fun elt -> let%map b = f elt in if b then Some elt else None)
   ;;
 
 end
@@ -292,10 +295,9 @@ let%test_module _ = (module struct
     | Some (Error err), Error expected ->
       let expected, got = Error.to_string_hum expected, Error.to_string_hum err in
       String.(=) expected got
-      || begin
+      || (
         eprintf "expected %s, got %s\n%!" expected got;
-        false
-      end
+        false)
     | Some (Ok x), Ok x' -> x = x'
     | Some (Error _), _ -> true
     | _ -> false
@@ -307,13 +309,12 @@ let%test_module _ = (module struct
 
   let%test_unit _ =
     assert (eq' (ok_exn (return 1)) 1);
-    assert begin
+    assert (
       let rv = Monitor.try_with (fun () -> ok_exn (fail err)) in
       stabilize ();
       match Deferred.peek rv with
       | Some (Error _) -> true
-      | _ -> false
-    end
+      | _ -> false);
   ;;
 
   let%test _ =
@@ -376,28 +377,23 @@ let%test_module _ = (module struct
       let s = Error.to_string_hum err in
       if String.is_prefix ~prefix s
       then true
-      else begin
+      else (
         eprintf "expected %s, got %s\n%!" prefix s;
-        false
-      end
+        false);
     | _ -> false
   ;;
 
   let%test_unit _ =
     assert (eq (try_with (fun () -> Deferred.return 1)) (Ok 1));
     assert (expect_failure_with_prefix (try_with (fun () -> failwith "foo"))
-              ~prefix:"\
-(monitor.ml.Error_
- ((exn (Failure foo))")
+              ~prefix:"(monitor.ml.Error (Failure foo)");
   ;;
 
   let%test_unit _ =
     assert (eq (try_with_join (fun () -> return 1)) (Ok 1));
     assert (eq (try_with_join (fun () -> fail err)) (Error err));
     assert (expect_failure_with_prefix (try_with (fun () -> failwith "foo"))
-              ~prefix:"\
-(monitor.ml.Error_
- ((exn (Failure foo))")
+              ~prefix:"(monitor.ml.Error (Failure foo)");
   ;;
 
 end)

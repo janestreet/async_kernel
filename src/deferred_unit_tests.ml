@@ -4,6 +4,7 @@ open Std
 let%test_module _ = (module struct
 
   open Deferred
+  open Let_syntax
 
   let test f =
     let t = f () in
@@ -13,10 +14,11 @@ let%test_module _ = (module struct
 
   let%test_unit _ = (* [enabled] returns choices in order *)
     test (fun () ->
-      enabled [ choice (return 13) Fn.id
-              ; choice (return 14) Fn.id
-              ]
-      >>| fun f ->
+      let%map f =
+        enabled [ choice (return 13) Fn.id
+                ; choice (return 14) Fn.id
+                ]
+      in
       match f () with
       | [ 13; 14 ] -> ()
       | _ -> assert false)
@@ -29,10 +31,11 @@ let%test_module _ = (module struct
       let t1 = Ivar.create () in
       let t2 = Ivar.create () in
       let t =
-        choose [ choice (Ivar.read t1) Fn.id
-               ; choice (Ivar.read t2) Fn.id
-               ]
-        >>| fun i ->
+        let%map i =
+          choose [ choice (Ivar.read t1) Fn.id
+                 ; choice (Ivar.read t2) Fn.id
+                 ]
+        in
         [%test_result: int] i ~expect:13
       in
       Ivar.fill t2 14;

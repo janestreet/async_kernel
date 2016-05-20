@@ -45,3 +45,6 @@ val peek : 'a t -> 'a option
 
 (** [value_exn t] returns [v] if [t] is full with value [v], and raises otherwise. *)
 val value_exn : 'a t -> 'a
+
+(** [has_handlers t] returns [true] if [t] has handlers waiting on [read t]. *)
+val has_handlers : _ t -> bool

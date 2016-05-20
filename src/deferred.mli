@@ -46,26 +46,26 @@ val is_determined : 'a t -> bool
 
 (** Deferreds form a monad.
 
-    [t >>= f] returns a deferred t' that waits until t is determined to have
-    value v, at which point it waits for f v to become determined with value
-    v', to which t' will become determined.
+    [let%bind v = t in f v] returns a deferred [t'] that waits until t is determined to
+    have value [v], at which point it waits for [f v] to become determined with value
+    [v'], to which [t'] will become determined.
 
     [return v] returns a deferred that is immediately determined with value
     v.
 
-    Note that
+    Note that:
 
     {[
       upon t f
     ]}
 
-    is more efficient than
+    is more efficient than:
 
     {[
-      ignore (t >>= (fun a -> f a; Deferred.unit))
+      ignore (let%bind a = t in f a; return ())
     ]}
 
-    because [upon], unlike [>>=] does not create a deferred to hold the result.
+    because [upon], unlike [let%bind] does not create a deferred to hold the result.
 
     For example, one can write a loop that has good constant factors with:
 
@@ -76,13 +76,13 @@ val is_determined : 'a t -> bool
 
     although often [forever] or [repeat_until_finished] is more clear.
 
-    The same loop written with [>>=] would allocate deferreds that would be immediately
-    garbage collected.  (In the past, this loop would have also used linear space in
-    recursion depth!)
+    The same loop written with [let%bind] would allocate deferreds that would be
+    immediately garbage collected.  (In the past, this loop would have also used linear
+    space in recursion depth!)
 
-    In general, for deferreds that are allocated by [>>=] to be garbage collected quickly,
-    it is sufficient that the allocating bind be executed in tail-call position of the
-    right-hand side of an outer bind. *)
+    In general, for deferreds that are allocated by [let%bind] to be garbage collected
+    quickly, it is sufficient that the allocating bind be executed in tail-call position
+    of the right-hand side of an outer bind. *)
 include Monad with type 'a t := 'a t
 
 module Infix : sig

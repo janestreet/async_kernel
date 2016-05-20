@@ -36,6 +36,7 @@ val num_jobs_run : t -> int
 val map_cycle_times : t -> f:(Time_ns.Span.t -> 'a) -> 'a Async_stream.t
 val cycle_num_jobs : t -> int Async_stream.t
 val cycle_count : t -> int
+val max_num_jobs_per_priority_per_cycle : t -> int
 val set_max_num_jobs_per_priority_per_cycle : t -> int -> unit
 val set_check_access : t -> (unit -> unit) option -> unit
 val check_access : t -> unit
@@ -78,7 +79,10 @@ val within_context : Execution_context.t -> (unit -> 'a) -> ('a, unit) Result.t
 val find_local : 'a Univ_map.Key.t -> 'a option
 val with_local : 'a Univ_map.Key.t -> 'a option -> f:(unit -> 'b) -> 'b
 
+val make_async_unusable : unit -> unit
+
 val reset_in_forked_process : unit -> unit
 
-val yield       : t -> unit Deferred.t
+val yield : t -> unit Deferred.t
 val yield_every : n:int -> (t -> unit Deferred.t) Staged.t
+val yield_until_no_jobs_remain : t -> unit Deferred.t

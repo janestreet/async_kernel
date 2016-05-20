@@ -20,7 +20,7 @@ module Alarm = struct
   let delete = Alarm.delete
 end
 
-let%test_module _ = (module struct
+let%test_module __ [@tags "no-js"] = (module struct
 
   let stabilize () =
     Gc.full_major ();

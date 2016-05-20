@@ -73,7 +73,7 @@ let%test_module _ = (module struct
       List.iter ts ~f:(fun t ->
         List.iter hows ~f:(fun how ->
           let r = ref 0 in
-          ignore (M.iteri t ~how ~f:(fun ~key ~data:_ -> return (r := !r + key)));
+          don't_wait_for (M.iteri t ~how ~f:(fun ~key ~data:_ -> return (r := !r + key)));
           stabilize ();
           let i1 = !r in
           let i2 = Core_kernel.Std.Map.fold t ~init:0 ~f:(fun ~key ~data:_ ac -> key + ac) in
@@ -208,10 +208,10 @@ let%test_module _ = (module struct
         ~f:(fun l ->
           let finish = Ivar.create () in
           let d =
-            M.init (List.length l) ~f:(fun i -> return (List.nth_exn l i))
-            >>= fun t ->
+            let%bind t = M.init (List.length l) ~f:(fun i -> return (List.nth_exn l i)) in
             M.foldi t ~init:[] ~f:(fun i ac n ->
-              Ivar.read finish >>| fun () -> (i, n) :: ac)
+              let%map () = Ivar.read finish in
+              (i, n) :: ac)
           in
           stabilize ();
           if not (List.is_empty l) then assert (is_none (Deferred.peek d));

@@ -253,11 +253,7 @@ let equal (t : _ t) t' = phys_equal t t'
 
 let indir t = { cell = Indir t }
 
-let create_with_cell cell = { cell }
-
-let create () = create_with_cell Empty
-
-let create_full a = create_with_cell (Full a)
+include Scheduler.Ivar
 
 (* [squash t] returns the non-[Indir] ivar at the end of the (possibly empty) chain of
    [Indir]s starting with [t] and ensures that all [Indir]s along that chain are replaced
@@ -364,11 +360,10 @@ let remove_handler t (handler : _ Handler.t) =
   | Empty_one_or_more_handlers _ as cell ->
     if Handler.is_singleton handler
     then t.cell <- Empty
-    else begin
+    else (
       if phys_equal handler (handler_of_constructor cell)
       then t.cell <- cell_of_handler handler.next;
-      Handler.unlink handler;
-    end;
+      Handler.unlink handler);
 ;;
 
 let add_handler t run execution_context =
@@ -398,6 +393,18 @@ let add_handler t run execution_context =
     Scheduler.(enqueue (t ())) execution_context run v;
     handler
 ;;
+
+let has_handlers t =
+  let t = squash t in
+  match t.cell with
+  | Indir _ ->
+    assert false (* fulfilled by [squash] *)
+  | Empty_one_handler _
+  | Empty_one_or_more_handlers _ ->
+    true
+  | Empty
+  | Full _ ->
+    false
 
 let upon' t run = add_handler t run Scheduler.(current_execution_context (t ()))
 
@@ -445,7 +452,9 @@ let upon =
      let rec loop i =
        if i = 0
        then return ()
-       else after (sec 1.) >>= fun () -> loop (i - 1)
+       else (
+         let%bind () = after (sec 1.) in
+         loop (i - 1))
    ]}
 
    [connect] makes intermediate bind results all be [Indir]s pointing at the outermost
@@ -473,7 +482,8 @@ let connect =
       cell
   in
   fun ~bind_result ~bind_rhs ->
-    if not (phys_equal bind_result bind_rhs) then begin
+    if not (phys_equal bind_result bind_rhs)
+    then (
       let bind_result = squash bind_result in
       let indir = Indir bind_result in
       let bind_rhs_contents = repoint_indirs ~ivar:bind_rhs ~indir ~bind_result in
@@ -513,8 +523,7 @@ let connect =
       | (Empty_one_or_more_handlers _ as cell1),
         (Empty_one_or_more_handlers _ as cell2) ->
         let handler1 = handler_of_constructor cell1 in
-        Handler.splice handler1 (handler_of_constructor cell2);
-    end
+        Handler.splice handler1 (handler_of_constructor cell2));
 ;;
 
 let%test_module _ = (module struct
@@ -545,7 +554,7 @@ let%test_module _ = (module struct
 
   let handler_list_of_cell c = Handler.to_list (handler_of_constructor c)
 
-  let squash t = ignore (squash t)
+  let squash t = ignore (squash t : _ t)
 
   let connect bind_result bind_rhs = connect ~bind_result ~bind_rhs
 
@@ -724,7 +733,7 @@ let%test_module _ = (module struct
     let t = create () in
     r := 1;
     let u1 = upon' t (fun i -> r := !r + i) in
-    let _  = upon' t (fun i -> r := !r + i) in
+    let _ : _ Handler.t = upon' t (fun i -> r := !r + i) in
     stabilize ();
     assert (!r = 1);
     remove_handler t u1;
@@ -738,7 +747,7 @@ let%test_module _ = (module struct
     let t2 = create () in
     r := 1;
     let u1 = upon' t1 (fun () -> r := !r + 13) in
-    let _ = upon' t2 (fun () -> r := !r + 17) in
+    let _ : _ Handler.t = upon' t2 (fun () -> r := !r + 17) in
     connect t1 t2;
     remove_handler t1 u1;
     fill t1 ();

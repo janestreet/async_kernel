@@ -44,21 +44,41 @@ end
 
 (** {1 Creation} *)
 
-(** [init f] creates a new pipe, applies [f] to its writer end, and returns its reader
-    end.  [init] closes the writer end when the result of [f] becomes determined.  If [f]
-    raises, the writer end is closed and the exception is raised to the caller of
-    [init].
+(** [create_reader ~close_on_exception f] creates a new pipe, applies [f] to its writer
+    end, and returns its reader end.  [create_reader] closes the writer end when the
+    result of [f] becomes determined.  If [f] raises, then the exception is raised
+    to the caller of [create_reader].  Whether or not [create_reader] closes the writer
+    end upon [f] raising is determined by [close_on_exception].
 
-    [init_reader] is symmetric.  It creates a new pipe, applies [f] to its reader end, and
-    returns its writer end.  [init] calls [close_read] when the result of [f] becomes
-    determined or if [f] raises, and any exception is raised to the caller of
-    [init_reader]. *)
-val init        : ('a Writer.t -> unit Deferred.t) -> 'a Reader.t
-val init_reader : ('a Reader.t -> unit Deferred.t) -> 'a Writer.t
+    Choosing [~close_on_exception:false] is recommended, because normally closing the
+    write end of a pipe is taken to mean that the writer completed successfully.  With
+    [close_on_exception:true], the caller will both see the pipe closed and an exception
+    will be raised to the monitor in effect when [create_reader] was called.  There is a
+    race between those two actions, which can easily lead to confusion or bugs.
 
-(** [create ()] creates a new pipe.  It is preferable to use [init] or [init_reader]
-    instead of [create], since they provide exception handling and automatic
-    closing of the pipe. *)
+    [create_writer] is symmetric.  It creates a new pipe, applies [f] to its reader end,
+    and returns its writer end.  [init] calls [close_read] when the result of [f] becomes
+    determined.  If [f] raises, [create_writer] closes the pipe and raises the exception
+    to the caller of [create_writer].  [create_writer] closes on exception, unlike
+    [create_reader] because closing closing the read end of a pipe is a signal to the
+    writer that the consumer has failed. *)
+val create_reader
+  :  close_on_exception : bool
+  -> ('a Writer.t -> unit Deferred.t)
+  -> 'a Reader.t
+val create_writer
+  :  ('a Reader.t -> unit Deferred.t)
+  -> 'a Writer.t
+
+val init : ('a Writer.t -> unit Deferred.t) -> 'a Reader.t
+  [@@deprecated "\
+[since 2016-03] Use [create_reader ~close_on_exception:true] to preserve behavior, though
+you might want to consider changing the argument [close_on_exception] to the recommended
+[false]."]
+
+(** [create ()] creates a new pipe.  It is preferable to use [create_reader] or
+    [create_writer] instead of [create], since they provide exception handling and
+    automatic closing of the pipe. *)
 val create : unit -> 'a Reader.t * 'a Writer.t
 
 (** [of_list l] returns a closed pipe reader filled with the contents of [l]. *)
@@ -66,7 +86,8 @@ val of_list : 'a list -> 'a Reader.t
 
 (** [unfold ~init ~f] returns a pipe that it fills with ['a]s by repeatedly applying [f]
     to values of the state type ['s].  When [f] returns [None], the resulting pipe is
-    closed.  [unfold] respects pushback on the resulting pipe.
+    closed.  [unfold] respects pushback on the resulting pipe.  If [f] raises, then the
+    pipe is not closed.
 
     For example, to create a pipe of natural numbers:
 
@@ -74,7 +95,10 @@ val of_list : 'a list -> 'a Reader.t
         Pipe.unfold ~init:0 ~f:(fun n -> return (Some (n, n+1)))
       ]}
 *)
-val unfold : init:'s -> f:('s -> ('a * 's) option Deferred.t) -> 'a Reader.t
+val unfold
+  :  init:'s
+  -> f:('s -> ('a * 's) option Deferred.t)
+  -> 'a Reader.t
 
 (** [of_sequence sequence] returns a pipe reader that gets filled with the elements of
     [sequence].  [of_sequence] respects pushback on the resulting pipe. *)
@@ -577,6 +601,15 @@ val map'
 (** [map] is like [map'], except that it processes one element at time. *)
 val map : 'a Reader.t -> f:('a -> 'b) -> 'b Reader.t
 
+(** [fold_map] is a combination of [fold] and [map] that threads an accumulator through
+    calls to [f]. *)
+val fold_map
+  :  ?max_queue_length : int  (** default is [Int.max_value] *)
+  -> 'a Reader.t
+  -> init              : 'accum
+  -> f                 : ('accum -> 'a -> 'accum * 'b)
+  -> 'b Reader.t
+
 (** [filter_map' input ~f] returns a reader, [output], and repeatedly applies [f] to
     elements from [input], with the results that aren't [None] appearing in [output].  If
     values are not being consumed from [output], [filter_map'] will pushback and stop
@@ -593,6 +626,15 @@ val filter_map
   :  ?max_queue_length : int  (** default is [Int.max_value] *)
   -> 'a Reader.t
   -> f:('a -> 'b option)
+  -> 'b Reader.t
+
+(** [fold_filter_map] is a combination of [fold] and [filter_map] that threads an
+    accumulator through calls to [f]. *)
+val fold_filter_map
+  :  ?max_queue_length : int  (** default is [Int.max_value] *)
+  -> 'a Reader.t
+  -> init              : 'accum
+  -> f                 : ('accum -> 'a -> 'accum * 'b option)
   -> 'b Reader.t
 
 (** [filter input ~f] returns a reader, [output], and copies to [output] each element from
@@ -650,6 +692,9 @@ val hash : (_, _) t -> int
 
 (** [equal] on pipes is physical equality. *)
 val equal : ('a, 'b) t -> ('a, 'b) t -> bool
+
+(** [compare] on pipes is based on the internal id of the pipe *)
+val compare : (_, _) t -> (_, _) t -> int
 
 (** {1 Size budget} *)
 (******************************************************************************)

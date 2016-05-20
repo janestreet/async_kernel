@@ -20,24 +20,22 @@ module Make
   let%test_unit _ =
     for max_concurrent_jobs = 1 to 10 do
       for length = 0 to 10 do
-        deferred_result begin
+        deferred_result (
           let parallel_cur = ref 0 in
           let parallel_max = ref 0 in
-          S.init length ~f:return
-          >>= fun numbers ->
-          S.map numbers
-            ~how:(`Max_concurrent_jobs max_concurrent_jobs)
-            ~f:(fun (x : int) ->
-              incr parallel_cur;
-              parallel_max := max !parallel_max !parallel_cur;
-              Scheduler.yield (Scheduler.t ())
-              >>= fun () ->
-              decr parallel_cur;
-              return x)
-          >>| fun res ->
+          let%bind numbers = S.init length ~f:return in
+          let%map res =
+            S.map numbers
+              ~how:(`Max_concurrent_jobs max_concurrent_jobs)
+              ~f:(fun (x : int) ->
+                incr parallel_cur;
+                parallel_max := max !parallel_max !parallel_cur;
+                let%bind () = Scheduler.yield (Scheduler.t ()) in
+                decr parallel_cur;
+                return x)
+          in
           [%test_result: int M.t] res ~expect:numbers;
-          [%test_result: int] !parallel_max ~expect:(min max_concurrent_jobs length)
-        end
+          [%test_result: int] !parallel_max ~expect:(min max_concurrent_jobs length))
       done
     done
   ;;

@@ -19,7 +19,7 @@ let foldi t ~init ~f =
 let fold t ~init ~f = foldi t ~init ~f:(fun _ a -> f a)
 
 let seqmap t ~f =
-  fold t ~init:[] ~f:(fun bs a -> f a >>| fun b -> b :: bs)
+  fold t ~init:[] ~f:(fun bs a -> let%map b = f a in b :: bs)
   >>| List.rev
 ;;
 
@@ -46,8 +46,7 @@ let map ?(how = `Sequential) t ~f =
 let init ?how n ~f = map ?how (List.init n ~f:Fn.id) ~f
 
 let filter ?how t ~f =
-  map t ?how ~f
-  >>| fun bools ->
+  let%map bools = map t ?how ~f in
   List.rev (List.fold2_exn t bools ~init:[]
               ~f:(fun ac x b -> if b then x :: ac else ac))
 ;;
@@ -60,11 +59,15 @@ let rec find_map t ~f =
   match t with
   | [] -> return None
   | hd :: tl ->
-    f hd >>= function
+    match%bind f hd with
     | None -> find_map tl ~f
     | Some _ as some -> return some
 ;;
 
 let find t ~f =
-  find_map t ~f:(fun elt -> f elt >>| fun b -> if b then Some elt else None)
+  find_map t ~f:(fun elt ->
+    let%map b = f elt in
+    if b
+    then Some elt
+    else None)
 ;;

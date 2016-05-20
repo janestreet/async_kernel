@@ -97,14 +97,76 @@ let create ?here ?info ?name () =
 module Exn_for_monitor = struct
   type t =
     { exn               : exn
-    ; backtrace         : string sexp_list
-    ; backtrace_history : Backtrace.t sexp_list
+    ; backtrace         : string list
+    ; backtrace_history : Backtrace.t list
     ; monitor           : Monitor.t
     }
-  [@@deriving fields, sexp_of]
+
+  let backtrace_truncation_heuristics =
+    let job_queue = "Called from file \"job_queue.ml\"" in
+    let deferred0 = "Called from file \"deferred0.ml\"" in
+    let deferred1 = "Called from file \"deferred1.ml\"" in
+    let monitor   = "Called from file \"monitor.ml\""   in
+    fun traces ->
+      (* ../test/test_try_with_error_display.ml makes sure this stays up-to-date. *)
+      match List.rev traces with
+      | t1 :: t2 :: rest
+        when String.is_prefix     t1 ~prefix:job_queue
+          && (String.is_prefix    t2 ~prefix:deferred0 (* bind *)
+              || String.is_prefix t2 ~prefix:deferred1 (* map *)
+              || String.is_prefix t2 ~prefix:monitor   (* try_with *)
+             ) -> List.rev rest
+      | _ -> traces
+  ;;
+
+  let sexp_of_t { exn; backtrace; backtrace_history; monitor } =
+    let monitor =
+      let name =
+        match Info.to_string_hum monitor.name with
+        | "" -> None
+        | s -> Some s
+      in
+      let pos =
+        match monitor.here with
+        | None -> None
+        | Some here ->
+          (* We display the full filename, whereas backtraces only have basenames, but
+             perhaps that's what should change. *)
+          let column = here.pos_cnum - here.pos_bol in
+          Some (sprintf "file %S, line %d, characters %d-%d"
+                  here.pos_fname here.pos_lnum column column)
+      in
+      match pos, name with
+      | None    , None      -> []
+      | Some pos, None      -> [sprintf "Caught by monitor at %s" pos]
+      | None    , Some name -> [sprintf "Caught by monitor %s" name]
+      | Some pos, Some name -> [sprintf "Caught by monitor %s at %s" name pos]
+    in
+    let backtrace = backtrace_truncation_heuristics backtrace @ monitor in
+    let list_if_not_empty = function [] -> None | _ :: _ as l -> Some l in
+    [%sexp
+      (exn : exn),
+      (list_if_not_empty backtrace : string list sexp_option),
+      (`backtrace_history
+         (list_if_not_empty backtrace_history : Backtrace.t list sexp_option))]
+  ;;
 end
 
-exception Error_ of Exn_for_monitor.t [@@deriving sexp]
+exception Error_ of Exn_for_monitor.t
+
+let () =
+  Sexplib.Conv.Exn_converter.add_auto
+    (Error_ { exn               = Exit
+            ; backtrace         = []
+            ; backtrace_history = []
+            ; monitor           = main })
+    (function
+      | Error_ t ->
+        [%sexp "monitor.ml.Error" :: (t : Exn_for_monitor.t)]
+      | _ ->
+        (* Reaching this branch indicates a bug in sexplib. *)
+        assert false)
+;;
 
 let extract_exn exn =
   match exn with
@@ -113,18 +175,18 @@ let extract_exn exn =
 ;;
 
 let send_exn t ?backtrace exn =
-  let backtrace =
-    let split backtrace = String.split backtrace ~on:'\n' in
-    match backtrace with
-    | None -> []
-    | Some `Get -> split (Exn.backtrace ())
-    | Some (`This b) -> split b
-  in
-  let backtrace_history = (current_execution_context ()).backtrace_history in
   let exn =
     match exn with
     | Error_ _ -> exn
-    | _ -> Error_ { Exn_for_monitor. exn; backtrace; backtrace_history; monitor = t }
+    | _ ->
+      let backtrace =
+        match backtrace with
+        | None -> []
+        | Some `Get -> String.split_lines (Exn.backtrace ())
+        | Some (`This b) -> String.split_lines b
+      in
+      let backtrace_history = (current_execution_context ()).backtrace_history in
+      Error_ { Exn_for_monitor. exn; backtrace; backtrace_history; monitor = t }
   in
   if Debug.monitor_send_exn
   then Debug.log "Monitor.send_exn" (t, exn) [%sexp_of: t * exn];
@@ -133,24 +195,25 @@ let send_exn t ?backtrace exn =
   let rec loop t =
     Ivar.fill t.next_error exn;
     t.next_error <- Ivar.create ();
-    if t.is_detached then begin
+    if t.is_detached
+    then (
       if Debug.monitor_send_exn
       then Debug.log "Monitor.send_exn found listening monitor" (t, exn)
              [%sexp_of: t * exn];
       Bag.iter t.handlers_for_all_errors ~f:(fun (execution_context, f) ->
         Scheduler.enqueue scheduler execution_context f exn);
-      List.iter t.tails_for_all_errors ~f:(fun tail -> Tail.extend tail exn);
-    end else
+      List.iter t.tails_for_all_errors ~f:(fun tail -> Tail.extend tail exn))
+    else (
       match t.parent with
       | Some t' -> loop t'
       | None ->
         (* Ignore shutdown errors that reach the top. *)
-        if exn <> Shutdown then begin
+        if exn <> Shutdown
+        then (
           (* Do not change this branch to print the exception or to exit.  Having the
              scheduler raise an uncaught exception is the necessary behavior for programs
              that call [Scheduler.go] and want to handle it. *)
-          Scheduler.(got_uncaught_exn (t ())) exn (!Config.task_id ())
-        end;
+          Scheduler.(got_uncaught_exn (t ())) exn (!Config.task_id ())));
   in
   loop t
 ;;
@@ -160,7 +223,7 @@ module Exported_for_scheduler = struct
     Scheduler.(with_execution_context (t ())) context
       ~f:(fun () ->
         match Result.try_with f with
-        | Ok x -> Ok x
+        | Ok x      -> Ok x
         | Error exn ->
           send_exn (Execution_context.monitor context) exn ~backtrace:`Get;
           Error ())
@@ -246,47 +309,85 @@ let stream_iter stream ~f =
   loop stream
 ;;
 
-let internal_try_with_handle_errors ?(rest = `Log) errors =
-  match rest with
-  | `Raise -> stream_iter errors ~f:(fun e -> send_exn (current ()) e ?backtrace:None);
-  | `Log ->
-    (* We run [within ~monitor:main] to avoid a space leak when a chain of [try_with]'s
-       are run each nested within the previous one.  Without the [within], the error
-       handling for the innermost [try_with] would keep alive the entire chain. *)
-    within ~monitor:main (fun () ->
-      stream_iter errors ~f:(fun exn -> !try_with_log_exn exn))
+(* An ['a Ok_and_exns.t] represents the output of a computation running in a detached
+   monitor. *)
+module Ok_and_exns = struct
+  type 'a t =
+    { ok   : 'a Deferred.t
+    ; exns : exn Stream.t
+    }
+  [@@deriving fields, sexp_of]
+
+  let create ?here ?info ?name ~run f =
+    (* We call [create_with_parent None] because [monitor] does not need a parent.  It
+       does not because we call [detach_and_get_error_stream monitor] and deal with the
+       errors explicitly, thus [send_exn] would never propagate an exn past [monitor]. *)
+    let monitor = create_with_parent ?here ?info ?name None in
+    let exns    = detach_and_get_error_stream monitor in
+    let ok =
+      match run with
+      | `Now      -> within'   ~monitor f
+      | `Schedule -> schedule' ~monitor f
+    in
+    { ok; exns }
+  ;;
+end
+
+let fill_result_and_handle_background_errors
+      result_filler
+      result
+      exns
+      handle_exns_after_result
+  =
+  if Ivar_filler.is_empty result_filler
+  then (
+    Ivar_filler.fill result_filler result;
+    handle_exns_after_result exns);
 ;;
 
-let try_with ?here ?info
-      ?(name = "try_with")
+let make_handle_exn rest =
+  match rest with
+  | `Log   -> !try_with_log_exn
+  | `Raise ->
+    (* We close over [parent] only in the [`Raise] case, to avoid a space leak in the
+       [`Log] case. *)
+    let parent = current () in
+    fun exn -> send_exn parent exn ?backtrace:None
+;;
+
+let try_with
+      ?here
+      ?info
+      ?(name = "")
       ?extract_exn:(do_extract_exn = false)
       ?(run = `Schedule)
-      ?rest
-      f =
-  (* Because we call [detach_and_get_error_stream monitor] and deal with the errors
-     explicitly, [monitor] does not need a parent; thus [send_exn] would never propagate
-     an exn past [monitor]. *)
-  let monitor = create_with_parent ?here ?info ~name None in
-  let errors = detach_and_get_error_stream monitor in
-  let d =
-    match run with
-    | `Now      -> within' ~monitor f
-    | `Schedule -> schedule' ~monitor f
-  in
-  match Deferred.peek d with
-  | Some a -> (internal_try_with_handle_errors ?rest errors; return (Ok a))
-  | None ->
-    choose [ choice d (fun a -> (Ok a, errors))
-           ; choice (Stream.next errors)
-               (function
-                 | Nil -> assert false
-                 | Cons (err, errors) ->
-                   let err = if do_extract_exn then extract_exn err else err in
-                   (Error err, errors));
-           ]
-    >>| fun (res, errors) ->
-    internal_try_with_handle_errors ?rest errors;
-    res
+      ?(rest = `Log)
+      f
+  =
+  let { Ok_and_exns. ok; exns } = Ok_and_exns.create ?here ?info ~name ~run f in
+  let handle_exn = make_handle_exn rest in
+  let handle_exns_after_result exns = stream_iter exns ~f:handle_exn in
+  (* We run [within' ~monitor:main] to avoid holding on to references to the evaluation
+     context in which [try_with] was called.  This avoids a space leak when a chain of
+     [try_with]'s are run each nested within the previous one.  Without the [within'], the
+     error handling for the innermost [try_with] would keep alive the entire chain. *)
+  within' ~monitor:main (fun () ->
+    if Deferred.is_determined ok
+    then (
+      handle_exns_after_result exns;
+      return (Ok (Deferred.value_exn ok)))
+    else (
+      let result_filler, result = Ivar_filler.create () in
+      upon ok (fun res ->
+        fill_result_and_handle_background_errors result_filler (Ok res) exns
+          handle_exns_after_result);
+      upon (Stream.next exns) (function
+        | Nil -> assert false;
+        | Cons (exn, exns) ->
+          let exn = if do_extract_exn then extract_exn exn else exn in
+          fill_result_and_handle_background_errors
+            result_filler (Error exn) exns handle_exns_after_result);
+      result))
 ;;
 
 let try_with_or_error ?here ?info ?(name = "try_with_or_error") ?extract_exn f =
@@ -299,10 +400,8 @@ let try_with_join_or_error ?here ?info ?(name = "try_with_join_or_error") ?extra
 ;;
 
 let protect ?here ?info ?(name = "Monitor.protect") f ~finally =
-  try_with ?here ?info ~name f
-  >>= fun r ->
-  try_with ?here ?info ~name:"finally" finally
-  >>| fun fr ->
+  let%bind r = try_with ?here ?info ~name f in
+  let%map fr = try_with ?here ?info ~name:"finally" finally in
   match r, fr with
   | Error e, Error finally_e  ->
     failwiths "Async finally" (e, finally_e) [%sexp_of: exn * exn]
@@ -312,21 +411,20 @@ let protect ?here ?info ?(name = "Monitor.protect") f ~finally =
 ;;
 
 let handle_errors ?here ?info ?name f handler =
-  let monitor = create ?here ?info ?name () in
-  stream_iter (detach_and_get_error_stream monitor) ~f:handler;
-  within' ~monitor f;
+  let { Ok_and_exns. ok; exns } = Ok_and_exns.create ?here ?info ?name ~run:`Now f in
+  stream_iter exns ~f:handler;
+  ok
 ;;
 
 let catch_stream ?here ?info ?name f =
-  let monitor = create ?here ?info ?name () in
-  let stream = detach_and_get_error_stream monitor in
-  within ~monitor f;
-  stream
+  let { Ok_and_exns. exns; _ } =
+    Ok_and_exns.create ?here ?info ?name ~run:`Now (fun () -> f (); Deferred.unit)
+  in
+  exns
 ;;
 
 let catch ?here ?info ?name f =
-  Stream.next (catch_stream ?here ?info ?name f)
-  >>| function
+  match%map Stream.next (catch_stream ?here ?info ?name f) with
   | Cons (x, _) -> x
   | Nil -> failwith "Monitor.catch got unexpected empty stream"
 ;;
@@ -335,6 +433,3 @@ let catch_error ?here ?info ?name f =
   catch ?here ?info ?name f
   >>| Error.of_exn
 ;;
-
-
-

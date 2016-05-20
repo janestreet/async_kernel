@@ -11,7 +11,9 @@ module T = struct
   let create f =
     let start = Ivar.create () in
     { start
-    ; result = Ivar.read start >>= (fun () -> Monitor.try_with_or_error f);
+    ; result =
+        let%bind () = Ivar.read start in
+        Monitor.try_with_or_error f
     }
   ;;
 
@@ -27,7 +29,11 @@ module T = struct
 
   let return a = create (fun () -> return a)
 
-  let bind t f = create (fun () -> force_exn t >>= fun a -> force_exn (f a))
+  let bind t f =
+    create (fun () ->
+      let%bind a = force_exn t in
+      force_exn (f a))
+  ;;
 
   let map t ~f = create (fun () -> force_exn t >>| f)
   let map = `Custom map

@@ -62,7 +62,7 @@ let create_with_parent ?here ?info ?name parent =
   let name =
     match info, name with
     | Some i, None   -> i
-    | Some i, Some s -> Info.tag i s
+    | Some i, Some s -> Info.tag i ~tag:s
     | None  , Some s -> Info.of_string s
     | None  , None   -> Info.create "id" id [%sexp_of: int]
   in

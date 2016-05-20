@@ -14,8 +14,11 @@ module Max_num_jobs_per_priority_per_cycle = Config.Max_num_jobs_per_priority_pe
 
 let concat = String.concat
 
-let eprints = Core_kernel.Debug.eprints
-let eprint  = Core_kernel.Debug.eprint
+let eprint   = Core_kernel.Debug.eprint
+let eprint_s = Core_kernel.Debug.eprint_s
+let eprints  = Core_kernel.Debug.eprints
+
+let print_s sexp = printf "%s\n%!" (sexp |> Sexp.to_string_hum)
 
 let sec = Time_ns.Span.of_sec
 

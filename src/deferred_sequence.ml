@@ -30,8 +30,7 @@ let fold_mapi
       match Sequence.next t with
       | None -> return c
       | Some (a, t) ->
-        mapi_f i a
-        >>= fun b ->
+        let%bind b = mapi_f i a in
         loop (i + 1) t (fold_f c b)
     in
     loop 0 t init
@@ -40,10 +39,8 @@ let fold_mapi
       match Sequence.next t with
       | None -> c
       | Some (a, t) ->
-        loop (i + 1) t (mapi_f i a
-                        >>= fun b ->
-                        c
-                        >>| fun c ->
+        loop (i + 1) t (let%bind b = mapi_f i a in
+                        let%map c = c in
                         fold_f c b)
     in
     loop 0 t (return init)
@@ -52,15 +49,12 @@ let fold_mapi
     (* [loop] forces the input sequence and enqueues a throttle job only if there is
        capacity available. *)
     let rec loop i t (c : c Deferred.t) =
-      Throttle.capacity_available throttle
-      >>= fun () ->
+      let%bind () = Throttle.capacity_available throttle in
       match Sequence.next t with
       | None -> c
       | Some (a, t) ->
-        loop (i + 1) t (Throttle.enqueue throttle (fun () -> mapi_f i a)
-                        >>= fun b ->
-                        c
-                        >>| fun c ->
+        loop (i + 1) t (let%bind b = Throttle.enqueue throttle (fun () -> mapi_f i a) in
+                        let%map c = c in
                         fold_f c b)
     in
     loop 0 t (return init)
@@ -68,7 +62,7 @@ let fold_mapi
 
 let foldi t ~init ~f =
   Sequence.delayed_fold t ~init:(0, init)
-    ~f:(fun (i, b) a ~k -> f i b a >>= fun b -> k (i + 1, b))
+    ~f:(fun (i, b) a ~k -> let%bind b = f i b a in k (i + 1, b))
     ~finish:(fun (_, b) -> return b)
 ;;
 
@@ -81,8 +75,7 @@ let fold t ~init ~f =
 ;;
 
 let all t =
-  fold t ~init:[] ~f:(fun accum d -> d >>| fun a -> a :: accum)
-  >>| fun res ->
+  let%map res = fold t ~init:[] ~f:(fun accum d -> let%map a = d in a :: accum) in
   Sequence.of_list (List.rev res)
 ;;
 
@@ -92,13 +85,13 @@ let rec find_map t ~f =
   match Sequence.next t with
   | None           -> return None
   | Some (v, rest) ->
-    f v >>= function
+    match%bind f v with
     | None           -> find_map rest ~f
     | Some _ as some -> return some
 ;;
 
 let find t ~f =
-  find_map t ~f:(fun elt -> f elt >>| fun b -> if b then Some elt else None)
+  find_map t ~f:(fun elt -> let%map b = f elt in if b then Some elt else None)
 ;;
 
 let iteri ?how t ~f : unit Deferred.t =
@@ -108,8 +101,9 @@ let iteri ?how t ~f : unit Deferred.t =
 let iter ?how t ~f = iteri ?how t ~f:(fun _ a -> f a)
 
 let map ?how t ~f =
-  fold_mapi ?how t ~mapi_f:(fun _ a -> f a) ~init:[] ~fold_f:(fun bs b -> b :: bs)
-  >>| fun bs ->
+  let%map bs =
+    fold_mapi ?how t ~mapi_f:(fun _ a -> f a) ~init:[] ~fold_f:(fun bs b -> b :: bs)
+  in
   Sequence.of_list (List.rev bs)
 ;;
 
@@ -117,11 +111,12 @@ let map ?how t ~f =
    to keep a long stream of intermediate [None] results in the accumulator, only to later
    filter them all out. *)
 let filter_map ?how t ~f =
-  fold_mapi t ?how ~mapi_f:(fun _ a -> f a) ~init:[] ~fold_f:(fun bs maybe_v ->
-    match maybe_v with
-    | None   -> bs
-    | Some b -> b :: bs)
-  >>| fun bs ->
+  let%map bs =
+    fold_mapi t ?how ~mapi_f:(fun _ a -> f a) ~init:[] ~fold_f:(fun bs maybe_v ->
+      match maybe_v with
+      | None   -> bs
+      | Some b -> b :: bs)
+  in
   Sequence.of_list (List.rev bs)
 ;;
 
@@ -129,8 +124,7 @@ let concat_map ?how t ~f = map ?how t ~f >>| Sequence.concat
 
 let filter ?how t ~f =
   filter_map ?how t ~f:(fun a ->
-    f a
-    >>| function
+    match%map f a with
     | true -> Some a
     | false -> None)
 ;;
