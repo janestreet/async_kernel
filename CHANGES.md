@@ -1,3 +1,319 @@
+## 113.43.00
+
+- Export `Time_source` from `Async_kernel.Std`.
+
+- Name the non-`t` arguments to `Error.tag` and similar functions to allow
+  easier partial application.
+
+- Name the non-`t` arguments to `Error.tag` and similar functions to allow
+  easier partial application.
+
+- Switched if-then-else style from:
+
+    if test then begin
+      E1;
+      E2;
+    end else begin
+      E3;
+      E4;
+    end
+
+  to:
+
+    if test
+    then (
+      E1;
+      E2)
+    else (
+      E3;
+      E4);
+
+  This style puts keywords at the start of lines and closing delimiters
+  at the end.  And makes it lighter-weight to be more consistent about
+  using the delimiters.
+
+- Switched `Async_kernel` from `>>=` and `>>|` to `let%bind` and
+  `let%map`, where appropriate.
+
+- Mirroring `Or_error.error_s`, like several of the other `Or_error`
+  functions are mirrored
+
+- Improved a unit test in `Pipe`.
+
+- Removed from `Monitor.try_with`'s implementation the use of
+  `Deferred.choose`, which is very costly in terms of allocation and
+  memory use.
+
+- Reworked the implementation of `Monitor.try_with` and related
+  functions, using a new underlying concept, `Ok_and_exns`, which
+  represents the output of a computation running in a detached monitor,
+  i.e.:
+
+    type 'a t =
+      { ok   : 'a Deferred.t
+      ; exns : exn Stream.t
+      }
+
+  Using this explicit type simplifies reasoning, as compared to implicit
+  monitor error streams.
+
+- Some minor cleanup in `core_kernel/src/scheduler.ml`.
+
+- Added `Scheduler.make_async_unusable`.
+
+- Added `Pipe.create_reader`, which is like `Pipe.init`, but has different
+  behavior w.r.t. `f` raising.  It forces the caller to choose the behavior
+  on raise to avoid subtle bugs related to closing the reading end.
+  The comment recommends `~close_on_exception:false`.
+
+    val create_reader
+      :  close_on_exception:bool
+      -> ('a Writer.t -> unit Deferred.t)
+      -> 'a Reader.t
+
+  A child feature deprecates `init` and replaces calls with
+  `create_reader ~close_on_exception:true`.
+
+  `Pipe.init_reader` was renamed to `Pipe.create_writer` so that the names are
+  consistent.  Its behaviour was not changed: it also closes the pipe if `f`
+  raises, but here this is probably what you want, so that the writer is notified
+  that the reader is dead.
+
+  Changed `Pipe.of_sequence`, which is implemented with `create_reader`,
+  to use `~close_on_exception:false`.  This seems like an improvement, because
+  it won't treat raising as end of sequence.
+
+  Changed `Pipe.unfold`, which is implemented with `create_reader`, to use
+  the `~close_on_exception:false`.  This shouldn't be a problem, because
+  `unfold` is barely used.  And it was never specified what `f` raising
+  means.  It seems fine to not treat raising as end-of-sequence, because
+  `unfold` already has a way to express end-of-sequence.
+
+  Here's some more explanation of motivation for the change.  In the
+  current world, `Pipe.init` looks like this:
+
+    let init f =
+      let r, w = create () in
+      don't_wait_for (Monitor.protect (fun () -> f w)
+                        ~finally:(fun () -> close w; Deferred.unit));
+      r
+    ;;
+
+  This means that if `f` raises, then the pipe is both closed and the
+  exception is sent to the monitor active when `init` was called.
+
+  If you have something (like `Pipe.fold_without_pushback`) consuming
+  the pipe, the exception being delivered can race against the fold
+  finishing, and you could end up missing it. Moreover, the race seems
+  to reliably go in the direction you don't want:
+
+    $ cat pipes.ml
+    #!/j/office/app/jane-script/prod/113.34/jane-script run
+    open Core.Std
+    open Async.Std
+
+    let main () =
+      Monitor.try_with_or_error (fun () ->
+        Pipe.init (fun _writer -> assert false)
+        |> Pipe.fold_without_pushback ~init:() ~f:(fun () () -> ())
+      )
+      >>= fun res ->
+      printf !"Result: %{sexp:unit Or_error.t}\n" res;
+      exit 0
+
+    let () =
+      don't_wait_for (main ());
+      never_returns (Scheduler.go ())
+
+    $ ./pipes.ml
+    Result: (Ok ())
+    2015-10-21 15:42:22.494737+01:00 Error Exception raised to Monitor.try_with that already returned
+      (monitor.ml.Error_
+      ((exn "Assert_failure /home/toto/pipes.ml:7:30")
+    `snip`
+
+- Deprecated `Pipe.init` and replaced its uses with the semantically
+  equivalent:
+
+    Pipe.create_reader ~close_on_exception:true
+
+  See the parent feature for an explanation of why `Pipe.init` had the
+  wrong default behavior.
+
+  If this is the third time you're reading this feature, please accept my
+  apologies!  Review of this feature produced requests for the parent feature.
+
+- Adds phantom type to Validated as witness of invariant
+
+  The witness prevents types from different applications of the Validated functors
+  from unifying with one another.
+
+- add compare to pipe on the internal id
+
+- Added `Bvar`, a new basic data structure, to Async.
+
+  `Bvar` is like an `Ivar` that can be filled multiple times, or
+  can be thought of as a condition variable that supports `broadcast`
+  but does not support `signal`.
+
+- Switch the implementation of `Scheduler.yield` to use a `Bvar.t`
+
+- Adds `Scheduler.yield_until_no_jobs_remain` which is determined when
+  the transitive closure of all currently runnable jobs and jobs that
+  become runnable in the process of their execution have been run to
+  completion.
+
+  This differs from `Scheduler.yield` whose result is determined as soon
+  as the scheduler has completed the current cycle.
+
+- Monad.Let_syntax.return
+
+  Added to `Monad.Syntax.Let_syntax`:
+
+    val return : 'a -> 'a t
+
+  so that when one does:
+
+    open Some_random_monad.Let_syntax
+
+  `return` is in scope.
+
+- Added `Bvar.invariant`.
+
+- Moved the newly introduced expect test from `Async_kernel` to
+  `Async_kernel_test`, to avoid having `Async_kernel` depend on `Unix`,
+  which breaks the 32-bit build.
+
+- An experiment to make async errors more readable.
+
+  Before:
+
+    (monitor.ml.Error_
+     ((exn (Failure "something went wrong"))
+      (backtrace
+       ("Raised at file \"pervasives.ml\", line 30, characters 22-33"
+        "Called from file \"deferred0.ml\", line 64, characters 64-69"
+        "Called from file \"job_queue.ml\", line 160, characters 6-47" ""))
+      (monitor
+       (((name try_with) (here ()) (id 2) (has_seen_error true)
+         (is_detached true))))))
+
+    (monitor.ml.Error_
+     ((exn (Failure "something went wrong"))
+      (backtrace
+       ("Raised at file \"pervasives.ml\", line 30, characters 22-33"
+        "Called from file \"deferred0.ml\", line 64, characters 64-69"
+        "Called from file \"job_queue.ml\", line 160, characters 6-47" ""))
+      (monitor
+       (((name foo) (here (lib/async/a.ml:13:56)) (id 2) (has_seen_error true)
+         (is_detached true))))))
+
+  After:
+
+    (monitor.ml.Error (Failure "something went wrong")
+     ("Raised at file \"pervasives.ml\", line 30, characters 22-33"
+      "Called from file \"deferred0.ml\", line 64, characters 64-69"
+      "Called from file \"job_queue.ml\", line 160, characters 6-47")))
+
+    (monitor.ml.Error (Failure "something went wrong")
+     ("Raised at file \"pervasives.ml\", line 30, characters 22-33"
+      "Called from file \"deferred0.ml\", line 64, characters 64-69"
+      "Called from file \"job_queue.ml\", line 160, characters 6-47"
+      "Caught by monitor foo at file \"lib/async/a.ml\", line 13, characters 56-56"))
+
+  So:
+  - remove the trailing "" in the backtrace
+  - remove the ugly underscore in the exception name
+  - remove the monitor when it contains nothing useful
+  - when the monitor contains something useful, namely name or position, just stick that
+    information in the rest of the backtrace
+  - remove the fields exception, backtrace, monitor. It's ok in the code, but in the
+    sexp it doesn't add much.
+  - remove the names for the monitors from `Monitor.try_with, Deferred.Or_error.try_with`
+    and `Deferred.Or_error.try_with_join` since they are so common they contain no
+    information
+
+  A child feature tries to remove the useless bits of backtraces, since they can represent a
+  significant source of noise (in the examples above, the whole backtraces are noise).
+
+- Added module `Async.Std.Require_explicit_time_source`, so that one can
+  require code to be explicit about what time source is used and not
+  unintentionally use the wall clock.  The idiom is to do:
+
+    open! Require_explicit_time_source
+
+  or, in an import.ml:
+
+    include Require_explicit_time_source
+
+- Added a test demonstrating a space leak in `Monitor.try_with`, in which
+  the `Ok` result is held on to by background jobs.
+
+- Added `Async_kernel.Ivar_filler` a new module that is a reference to
+  an ivar that allows one to fill the ivar, but not to read it.
+  This allows the implementation to drop the reference to the ivar
+  once it is full, which can be useful to avoid holding onto unused
+  memory.
+
+  This will be used to fix the space leak in `Monitor.try_with`.
+
+- Fixed the space leak in `Monitor.try_with`, using an `Ivar_filler` to
+  avoid holding on to memory unnecessarily.
+
+  Here are the allocation numbers for `lib/async/bench/try_with.ml` at
+  the base and tip of the feature.
+
+      |                | base | tip |
+      |----------------+------+-----|
+      | minor words    |  113 | 120 |
+      | promoted words |   74 |  78 |
+      | live words     |   71 |  75 |
+
+  Unsurprisingly, the `Ivar_filler` costs a little.  But not as much as
+  switching the implementation back to `choose`.
+
+- Remove more noise from the async errors, namely useless backtraces that say things like
+  "and this is called in the scheduler, in Deferred.bind". We already know the error comes
+  from async from the monitor.ml.Error line. Also this is frequently repeated, when several
+  monitor errors are nested, making things worse.
+
+  Here is a synthetic example:
+  before:
+
+    ((monitor.ml.Error (Failure "something went wrong")
+      ("Raised at file \"pervasives.ml\", line 30, characters 22-33"
+       "Called from file \"a.ml\", line 16, characters 17-48"
+       "Called from file \"deferred0.ml\", line 64, characters 64-69"
+       "Called from file \"job_queue.ml\", line 160, characters 6-47"))
+     (monitor.ml.Error (Failure "something went wrong")
+      ("Raised at file \"pervasives.ml\", line 30, characters 22-33"
+       "Called from file \"a.ml\", line 22, characters 26-57"
+       "Called from file \"deferred1.ml\", line 14, characters 63-68"
+       "Called from file \"job_queue.ml\", line 160, characters 6-47"))
+     (monitor.ml.Error (Failure "something went wrong")
+      ("Raised at file \"pervasives.ml\", line 30, characters 22-33"
+       "Called from file \"monitor.ml\", line 256, characters 42-51"
+       "Called from file \"job_queue.ml\", line 160, characters 6-47"))
+     (monitor.ml.Error (Failure "something went wrong")
+      ("Raised at file \"pervasives.ml\", line 30, characters 22-33"
+       "Called from file \"a.ml\", line 29, characters 26-57"
+       "Called from file \"result.ml\", line 105, characters 9-15")))
+
+  after:
+
+    ((monitor.ml.Error (Failure "something went wrong")
+      ("Raised at file \"pervasives.ml\", line 30, characters 22-33"
+       "Called from file \"a.ml\", line 16, characters 17-48"))
+     (monitor.ml.Error (Failure "something went wrong")
+      ("Raised at file \"pervasives.ml\", line 30, characters 22-33"
+       "Called from file \"a.ml\", line 22, characters 26-57"))
+     (monitor.ml.Error (Failure "something went wrong")
+      ("Raised at file \"pervasives.ml\", line 30, characters 22-33"))
+     (monitor.ml.Error (Failure "something went wrong")
+      ("Raised at file \"pervasives.ml\", line 30, characters 22-33"
+       "Called from file \"a.ml\", line 29, characters 26-57"
+       "Called from file \"result.ml\", line 105, characters 9-15")))
+
 ## 113.33.00
 
 - In `Pipe`, deprecated `read_at_most` and `read_now_at_most`, and
@@ -860,4 +1176,3 @@ this changelog.
 ## 109.09.00
 
 - Fixed bug in `Async.Throttle`, in which jobs weren't started in order.
-
