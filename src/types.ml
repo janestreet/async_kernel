@@ -119,6 +119,7 @@ and Scheduler : sig
     ; mutable job_pool                            : Job_pool.t
     ; normal_priority_jobs                        : Job_queue.t
     ; low_priority_jobs                           : Job_queue.t
+    ; very_low_priority_workers                   : Very_low_priority_worker.t Deque.t
     ; mutable main_execution_context              : Execution_context.t
     ; mutable current_execution_context           : Execution_context.t
     ; mutable uncaught_exn                        : (Exn.t * Sexp.t) option
@@ -160,3 +161,16 @@ and Time_source : sig
     ; scheduler     : Scheduler.t
     }
 end = Time_source
+
+and Very_low_priority_worker : sig
+  module Exec_result : sig
+    type t =
+      | Finished
+      | Not_finished
+  end
+
+  type t =
+    { execution_context : Execution_context.t
+    ; exec              : unit -> Exec_result.t
+    }
+end = Very_low_priority_worker

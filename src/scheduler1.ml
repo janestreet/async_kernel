@@ -24,6 +24,30 @@ module Bvar = struct
   ;;
 end
 
+module Very_low_priority_worker = struct
+  module Exec_result = struct
+    type t = Types.Very_low_priority_worker.Exec_result.t =
+      | Finished
+      | Not_finished
+    [@@deriving sexp_of]
+  end
+
+  type t = Types.Very_low_priority_worker.t =
+    { execution_context : Execution_context.t
+    ; exec              : unit -> Exec_result.t
+    }
+  [@@deriving fields, sexp_of]
+
+  let invariant t =
+    Invariant.invariant [%here] t [%sexp_of: t]
+      (fun () ->
+         let check f = Invariant.check_field t f in
+         Fields.iter
+           ~execution_context:(check Execution_context.invariant)
+           ~exec:ignore)
+  ;;
+end
+
 type t = Scheduler0.t =
   { (* [check_access] optionally holds a function to run to check whether access to [t] is
        currently allowed.  It is used to detect invalid access to the scheduler from a
@@ -32,6 +56,7 @@ type t = Scheduler0.t =
   ; mutable job_pool                            : Job_pool.t
   ; normal_priority_jobs                        : Job_queue.t
   ; low_priority_jobs                           : Job_queue.t
+  ; very_low_priority_workers                   : Very_low_priority_worker.t Deque.t
   ; mutable main_execution_context              : Execution_context.t
   ; mutable current_execution_context           : Execution_context.t
   (* The scheduler calls [got_uncaught_exn] when an exception bubbles to the top of the
@@ -108,6 +133,8 @@ let invariant t : unit =
       ~job_pool:(check Job_pool.invariant)
       ~normal_priority_jobs:(check Job_queue.invariant)
       ~low_priority_jobs:   (check Job_queue.invariant)
+      ~very_low_priority_workers:(check (fun q ->
+        Deque.iter q ~f:Very_low_priority_worker.invariant))
       ~main_execution_context:(check Execution_context.invariant)
       ~current_execution_context:(check Execution_context.invariant)
       ~uncaught_exn:(check (fun uncaught_exn ->
@@ -176,6 +203,7 @@ let create () =
     ; job_pool                             = Job_pool.create ()
     ; normal_priority_jobs                 = Job_queue.create ()
     ; low_priority_jobs                    = Job_queue.create ()
+    ; very_low_priority_workers            = Deque.create ()
     ; main_execution_context               = Execution_context.main
     ; current_execution_context            = Execution_context.main
     ; uncaught_exn                         = None

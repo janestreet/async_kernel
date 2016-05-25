@@ -86,3 +86,17 @@ val reset_in_forked_process : unit -> unit
 val yield : t -> unit Deferred.t
 val yield_every : n:int -> (t -> unit Deferred.t) Staged.t
 val yield_until_no_jobs_remain : t -> unit Deferred.t
+
+module Very_low_priority_work : sig
+  module Worker_result : sig
+    type t =
+      | Finished
+      | Not_finished
+    [@@deriving sexp_of]
+  end
+
+  (** Enqueue some low-priority work to be done.  The work will happen at some point, but
+      Async will choose when is the best time to do it.  [f] will be called until it
+      returns [Finished]. *)
+  val enqueue : f:(unit -> Worker_result.t) -> unit
+end

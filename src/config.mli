@@ -13,15 +13,15 @@
 
 open! Core_kernel.Std
 
-module Epoll_max_ready_events              : Validated with type raw := int
-module Max_inter_cycle_timeout             : Validated with type raw := Time_ns.Span.t
-module Min_inter_cycle_timeout             : Validated with type raw := Time_ns.Span.t
-module Max_num_threads                     : Validated with type raw := int
-module Max_num_jobs_per_priority_per_cycle : Validated with type raw := int
+module Epoll_max_ready_events              : Validated.S with type raw := int
+module Max_inter_cycle_timeout             : Validated.S with type raw := Time_ns.Span.t
+module Min_inter_cycle_timeout             : Validated.S with type raw := Time_ns.Span.t
+module Max_num_threads                     : Validated.S with type raw := int
+module Max_num_jobs_per_priority_per_cycle : Validated.S with type raw := int
 
 module Max_num_open_file_descrs : sig
-  include Validated with type raw := int
-  include Equal.S   with type t := t
+  include Validated.S with type raw := int
+  include Equal.S     with type t := t
 
   val default : t
 end

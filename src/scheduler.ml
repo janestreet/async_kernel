@@ -217,6 +217,54 @@ let yield_every ~n =
         yield t)))
 ;;
 
+module Very_low_priority_work = struct
+  module Worker_result = Very_low_priority_worker.Exec_result
+
+
+
+  let rec run t = run_workers t ~num_execs_before_yielding:1_000
+  and run_workers t ~num_execs_before_yielding =
+    if num_execs_before_yielding = 0
+    then yield_then_run t
+    else if not (Deque.is_empty t.very_low_priority_workers)
+    then (
+      let worker = Deque.dequeue_front_exn t.very_low_priority_workers in
+      set_execution_context t worker.execution_context;
+      run_worker t worker ~num_execs_before_yielding)
+  and yield_then_run t =
+    if not (Deque.is_empty t.very_low_priority_workers)
+    then Deferred.upon (yield t) (fun () -> run t)
+  and run_worker t worker ~num_execs_before_yielding =
+    assert (phys_equal t.current_execution_context worker.execution_context);
+    if num_execs_before_yielding = 0
+    then (
+      Deque.enqueue_front t.very_low_priority_workers worker;
+      yield_then_run t)
+    else (
+      let num_execs_before_yielding = num_execs_before_yielding - 1 in
+      match worker.exec () with
+      | Finished     -> run_workers t        ~num_execs_before_yielding
+      | Not_finished -> run_worker  t worker ~num_execs_before_yielding
+      | exception exn ->
+        let bt = Exn.backtrace () in
+        Monitor.send_exn (Monitor.current ()) exn ~backtrace:(`This bt);
+        run_workers t ~num_execs_before_yielding)
+  ;;
+
+  let enqueue ~f =
+    let t = t () in
+    let queue = t.very_low_priority_workers in
+    let running = not (Deque.is_empty queue) in
+    let execution_context =
+      Execution_context.create_like
+        (current_execution_context t)
+        ~priority:Low
+    in
+    Deque.enqueue_back queue { execution_context; exec = f };
+    if not running then enqueue t execution_context run t
+  ;;
+end
+
 let%test_module _ = (module struct
 
   (* [Monitor.catch_stream]. *)
