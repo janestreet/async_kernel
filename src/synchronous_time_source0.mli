@@ -33,6 +33,10 @@ val create
 
 val alarm_precision : [> read] T1.t -> Time_ns.Span.t
 
+(** [is_wall_clock] reports whether this time source represents 'wall clock' time, or some
+    alternate source of time. *)
+val is_wall_clock : [> read] T1.t -> bool
+
 (** The behavior of [now] is special for [wall_clock ()]; it always calls [Time_ns.now
     ()], so it can return times that the time source has not yet been advanced to. *)
 val now : [> read] T1.t -> Time_ns.t

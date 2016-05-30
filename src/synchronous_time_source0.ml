@@ -204,6 +204,8 @@ module Read_write = struct
   let invariant = invariant
 end
 
+let is_wall_clock t = t.is_wall_clock
+
 let read_only (t : [> read] T1.t) = (t :> t)
 
 (* [fire t event] sets [event.status = Fired] and inserts [event] into [t.fired_events] in
