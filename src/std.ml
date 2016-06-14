@@ -14,6 +14,7 @@ module Quickcheck                   = Async_quickcheck
 module Lazy_deferred                = Lazy_deferred
 module Monad_sequence               = Monad_sequence
 module Monitor                      = Monitor
+module Mvar                         = Mvar
 module Pipe                         = Pipe
 module Priority                     = Priority
 module Require_explicit_time_source = Require_explicit_time_source
