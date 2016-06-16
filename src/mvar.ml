@@ -7,7 +7,7 @@ type ('a, 'phantom) t =
        the use of [Obj.magic]. *)
     dummy                   : 'a sexp_opaque
   ; mutable current_value   : 'a
-  ; mutable taken           : unit Ivar.t
+  ; taken                   : unit Bvar.t
   ; mutable value_available : unit Ivar.t }
 [@@deriving fields, sexp_of]
 
@@ -34,7 +34,7 @@ let invariant invariant_a _ t =
         if is_empty t
         then assert (phys_equal current_value t.dummy)
         else invariant_a current_value))
-      ~taken:(check (fun taken -> assert (Ivar.is_empty taken)))
+      ~taken:(check (Bvar.invariant Unit.invariant))
       ~value_available:ignore)
 ;;
 
@@ -72,29 +72,28 @@ let create () =
   let dummy = Obj.magic 0 in
     { dummy
     ; current_value   = dummy
-    ; taken           = Ivar.create ()
+    ; taken           = Bvar.create ()
     ; value_available = Ivar.create () }
 ;;
 
-let clear_nonempty t =
+let take_nonempty t =
   assert (not (is_empty t));
-  Ivar.fill t.taken ();
+  Bvar.broadcast t.taken ();
   let r = t.current_value in
   t.current_value   <- t.dummy;
   t.value_available <- Ivar.create ();
-  t.taken           <- Ivar.create ();
   r
 ;;
 
 let take_exn t =
   if is_empty t then failwith "Mvar.take_exn called on empty mvar";
-  clear_nonempty t;
+  take_nonempty t;
 ;;
 
 let take t =
   if is_empty t
   then None
-  else Some (clear_nonempty t)
+  else Some (take_nonempty t)
 ;;
 
 let set t v =
@@ -105,8 +104,7 @@ let set t v =
 let update     t ~f = set t (f (peek     t))
 let update_exn t ~f = set t (f (peek_exn t))
 
-let taken t = Ivar.read t.taken
-let is_empty  = is_empty
+let taken t = Bvar.wait t.taken
 
 let rec put t v =
   if is_empty t

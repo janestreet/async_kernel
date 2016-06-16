@@ -19,6 +19,11 @@ let invariant invariant_a t =
         assert (Ivar.is_empty ivar))))
 ;;
 
+let sexp_of_t _ { has_any_waiters; ivar = _ } =
+  (* We don't show [ivar] because it's always empty. *)
+  [%message (has_any_waiters : bool)]
+;;
+
 include Scheduler1.Bvar
 
 let broadcast t a =

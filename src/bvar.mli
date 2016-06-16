@@ -13,7 +13,7 @@
 open! Core_kernel.Std
 open! Import
 
-type 'a t = 'a Types.Bvar.t
+type 'a t = 'a Types.Bvar.t [@@deriving sexp_of]
 
 include Invariant.S1 with type 'a t := 'a t
 
