@@ -193,3 +193,7 @@ val forever
   :  'state
   -> ('state -> 'state t)
   -> unit
+
+(** Useful for lifting values from the [Deferred.t] monad to the [Result.t Deferred.t]
+    monad *)
+val ok : 'a t -> ('a, _) Core_kernel.Std.Result.t t

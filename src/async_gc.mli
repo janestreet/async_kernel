@@ -53,7 +53,7 @@ module Alarm : sig
       that [create] was called in. *)
   val create : (unit -> unit) -> t
 
-  (** [delete t] will stop the calls to the function associated with [a].  Calling [delete
+  (** [delete t] will stop the calls to the function associated with [t].  Calling [delete
       t] again has no effect. *)
   val delete : t -> unit
 end
