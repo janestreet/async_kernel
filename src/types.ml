@@ -68,6 +68,11 @@ and Ivar : sig
   type 'a t =
     { mutable cell : ('a, Cell.any) Cell.t
     }
+  module Immutable : sig
+    type 'a t =
+      { cell : ('a, Cell.any) Cell.t
+      }
+  end
 end = Ivar
 
 and Job : sig

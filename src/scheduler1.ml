@@ -9,9 +9,22 @@ let debug = Debug.scheduler
 
 module Ivar = struct
   open Types.Ivar
+
   let create_with_cell cell = { cell }
-  let create ()             = create_with_cell Empty
-  let create_full a         = create_with_cell (Full a)
+
+  let create () = create_with_cell Empty
+
+  let create_full (type a) (a : a) =
+    (* We allocate an immutable ivar and then cast it to a mutable ivar.  The immutability
+       allows OCaml to statically allocate the ivar if [a] is constant.  This cast is safe
+       because a full ivar is never mutated.  We also believe that we will not trigger
+       flambda to spuriously repor warning 59, mutation of known immutable data.  All
+       mutations of an ivar cell, i.e. [foo.cell <- ...], are directly preceded by a
+       [match foo.cell] that prevents the [Full] case from reaching the modification.  So
+       flambda should always eliminate the [foo.cell <- ...] of a constant [Full] ivar,
+       and not warn. *)
+    (Obj.magic ({ cell = Full a } : a Immutable.t) : a t)
+  ;;
 end
 
 module Bvar = struct

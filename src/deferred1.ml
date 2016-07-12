@@ -9,11 +9,39 @@ include Deferred0
    accumulate handlers. *)
 let never () = Ivar.read (Ivar.create ())
 
-include Monad.Make (struct
-  include Deferred0
-  let map t ~f = create (fun i -> upon t (fun a -> Ivar.fill i (f a)))
-  let map = `Custom map
-end)
+module M =
+  Monad.Make (struct
+    include Deferred0
+    let map t ~f = create (fun i -> upon t (fun a -> Ivar.fill i (f a)))
+    let map = `Custom map
+  end)
+
+include (M : (module type of struct include M end
+               with module Let_syntax := M.Let_syntax))
+
+(* We rebind all the various [return]s because the use of the [Monad.Make] functor
+   causes the compiler to not inline [return], and hence makes it impossible to
+   statically allocate constants like [return ()].  By rebinding [return] as
+   [Deferred0.return], the compiler can see that:
+
+   {[
+     return a = { Ivar.Immutable. cell = Full a }
+   ]}
+
+   And hence, if [a] is constant, then the return is constant and can be statically
+   allocated.  When compiling with flambda, the compiler inlines [return] and this manual
+   rebinding would not help; we've decided to do it anyway so that non-flambda builds
+   get the optimization. *)
+let return = Deferred0.return
+module Let_syntax : module type of struct include M.Let_syntax end = struct
+  include (M.Let_syntax : (module type of struct include M.Let_syntax end
+                            with module Let_syntax := M.Let_syntax.Let_syntax))
+  let return = Deferred0.return
+  module Let_syntax = struct
+    include M.Let_syntax.Let_syntax
+    let return = Deferred0.return
+  end
+end
 
 open Let_syntax
 

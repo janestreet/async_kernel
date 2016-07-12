@@ -57,7 +57,7 @@ let%test_module _ = (module struct
   (* Test the lifetime of Async monitors:
      (1) [try_with] does not hold on to its enclosing monitor
      (2) Monitors are freed when the last job refering to them has been freed. *)
-  let%test_unit __ [@tags "no-js"] =
+  let%test_unit _ [@tags "no-js"] =
     let outer_monitor_finalized = ref false in
     let inner_monitor_finalized = ref false in
     let inner_job_ran           = ref false in

@@ -49,3 +49,15 @@ let ( >>|? ) = Deferred.Result.( >>| )
 include (Deferred : sig include Monad.Infix with type 'a t := 'a Deferred.t end)
 
 include Deferred.Let_syntax
+
+(* This test must be in this library, because it requires [return] to be inlined.  Moving
+   it to another library will cause it to break with [X_LIBRARY_INLINING=false]. *)
+let%test_unit "[return ()] does not allocate" =
+  let w1 = Gc.minor_words () in
+  ignore (return () : _ Deferred.t);
+  ignore (Deferred.return () : _ Deferred.t);
+  ignore (Deferred.Let_syntax.return () : _ Deferred.t);
+  ignore (Deferred.Let_syntax.Let_syntax.return () : _ Deferred.t);
+  let w2 = Gc.minor_words () in
+  [%test_result: int] w2 ~expect:w1;
+;;

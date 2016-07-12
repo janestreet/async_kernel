@@ -6,7 +6,7 @@ module type Throttle = module type of Throttle
 module Debug (Throttle : Throttle) : Throttle = struct
 
   module Debug = Core_kernel.Debug.Make ()
-  let _ = Debug.show_messages := false
+  let () = Debug.show_messages := false
 
   open Throttle
 
