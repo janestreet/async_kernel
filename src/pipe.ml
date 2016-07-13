@@ -1250,8 +1250,7 @@ let%test_module _ =
       let reader =
         Scheduler.within_v ~monitor (fun () ->
           create_reader ~close_on_exception:false (fun writer ->
-            Scheduler.(yield (t ()))
-            >>= fun () ->
+            let%bind () = Scheduler.(yield (t ())) in
             write_without_pushback writer ();
             failwith "fail"))
         |> Option.value_exn ~message:"no synchronous exceptions"
@@ -1273,8 +1272,7 @@ let%test_module _ =
       let reader =
         Scheduler.within_v ~monitor (fun () ->
           create_reader ~close_on_exception:true (fun writer ->
-            Scheduler.(yield (t ()))
-            >>= fun () ->
+            let%bind () = Scheduler.(yield (t ())) in
             write_without_pushback writer ();
             failwith "fail"))
         |> Option.value_exn ~message:"no synchronous exceptions"
@@ -1298,8 +1296,7 @@ let%test_module _ =
     let%test_unit _ =
       let writer =
         create_writer (fun reader ->
-          Scheduler.(yield (t ()))
-          >>= fun () ->
+          let%bind () = Scheduler.(yield (t ())) in
           assert (read_now reader = `Ok ());
           Deferred.unit)
       in
