@@ -54,22 +54,31 @@ let create () =
 
 let take_nonempty t =
   assert (not (is_empty t));
-  Bvar.broadcast t.taken ();
   let r = Moption.get_some_exn t.current_value in
   Moption.set_none t.current_value;
+  Bvar.broadcast t.taken ();
   t.value_available <- Ivar.create ();
   r
 ;;
 
-let take_exn t =
+let take_now_exn t =
   if is_empty t then failwith "Mvar.take_exn called on empty mvar";
   take_nonempty t;
 ;;
 
-let take t =
-  if is_empty t
-  then None
-  else Some (take_nonempty t)
+let take_now t =
+  if not (is_empty t)
+  then Some (take_nonempty t)
+  else None
+;;
+
+let rec take t =
+  if not (is_empty t)
+  then return (take_nonempty t)
+  else (
+    value_available t
+    >>= fun () ->
+    take t)
 ;;
 
 let set t v =

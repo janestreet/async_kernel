@@ -61,14 +61,19 @@ val read_only : 'a Read_write.t -> 'a Read_only.t
     [t].  [d] does not include the value in [t] because that value may change after [d]
     becomes determined and before a deferred bind on [d] gets to run.
 
-    Repeated calls to [value_available] will always return the same deferred until [take]
-    returns [Some]. *)
+    Repeated calls to [value_available t] will always return the same deferred until
+    the [t] is filled. *)
 val value_available : _ Read_only.t -> unit Deferred.t
 
-(** [take t] returns the value in [t] and clears [t], or returns [None] if [is_empty t].
-    [take_exn] is like [take], except it raises if [is_empty t]. *)
-val take     : 'a Read_only.t -> 'a option
-val take_exn : 'a Read_only.t -> 'a
+(** [take t] returns a deferred that, when [t] is filled, becomes determined with the
+    value of [t] and and clears [t].  If there are multiple concurrent calls to [take]
+    then only one of them will be fulfilled and the others will continue waiting on future
+    values.  There is no ordering guarantee for which [take] call will be filled first. *)
+val take         : 'a Read_only.t -> 'a Deferred.t
+
+(** [take_now] is an immediate form of [take]. *)
+val take_now     : 'a Read_only.t -> 'a option
+val take_now_exn : 'a Read_only.t -> 'a
 
 (** [taken t] returns a deferred that is filled the next time [take] clears [t]. *)
 val taken : (_, _) t -> unit Deferred.t
