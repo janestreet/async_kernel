@@ -76,8 +76,7 @@ let rec take t =
   if not (is_empty t)
   then return (take_nonempty t)
   else (
-    value_available t
-    >>= fun () ->
+    let%bind () = value_available t in
     take t)
 ;;
 
@@ -97,7 +96,6 @@ let rec put t v =
     set t v;
     Deferred.unit)
   else (
-    taken t
-    >>= fun () ->
+    let%bind () = taken t in
     put t v)
 ;;

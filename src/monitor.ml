@@ -155,11 +155,7 @@ end
 exception Error_ of Exn_for_monitor.t
 
 let () =
-  Sexplib.Conv.Exn_converter.add_auto
-    (Error_ { exn               = Exit
-            ; backtrace         = []
-            ; backtrace_history = []
-            ; monitor           = main })
+  Sexplib.Conv.Exn_converter.add [%extension_constructor Error_]
     (function
       | Error_ t ->
         [%sexp "monitor.ml.Error" :: (t : Exn_for_monitor.t)]
