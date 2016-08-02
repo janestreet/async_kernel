@@ -47,8 +47,9 @@ let%test_module _ = (module struct
             let o1 = Deferred.peek d in
             let o2 = Some (Core_kernel.Std.Map.change t k ~f) in
             if not (Option.equal equal o1 o2)
-            then failwiths "Deferred.Map.change failed" (t, k, o1, o2)
-                   [%sexp_of: t * k * t option * t option])))
+            then (
+              failwiths "Deferred.Map.change failed" (t, k, o1, o2)
+                [%sexp_of: t * k * t option * t option]))))
     ;;
 
     let%test_unit _ =
@@ -65,8 +66,9 @@ let%test_module _ = (module struct
             let o1 = Deferred.peek d in
             let o2 = Some (Core_kernel.Std.Map.update t k ~f) in
             if not (Option.equal equal o1 o2)
-            then failwiths "Deferred.Map.update failed" (t, k, o1, o2)
-                   [%sexp_of: t * k * t option * t option])))
+            then (
+              failwiths "Deferred.Map.update failed" (t, k, o1, o2)
+                [%sexp_of: t * k * t option * t option]))))
     ;;
 
     let%test_unit _ =
@@ -78,8 +80,9 @@ let%test_module _ = (module struct
           let i1 = !r in
           let i2 = Core_kernel.Std.Map.fold t ~init:0 ~f:(fun ~key ~data:_ ac -> key + ac) in
           if i1 <> i2
-          then failwiths "Deferred.Map.iteri failed" (t, how, i1, i2)
-                 [%sexp_of: t * how * int * int]))
+          then (
+            failwiths "Deferred.Map.iteri failed" (t, how, i1, i2)
+              [%sexp_of: t * how * int * int])))
     ;;
 
     let test_map_like name f =
@@ -90,8 +93,9 @@ let%test_module _ = (module struct
           let o1 = Deferred.peek d in
           let o2 = Some c in
           if not (Option.equal equal o1 o2)
-          then failwiths ("Deferred.Map."^name^" failed") (t, o1, o2)
-                 [%sexp_of: t * t option * t option]))
+          then (
+            failwiths ("Deferred.Map."^name^" failed") (t, o1, o2)
+              [%sexp_of: t * t option * t option])))
     ;;
 
     let%test_unit _ =
@@ -130,7 +134,7 @@ let%test_module _ = (module struct
         [ (fun _ -> None)
         ; (fun _ -> Some "z")
         ; (fun data -> Some data)
-        ; (fun data -> if data = "one" then None else Some data)
+        ; (fun data -> if data = "one" then None else (Some data))
         ]
         ~f:(fun f ->
           test_map_like "filter_map"
@@ -168,8 +172,9 @@ let%test_module _ = (module struct
             let o1 = Deferred.peek d in
             let o2 = Some (core_fold t ~init ~f) in
             if not (Option.equal String.equal o1 o2)
-            then failwiths ("Deferred.Map."^name^" failed") (t, o1, o2)
-                   [%sexp_of: t * string option * string option])))
+            then (
+              failwiths ("Deferred.Map."^name^" failed") (t, o1, o2)
+                [%sexp_of: t * string option * string option]))))
     ;;
 
     let%test_unit _ =
@@ -191,9 +196,10 @@ let%test_module _ = (module struct
               stabilize ();
               let o1 = Deferred.peek d in
               let o2 = Some (Core_kernel.Std.Map.merge t1 t2 ~f) in
-              if not (Option.equal equal o1 o2) then
+              if not (Option.equal equal o1 o2)
+              then (
                 failwiths "Deferred.Map.merge failed" (t1, t2, o1, o2)
-                  [%sexp_of: t * t * t option * t option])))
+                  [%sexp_of: t * t * t option * t option]))))
     ;;
   end
 
@@ -214,7 +220,7 @@ let%test_module _ = (module struct
               (i, n) :: ac)
           in
           stabilize ();
-          if not (List.is_empty l) then assert (is_none (Deferred.peek d));
+          if not (List.is_empty l) then (assert (is_none (Deferred.peek d)));
           Ivar.fill finish ();
           stabilize ();
           let expected = List.foldi l ~init:[] ~f:(fun i ac n -> (i, n) :: ac) in

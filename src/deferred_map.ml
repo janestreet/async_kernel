@@ -74,19 +74,19 @@ let filter_map ?how t ~f = filter_mapi ?how t ~f:(fun ~key:_ ~data -> f data)
 let filter_keys ?how t ~f =
   filter_mapi ?how t ~f:(fun ~key ~data ->
     let%map b = f key in
-    if b then Some data else None)
+    if b then (Some data) else None)
 ;;
 
 let filter ?how t ~f =
   filter_mapi ?how t ~f:(fun ~key:_ ~data ->
     let%map b = f data in
-    if b then Some data else None)
+    if b then (Some data) else None)
 ;;
 
 let filteri ?how t ~f =
   filter_mapi ?how t ~f:(fun ~key ~data ->
     let%map b = f ~key ~data in
-    if b then Some data else None)
+    if b then (Some data) else None)
 ;;
 
 let mapi ?how t ~f =

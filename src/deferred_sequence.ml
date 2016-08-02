@@ -91,7 +91,7 @@ let rec find_map t ~f =
 ;;
 
 let find t ~f =
-  find_map t ~f:(fun elt -> let%map b = f elt in if b then Some elt else None)
+  find_map t ~f:(fun elt -> let%map b = f elt in if b then (Some elt) else None)
 ;;
 
 let iteri ?how t ~f : unit Deferred.t =

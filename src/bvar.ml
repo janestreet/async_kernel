@@ -13,7 +13,7 @@ let invariant invariant_a t =
     Fields.iter
       ~has_any_waiters:(check (fun has_any_waiters ->
         if Ivar.has_handlers t.ivar
-        then assert has_any_waiters))
+        then (assert has_any_waiters)))
       ~ivar:(check (fun ivar ->
         Ivar.invariant invariant_a ivar;
         assert (Ivar.is_empty ivar))))

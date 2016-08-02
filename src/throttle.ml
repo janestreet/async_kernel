@@ -95,14 +95,14 @@ let invariant invariant_a t : unit =
         assert (Stack.length job_resources_not_in_use
                 = (if t.is_dead
                    then 0
-                   else t.max_concurrent_jobs - t.num_jobs_running))))
+                   else (t.max_concurrent_jobs - t.num_jobs_running)))))
       ~jobs_waiting_to_start:(check (function jobs_waiting_to_start ->
-        if t.is_dead then assert (Queue.is_empty jobs_waiting_to_start)))
+        if t.is_dead then (assert (Queue.is_empty jobs_waiting_to_start))))
       ~num_jobs_running:(check (fun num_jobs_running ->
         assert (num_jobs_running >= 0);
         assert (num_jobs_running <= t.max_concurrent_jobs);
         if num_jobs_running < t.max_concurrent_jobs
-        then assert (Queue.is_empty t.jobs_waiting_to_start)))
+        then (assert (Queue.is_empty t.jobs_waiting_to_start))))
       ~capacity_available:(check (function
         | None -> ()
         | Some ivar -> assert (Ivar.is_empty ivar)))
@@ -111,9 +111,9 @@ let invariant invariant_a t : unit =
       ~num_resources_not_cleaned:(check (fun num_resources_not_cleaned ->
         assert (num_resources_not_cleaned >= 0);
         assert (num_resources_not_cleaned <= t.max_concurrent_jobs);
-        if num_resources_not_cleaned < t.max_concurrent_jobs then assert t.is_dead))
+        if num_resources_not_cleaned < t.max_concurrent_jobs then (assert t.is_dead)))
       ~cleaned:(check (fun cleaned ->
-        if Ivar.is_full cleaned then assert (t.num_resources_not_cleaned = 0)))
+        if Ivar.is_full cleaned then (assert (t.num_resources_not_cleaned = 0))))
   with exn ->
     failwiths "Throttle.invariant failed" (exn, t) [%sexp_of: exn * _ t]
 ;;
@@ -130,7 +130,7 @@ let clean_resource t a =
   Deferred.all_unit (List.map t.cleans ~f:(fun f -> f a))
   >>> fun () ->
   t.num_resources_not_cleaned <- t.num_resources_not_cleaned - 1;
-  if t.num_resources_not_cleaned = 0 then Ivar.fill t.cleaned ();
+  if t.num_resources_not_cleaned = 0 then (Ivar.fill t.cleaned ());
 ;;
 
 let kill t =
@@ -164,14 +164,14 @@ let rec start_job t =
   t.num_jobs_running <- t.num_jobs_running - 1;
   begin match res with
   | `Ok -> ()
-  | `Raised -> if not t.continue_on_error then kill t
+  | `Raised -> if not t.continue_on_error then (kill t)
   end;
   if t.is_dead
-  then clean_resource t job_resource
+  then (clean_resource t job_resource)
   else (
     Stack.push t.job_resources_not_in_use job_resource;
     if not (Queue.is_empty t.jobs_waiting_to_start)
-    then start_job t
+    then (start_job t)
     else (
       match t.capacity_available with
       | None -> ()
@@ -201,8 +201,8 @@ end
 
 let create ~continue_on_error ~max_concurrent_jobs =
   if max_concurrent_jobs <= 0
-  then failwiths "Throttle.create requires positive max_concurrent_jobs, but got"
-         max_concurrent_jobs [%sexp_of: int];
+  then (failwiths "Throttle.create requires positive max_concurrent_jobs, but got"
+         max_concurrent_jobs [%sexp_of: int]);
   create_with ~continue_on_error (List.init max_concurrent_jobs ~f:ignore)
 ;;
 
@@ -225,10 +225,10 @@ end
 let enqueue' t f =
   let job = Job.create f in
   if t.is_dead
-  then Job.abort job
+  then (Job.abort job)
   else (
     Queue.enqueue t.jobs_waiting_to_start job.internal_job;
-    if t.num_jobs_running < t.max_concurrent_jobs then start_job t);
+    if t.num_jobs_running < t.max_concurrent_jobs then (start_job t));
   Job.result job;
 ;;
 
@@ -277,14 +277,14 @@ let prior_jobs_done t =
       don't_wait_for (enqueue t (fun _ ->
         incr dummy_jobs_running;
         if !dummy_jobs_running = t.max_concurrent_jobs
-        then Ivar.fill all_dummy_jobs_running ();
+        then (Ivar.fill all_dummy_jobs_running ());
         Ivar.read all_dummy_jobs_running))
     done)
 ;;
 
 let capacity_available t =
   if num_jobs_running t < max_concurrent_jobs t
-  then return ()
+  then (return ())
   else (
     match t.capacity_available with
     | Some ivar -> Ivar.read ivar

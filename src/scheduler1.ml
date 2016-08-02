@@ -153,7 +153,7 @@ let invariant t : unit =
       ~main_execution_context:(check Execution_context.invariant)
       ~current_execution_context:(check Execution_context.invariant)
       ~uncaught_exn:(check (fun uncaught_exn ->
-        if is_some uncaught_exn then assert (num_pending_jobs t = 0)))
+        if is_some uncaught_exn then (assert (num_pending_jobs t = 0))))
       ~cycle_count:(check (fun cycle_count -> assert (cycle_count >= 0)))
       ~cycle_start:ignore
       ~run_every_cycle_start:ignore
@@ -204,7 +204,7 @@ let enqueue_job t job ~free_job =
     (Pool.get job_pool job Pool.Slot.t0)
     (Pool.get job_pool job Pool.Slot.t1)
     (Pool.get job_pool job Pool.Slot.t2);
-  if free_job then Pool.free t.job_pool job;
+  if free_job then (Pool.free t.job_pool job);
 ;;
 
 let handle_fired (time_source : _ Time_source.T1.t) alarm =
@@ -282,7 +282,7 @@ let t () =
 
 let current_execution_context t =
   if t.record_backtraces
-  then Execution_context.record_backtrace t.current_execution_context
+  then (Execution_context.record_backtrace t.current_execution_context)
   else t.current_execution_context
 ;;
 
@@ -293,14 +293,14 @@ let with_execution_context t tmp_context ~f =
 ;;
 
 let create_job (type a) t execution_context f a =
-  if Pool.is_full t.job_pool then t.job_pool <- Pool.grow t.job_pool;
+  if Pool.is_full t.job_pool then (t.job_pool <- Pool.grow t.job_pool);
   Pool.new3 t.job_pool execution_context
     (Obj.magic (f : a -> unit) : Obj.t -> unit)
     (Obj.repr (a : a));
 ;;
 
 let got_uncaught_exn t exn sexp =
-  if debug then Debug.log "got_uncaught_exn" (exn, sexp) [%sexp_of: Exn.t * Sexp.t];
+  if debug then (Debug.log "got_uncaught_exn" (exn, sexp) [%sexp_of: Exn.t * Sexp.t]);
   List.iter [ t.normal_priority_jobs ; t. low_priority_jobs ] ~f:Job_queue.clear;
   t.uncaught_exn <- Some (exn, sexp);
 ;;
@@ -325,7 +325,7 @@ let rec run_jobs t =
     | Ok () ->
       if Job_queue.can_run_a_job t.normal_priority_jobs
          || Job_queue.can_run_a_job t.low_priority_jobs
-      then run_jobs t
+      then (run_jobs t)
       else Result.ok_unit
 ;;
 

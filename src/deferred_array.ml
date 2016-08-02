@@ -10,8 +10,8 @@ let foldi t ~init ~f =
     (fun result ->
        let rec loop i b =
          if i = Array.length t
-         then Ivar.fill result b
-         else f i b t.(i) >>> fun b -> loop (i + 1) b
+         then (Ivar.fill result b)
+         else (f i b t.(i) >>> fun b -> loop (i + 1) b)
        in
        loop 0 init)
 ;;
@@ -49,7 +49,7 @@ let filter ?how t ~f =
   let%map bools = map t ?how ~f in
   Array.of_list_rev
     (Array.fold2_exn t bools ~init:[] ~f:(fun ac x b ->
-       if b then x :: ac else ac))
+       if b then (x :: ac) else ac))
 ;;
 
 let filter_map ?how t ~f = map t ?how ~f >>| Array.filter_opt
@@ -62,7 +62,7 @@ let concat_map ?how t ~f =
 let find_map t ~f =
   let rec aux i =
     if i = Array.length t
-    then return None
+    then (return None)
     else (
       match%bind f t.(i) with
       | None -> aux (i + 1)
@@ -75,6 +75,6 @@ let find t ~f =
   find_map t ~f:(fun elt ->
     let%map b = f elt in
     if b
-    then Some elt
+    then (Some elt)
     else None)
 ;;

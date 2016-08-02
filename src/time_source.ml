@@ -48,9 +48,9 @@ let now t =
        running computations or mix blocking code with async.  And humans expect that
        wall-clock time is based on [Time.now], not some artifact of async
        implementation. *)
-    Time_ns.now ()
+    (Time_ns.now ())
   else
-    Timing_wheel_ns.now t.events
+    (Timing_wheel_ns.now t.events)
 ;;
 
 let advance t ~to_ =
@@ -80,7 +80,7 @@ let schedule_job t ~at execution_context f a =
 let run_at_internal t time f a =
   let execution_context = Scheduler.current_execution_context t.scheduler in
   if Time_ns.( > ) time (Timing_wheel_ns.now t.events)
-  then schedule_job t ~at:time execution_context f a
+  then (schedule_job t ~at:time execution_context f a)
   else (
     Scheduler.enqueue t.scheduler execution_context f a;
     Alarm.null ());
@@ -137,11 +137,11 @@ module Event = struct
       Fields.iter
         ~alarm:(check (fun alarm ->
           if Ivar.is_full t.fired
-          then assert (not (Timing_wheel_ns.mem events alarm))))
+          then (assert (not (Timing_wheel_ns.mem events alarm)))))
         ~scheduled_at:(check (fun scheduled_at ->
           if Timing_wheel_ns.mem events t.alarm
-          then [%test_result: Time_ns.t] scheduled_at
-                 ~expect:(Alarm.at events t.alarm)))
+          then ([%test_result: Time_ns.t] scheduled_at
+                 ~expect:(Alarm.at events t.alarm))))
         ~fired:(check (fun fired ->
           match Deferred.peek (Ivar.read fired) with
           | None -> ()
@@ -157,7 +157,7 @@ module Event = struct
   ;;
 
   let abort t a =
-    if debug then Debug.log "Time_source.Event.abort" t [%sexp_of: (_, _) t];
+    if debug then (Debug.log "Time_source.Event.abort" t [%sexp_of: (_, _) t]);
     match Deferred.peek (fired t) with
     | Some (`Aborted  a) -> `Previously_aborted  a
     | Some (`Happened h) -> `Previously_happened h
@@ -182,8 +182,9 @@ module Event = struct
 
   let reschedule_at t at =
     if debug
-    then Debug.log "Time_source.Event.reschedule_at" (t, at)
-           [%sexp_of: (_, _) t * Time_ns.t];
+    then (
+      Debug.log "Time_source.Event.reschedule_at" (t, at)
+        [%sexp_of: (_, _) t * Time_ns.t]);
     match Deferred.peek (fired t) with
     | Some (`Aborted  a) -> `Previously_aborted  a
     | Some (`Happened h) -> `Previously_happened h
@@ -200,7 +201,7 @@ module Event = struct
         if is_in_timing_wheel
         then (
           if am_trying_to_reschedule_in_the_future
-          then Timing_wheel_ns.reschedule events t.alarm ~at
+          then (Timing_wheel_ns.reschedule events t.alarm ~at)
           else (
             t.time_source.handle_fired t.alarm;
             Timing_wheel_ns.remove events t.alarm));
@@ -211,7 +212,7 @@ module Event = struct
 
   let run_at time_source scheduled_at f z =
     if debug
-    then Debug.log "Time_source.Event.run_at" scheduled_at [%sexp_of: Time_ns.t];
+    then (Debug.log "Time_source.Event.run_at" scheduled_at [%sexp_of: Time_ns.t]);
     let fired = Ivar.create () in
     let fire z =
       (* [fire] runs in an Async job.  The event may have been aborted after the job
@@ -220,7 +221,7 @@ module Event = struct
       then (
         let result = f z in
         (* [f z] may have aborted the event, so we must check [fired] again. *)
-        if Ivar.is_empty fired then Ivar.fill fired (`Happened result));
+        if Ivar.is_empty fired then (Ivar.fill fired (`Happened result)));
     in
     let alarm = run_at_internal time_source scheduled_at fire z in
     { alarm; scheduled_at; fired; time_source = read_only time_source }
@@ -302,15 +303,15 @@ let run_repeatedly
     if not (Deferred.is_determined stop)
     then (
       if continue_on_error
-      then Monitor.try_with f ~run:`Now ~rest:`Raise >>> continue_try_with
+      then (Monitor.try_with f ~run:`Now ~rest:`Raise >>> continue_try_with)
       else (
         let d = f () in
         if Deferred.is_determined d
-        then continue_f ()
-        else d >>> continue_f))
+        then (continue_f ())
+        else (d >>> continue_f)))
   and continue_f () =
     if not (Deferred.is_determined stop)
-    then alarm := run_at_internal t (Continue.at continue t) run_f ()
+    then (alarm := run_at_internal t (Continue.at continue t) run_f ())
   and continue_try_with or_error =
     begin match or_error with
     | Ok () -> ()
@@ -323,7 +324,7 @@ let run_repeatedly
 
 let every' ?start ?stop ?continue_on_error t span f =
   if Time_ns.Span.( <= ) span Time_ns.Span.zero
-  then failwiths "Time_source.every got nonpositive span" span [%sexp_of: Time_ns.Span.t];
+  then (failwiths "Time_source.every got nonpositive span" span [%sexp_of: Time_ns.Span.t]);
   run_repeatedly t ?start ?stop ?continue_on_error ~f ~continue:(After span)
 ;;
 

@@ -76,7 +76,7 @@ let create_with_parent ?here ?info ?name parent =
     ; is_detached             = false
     }
   in
-  if debug then Debug.log "created monitor" t [%sexp_of: t];
+  if debug then (Debug.log "created monitor" t [%sexp_of: t]);
   t
 ;;
 

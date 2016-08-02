@@ -48,7 +48,7 @@ let init ?how n ~f = map ?how (List.init n ~f:Fn.id) ~f
 let filter ?how t ~f =
   let%map bools = map t ?how ~f in
   List.rev (List.fold2_exn t bools ~init:[]
-              ~f:(fun ac x b -> if b then x :: ac else ac))
+              ~f:(fun ac x b -> if b then (x :: ac) else ac))
 ;;
 
 let filter_map ?how t ~f = map t ?how ~f >>| List.filter_opt
@@ -68,6 +68,6 @@ let find t ~f =
   find_map t ~f:(fun elt ->
     let%map b = f elt in
     if b
-    then Some elt
+    then (Some elt)
     else None)
 ;;

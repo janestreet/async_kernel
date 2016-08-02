@@ -185,7 +185,7 @@ let send_exn t ?backtrace exn =
       Error_ { Exn_for_monitor. exn; backtrace; backtrace_history; monitor = t }
   in
   if Debug.monitor_send_exn
-  then Debug.log "Monitor.send_exn" (t, exn) [%sexp_of: t * exn];
+  then (Debug.log "Monitor.send_exn" (t, exn) [%sexp_of: t * exn]);
   t.has_seen_error <- true;
   let scheduler = Scheduler.t () in
   let rec loop t =
@@ -194,8 +194,9 @@ let send_exn t ?backtrace exn =
     if t.is_detached
     then (
       if Debug.monitor_send_exn
-      then Debug.log "Monitor.send_exn found listening monitor" (t, exn)
-             [%sexp_of: t * exn];
+      then (
+        Debug.log "Monitor.send_exn found listening monitor" (t, exn)
+          [%sexp_of: t * exn]);
       Bag.iter t.handlers_for_all_errors ~f:(fun (execution_context, f) ->
         Scheduler.enqueue scheduler execution_context f exn);
       List.iter t.tails_for_all_errors ~f:(fun tail -> Tail.extend tail exn))
@@ -380,7 +381,7 @@ let try_with
       upon (Stream.next exns) (function
         | Nil -> assert false;
         | Cons (exn, exns) ->
-          let exn = if do_extract_exn then extract_exn exn else exn in
+          let exn = if do_extract_exn then (extract_exn exn) else exn in
           fill_result_and_handle_background_errors
             result_filler (Error exn) exns handle_exns_after_result);
       result))

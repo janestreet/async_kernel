@@ -130,7 +130,7 @@ module List = struct
   let filter ?how t ~f =
     filter_map ?how t ~f:(fun x ->
       let%map b = f x in
-      if b then Some x else None)
+      if b then (Some x) else None)
   ;;
 
   let rec find_map t ~f =
@@ -143,7 +143,7 @@ module List = struct
   ;;
 
   let find t ~f =
-    find_map t ~f:(fun elt -> let%map b = f elt in if b then Some elt else None)
+    find_map t ~f:(fun elt -> let%map b = f elt in if b then (Some elt) else None)
   ;;
 
 end
@@ -178,7 +178,7 @@ let%test_module _ = (module struct
   let rec stabilize () =
     flush ();
     Scheduler.run_cycles_until_no_jobs_remain ();
-    if not (Queue.is_empty tasks) then stabilize ();
+    if not (Queue.is_empty tasks) then (stabilize ());
   ;;
 
   let determined def value =
@@ -250,7 +250,7 @@ let%test_module _ = (module struct
       Seqlist.filter_map [ 0 ; 1 ; 2 ; 3 ; 4 ]
         ~f:(fun value ->
           return (
-            if value mod 2 = 0 then Some (succ value) else None))
+            if value mod 2 = 0 then (Some (succ value)) else None))
     in
     stabilize ();
     assert (determined def [ 1 ; 3 ; 5 ])

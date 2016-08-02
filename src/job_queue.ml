@@ -101,15 +101,16 @@ let set (type a) t i execution_context f a =
 ;;
 
 let enqueue t execution_context f a =
-  if t.length = capacity t then grow t;
+  if t.length = capacity t then (grow t);
   set t t.length execution_context f a;
   t.length <- t.length + 1;
 ;;
 
 let set_jobs_left_this_cycle t n =
   if n < 0
-  then failwiths "Jobs.set_jobs_left_this_cycle got negative number" (n, t)
-         [%sexp_of: int * t];
+  then (
+    failwiths "Jobs.set_jobs_left_this_cycle got negative number" (n, t)
+      [%sexp_of: int * t]);
   t.jobs_left_this_cycle <- n;
 ;;
 

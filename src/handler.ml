@@ -6,7 +6,7 @@ type 'a t =
   ; execution_context : Execution_context.t
   }
 
-let filter t ~f = { t with run = fun a -> if f a then t.run a }
+let filter t ~f = { t with run = fun a -> if f a then (t.run a) }
 
 let prepend t ~f = { t with run = fun a -> t.run (f a) }
 

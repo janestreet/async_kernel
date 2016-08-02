@@ -195,7 +195,7 @@ module Handler = struct
       let acc = (t.run, t.execution_context) :: acc in
       if phys_equal t first
       then acc
-      else loop t.prev acc
+      else (loop t.prev acc)
     in
     loop first.prev []
   ;;
@@ -359,10 +359,10 @@ let remove_handler t (handler : _ Handler.t) =
     ()
   | Empty_one_or_more_handlers _ as cell ->
     if Handler.is_singleton handler
-    then t.cell <- Empty
+    then (t.cell <- Empty)
     else (
       if phys_equal handler (handler_of_constructor cell)
-      then t.cell <- cell_of_handler handler.next;
+      then (t.cell <- cell_of_handler handler.next);
       Handler.unlink handler);
 ;;
 
@@ -478,7 +478,7 @@ let connect =
       (* It is possible that [bind_result] and [bind_rhs] are not equal, but their chains
          of indirs lead to the same non-[Indir] cell, in which case we cannot set that
          cell to point to itself, because that would introduce a cycle. *)
-      if not (phys_equal ivar bind_result) then ivar.cell <- indir;
+      if not (phys_equal ivar bind_result) then (ivar.cell <- indir);
       cell
   in
   fun ~bind_result ~bind_rhs ->

@@ -59,7 +59,7 @@ let%test_unit _ =
 let filter_map = filter_map
 
 let%test_unit _ =
-  let f i = if i % 2 = 0 then Some i else None in
+  let f i = if i % 2 = 0 then (Some i) else None in
   let deferred_result =
     deferred_result
       (Deferred.Sequence.filter_map numbers ~f:(fun i -> return (f i)))
@@ -132,11 +132,11 @@ let%test_unit _ =
       (deferred_result (all (Sequence.init n ~f:return)));
     [%test_result: unit] ~expect:()
       (deferred_result (all_unit (Sequence.init n ~f:(fun _ -> return ()))));
-    [%test_result: int option] ~expect:(if n = 0 then None else Some (n - 1))
+    [%test_result: int option] ~expect:(if n = 0 then None else (Some (n - 1)))
       (deferred_result (find (Sequence.init n ~f:Fn.id) ~f:(fun i -> return (i = n-1))));
-    [%test_result: string option] ~expect:(if n = 0 then None else Some "yes")
+    [%test_result: string option] ~expect:(if n = 0 then None else (Some "yes"))
       (deferred_result (find_map (Sequence.init n ~f:Fn.id) ~f:(fun i ->
-         return (if i = n-1 then Some "yes" else None))));
+         return (if i = n-1 then (Some "yes") else None))));
     [%test_result: int Sequence.t] ~expect:(Sequence.init n ~f:Fn.id)
       (deferred_result (init n ~f:return));
     [%test_result: int Sequence.t] ~expect:(Sequence.init n ~f:(fun i -> i - 1))

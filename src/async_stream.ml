@@ -133,7 +133,7 @@ let first_n s n =
   create (fun tail ->
     let rec loop s n =
       if n = 0
-      then Tail.close_exn tail
+      then (Tail.close_exn tail)
       else (
         upon (next s) (function
           | Nil -> Tail.close_exn tail
@@ -174,7 +174,7 @@ let split ?(stop = Deferred.never ()) ?(f = (fun _ -> `Continue)) t =
 ;;
 
 let find t ~f =
-  let (_, found) = split t ~f:(fun a -> if f a then `Found a else `Continue) in
+  let (_, found) = split t ~f:(fun a -> if f a then (`Found a) else `Continue) in
   match%map found with
   | `Stopped _ -> assert false
   | `End_of_stream | `Found _ as x -> x
@@ -196,7 +196,7 @@ let interleave ts =
     let num_open = ref 1 in (* 1 for the outer stream that is open *)
     let close () =
       num_open := !num_open - 1;
-      if !num_open = 0 then Tail.close_exn tail;
+      if !num_open = 0 then (Tail.close_exn tail);
     in
     let outer_closed =
       iter' ts ~f:(fun t ->

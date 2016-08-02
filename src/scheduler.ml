@@ -97,10 +97,10 @@ let add_finalizer t heap_block f =
        finalizer to run again.  Also, OCaml does not impose any requirement on finalizer
        functions that they need to dispose of the block, so it's fine that we keep
        [heap_block] around until later. *)
-    if Debug.finalizers then Debug.log_string "enqueueing finalizer";
+    if Debug.finalizers then (Debug.log_string "enqueueing finalizer");
     thread_safe_enqueue_external_job t execution_context f heap_block;
   in
-  if Debug.finalizers then Debug.log_string "adding finalizer";
+  if Debug.finalizers then (Debug.log_string "adding finalizer");
   (* We use [Caml.Gc.finalise] instead of [Core_kernel.Std.Gc.add_finalizer] because the latter
      has its own wrapper around [Caml.Gc.finalise] to run finalizers synchronously. *)
   Caml.Gc.finalise finalizer heap_block;
@@ -126,7 +126,7 @@ let advance_clock t ~now =
 ;;
 
 let run_cycle t =
-  if debug then Debug.log "run_cycle starting" t [%sexp_of: t];
+  if debug then (Debug.log "run_cycle starting" t [%sexp_of: t]);
   t.on_start_of_cycle ();
   let now = Time_ns.now () in
   t.cycle_count <- t.cycle_count + 1;
@@ -150,33 +150,34 @@ let run_cycle t =
   t.last_cycle_num_jobs <- num_jobs_run t - num_jobs_run_at_start_of_cycle;
   if Bvar.has_any_waiters t.yield_until_no_jobs_remain
   && Job_queue.length t.normal_priority_jobs + Job_queue.length t.low_priority_jobs = 0
-  then Bvar.broadcast t.yield_until_no_jobs_remain ();
+  then (Bvar.broadcast t.yield_until_no_jobs_remain ());
   t.on_end_of_cycle ();
   if debug
-  then Debug.log "run_cycle finished"
+  then (Debug.log "run_cycle finished"
          (uncaught_exn t, is_some (next_upcoming_event t))
-         [%sexp_of: Error.t option * bool];
+         [%sexp_of: Error.t option * bool]);
 ;;
 
 let run_cycles_until_no_jobs_remain () =
-  if debug then Debug.log_string "run_cycles_until_no_jobs_remain starting";
+  if debug then (Debug.log_string "run_cycles_until_no_jobs_remain starting");
   let t = t () in
   if is_dead t
-  then failwiths "run_cycles_until_no_jobs_remain cannot proceed -- scheduler is dead" t
-         [%sexp_of: t];
+  then (
+    failwiths "run_cycles_until_no_jobs_remain cannot proceed -- scheduler is dead" t
+      [%sexp_of: t]);
   let rec loop () =
     run_cycle t;
     advance_clock t ~now:(Time_ns.now ());
     (* We [fire_past_alarms] just before checking if there are pending jobs, so that clock
        events that fire become jobs, and thus cause an additional [loop]. *)
     Time_source.fire_past_alarms t.time_source;
-    if can_run_a_job t then loop ()
+    if can_run_a_job t then (loop ())
   in
   loop ();
   (* Reset the current execution context to maintain the invariant that when we're not in
      a job, [current_execution_context = main_execution_context]. *)
   set_execution_context t t.main_execution_context;
-  if debug then Debug.log_string "run_cycles_until_no_jobs_remain finished";
+  if debug then (Debug.log_string "run_cycles_until_no_jobs_remain finished");
   Option.iter (uncaught_exn t) ~f:Error.raise;
 ;;
 
@@ -188,7 +189,7 @@ let make_async_unusable () =
 ;;
 
 let reset_in_forked_process () =
-  if debug then Debug.log_string "reset_in_forked_process";
+  if debug then (Debug.log_string "reset_in_forked_process");
   (* There is no need to empty [main_monitor_hole]. *)
   Scheduler.(t_ref := create ());
 ;;
@@ -208,9 +209,9 @@ let yield_until_no_jobs_remain t = Bvar.wait t.yield_until_no_jobs_remain
 
 let yield_every ~n =
   if n <= 0
-  then failwiths "Scheduler.yield_every got nonpositive count" n [%sexp_of: int]
+  then (failwiths "Scheduler.yield_every got nonpositive count" n [%sexp_of: int])
   else if n = 1
-  then stage (fun t -> yield t)
+  then (stage (fun t -> yield t))
   else (
     let count_until_yield = ref n in
     stage (fun t ->
@@ -230,7 +231,7 @@ module Very_low_priority_work = struct
   let rec run t = run_workers t ~num_execs_before_yielding:1_000
   and run_workers t ~num_execs_before_yielding =
     if num_execs_before_yielding = 0
-    then yield_then_run t
+    then (yield_then_run t)
     else if not (Deque.is_empty t.very_low_priority_workers)
     then (
       let worker = Deque.dequeue_front_exn t.very_low_priority_workers in
@@ -238,7 +239,7 @@ module Very_low_priority_work = struct
       run_worker t worker ~num_execs_before_yielding)
   and yield_then_run t =
     if not (Deque.is_empty t.very_low_priority_workers)
-    then Deferred.upon (yield t) (fun () -> run t)
+    then (Deferred.upon (yield t) (fun () -> run t))
   and run_worker t worker ~num_execs_before_yielding =
     assert (phys_equal t.current_execution_context worker.execution_context);
     if num_execs_before_yielding = 0
@@ -266,7 +267,7 @@ module Very_low_priority_work = struct
         ~priority:Low
     in
     Deque.enqueue_back queue { execution_context; exec = f };
-    if not running then enqueue t execution_context run t
+    if not running then (enqueue t execution_context run t)
   ;;
 end
 

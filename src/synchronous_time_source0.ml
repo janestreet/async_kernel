@@ -125,8 +125,9 @@ module T1 = struct
     let set_status t to_ =
       let from = t.status in
       if not (Status.transition_is_allowed ~from ~to_)
-      then raise_s [%message [%here] "bug -- set_status transition not allowed"
-                               (from : Status.t) (to_ : Status.t) ~event:(t : t)];
+      then (
+        raise_s [%message [%here] "bug -- set_status transition not allowed"
+                            (from : Status.t) (to_ : Status.t) ~event:(t : t)]);
       t.status <- to_;
     ;;
   end
@@ -183,7 +184,7 @@ module T1 = struct
           while Event.is_some !current do
             assert (Time_ns.( <= ) !current.at (timing_wheel_now t));
             let next = !current.next_fired in
-            if Event.is_some next then assert (Time_ns.( <= ) !current.at next.at);
+            if Event.is_some next then (assert (Time_ns.( <= ) !current.at next.at));
             current := next;
           done))
         ~handle_fired:ignore
@@ -253,8 +254,8 @@ let alarm_precision t = Timing_wheel_ns.alarm_precision t.events
 
 let now t =
   if t.is_wall_clock
-  then Time_ns.now ()
-  else timing_wheel_now t
+  then (Time_ns.now ())
+  else (timing_wheel_now t)
 ;;
 
 let schedule t (event : Event.t) =
@@ -273,8 +274,8 @@ module Event = struct
       ; next_fired = none
       ; status     = Scheduled } in
     if Time_ns.( <= ) at (timing_wheel_now t)
-    then fire t event
-    else schedule t event;
+    then (fire t event)
+    else (schedule t event);
     event
   ;;
 
@@ -285,9 +286,10 @@ module Event = struct
   let at_intervals t span callback =
     let alarm_precision = alarm_precision t in
     if Time_ns.Span.( < ) span alarm_precision
-    then raise_s [%message "at_intervals got span smaller than alarm precision"
-                             (span : Time_ns.Span.t)
-                             (alarm_precision : Time_ns.Span.t)];
+    then (
+      raise_s [%message "at_intervals got span smaller than alarm precision"
+                          (span : Time_ns.Span.t)
+                          (alarm_precision : Time_ns.Span.t)]);
     add t ~at:(now t) ~interval:(Some span) ~callback
   ;;
 
@@ -297,7 +299,7 @@ module Event = struct
     | Happened  -> error_s [%message "previously happened"]
     | Happening ->
       if Option.is_none event.interval
-      then error_s [%message "currently happening"]
+      then (error_s [%message "currently happening"])
       else (
         event.interval <- None;
         Ok ())
@@ -351,18 +353,18 @@ let advance t ~to_ ~accum_errors =
 
 let advance_by_alarms t ~to_ =
   if t.am_advancing
-  then raise_s [%message "cannot call [advance_by_alarms] from callback"];
+  then (raise_s [%message "cannot call [advance_by_alarms] from callback"]);
   t.am_advancing <- true;
   let accum_errors = ref [] in
   run_fired_events t ~accum_errors;
   let continue = ref true in
   while !continue do
     if Timing_wheel_ns.is_empty t.events
-    then continue := false
+    then (continue := false)
     else (
       let next_alarm_fires_at = Timing_wheel_ns.next_alarm_fires_at_exn t.events in
       if Time_ns.( >= ) next_alarm_fires_at to_
-      then continue := false
+      then (continue := false)
       else (
         (* We use the actual alarm time, rather than [next_alarm_fires_at], so as not to
            expose (or accumulate errors associated with) the precision of
