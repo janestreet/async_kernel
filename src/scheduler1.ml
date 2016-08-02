@@ -117,6 +117,8 @@ type t = Scheduler0.t =
   ; mutable check_invariants                    : bool
   ; mutable max_num_jobs_per_priority_per_cycle : Max_num_jobs_per_priority_per_cycle.t
   ; mutable record_backtraces                   : bool
+  ; mutable on_start_of_cycle                   : unit -> unit
+  ; mutable on_end_of_cycle                     : unit -> unit
   }
 [@@deriving fields, sexp_of]
 
@@ -169,6 +171,8 @@ let invariant t : unit =
       ~check_invariants:ignore
       ~max_num_jobs_per_priority_per_cycle:ignore
       ~record_backtraces:ignore
+      ~on_start_of_cycle:ignore
+      ~on_end_of_cycle:ignore
     ;
   with exn ->
     failwiths "Scheduler.invariant failed" (exn, t) [%sexp_of: exn * t]
@@ -236,7 +240,9 @@ let create () =
     (* configuration *)
     ; check_invariants                     = Config.check_invariants
     ; max_num_jobs_per_priority_per_cycle  = Config.max_num_jobs_per_priority_per_cycle
-    ; record_backtraces                    = Config.record_backtraces;
+    ; record_backtraces                    = Config.record_backtraces
+    ; on_start_of_cycle                    = Fn.id
+    ; on_end_of_cycle                      = Fn.id
     }
   and events = Timing_wheel_ns.create ~config:Config.timing_wheel_config ~start:now
   and time_source =

@@ -127,6 +127,7 @@ let advance_clock t ~now =
 
 let run_cycle t =
   if debug then Debug.log "run_cycle starting" t [%sexp_of: t];
+  t.on_start_of_cycle ();
   let now = Time_ns.now () in
   t.cycle_count <- t.cycle_count + 1;
   t.cycle_start <- now;
@@ -150,6 +151,7 @@ let run_cycle t =
   if Bvar.has_any_waiters t.yield_until_no_jobs_remain
   && Job_queue.length t.normal_priority_jobs + Job_queue.length t.low_priority_jobs = 0
   then Bvar.broadcast t.yield_until_no_jobs_remain ();
+  t.on_end_of_cycle ();
   if debug
   then Debug.log "run_cycle finished"
          (uncaught_exn t, is_some (next_upcoming_event t))
@@ -196,6 +198,9 @@ let check_invariants t = t.check_invariants
 let set_check_invariants t b = t.check_invariants <- b
 
 let set_record_backtraces t b = t.record_backtraces <- b
+
+let set_on_start_of_cycle t f = t.on_start_of_cycle <- f
+let set_on_end_of_cycle   t f = t.on_end_of_cycle   <- f
 
 let yield t = Bvar.wait t.yield
 

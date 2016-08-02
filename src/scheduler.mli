@@ -56,6 +56,9 @@ val set_thread_safe_external_job_hook : t -> (unit -> unit) -> unit
 val set_job_queued_hook  : t -> (Priority.t -> unit) -> unit
 val set_event_added_hook : t -> (Time_ns.t  -> unit) -> unit
 
+val set_on_start_of_cycle : t -> (unit -> unit) -> unit
+val set_on_end_of_cycle   : t -> (unit -> unit) -> unit
+
 val thread_safe_enqueue_external_job
   : t -> Execution_context.t -> ('a -> unit) -> 'a -> unit
 
