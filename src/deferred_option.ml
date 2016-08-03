@@ -13,8 +13,8 @@ include Monad.Make (struct
 
   let return a = Deferred.return (Some a)
 
-  let bind t f =
-    Deferred.bind t (function
+  let bind t ~f =
+    Deferred.bind t ~f:(function
       | Some a -> f a
       | None -> Deferred.return None)
   ;;

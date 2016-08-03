@@ -59,7 +59,7 @@ let create f =
 ;;
 
 (* don't use [create] here as it would allocate one more closure *)
-let bind t f =
+let bind t ~f =
   let bind_result = Ivar.create () in
   upon t (fun a -> Ivar.connect ~bind_result ~bind_rhs:(to_ivar (f a)));
   of_ivar bind_result

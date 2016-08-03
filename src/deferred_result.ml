@@ -19,8 +19,8 @@ include Monad.Make2 (struct
 
   let return a = Deferred.return (Ok a)
 
-  let bind t f =
-    Deferred.bind t (function
+  let bind t ~f =
+    Deferred.bind t ~f:(function
       | Ok a -> f a
       | Error _ as error -> Deferred.return error)
   ;;

@@ -29,7 +29,7 @@ module T = struct
 
   let return a = create (fun () -> return a)
 
-  let bind t f =
+  let bind t ~f =
     create (fun () ->
       let%bind a = force_exn t in
       force_exn (f a))
@@ -44,7 +44,7 @@ include T
 
 include Monad.Make (T)
 
-let bind' t f = bind t (fun a -> create (fun () -> f a))
+let bind' t f = bind t ~f:(fun a -> create (fun () -> f a))
 
 let is_forced t = Ivar.is_full t.start
 
@@ -143,7 +143,7 @@ let%test_module _ = (module struct
   let%test_unit _ =
     let final = "foo" in
     let make def1 =
-      bind def1 (fun () -> create (fun () -> Deferred.return "foo"))
+      bind def1 ~f:(fun () -> create (fun () -> Deferred.return "foo"))
     in
     make_bind_test make final
   ;;
@@ -168,7 +168,7 @@ let%test_module _ = (module struct
 
   let%test_unit _ =
     let def = create (fun () -> Deferred.return "foo") in
-    let def = bind def (fun _ -> raise E_for_test) in
+    let def = bind def ~f:(fun _ -> raise E_for_test) in
     stabilize();
     assert (not (is_determined def));
     let def = force def in
@@ -187,7 +187,7 @@ let%test_module _ = (module struct
 
   let%test_unit _ =
     let def = create (fun () -> Deferred.return "foo") in
-    let def = bind def (fun _ -> raise E_for_test) in
+    let def = bind def ~f:(fun _ -> raise E_for_test) in
     stabilize();
     assert (not (is_determined def));
     let def = Monitor.try_with_or_error ~extract_exn:true (fun () -> force_exn def) in

@@ -16,7 +16,7 @@ val value_exn : 'a t -> 'a
 val is_determined : _ t -> bool
 val return : 'a -> 'a t
 val upon  : 'a t -> ('a -> unit) -> unit
-val bind  : 'a t -> ('a -> 'b t) -> 'b t
+val bind  : 'a t -> f:('a -> 'b t) -> 'b t
 
 module Handler : sig type 'a t [@@deriving sexp_of] end
 val add_handler : 'a t -> ('a -> unit) -> Execution_context.t -> 'a Handler.t
