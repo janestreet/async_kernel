@@ -1,0 +1,7 @@
+(library
+ ((name async_kernel)
+  (inline_tests ((javascript build_and_run)))
+  (public_name async_kernel)
+  (libraries (core_kernel))
+  (preprocess (((pps (JANE_KERNEL -annotated-ignores -ite-check)) All)))
+  (js_of_ocaml ())))
