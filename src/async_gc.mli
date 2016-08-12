@@ -2,9 +2,9 @@
 
 open! Core_kernel.Std
 
+(** We remove the [Expert] module, which has functions that are superseded by
+    Async-friendly functions below. *)
 include module type of Core_kernel.Std.Gc
-  (** We remove the [Expert] module, which has functions that are superseded by
-      Async-friendly functions below. *)
   with module Expert := Core_kernel.Std.Gc.Expert
 
 (** [add_finalizer b f] ensures that [f] runs after [b] becomes unreachable.  [f b] will

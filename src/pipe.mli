@@ -25,7 +25,7 @@ type ('a, 'phantom) t [@@deriving sexp_of]
 type ('a, 'phantom) pipe = ('a, 'phantom) t [@@deriving sexp_of]
 
 (** {1 Reader and Writer modules} *)
-(******************************************************************************)
+
 (** These provide reader- and writer-specific types for the base pipe type. *)
 
 module Writer : sig
@@ -114,7 +114,7 @@ type 'a to_sequence_elt =
 val to_sequence : 'a Reader.t -> 'a to_sequence_elt Sequence.t
 
 (** {1 Closing} *)
-(******************************************************************************)
+
 (** [close t] closes the write end of the pipe:
 
     - Future write attempts will fail, raising an exception.
@@ -147,7 +147,6 @@ val is_closed : (_, _) t -> bool
 val closed : (_, _) t -> unit Deferred.t
 
 (** {1 Flushing} *)
-(******************************************************************************)
 
 module Flushed_result : sig
   type t = [ `Ok | `Reader_closed ] [@@deriving sexp_of]
@@ -241,7 +240,7 @@ val add_consumer
   -> Consumer.t
 
 (** {1 Generic pipe operations} *)
-(******************************************************************************)
+
 (** These operations apply to all values of type [(_, _) t], that is, both readers and
     writers. *)
 
@@ -252,7 +251,7 @@ val length : (_, _) t -> int
 val is_empty : (_, _) t -> bool
 
 (** {1 Writing} *)
-(******************************************************************************)
+
 (** The write operations return a deferred value that is determined when either (1) it is
     OK to write again to the pipe or (2) the pipe has been closed.  This deferred is the
     data-producer's interface to the pipe pushback mechanism: it tells the producer when
@@ -334,7 +333,7 @@ val write_if_open                  : 'a Writer.t -> 'a -> unit Deferred.t
 val write_without_pushback_if_open : 'a Writer.t -> 'a -> unit
 
 (** {1 Reading} *)
-(******************************************************************************)
+
 (** With two special exceptions, all read procedures have a best-effort/forward-progress
     semantics:
 
@@ -477,7 +476,7 @@ val read_choice_single_consumer_exn
   -> [ `Eof | `Ok of 'a ] Deferred.choice
 
 (** {1 Sequence functions} *)
-(******************************************************************************)
+
 (** Issues: {ul
     {- Scalar & batch sequence processing
 
@@ -685,7 +684,6 @@ val drain_and_count : 'a Reader.t -> int  Deferred.t
 val to_list : 'a Reader.t -> 'a list Deferred.t
 
 (** {1 Miscellaneous} *)
-(******************************************************************************)
 
 (** [hash] a hash function suitable for pipes *)
 val hash : (_, _) t -> int
@@ -697,7 +695,7 @@ val equal : ('a, 'b) t -> ('a, 'b) t -> bool
 val compare : (_, _) t -> (_, _) t -> int
 
 (** {1 Size budget} *)
-(******************************************************************************)
+
 (** Every pipe has a "size budget", which governs the pushback that is used to discourage
     writers from enqueueing arbitrarily large amounts of data.  As long as the length of
     the pipe exceeds the size budget, writers will not be notified to do further writing.
@@ -712,7 +710,6 @@ val size_budget: (_, _) t -> int
 val set_size_budget: (_, _) t -> int -> unit
 
 (** {1 Debugging} *)
-(******************************************************************************)
 
 (** [show_debug_messages], if true will cause a message to be printed at the start of each
     operation, showing the pipe and other arguments. *)
