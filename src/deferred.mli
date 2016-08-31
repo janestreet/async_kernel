@@ -147,7 +147,7 @@ val enabled : 'b Choice.t list -> (unit -> 'b list) t
    {[
      choose [ choice t1 f1
             ; ...
-            ; choice tn fn
+              ; choice tn fn
             ]
    ]}
 
@@ -176,6 +176,20 @@ val enabled : 'b Choice.t list -> (unit -> 'b list) t
    [choose].
 *)
 val choose : 'b Choice.t list -> 'b t
+
+(** [for_ start ~to_:stop ~do_:f] is the deferred analog of:
+
+    {[
+      for i = start to stop do
+        f i;
+      done
+    ]}
+*)
+val for_
+  :  int
+  -> to_ : int
+  -> do_ : (int -> unit t)
+  -> unit t
 
 (** [repeat_until_finished initial_state f] repeatedly runs [f] until [f] returns
     [`Finished].  The first call to [f] happens immediately when [repeat_until_finished]

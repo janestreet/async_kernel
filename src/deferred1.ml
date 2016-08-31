@@ -148,6 +148,17 @@ let any_f ts f = choose (List.map ts ~f:(fun t -> choice t f))
 let any      ts = any_f ts Fn.id
 let any_unit ts = any_f ts Fn.ignore
 
+let for_ start ~to_ ~do_ =
+  let rec loop i =
+    if i > to_
+    then (return ())
+    else (
+      let%bind () = do_ i in
+      loop (i + 1))
+  in
+  loop start
+;;
+
 let repeat_until_finished state f =
   create (fun finished ->
     let rec loop state =
