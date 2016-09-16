@@ -115,7 +115,7 @@ let invariant invariant_a t : unit =
       ~cleaned:(check (fun cleaned ->
         if Ivar.is_full cleaned then (assert (t.num_resources_not_cleaned = 0))))
   with exn ->
-    failwiths "Throttle.invariant failed" (exn, t) [%sexp_of: exn * _ t]
+    raise_s [%message "Throttle.invariant failed" (exn : exn) (t : _ t)]
 ;;
 
 module T2 = struct
@@ -201,8 +201,10 @@ end
 
 let create ~continue_on_error ~max_concurrent_jobs =
   if max_concurrent_jobs <= 0
-  then (failwiths "Throttle.create requires positive max_concurrent_jobs, but got"
-         max_concurrent_jobs [%sexp_of: int]);
+  then (
+    raise_s [%message
+      "Throttle.create requires positive max_concurrent_jobs, but got"
+        (max_concurrent_jobs : int)]);
   create_with ~continue_on_error (List.init max_concurrent_jobs ~f:ignore)
 ;;
 
@@ -235,7 +237,7 @@ let enqueue' t f =
 let enqueue t f =
   match%map enqueue' t f with
   | `Ok a -> a
-  | `Aborted -> failwith "throttle aborted job"
+  | `Aborted -> raise_s [%message "throttle aborted job"]
   | `Raised exn -> raise exn
 ;;
 

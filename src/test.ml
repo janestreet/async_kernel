@@ -48,8 +48,9 @@ let%test_module _ = (module struct
             let o2 = Some (Core_kernel.Std.Map.change t k ~f) in
             if not (Option.equal equal o1 o2)
             then (
-              failwiths "Deferred.Map.change failed" (t, k, o1, o2)
-                [%sexp_of: t * k * t option * t option]))))
+              raise_s [%message
+                "Deferred.Map.change failed"
+                  ~map:(t : t) ~key:(k : k) (o1 : t option) (o2 : t option)]))))
     ;;
 
     let%test_unit _ =
@@ -67,8 +68,9 @@ let%test_module _ = (module struct
             let o2 = Some (Core_kernel.Std.Map.update t k ~f) in
             if not (Option.equal equal o1 o2)
             then (
-              failwiths "Deferred.Map.update failed" (t, k, o1, o2)
-                [%sexp_of: t * k * t option * t option]))))
+              raise_s [%message
+                "Deferred.Map.update failed"
+                  ~map:(t : t) ~key:(k : k) (o1 : t option) (o2 : t option)]))))
     ;;
 
     let%test_unit _ =
@@ -81,8 +83,9 @@ let%test_module _ = (module struct
           let i2 = Core_kernel.Std.Map.fold t ~init:0 ~f:(fun ~key ~data:_ ac -> key + ac) in
           if i1 <> i2
           then (
-            failwiths "Deferred.Map.iteri failed" (t, how, i1, i2)
-              [%sexp_of: t * how * int * int])))
+            raise_s [%message
+              "Deferred.Map.iteri failed"
+                ~map:(t : t) (how : how) (i1 : int) (i2 : int)])))
     ;;
 
     let test_map_like name f =
@@ -94,8 +97,9 @@ let%test_module _ = (module struct
           let o2 = Some c in
           if not (Option.equal equal o1 o2)
           then (
-            failwiths ("Deferred.Map."^name^" failed") (t, o1, o2)
-              [%sexp_of: t * t option * t option])))
+            raise_s [%message
+              ("Deferred.Map."^name^" failed")
+                ~map:(t : t) (o1 : t option) (o2 : t option)])))
     ;;
 
     let%test_unit _ =
@@ -173,8 +177,9 @@ let%test_module _ = (module struct
             let o2 = Some (core_fold t ~init ~f) in
             if not (Option.equal String.equal o1 o2)
             then (
-              failwiths ("Deferred.Map."^name^" failed") (t, o1, o2)
-                [%sexp_of: t * string option * string option]))))
+              raise_s [%message
+                ("Deferred.Map."^name^" failed")
+                  ~map:(t : t) (o1 : string option) (o2 : string option)]))))
     ;;
 
     let%test_unit _ =
@@ -198,8 +203,9 @@ let%test_module _ = (module struct
               let o2 = Some (Core_kernel.Std.Map.merge t1 t2 ~f) in
               if not (Option.equal equal o1 o2)
               then (
-                failwiths "Deferred.Map.merge failed" (t1, t2, o1, o2)
-                  [%sexp_of: t * t * t option * t option]))))
+                raise_s [%message
+                  "Deferred.Map.merge failed"
+                    ~map1:(t1 : t) ~map2:(t2 : t) (o1 : t option) (o2 : t option)]))))
     ;;
   end
 

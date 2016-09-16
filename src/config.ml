@@ -179,7 +179,7 @@ let default_timing_wheel_config (word_size : Word_size.t) =
     | W64 -> Time_ns.Span.of_ms 0.1, [ 15; 15; 9; 6 ]
   in
   Timing_wheel_ns.Config.create
-    ~alarm_precision
+    ~alarm_precision:(Timing_wheel_ns.Alarm_precision.of_span alarm_precision)
     ~level_bits:(Timing_wheel_ns.Level_bits.create_exn level_bits)
     ()
 ;;
@@ -208,8 +208,11 @@ let%test_unit _ =
       List.iter2_exn actual_durations lower_bounds ~f:(fun actual bound ->
         assert (Time_ns.Span.(>=) actual bound))
     with exn ->
-      failwiths "lower bound violated" (exn, actual_durations, lower_bounds)
-        [%sexp_of: exn * Time_ns.Span.t list * Time_ns.Span.t list])
+      raise_s [%message
+        "lower bound violated"
+          (exn : exn)
+          (actual_durations : Time_ns.Span.t list)
+          (lower_bounds : Time_ns.Span.t list)])
 ;;
 
 let default_timing_wheel_config = default_timing_wheel_config Word_size.word_size

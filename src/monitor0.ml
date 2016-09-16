@@ -89,5 +89,5 @@ exception Shutdown
    logs ignored exceptions. *)
 let try_with_log_exn : (exn -> unit) ref =
   ref (fun exn ->
-    failwiths "failed to set Monitor0.try_with_log_exn" exn [%sexp_of: Exn.t])
+    raise_s [%message "failed to set Monitor0.try_with_log_exn" (exn : Exn.t)])
 ;;

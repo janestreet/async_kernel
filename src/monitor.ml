@@ -400,8 +400,8 @@ let protect ?here ?info ?(name = "Monitor.protect") f ~finally =
   let%bind r = try_with ?here ?info ~name f in
   let%map fr = try_with ?here ?info ~name:"finally" finally in
   match r, fr with
-  | Error e, Error finally_e  ->
-    failwiths "Async finally" (e, finally_e) [%sexp_of: exn * exn]
+  | Error exn, Error finally_exn ->
+    raise_s [%message "Async finally" (exn : exn) (finally_exn : exn)]
   | Error e        , Ok ()
   | Ok _           , Error e -> raise e
   | Ok r           , Ok ()   -> r
@@ -423,7 +423,7 @@ let catch_stream ?here ?info ?name f =
 let catch ?here ?info ?name f =
   match%map Stream.next (catch_stream ?here ?info ?name f) with
   | Cons (x, _) -> x
-  | Nil -> failwith "Monitor.catch got unexpected empty stream"
+  | Nil -> raise_s [%message "Monitor.catch got unexpected empty stream"]
 ;;
 
 let catch_error ?here ?info ?name f =

@@ -69,7 +69,7 @@ end = struct
           | `Have_not_been_sent_downstream ivar -> assert (Ivar.is_empty ivar)))
         ~downstream_flushed:ignore;
     with exn ->
-      failwiths "Pipe.Consumer.invariant failed" (exn, t) [%sexp_of: exn * t]
+      raise_s [%message "Pipe.Consumer.invariant failed" (exn : exn) ~pipe:(t : t)]
   ;;
 
   let create ~pipe_id ~downstream_flushed =
@@ -134,7 +134,7 @@ module Blocked_read = struct
           | None -> ()
           | Some consumer -> Consumer.invariant consumer));
     with exn ->
-      failwiths "Pipe.Blocked_read.invariant failed" (exn, t) [%sexp_of: exn * _ t]
+      raise_s [%message "Pipe.Blocked_read.invariant failed" (exn : exn) ~pipe:(t : _ t)]
   ;;
 
   let create wants consumer = { wants; consumer }
@@ -279,7 +279,7 @@ let invariant t : unit =
           assert (Consumer.pipe_id consumer = t.id))))
       ~upstream_flusheds:ignore
   with exn ->
-    failwiths "Pipe.invariant failed" (exn, t) [%sexp_of: exn * (_, _) t]
+    raise_s [%message "Pipe.invariant failed" (exn : exn) ~pipe:(t : (_, _) t)]
 ;;
 
 module Reader = struct
@@ -423,7 +423,7 @@ let consume t ~max_queue_length consumer =
 
 let set_size_budget t size_budget =
   if size_budget < 0
-  then (failwiths "negative size_budget" size_budget [%sexp_of: int]);
+  then (raise_s [%message "negative size_budget" (size_budget : int)]);
   t.size_budget <- size_budget;
   update_pushback t;
 ;;
@@ -445,7 +445,7 @@ let fill_blocked_reads t =
 let start_write t =
   if !show_debug_messages then (eprints "write" t [%sexp_of: (_, _) t]);
   if !check_invariant then (invariant t);
-  if is_closed t then (failwiths "write to closed pipe" t [%sexp_of: (_, _) t]);
+  if is_closed t then (raise_s [%message "write to closed pipe" ~pipe:(t : (_, _) t)]);
 ;;
 
 let finish_write t =
@@ -499,8 +499,9 @@ let ensure_consumer_matches ?consumer t =
   | Some consumer ->
     if t.id <> Consumer.pipe_id consumer
     then (
-      failwiths "Attempt to use consumer with wrong pipe" (consumer, t)
-        [%sexp_of: Consumer.t * _ Reader.t])
+      raise_s [%message
+        "Attempt to use consumer with wrong pipe"
+          (consumer : Consumer.t) ~pipe:(t : _ Reader.t)])
 ;;
 
 let start_read ?consumer t label =
@@ -526,7 +527,7 @@ let get_max_queue_length ~max_queue_length =
   | None -> Int.max_value
   | Some max_queue_length ->
     if max_queue_length <= 0
-    then (failwiths "max_queue_length <= 0" max_queue_length [%sexp_of: int]);
+    then (raise_s [%message "max_queue_length <= 0" (max_queue_length : int)]);
     max_queue_length
 ;;
 
@@ -607,8 +608,7 @@ this is likely due to a race condition with one or more other consumers"
 let read_exactly ?consumer t ~num_values =
   start_read t "read_exactly" ?consumer;
   if num_values <= 0
-  then (failwiths "Pipe.read_exactly got num_values <= 0" num_values
-         [%sexp_of: int]);
+  then (raise_s [%message "Pipe.read_exactly got num_values <= 0" (num_values : int)]);
   Deferred.create (fun finish ->
     let result = Q.create () in
     let rec loop () =
@@ -1256,7 +1256,7 @@ let%test_module _ =
           create_reader ~close_on_exception:false (fun writer ->
             let%bind () = Scheduler.(yield (t ())) in
             write_without_pushback writer ();
-            failwith "fail"))
+            raise_s [%message "fail" [%here]]))
         |> Option.value_exn ~message:"no synchronous exceptions"
       in
       stabilize ();
@@ -1266,7 +1266,7 @@ let%test_module _ =
       assert (not (is_closed reader));
       assert (read_now reader = `Nothing_available);
       match Deferred.peek (Stream.next errors) with
-      | None | Some Nil -> failwith "expected exn to bubble up"
+      | None | Some Nil -> raise_s [%message "expected exn to bubble up"]
       | Some (Cons _) -> ()
     ;;
 
@@ -1278,7 +1278,7 @@ let%test_module _ =
           create_reader ~close_on_exception:true (fun writer ->
             let%bind () = Scheduler.(yield (t ())) in
             write_without_pushback writer ();
-            failwith "fail"))
+            raise_s [%message "fail" [%here]]))
         |> Option.value_exn ~message:"no synchronous exceptions"
       in
       stabilize ();
@@ -1290,7 +1290,7 @@ let%test_module _ =
       assert (read_now reader = `Eof);
       begin
         match Deferred.peek (Stream.next errors) with
-        | None | Some Nil -> failwith "expected exn to bubble up"
+        | None | Some Nil -> raise_s [%message "expected exn to bubble up"]
         | Some (Cons _) -> ()
       end
     ;;
@@ -1656,8 +1656,9 @@ let%test_module _ =
               loop 1 list);
             let%map actual_result = to_list merged_pipe in
             if not (actual_result = expected_result)
-            then (failwiths "mismatch" (actual_result, expected_result)
-                   [%sexp_of: int list * int list])))
+            then (
+              raise_s [%message
+                "mismatch" (actual_result : int list) (expected_result : int list)])))
       in
       stabilize ();
       assert (Deferred.is_determined finished)
@@ -1696,7 +1697,7 @@ let%test_module _ =
           let finished =
             iter' r ~f:(fun q ->
               Queue.iter q ~f:(fun i ->
-                if i = 17 then (failwith "") else (count := !count + i));
+                if i = 17 then (raise_s [%message [%here]]) else (count := !count + i));
               Deferred.unit)
           in
           upon finished (fun () -> iter_finished := true);
@@ -1769,7 +1770,7 @@ let%test_module _ =
         Monitor.try_with (fun () ->
           let finished =
             iter t ~f:(fun i ->
-              if i = 17 then (failwith "") else (r := !r + i);
+              if i = 17 then (raise_s [%message [%here]]) else (r := !r + i);
               Deferred.unit)
           in
           upon finished (fun () -> iter_finished := true);
@@ -1789,7 +1790,7 @@ let%test_module _ =
         Monitor.try_with (fun () ->
           let finished =
             iter t ~continue_on_error:true ~f:(fun i ->
-              if i = 2 then (failwith "") else (r := !r + i);
+              if i = 2 then (raise_s [%message [%here]]) else (r := !r + i);
               Deferred.unit)
           in
           upon finished (fun () -> iter_finished := true);
@@ -1823,7 +1824,7 @@ let%test_module _ =
         Monitor.try_with (fun () ->
           let finished =
             iter_without_pushback t ~f:(fun i ->
-              if i = 17 then (failwith "") else (r := !r + i))
+              if i = 17 then (raise_s [%message [%here]]) else (r := !r + i))
           in
           upon finished (fun () -> iter_finished := true);
           finished)
@@ -1842,7 +1843,7 @@ let%test_module _ =
         Monitor.try_with (fun () ->
           let finished =
             iter_without_pushback t ~continue_on_error:true ~f:(fun i ->
-              if i = 2 then (failwith "") else (r := !r + i))
+              if i = 2 then (raise_s [%message [%here]]) else (r := !r + i))
           in
           upon finished (fun () -> iter_finished := true);
           finished)

@@ -14,7 +14,7 @@ let%test_module _ = (module struct
       within' ~monitor:t1 (fun () ->
         let t2 = create () in
         let d = get_next_error t2 in
-        within ~monitor:t2 (fun () -> failwith "");
+        within ~monitor:t2 (fun () -> raise_s [%message [%here]]);
         d)
     in
     stabilize ();
@@ -50,8 +50,9 @@ let%test_module _ = (module struct
           stabilize ();
           [%test_result: int] (!error_count) ~expect:expect_error_count;
         with exn ->
-          failwiths "failure" (exn, handler, `num_exns_to_send num_exns_to_send)
-            [%sexp_of: exn * [ `Raise | `Ignore ] * [ `num_exns_to_send of int ]])
+          raise_s [%message
+            "failure"
+              (exn : exn) (handler : [ `Raise | `Ignore ]) (num_exns_to_send : int)])
   ;;
 
   (* Test the lifetime of Async monitors:

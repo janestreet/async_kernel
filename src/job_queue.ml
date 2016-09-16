@@ -109,8 +109,8 @@ let enqueue t execution_context f a =
 let set_jobs_left_this_cycle t n =
   if n < 0
   then (
-    failwiths "Jobs.set_jobs_left_this_cycle got negative number" (n, t)
-      [%sexp_of: int * t]);
+    raise_s [%message
+      "Jobs.set_jobs_left_this_cycle got negative number" (n : int) (t : t)]);
   t.jobs_left_this_cycle <- n;
 ;;
 

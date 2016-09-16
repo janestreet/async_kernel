@@ -171,9 +171,11 @@ module Event = struct
     match abort t a with
     | `Ok -> ()
     | `Previously_happened _ ->
-      failwith "Clock.Event.abort_exn failed to abort event that previously happened"
+      raise_s [%message
+        "Clock.Event.abort_exn failed to abort event that previously happened"]
     | `Previously_aborted _ ->
-      failwith "Clock.Event.abort_exn failed to abort event that previously aborted"
+      raise_s [%message
+        "Clock.Event.abort_exn failed to abort event that previously aborted"]
   ;;
 
   let abort_if_possible t a =
@@ -324,7 +326,8 @@ let run_repeatedly
 
 let every' ?start ?stop ?continue_on_error t span f =
   if Time_ns.Span.( <= ) span Time_ns.Span.zero
-  then (failwiths "Time_source.every got nonpositive span" span [%sexp_of: Time_ns.Span.t]);
+  then (
+    raise_s [%message "Time_source.every got nonpositive span" (span : Time_ns.Span.t)]);
   run_repeatedly t ?start ?stop ?continue_on_error ~f ~continue:(After span)
 ;;
 
@@ -366,12 +369,12 @@ let with_timeout t span d =
            the same time, e.g. [with_timeout (sec 0.) Deferred.unit]. *)
         | `Ok | `Previously_happened () -> ()
         | `Previously_aborted () ->
-          failwith "Time_source.with_timeout bug: should only abort once"
+          raise_s [%message "Time_source.with_timeout bug: should only abort once"]
         end;
         `Result v)
     ; choice (Event.fired timeout) (function
         | `Happened () -> `Timeout
         | `Aborted  () ->
-          failwith "Time_source.with_timeout bug: both completed and timed out")
+          raise_s [%message "Time_source.with_timeout bug: both completed and timed out"])
     ]
 ;;

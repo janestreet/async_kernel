@@ -38,7 +38,7 @@ let is_closed t = Ivar.is_full (next t)
 
 let fill_exn t v =
   if is_closed t
-  then (failwith "stream is closed")
+  then (raise_s [%message "stream is closed"])
   else (Ivar.fill (next t) v)
 ;;
 

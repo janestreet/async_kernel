@@ -386,15 +386,15 @@ let%test_module _ = (module struct
 
   let%test_unit _ =
     assert (eq (try_with (fun () -> Deferred.return 1)) (Ok 1));
-    assert (expect_failure_with_prefix (try_with (fun () -> failwith "foo"))
-              ~prefix:"(monitor.ml.Error (Failure foo)");
+    assert (expect_failure_with_prefix (try_with (fun () -> raise_s [%message "foo"]))
+              ~prefix:"(monitor.ml.Error foo");
   ;;
 
   let%test_unit _ =
     assert (eq (try_with_join (fun () -> return 1)) (Ok 1));
     assert (eq (try_with_join (fun () -> fail err)) (Error err));
-    assert (expect_failure_with_prefix (try_with (fun () -> failwith "foo"))
-              ~prefix:"(monitor.ml.Error (Failure foo)");
+    assert (expect_failure_with_prefix (try_with (fun () -> raise_s [%message "foo"]))
+              ~prefix:"(monitor.ml.Error foo");
   ;;
 
 end)

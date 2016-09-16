@@ -9,7 +9,7 @@ let%test_module _ = (module struct
   let test f =
     let t = f () in
     Scheduler.run_cycles_until_no_jobs_remain ();
-    if not (Deferred.is_determined t) then (failwith "unit test didn't finish");
+    if not (Deferred.is_determined t) then (raise_s [%message "unit test didn't finish"]);
   ;;
 
   let%test_unit _ = (* [enabled] returns choices in order *)

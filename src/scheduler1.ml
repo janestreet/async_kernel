@@ -175,7 +175,7 @@ let invariant t : unit =
       ~on_end_of_cycle:ignore
     ;
   with exn ->
-    failwiths "Scheduler.invariant failed" (exn, t) [%sexp_of: exn * t]
+    raise_s [%message "Scheduler.invariant failed" (exn : exn) (t : t)]
 ;;
 
 let free_job t job = Pool.free t.job_pool job

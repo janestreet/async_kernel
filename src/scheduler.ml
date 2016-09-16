@@ -163,8 +163,9 @@ let run_cycles_until_no_jobs_remain () =
   let t = t () in
   if is_dead t
   then (
-    failwiths "run_cycles_until_no_jobs_remain cannot proceed -- scheduler is dead" t
-      [%sexp_of: t]);
+    raise_s [%message
+      "run_cycles_until_no_jobs_remain cannot proceed -- scheduler is dead"
+        ~scheduler:(t : t)]);
   let rec loop () =
     run_cycle t;
     advance_clock t ~now:(Time_ns.now ());
@@ -209,7 +210,7 @@ let yield_until_no_jobs_remain t = Bvar.wait t.yield_until_no_jobs_remain
 
 let yield_every ~n =
   if n <= 0
-  then (failwiths "Scheduler.yield_every got nonpositive count" n [%sexp_of: int])
+  then (raise_s [%message "Scheduler.yield_every got nonpositive count" (n : int)])
   else if n = 1
   then (stage (fun t -> yield t))
   else (
@@ -275,14 +276,14 @@ let%test_module _ = (module struct
 
   (* [Monitor.catch_stream]. *)
   let%test_unit _ =
-    let d = Stream.next (Monitor.catch_stream (fun () -> failwith "")) in
+    let d = Stream.next (Monitor.catch_stream (fun () -> raise_s [%message [%here]])) in
     run_cycles_until_no_jobs_remain ();
     assert (is_some (Deferred.peek d))
   ;;
 
   (* [Monitor.catch]. *)
   let%test_unit _ =
-    let d = Monitor.catch (fun () -> failwith "") in
+    let d = Monitor.catch (fun () -> raise_s [%message [%here]]) in
     run_cycles_until_no_jobs_remain ();
     assert (is_some (Deferred.peek d))
   ;;

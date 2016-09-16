@@ -51,7 +51,7 @@ let%test_unit _ =
   let t = create ~continue_on_error:false ~max_concurrent_jobs:1 in
   assert (max_concurrent_jobs t = 1);
   assert (not (is_dead t));
-  let d1 = enqueue' t (fun () -> failwith "") in
+  let d1 = enqueue' t (fun () -> raise_s [%message [%here]]) in
   let d2 = enqueue' t (fun () -> assert false) in
   stabilize ();
   assert (num_jobs_waiting_to_start t = 0);
@@ -63,7 +63,7 @@ let%test_unit _ =
 let%test_unit _ =
   (* Check [~continue_on_error:true]. *)
   let t = create ~continue_on_error:true ~max_concurrent_jobs:1 in
-  let d1 = enqueue' t (fun () -> failwith "") in
+  let d1 = enqueue' t (fun () -> raise_s [%message [%here]]) in
   let d2 = enqueue' t (fun () -> return 13) in
   stabilize ();
   assert (not (is_dead t));
@@ -218,7 +218,7 @@ let%test_unit _ =
                incr num_jobs_run)))
       in
       let before_fail = enqueue num_jobs_before_fail in
-      let fail = enqueue' t (fun _ -> failwith "") in
+      let fail = enqueue' t (fun _ -> raise_s [%message [%here]]) in
       let after_fail = enqueue num_jobs_after_fail in
       let cleaned = cleaned t in
       let is_cleaned () = Deferred.is_determined cleaned in
@@ -243,21 +243,14 @@ let%test_unit _ =
       kill t; (* should have no effect *)
       assert (is_cleaned ());
     with exn ->
-      failwiths "failure"
-        (exn,
-         `num_resources num_resources,
-         `num_jobs_before_fail num_jobs_before_fail,
-         `num_jobs_after_fail num_jobs_after_fail,
-         `num_at_kill_started !num_at_kill_started,
-         t)
-        [%sexp_of:
-                   (exn
-                    * [ `num_resources of int ]
-                    * [ `num_jobs_before_fail of int ]
-                    * [ `num_jobs_after_fail of int ]
-                    * [ `num_at_kill_started of int ]
-                    * bool ref t
-                   )]
+      raise_s [%message
+        "failure"
+          (exn : exn)
+          (num_resources : int)
+          (num_jobs_before_fail : int)
+          (num_jobs_after_fail : int)
+          (num_at_kill_started : int ref)
+          ~throttle:(t : bool ref t)]
   in
   for num_resources = 1 to 3 do
     for num_jobs_before_fail = 0 to num_resources + 1 do
@@ -285,7 +278,7 @@ let%test_unit _ =
   let got_error = ref false in
   Stream.iter (Monitor.detach_and_get_error_stream monitor) ~f:(fun _ -> got_error := true);
   Scheduler.within ~monitor (fun () ->
-    at_kill t (fun () -> cleanup_ran := true; failwith ""));
+    at_kill t (fun () -> cleanup_ran := true; raise_s [%message [%here]]));
   let c = cleaned t in
   kill t;
   stabilize ();

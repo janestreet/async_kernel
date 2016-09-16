@@ -26,7 +26,7 @@ let invariant invariant_a _ (t : _ t) =
 let peek t = Moption.get t.current_value
 
 let peek_exn t =
-  if is_empty t then (failwith "Mvar.peek_exn called on empty mvar");
+  if is_empty t then (raise_s [%message "Mvar.peek_exn called on empty mvar"]);
   Moption.get_some_exn t.current_value
 ;;
 
@@ -62,7 +62,7 @@ let take_nonempty t =
 ;;
 
 let take_now_exn t =
-  if is_empty t then (failwith "Mvar.take_exn called on empty mvar");
+  if is_empty t then (raise_s [%message "Mvar.take_exn called on empty mvar"]);
   take_nonempty t;
 ;;
 

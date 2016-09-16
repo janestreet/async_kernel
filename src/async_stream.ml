@@ -7,7 +7,7 @@ include Tail.Stream
 
 let first_exn t =
   match%map next t with
-  | Nil -> failwith "Stream.first of empty stream"
+  | Nil -> raise_s [%message "Stream.first of empty stream"]
   | Cons (x, _) -> x
 ;;
 

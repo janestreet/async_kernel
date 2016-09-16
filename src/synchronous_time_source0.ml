@@ -20,6 +20,8 @@ module Alarm = struct
   let is_null t = phys_equal t (null ())
 end
 
+module Alarm_precision = Timing_wheel_ns.Alarm_precision
+
 let default_timing_wheel_config =
   (* 100 microsecond alarm_precision seems sufficient to avoid having many alarms in the
      same interval, which avoids quadratic insertion sort when firing alarms.  And the
@@ -27,7 +29,7 @@ let default_timing_wheel_config =
      [../test/test_synchronous_time_source.ml]. *)
   let alarm_precision, level_bits = Time_ns.Span.of_ms 0.1, [ 14; 6; 6; 4 ] in
   Timing_wheel_ns.Config.create
-    ~alarm_precision
+    ~alarm_precision:(Alarm_precision.of_span alarm_precision)
     ~level_bits:(Timing_wheel_ns.Level_bits.create_exn level_bits)
     ()
 ;;
