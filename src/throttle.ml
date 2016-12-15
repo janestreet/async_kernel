@@ -17,8 +17,7 @@ module Internal_job : sig
 end  = struct
   type 'a t =
     { start   : [ `Abort | `Start of 'a ] Ivar.t
-    ; outcome : [ `Ok | `Aborted | `Raised ] Deferred.t
-    }
+    ; outcome : [ `Ok | `Aborted | `Raised ] Deferred.t }
   [@@deriving sexp_of]
 
   let create work =
@@ -79,8 +78,7 @@ type 'a t =
   ; mutable num_resources_not_cleaned : int
   (* [cleaned] becomes determined when [num_resources_not_cleaned] reaches zero,
      i.e. after [t] is killed and all its clean functions complete. *)
-  ; cleaned                           : unit Ivar.t
-  }
+  ; cleaned                           : unit Ivar.t }
 [@@deriving fields, sexp_of]
 
 let invariant invariant_a t : unit =
@@ -189,8 +187,7 @@ let create_with ~continue_on_error job_resources =
   ; is_dead                   = false
   ; cleans                    = []
   ; num_resources_not_cleaned = max_concurrent_jobs
-  ; cleaned                   = Ivar.create ()
-  }
+  ; cleaned                   = Ivar.create () }
 ;;
 
 module Sequencer = struct
@@ -211,8 +208,7 @@ let create ~continue_on_error ~max_concurrent_jobs =
 module Job = struct
   type ('a, 'b) t =
     { internal_job : 'a Internal_job.t
-    ; result : [ `Ok of 'b | `Aborted | `Raised of exn ] Deferred.t
-    }
+    ; result : [ `Ok of 'b | `Aborted | `Raised of exn ] Deferred.t }
 
   let result t = t.result
 

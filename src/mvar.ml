@@ -44,7 +44,8 @@ module Read_only = struct
   let invariant invariant_a t = invariant invariant_a ignore t
 end
 
-let read_only (t : _ Read_write.t) = (t :> _ Read_only.t)
+let read_only  (t : ('a, [> read] ) t) = (t :> ('a, read)  t)
+let write_only (t : ('a, [> write]) t) = (t :> ('a, write) t)
 
 let create () =
   { current_value   = Moption.create ()
@@ -94,7 +95,7 @@ let rec put t v =
   if is_empty t
   then (
     set t v;
-    Deferred.unit)
+    return ())
   else (
     let%bind () = taken t in
     put t v)

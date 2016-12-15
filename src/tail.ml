@@ -22,8 +22,7 @@ end
 
 type 'a t = 'a Types.Tail.t =
   { (* [next] points at the tail of the stream *)
-    mutable next: 'a Stream.next Ivar.t
-  }
+    mutable next: 'a Stream.next Ivar.t }
 [@@deriving fields]
 
 let sexp_of_t _ t : Sexp.t =

@@ -16,8 +16,7 @@
     throttle is killed, then all jobs in it that haven't yet started are aborted,
     i.e. they will not start and will become determined with [`Aborted].  Jobs that had
     already started will continue, and return [`Ok] or [`Raised] as usual when they
-    finish.  Jobs enqueued into a killed throttle will be immediately aborted.
-*)
+    finish.  Jobs enqueued into a killed throttle will be immediately aborted. *)
 
 open! Core_kernel.Std
 

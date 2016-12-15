@@ -101,7 +101,7 @@ let%test_unit _ =
   deferred_result
     (Deferred.Sequence.iter numbers ~f:(fun _ ->
        incr side_effect;
-       Deferred.unit));
+       return ()));
   assert (!side_effect <> 0);
   Sequence.iter numbers ~f:(fun _ -> decr side_effect);
   assert (!side_effect = 0)
@@ -114,7 +114,7 @@ let%test_unit _ =
   deferred_result
     (Deferred.Sequence.iteri numbers ~f:(fun i _ ->
        side_effect := !side_effect + i;
-       Deferred.unit));
+       return ()));
   assert (!side_effect <> 0);
   Sequence.iteri numbers ~f:(fun i _ -> side_effect := !side_effect - i);
   assert (!side_effect = 0)

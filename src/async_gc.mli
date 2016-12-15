@@ -38,8 +38,7 @@ include module type of Core_kernel.Std.Gc
 
     The [f] function can use all features of OCaml and Async, since it runs as an ordinary
     Async job.  [f] can even make make [b] reachable again.  It can even call
-    [add_finalizer] on [b] or other values to register other finalizer functions.
-*)
+    [add_finalizer] on [b] or other values to register other finalizer functions. *)
 val add_finalizer     : 'a Heap_block.t -> ('a Heap_block.t -> unit) -> unit
 val add_finalizer_exn : 'a -> ('a -> unit) -> unit
 

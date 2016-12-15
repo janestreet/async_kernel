@@ -67,8 +67,7 @@ val copy_to_tail : 'a t -> 'a Tail.t -> unit Deferred.t
 
     These take anonymous functions that return deferreds generalizing the usual sequence
     operation and allowing the client to control the rate at which the sequence is
-    processed.
-*)
+    processed. *)
 
 (** [append t1 t2] returns a stream with all the values of t1, in order, and if t1 ends,
     these values are followed by all the values of t2. *)
@@ -113,7 +112,7 @@ val iter' : 'a t -> f:('a -> unit Deferred.t) -> unit Deferred.t
     reached.  *)
 val closed : _ t -> unit Deferred.t
 
-(** [iter t ~f] = [don't_wait_for (iter' t ~f:(fun a -> f a; Deferred.unit))] *)
+(** [iter t ~f] = [don't_wait_for (iter' t ~f:(fun a -> f a; return ()))] *)
 val iter : 'a t -> f:('a -> unit) -> unit
 
 (** [take_until t d] returns a stream [t'] that has the same elements as [t] up until [d]
@@ -152,8 +151,7 @@ val first_n : 'a t -> int -> 'a t
 
 
 (** Stream generation
-    ----------------------------------------------------------------------
-*)
+    ---------------------------------------------------------------------- *)
 
 
 (** [unfold b f] returns a stream [a1; a2; ...; an] whose elements are
@@ -164,14 +162,12 @@ val first_n : 'a t -> int -> 'a t
       Some (a2, b2) = f b1
       ...
       None = f bn
-    v}
-*)
+    v} *)
 val unfold : 'b -> f:('b -> ('a * 'b) option Deferred.t) -> 'a t
 
 
 (** Miscellaneous operations
-    ----------------------------------------------------------------------
-*)
+    ---------------------------------------------------------------------- *)
 
 (** [split ~stop ~f t] returns a pair [(p, d)], where [p] is a prefix of [t] that ends
     for one of three reasons:
@@ -181,8 +177,7 @@ val unfold : 'b -> f:('b -> ('a * 'b) option Deferred.t) -> 'a t
       3. f returns `Found
     v}
     The deferred [d] describes why the prefix ended, and returns the suffix of the
-    stream in case (2) or (3).
-*)
+    stream in case (2) or (3). *)
 val split
   :  ?stop:unit Deferred.t
   -> ?f:('a -> [ `Continue | `Found of 'b ])

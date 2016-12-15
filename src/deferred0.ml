@@ -22,10 +22,7 @@ module Handler = Ivar.Handler
        ; is_determined             : unit -> bool
        ; upon                      : ('a -> unit) -> unit
        ; upon'                     : ('a -> unit) -> Unregister.t
-       ; install_removable_handler : ('a, 'execution_context) Raw_handler.t -> Unregister.t;
-       }
-   ]}
-*)
+       ; install_removable_handler : ('a, 'execution_context) Raw_handler.t -> Unregister.t; } ]} *)
 
 type +'a t = 'a Types.Deferred.t  (* the abstract covariant type, equivalent to ivar *)
 

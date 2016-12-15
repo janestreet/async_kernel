@@ -19,8 +19,7 @@
     in the Async part of a computation.  For example, in:
 
     {[
-      upon (f ()) g
-    ]}
+      upon (f ()) g ]}
 
     if [f] raises, the exception will not go to a monitor; it will go to the next caml
     exception handler on the stack.  Any exceptions raised by [g] will be caught by the
@@ -28,8 +27,7 @@
     always use [Scheduler.schedule] or [Scheduler.within].  For example:
 
     {[
-      Scheduler.within (fun () -> upon (f ()) g)
-    ]}
+      Scheduler.within (fun () -> upon (f ()) g) ]}
 
     This code will catch an exception in either [f] or [g], and propagate it to the
     monitor.
@@ -141,12 +139,10 @@ val try_with
 
     {[
       try_with_or_error f ?extract_exn
-      = try_with f ?extract_exn ~run:`Now ~rest:`Log >>| Or_error.of_exn_result
-    ]}
+      = try_with f ?extract_exn ~run:`Now ~rest:`Log >>| Or_error.of_exn_result ]}
 
     [~run:`Now] is different from [try_with]'s default, [~run:`Schedule].  Based on
-    experience, we think [~run:`Now] is a better behavior.
-*)
+    experience, we think [~run:`Now] is a better behavior. *)
 val try_with_or_error
   : (?extract_exn : bool  (** default is [false] *)
      -> (unit -> 'a Deferred.t)

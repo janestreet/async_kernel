@@ -21,7 +21,7 @@ let wall_clock =
         | Error error ->
           eprint_s [%message "\
 bug in Synchronous_time_source -- callbacks are wrapped and should not raise"
-                              (error : Error.t)]
+                               (error : Error.t)]
       in
       (Scheduler.t ()).advance_synchronous_wall_clock <- Some advance;
       t)

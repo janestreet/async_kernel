@@ -56,14 +56,12 @@ val is_determined : 'a t -> bool
     Note that:
 
     {[
-      upon t f
-    ]}
+      upon t f ]}
 
     is more efficient than:
 
     {[
-      ignore (let%bind a = t in f a; return ())
-    ]}
+      ignore (let%bind a = t in f a; return ()) ]}
 
     because [upon], unlike [let%bind] does not create a deferred to hold the result.
 
@@ -71,8 +69,7 @@ val is_determined : 'a t -> bool
 
     {[
       let rec loop () =
-        upon t (fun a -> ... loop () ... )
-    ]}
+        upon t (fun a -> ... loop () ... ) ]}
 
     although often [forever] or [repeat_until_finished] is more clear.
 
@@ -147,9 +144,7 @@ val enabled : 'b Choice.t list -> (unit -> 'b list) t
    {[
      choose [ choice t1 f1
             ; ...
-              ; choice tn fn
-            ]
-   ]}
+              ; choice tn fn ] ]}
 
    returns a deferred [t] that becomes determined with value [fi ai] after some [ti]
    becomes determined with value [ai].  It is guaranteed that [choose] calls at most one
@@ -162,19 +157,16 @@ val enabled : 'b Choice.t list -> (unit -> 'b list) t
 
    {[
      choose [ choice t1 (fun () -> `X1)
-            ; choice t2 (fun () -> `X2)
-            ]
+            ; choice t2 (fun () -> `X2) ]
      >>> function
      | `X1 -> e1
-     | `X2 -> e2
-   ]}
+     | `X2 -> e2 ]}
 
    it may be the case that both [t1] and [t2] become determined, yet [e2] actually runs.
 
    It is guaranteed that if multiple choices are determined with no intervening
    asynchrony, then the earliest choice in the list will become the value of the
-   [choose].
-*)
+   [choose]. *)
 val choose : 'b Choice.t list -> 'b t
 
 (** [for_ start ~to_:stop ~do_:f] is the deferred analog of:
@@ -182,9 +174,7 @@ val choose : 'b Choice.t list -> 'b t
     {[
       for i = start to stop do
         f i;
-      done
-    ]}
-*)
+      done ]} *)
 val for_
   :  int
   -> to_ : int

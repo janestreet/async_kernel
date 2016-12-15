@@ -31,9 +31,9 @@ module Min_inter_cycle_timeout =
 module Max_num_open_file_descrs = struct
   include
     Validated.Make (struct
-       include Int
-       let here = [%here]
-       let validate = Int.validate_positive
+      include Int
+      let here = [%here]
+      let validate = Int.validate_positive
     end)
 
   let default = create_exn 8192
@@ -63,8 +63,7 @@ module Dump_core_on_job_delay = struct
 
   type watch =
     { dump_if_delayed_by : Time_ns.Span.t
-    ; how_to_dump        : How_to_dump.t
-    }
+    ; how_to_dump        : How_to_dump.t }
   [@@deriving sexp]
 
   type t =
@@ -114,8 +113,7 @@ module Debug_tag = struct
     ; Shutdown
     ; Thread_pool
     ; Thread_safe
-    ; Writer
-    ]
+    ; Writer ]
   ;;
 
 end
@@ -149,8 +147,7 @@ type t =
   ; print_debug_messages_for            : Debug_tag.t list                      sexp_option
   ; record_backtraces                   : bool                                  sexp_option
   ; report_thread_pool_stuck_for        : Time_ns.Span.t                        sexp_option
-  ; timing_wheel_config                 : Timing_wheel_ns.Config.t              sexp_option
-  }
+  ; timing_wheel_config                 : Timing_wheel_ns.Config.t              sexp_option }
 [@@deriving fields, sexp]
 
 let empty =
@@ -168,54 +165,25 @@ let empty =
   ; print_debug_messages_for            = None
   ; record_backtraces                   = None
   ; report_thread_pool_stuck_for        = None
-  ; timing_wheel_config                 = None
-  }
+  ; timing_wheel_config                 = None }
 ;;
 
-let default_timing_wheel_config (word_size : Word_size.t) =
+let default_timing_wheel_config_for_word_size (word_size : Word_size.t) =
+  let module Alarm_precision = Timing_wheel_ns.Alarm_precision in
   let alarm_precision, level_bits =
     match word_size with
-    | W32 -> Time_ns.Span.of_ms 1. , [ 10; 10; 9;   ]
-    | W64 -> Time_ns.Span.of_ms 0.1, [ 15; 15; 9; 6 ]
+    | W32 -> Alarm_precision.about_one_millisecond              , [ 10; 10; 9;   ]
+    | W64 -> Alarm_precision.(div about_one_millisecond ~pow2:3), [ 14; 15; 9; 6 ]
   in
   Timing_wheel_ns.Config.create
-    ~alarm_precision:(Timing_wheel_ns.Alarm_precision.of_span alarm_precision)
+    ~alarm_precision
     ~level_bits:(Timing_wheel_ns.Level_bits.create_exn level_bits)
     ()
 ;;
 
-let%test_unit _ =
-  List.iter [ Word_size.W32; W64 ] ~f:(fun word_size ->
-    let config = default_timing_wheel_config word_size in
-    let actual_durations = Timing_wheel_ns.Config.durations config in
-    let year = Time_ns.Span.(scale day) 365. in
-    let lower_bounds =
-      match word_size with
-      | W32 -> Time_ns.Span.([ 1. , second
-                             ; 17., minute
-                             ; 6.2, day
-                             ])
-      | W64 -> Time_ns.Span.([ 3.2 , second
-                             ; 1.2 , day
-                             ; 1.7 , year
-                             ; 111., year
-                             ])
-    in
-    let lower_bounds =
-      List.map lower_bounds ~f:(fun (scale, span) -> Time_ns.Span.scale span scale)
-    in
-    try
-      List.iter2_exn actual_durations lower_bounds ~f:(fun actual bound ->
-        assert (Time_ns.Span.(>=) actual bound))
-    with exn ->
-      raise_s [%message
-        "lower bound violated"
-          (exn : exn)
-          (actual_durations : Time_ns.Span.t list)
-          (lower_bounds : Time_ns.Span.t list)])
+let default_timing_wheel_config =
+  default_timing_wheel_config_for_word_size Word_size.word_size
 ;;
-
-let default_timing_wheel_config = default_timing_wheel_config Word_size.word_size
 
 let default =
   (* For [file_descr_watcher] and [max_num_open_file_descrs] we choose the default for the
@@ -239,14 +207,12 @@ let default =
   ; print_debug_messages_for            = Some []
   ; record_backtraces                   = Some false
   ; report_thread_pool_stuck_for        = Some (sec 1.)
-  ; timing_wheel_config                 = Some default_timing_wheel_config
-  }
+  ; timing_wheel_config                 = Some default_timing_wheel_config }
 ;;
 
 let example =
   { default with
-    print_debug_messages_for = Some Debug_tag.([ Fd; Scheduler ])
-  }
+    print_debug_messages_for = Some Debug_tag.([ Fd; Scheduler ]) }
 ;;
 
 let environment_variable = "ASYNC_CONFIG"
@@ -255,8 +221,8 @@ let field_descriptions () : string =
   let field to_sexp description ac field =
     (Field.name field,
      to_sexp (Option.value_exn (Field.get field default)),
-     description
-    ) :: ac
+     description)
+    :: ac
   in
   let fields =
     Fields.fold ~init:[]
@@ -264,21 +230,18 @@ let field_descriptions () : string =
                                             ["
   By default, Async will send an exception to the toplevel monitor
   if it detects that the thread pool is stuck for longer than this.
-"
-                                            ])
+" ])
       ~check_invariants:(field [%sexp_of: bool]
                            ["
   If true, causes Async to regularly check invariants of its internal
   data structures.  This can substantially slow down your program.
-"
-                           ])
+" ])
       ~detect_invalid_access_from_thread:(field [%sexp_of: bool]
                                             ["
   If true, causes Async routines to check if they are being accessed
   from some thread other than the thread currently holding the Async
   lock, which is not allowed and can lead to very confusing behavior.
-"
-                                            ])
+" ])
       ~dump_core_on_job_delay:(field [%sexp_of: Dump_core_on_job_delay.t]
                                  ["
   Can be set to [Do_not_watch] or:
@@ -294,14 +257,12 @@ let field_descriptions () : string =
   which will kill the program while causing a core dump.  One can
   force [abort] or [gcore] via [how_to_dump], which should be one of:
   [Call_abort], [Call_gcore], or [Default].
-"
-                                 ])
+" ])
       ~epoll_max_ready_events:(field [%sexp_of: Epoll_max_ready_events.t]
                                  ["
   The maximum number of ready events that Async's call to [Epoll.wait]
   will handle.
-"
-                                 ])
+" ])
       ~file_descr_watcher:(field [%sexp_of: File_descr_watcher.t]
                              ["
   This determines what OS subsystem Async uses to watch file descriptors for being ready.
@@ -312,19 +273,16 @@ let field_descriptions () : string =
                                 (List.map File_descr_watcher.list
                                    ~f:File_descr_watcher.to_string);
                               ".
-"
-                             ])
+" ])
       ~max_num_open_file_descrs:(field [%sexp_of: Max_num_open_file_descrs.t]
                                    ["
   The maximum number of open file descriptors allowed at any one time.
-"
-                                   ])
+" ])
       ~max_num_threads:(field [%sexp_of: Max_num_threads.t]
                           ["
   The maximum number of threads that Async will create to do blocking
   system calls and handle calls to [In_thread.run].
-"
-                          ])
+" ])
       ~max_inter_cycle_timeout:(field [%sexp_of: Max_inter_cycle_timeout.t]
                                   ["
   The maximum amount of time the scheduler will pause between cycles
@@ -341,16 +299,14 @@ let field_descriptions () : string =
   to have a negligible performance impact, and frequent enough that
   the latency would typically be not noticeable.  Also, 50ms is what
   the OCaml ticker thread uses.
-"
-                                  ])
+" ])
       ~max_num_jobs_per_priority_per_cycle:
         (field [%sexp_of: Max_num_jobs_per_priority_per_cycle.t]
            ["
   The maximum number of jobs that will be done at each priority within
   each Async cycle.  This limits how many jobs the scheduler will run
   before pausing to check for I/O.
-"
-           ])
+" ])
       ~min_inter_cycle_timeout:(field [%sexp_of: Min_inter_cycle_timeout.t]
                                   ["
   The minimum timeout the scheduler will pass to the OS when it checks
@@ -358,8 +314,7 @@ let field_descriptions () : string =
   nonzero value is used to increase thread fairness between the scheduler
   and other threads.  A plausible setting is 1us.  This is also
   configurable in OCaml via [Scheduler.set_min_inter_cycle_timeout].
-"
-                                  ])
+" ])
       ~print_debug_messages_for:
         (field [%sexp_of: Debug_tag.t list]
            ["
@@ -374,8 +329,7 @@ let field_descriptions () : string =
                         concat ["    "; Debug_tag.to_string d; "\n"]));
             "
   Turning on debug messages will substantially slow down most programs.
-"
-           ])
+" ])
       ~record_backtraces:(field [%sexp_of: bool]
                             ["
   If true, this will cause Async to keep in the execution context the
@@ -385,14 +339,12 @@ let field_descriptions () : string =
   particular the history will appean in an unhandled exception that
   reaches the main monitor.  This can have a substantial performance
   impact, both in running time and space usage.
-"
-                            ])
+" ])
       ~report_thread_pool_stuck_for:(field [%sexp_of: Time_ns.Span.t]
                                        ["
   By default, Async will print a message to stderr every second if
   the thread pool is stuck for longer than this.
-"
-                                       ])
+" ])
       ~timing_wheel_config:(field [%sexp_of: Timing_wheel_ns.Config.t]
                               ["
   This is used to adjust the time/space tradeoff in the timing wheel
@@ -400,8 +352,7 @@ let field_descriptions () : string =
   size [alarm_precision], and alarms with times in the same interval
   fire in the same cycle.  Level [i] in the timing wheel has an
   array of size [2^b], where [b] is the [i]'th entry in [level_bits].
-"
-                              ])
+" ])
   in
   concat
     (List.map
@@ -426,8 +377,7 @@ where all fields are optional:
 
 Here is an explanation of each field.
 ";
-    field_descriptions ();
-  ]
+    field_descriptions (); ]
 ;;
 
 let usage () = eprintf "%s%!" (help_message ()); exit 1
@@ -513,8 +463,7 @@ let t =
   ; print_debug_messages_for            = t.print_debug_messages_for
   ; record_backtraces                   = Some record_backtraces
   ; report_thread_pool_stuck_for        = Some report_thread_pool_stuck_for
-  ; timing_wheel_config                 = Some timing_wheel_config
-  }
+  ; timing_wheel_config                 = Some timing_wheel_config }
 ;;
 
 let task_id = ref (fun () -> Sexp.Atom "<no task id>")

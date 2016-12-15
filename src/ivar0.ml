@@ -9,8 +9,7 @@ type any = [ `Empty | `Empty_one_handler | `Empty_one_or_more_handlers | `Full |
    This allows us to save one indirection.  The magic won't be needed anymore when this
    feature is accepted:
 
-   http://caml.inria.fr/mantis/view.php?id=5528
-*)
+   http://caml.inria.fr/mantis/view.php?id=5528 *)
 module Handler = struct
 
   type 'a t = 'a Types.Handler.t =
@@ -21,8 +20,7 @@ module Handler = struct
     ; execution_context : Execution_context.t
     (* [prev] and [next] circularly doubly link all handlers of the same ivar. *)
     ; mutable prev      : 'a t sexp_opaque
-    ; mutable next      : 'a t sexp_opaque
-    }
+    ; mutable next      : 'a t sexp_opaque }
   [@@deriving sexp_of]
 
   let create run execution_context =
@@ -33,11 +31,9 @@ module Handler = struct
            { run
            ; execution_context
            ; prev              = t
-           ; next              = t
-           }
+           ; next              = t }
          in
-         h1
-       ]}
+         h1 ]}
 
        However the compilation of recursive value in OCaml is not optimal: the value is
        allocated twice and copied once (with a loop calling caml_modify).  This is not
@@ -48,8 +44,7 @@ module Handler = struct
       { run
       ; execution_context
       ; prev              = Obj.magic ()
-      ; next              = Obj.magic ()
-      }
+      ; next              = Obj.magic () }
     in
     t.prev <- t;
     t.next <- t;
@@ -64,31 +59,25 @@ module Handler = struct
            { run               = run1
            ; execution_context = execution_context1
            ; prev              = t2
-           ; next              = t2
-           }
+           ; next              = t2 }
          and t2 =
            { run               = run2
            ; execution_context = execution_context2
            ; prev              = t1
-           ; next              = t1
-           }
+           ; next              = t1 }
          in
-         t1
-       ]}
-    *)
+         t1 ]} *)
     let t1 =
       { run               = run1
       ; execution_context = execution_context1
       ; prev              = Obj.magic ()
-      ; next              = Obj.magic ()
-      }
+      ; next              = Obj.magic () }
     in
     let t2 =
       { run               = run2
       ; execution_context = execution_context2
       ; prev              = t1
-      ; next              = t1
-      }
+      ; next              = t1 }
     in
     t1.prev <- t2;
     t1.next <- t2;
@@ -142,8 +131,7 @@ module Handler = struct
       { run
       ; execution_context
       ; prev              = t.prev
-      ; next              = t
-      }
+      ; next              = t }
     in
     t.prev.next <- result;
     t.prev <- result;
@@ -156,8 +144,7 @@ module Handler = struct
        --> t1 <--> ... <--> last1 <--> t2 <--> ... <--> last2 <--
        |                                                        |
        ----------------------------------------------------------
-     v}
-  *)
+     v} *)
   let splice t1 t2 =
     let last1 = t1.prev in
     let last2 = t2.prev in
@@ -180,8 +167,7 @@ module Handler = struct
             { run
             ; execution_context
             ; prev
-            ; next              = first
-            }
+            ; next              = first }
           in
           prev.next <- t;
           loop t l
@@ -202,8 +188,7 @@ module Handler = struct
 end
 
 type 'a t = 'a Types.Ivar.t =
-  { mutable cell : ('a, any) cell
-  }
+  { mutable cell : ('a, any) cell }
 
 (* The ['b] is used to encode the constructor.  This allows us to write functions that
    take only one of the constructors, with no runtime test.
@@ -411,8 +396,7 @@ let upon' t run = add_handler t run Scheduler.(current_execution_context (t ()))
 (* [upon] is conceptually the same as:
 
    {[
-     let upon t f = ignore (upon' t run)
-   ]}
+     let upon t f = ignore (upon' t run) ]}
 
    However, below is a more efficient implementation, which is worth doing because [upon]
    is very widely used and is so much more common than [upon'].  The below implementation
@@ -454,8 +438,7 @@ let upon =
        then return ()
        else (
          let%bind () = after (sec 1.) in
-         loop (i - 1))
-   ]}
+         loop (i - 1)) ]}
 
    [connect] makes intermediate bind results all be [Indir]s pointing at the outermost
    bind, rather than being a linear-length chain, with each pointing to the previous one.
@@ -526,406 +509,407 @@ let connect =
         Handler.splice handler1 (handler_of_constructor cell2));
 ;;
 
-let%test_module _ = (module struct
+let%test_module _ =
+  (module struct
 
-  let (-->) i1 i2 =
-    match i1.cell with
-    | Indir i2' -> phys_equal i2' i2
-    | _ -> false
-  ;;
+    let (-->) i1 i2 =
+      match i1.cell with
+      | Indir i2' -> phys_equal i2' i2
+      | _ -> false
+    ;;
 
-  let r = ref 0
-  let run i = r := !r + i
-  let execution_context = Execution_context.main
-  let empty_one_handler = Empty_one_handler (run, execution_context)
+    let r = ref 0
+    let run i = r := !r + i
+    let execution_context = Execution_context.main
+    let empty_one_handler = Empty_one_handler (run, execution_context)
 
-  let execution_context1 = Execution_context.create_like Execution_context.main
-  let execution_context2 = Execution_context.create_like Execution_context.main
-  let handler1 = (run, execution_context1)
-  let handler2 = (run, execution_context2)
+    let execution_context1 = Execution_context.create_like Execution_context.main
+    let execution_context2 = Execution_context.create_like Execution_context.main
+    let handler1 = (run, execution_context1)
+    let handler2 = (run, execution_context2)
 
-  let eq_handlers (r1, ec1) (r2, ec2) = phys_equal r1 r2 && phys_equal ec1 ec2
+    let eq_handlers (r1, ec1) (r2, ec2) = phys_equal r1 r2 && phys_equal ec1 ec2
 
-  let cell_of_handler_list l =
-    match Handler.of_list l with
-    | None -> Empty
-    | Some h -> cell_of_handler h;
-  ;;
+    let cell_of_handler_list l =
+      match Handler.of_list l with
+      | None -> Empty
+      | Some h -> cell_of_handler h;
+    ;;
 
-  let handler_list_of_cell c = Handler.to_list (handler_of_constructor c)
+    let handler_list_of_cell c = Handler.to_list (handler_of_constructor c)
 
-  let squash t = ignore (squash t : _ t)
+    let squash t = ignore (squash t : _ t)
 
-  let connect bind_result bind_rhs = connect ~bind_result ~bind_rhs
+    let connect bind_result bind_rhs = connect ~bind_result ~bind_rhs
 
-  let stabilize () = Result.ok_exn (Scheduler.(stabilize (t ())))
+    let stabilize () = Result.ok_exn (Scheduler.(stabilize (t ())))
 
-  (* ==================== peek, is_empty, is_full ==================== *)
+    (* ==================== peek, is_empty, is_full ==================== *)
 
-  let%test_unit _ =
-    let t = create () in
-    assert (is_empty t);
-    assert (not (is_full t));
-    assert (peek t = None)
-  ;;
+    let%test_unit _ =
+      let t = create () in
+      assert (is_empty t);
+      assert (not (is_full t));
+      assert (peek t = None)
+    ;;
 
-  let%test_unit _ =
-    let t = create_full 13 in
-    assert (not (is_empty t));
-    assert (is_full t);
-    assert (peek t = Some 13)
-  ;;
+    let%test_unit _ =
+      let t = create_full 13 in
+      assert (not (is_empty t));
+      assert (is_full t);
+      assert (peek t = Some 13)
+    ;;
 
-  (* ==================== equal ==================== *)
+    (* ==================== equal ==================== *)
 
-  let%test_unit _ =
-    let t1 = create () in
-    let t2 = create () in
-    assert (equal t1 t1);
-    assert (equal t2 t2);
-    assert (not (equal t1 t2))
-  ;;
+    let%test_unit _ =
+      let t1 = create () in
+      let t2 = create () in
+      assert (equal t1 t1);
+      assert (equal t2 t2);
+      assert (not (equal t1 t2))
+    ;;
 
-  (* ==================== squash ==================== *)
+    (* ==================== squash ==================== *)
 
-  let%test_unit _ =
-    let t = create () in
-    squash t;
-    assert (t.cell = Empty)
-  ;;
+    let%test_unit _ =
+      let t = create () in
+      squash t;
+      assert (t.cell = Empty)
+    ;;
 
-  let%test_unit _ =
-    let t1 = create () in
-    let t2 = create_with_cell (Indir t1) in
-    squash t2;
-    assert (t2 --> t1)
-  ;;
+    let%test_unit _ =
+      let t1 = create () in
+      let t2 = create_with_cell (Indir t1) in
+      squash t2;
+      assert (t2 --> t1)
+    ;;
 
-  let%test_unit _ =
-    let t1 = create () in
-    let t2 = create_with_cell (Indir t1) in
-    let t3 = create_with_cell (Indir t2) in
-    let t4 = create_with_cell (Indir t3) in
-    squash t4;
-    assert (t2 --> t1);
-    assert (t3 --> t1);
-    assert (t4 --> t1)
-  ;;
+    let%test_unit _ =
+      let t1 = create () in
+      let t2 = create_with_cell (Indir t1) in
+      let t3 = create_with_cell (Indir t2) in
+      let t4 = create_with_cell (Indir t3) in
+      squash t4;
+      assert (t2 --> t1);
+      assert (t3 --> t1);
+      assert (t4 --> t1)
+    ;;
 
-  (* ==================== fill ==================== *)
+    (* ==================== fill ==================== *)
 
-  let%test_unit _ =
-    let t = create () in
-    fill t 13;
-    assert (peek t = Some 13)
-  ;;
+    let%test_unit _ =
+      let t = create () in
+      fill t 13;
+      assert (peek t = Some 13)
+    ;;
 
-  let%test_unit _ =
-    let t = create () in
-    fill t 13;
-    assert (try fill t 14; false with _ -> true)
-  ;;
+    let%test_unit _ =
+      let t = create () in
+      fill t 13;
+      assert (try fill t 14; false with _ -> true)
+    ;;
 
-  let%test_unit _ =
-    let t1 = create () in
-    let t2 = create_with_cell (Indir t1) in
-    fill t2 13;
-    assert (peek t1 = Some 13);
-    assert (peek t2 = Some 13)
-  ;;
+    let%test_unit _ =
+      let t1 = create () in
+      let t2 = create_with_cell (Indir t1) in
+      fill t2 13;
+      assert (peek t1 = Some 13);
+      assert (peek t2 = Some 13)
+    ;;
 
-  let%test_unit _ =
-    r := 13;
-    let t = create_with_cell empty_one_handler in
-    fill t 17;
-    stabilize ();
-    assert (t.cell = Full 17);
-    assert (!r = 30)
-  ;;
+    let%test_unit _ =
+      r := 13;
+      let t = create_with_cell empty_one_handler in
+      fill t 17;
+      stabilize ();
+      assert (t.cell = Full 17);
+      assert (!r = 30)
+    ;;
 
-  let%test_unit _ =
-    r := 13;
-    let t = create_with_cell (cell_of_handler_list [ handler1; handler2]) in
-    fill t 17;
-    stabilize ();
-    assert (t.cell = Full 17);
-    assert (!r = 47)
-  ;;
+    let%test_unit _ =
+      r := 13;
+      let t = create_with_cell (cell_of_handler_list [ handler1; handler2]) in
+      fill t 17;
+      stabilize ();
+      assert (t.cell = Full 17);
+      assert (!r = 47)
+    ;;
 
-  (* ==================== upon ==================== *)
+    (* ==================== upon ==================== *)
 
-  let%test_unit _ =
-    let t = create () in
-    r := 1;
-    upon t (fun i -> r := !r + i);
-    stabilize ();
-    assert (!r = 1);
-    fill t 13;
-    stabilize ();
-    assert (!r = 14)
-  ;;
-
-  let%test_unit _ =
-    let t = create () in
-    r := 1;
-    upon t (fun i -> r := !r + i);
-    upon t (fun i -> r := !r + i);
-    stabilize ();
-    assert (!r = 1);
-    fill t 13;
-    stabilize ();
-    assert (!r = 27)
-  ;;
-
-  let%test_unit _ =
-    let t = create () in
-    r := 1;
-    let num_handlers = 1000 in
-    for _ = 1 to num_handlers do
+    let%test_unit _ =
+      let t = create () in
+      r := 1;
       upon t (fun i -> r := !r + i);
-    done;
-    stabilize ();
-    assert (!r = 1);
-    fill t 13;
-    stabilize ();
-    assert (!r = num_handlers * 13 + 1)
-  ;;
+      stabilize ();
+      assert (!r = 1);
+      fill t 13;
+      stabilize ();
+      assert (!r = 14)
+    ;;
 
-  let%test_unit _ =
-    let t1 = create () in
-    let t2 = create_with_cell (Indir t1) in
-    r := 1;
-    upon t2 (fun i -> r := !r + i);
-    fill t1 13;
-    stabilize ();
-    assert (!r = 14)
-  ;;
+    let%test_unit _ =
+      let t = create () in
+      r := 1;
+      upon t (fun i -> r := !r + i);
+      upon t (fun i -> r := !r + i);
+      stabilize ();
+      assert (!r = 1);
+      fill t 13;
+      stabilize ();
+      assert (!r = 27)
+    ;;
 
-  (* ==================== upon' ==================== *)
+    let%test_unit _ =
+      let t = create () in
+      r := 1;
+      let num_handlers = 1000 in
+      for _ = 1 to num_handlers do
+        upon t (fun i -> r := !r + i);
+      done;
+      stabilize ();
+      assert (!r = 1);
+      fill t 13;
+      stabilize ();
+      assert (!r = num_handlers * 13 + 1)
+    ;;
 
-  let%test_unit _ =
-    let t = create () in
-    r := 1;
-    let u = upon' t (fun i -> r := !r + i) in
-    stabilize ();
-    assert (!r = 1);
-    remove_handler t u;
-    fill t 13;
-    stabilize ();
-    assert (!r = 1)
-  ;;
+    let%test_unit _ =
+      let t1 = create () in
+      let t2 = create_with_cell (Indir t1) in
+      r := 1;
+      upon t2 (fun i -> r := !r + i);
+      fill t1 13;
+      stabilize ();
+      assert (!r = 14)
+    ;;
 
-  let%test_unit _ =
-    let t = create () in
-    r := 1;
-    let u = upon' t (fun i -> r := !r + i) in
-    stabilize ();
-    assert (!r = 1);
-    fill t 13;
-    stabilize ();
-    assert (!r = 14);
-    remove_handler t u;
-    stabilize ();
-    assert (!r = 14)
-  ;;
+    (* ==================== upon' ==================== *)
 
-  let%test_unit _ =
-    let t = create () in
-    r := 1;
-    let u1 = upon' t (fun i -> r := !r + i) in
-    let _ : _ Handler.t = upon' t (fun i -> r := !r + i) in
-    stabilize ();
-    assert (!r = 1);
-    remove_handler t u1;
-    fill t 13;
-    stabilize ();
-    assert (!r = 14)
-  ;;
+    let%test_unit _ =
+      let t = create () in
+      r := 1;
+      let u = upon' t (fun i -> r := !r + i) in
+      stabilize ();
+      assert (!r = 1);
+      remove_handler t u;
+      fill t 13;
+      stabilize ();
+      assert (!r = 1)
+    ;;
 
-  let%test_unit _ =
-    let t1 = create () in
-    let t2 = create () in
-    r := 1;
-    let u1 = upon' t1 (fun () -> r := !r + 13) in
-    let _ : _ Handler.t = upon' t2 (fun () -> r := !r + 17) in
-    connect t1 t2;
-    remove_handler t1 u1;
-    fill t1 ();
-    stabilize ();
-    assert (!r = 18)
-  ;;
+    let%test_unit _ =
+      let t = create () in
+      r := 1;
+      let u = upon' t (fun i -> r := !r + i) in
+      stabilize ();
+      assert (!r = 1);
+      fill t 13;
+      stabilize ();
+      assert (!r = 14);
+      remove_handler t u;
+      stabilize ();
+      assert (!r = 14)
+    ;;
 
-  (* ==================== connect ==================== *)
+    let%test_unit _ =
+      let t = create () in
+      r := 1;
+      let u1 = upon' t (fun i -> r := !r + i) in
+      let _ : _ Handler.t = upon' t (fun i -> r := !r + i) in
+      stabilize ();
+      assert (!r = 1);
+      remove_handler t u1;
+      fill t 13;
+      stabilize ();
+      assert (!r = 14)
+    ;;
 
-  let%test_unit _ =
-    let i1 = create () in
-    let i2 = create () in
-    connect i1 i2;
-    stabilize ();
-    assert (i1.cell = Empty);
-    assert (i2 --> i1)
-  ;;
+    let%test_unit _ =
+      let t1 = create () in
+      let t2 = create () in
+      r := 1;
+      let u1 = upon' t1 (fun () -> r := !r + 13) in
+      let _ : _ Handler.t = upon' t2 (fun () -> r := !r + 17) in
+      connect t1 t2;
+      remove_handler t1 u1;
+      fill t1 ();
+      stabilize ();
+      assert (!r = 18)
+    ;;
 
-  let%test_unit _ =
-    let a1 = create () in
-    let b1 = create () in
-    let b2 = create_with_cell (Indir b1) in
-    connect a1 b2;
-    stabilize ();
-    assert (a1.cell = Empty);
-    assert (b1 --> a1);
-    assert (b2 --> a1)
-  ;;
+    (* ==================== connect ==================== *)
 
-  let%test_unit _ =
-    let a1 = create () in
-    let a2 = create_with_cell (Indir a1) in
-    let b1 = create () in
-    let b2 = create_with_cell (Indir b1) in
-    connect a2 b2;
-    stabilize ();
-    assert (a1.cell = Empty);
-    assert (a2 --> a1);
-    assert (b1 --> a1);
-    assert (b2 --> a1)
-  ;;
+    let%test_unit _ =
+      let i1 = create () in
+      let i2 = create () in
+      connect i1 i2;
+      stabilize ();
+      assert (i1.cell = Empty);
+      assert (i2 --> i1)
+    ;;
 
-  let%test_unit _ =
-    let a = create () in
-    let b = create_with_cell (Indir a) in
-    let c = create_with_cell (Indir a) in
-    connect b c;
-    stabilize ();
-    assert (a.cell = Empty);
-    assert (b --> a);
-    assert (c --> a)
-  ;;
+    let%test_unit _ =
+      let a1 = create () in
+      let b1 = create () in
+      let b2 = create_with_cell (Indir b1) in
+      connect a1 b2;
+      stabilize ();
+      assert (a1.cell = Empty);
+      assert (b1 --> a1);
+      assert (b2 --> a1)
+    ;;
 
-  let%test_unit _ =
-    let a1 = create () in
-    connect a1 a1;
-    stabilize ();
-    assert (a1.cell = Empty)
-  ;;
+    let%test_unit _ =
+      let a1 = create () in
+      let a2 = create_with_cell (Indir a1) in
+      let b1 = create () in
+      let b2 = create_with_cell (Indir b1) in
+      connect a2 b2;
+      stabilize ();
+      assert (a1.cell = Empty);
+      assert (a2 --> a1);
+      assert (b1 --> a1);
+      assert (b2 --> a1)
+    ;;
 
-  let%test_unit _ =
-    let a1 = create () in
-    let a2 = create_with_cell (Indir a1) in
-    connect a1 a2;
-    stabilize ();
-    assert (a1.cell = Empty);
-    assert (a2 --> a1)
-  ;;
+    let%test_unit _ =
+      let a = create () in
+      let b = create_with_cell (Indir a) in
+      let c = create_with_cell (Indir a) in
+      connect b c;
+      stabilize ();
+      assert (a.cell = Empty);
+      assert (b --> a);
+      assert (c --> a)
+    ;;
 
-  let%test_unit _ =
-    let a1 = create () in
-    let a2 = create_with_cell (Indir a1) in
-    connect a2 a1;
-    stabilize ();
-    assert (a1.cell = Empty);
-    assert (a2 --> a1)
-  ;;
+    let%test_unit _ =
+      let a1 = create () in
+      connect a1 a1;
+      stabilize ();
+      assert (a1.cell = Empty)
+    ;;
 
-  let%test_unit _ =
-    let a1 = create () in
-    let b1 = create_with_cell empty_one_handler in
-    connect a1 b1;
-    stabilize ();
-    assert (phys_equal a1.cell empty_one_handler);
-    assert (b1 --> a1)
-  ;;
+    let%test_unit _ =
+      let a1 = create () in
+      let a2 = create_with_cell (Indir a1) in
+      connect a1 a2;
+      stabilize ();
+      assert (a1.cell = Empty);
+      assert (a2 --> a1)
+    ;;
 
-  let%test_unit _ =
-    let a1 = create_with_cell empty_one_handler in
-    let b1 = create () in
-    connect a1 b1;
-    stabilize ();
-    assert (phys_equal a1.cell empty_one_handler);
-    assert (b1 --> a1)
-  ;;
+    let%test_unit _ =
+      let a1 = create () in
+      let a2 = create_with_cell (Indir a1) in
+      connect a2 a1;
+      stabilize ();
+      assert (a1.cell = Empty);
+      assert (a2 --> a1)
+    ;;
 
-  let%test_unit _ =
-    let a1 = create_with_cell empty_one_handler in
-    let b1 = create_with_cell empty_one_handler in
-    connect a1 b1;
-    stabilize ();
-    begin match a1.cell with
-    | Empty_one_or_more_handlers _ as c ->
-      assert (Handler.length (handler_of_constructor c) = 2);
-      List.iter (handler_list_of_cell c) ~f:(fun (run', execution_context') ->
-        assert (phys_equal execution_context' execution_context);
-        assert (phys_equal run' run));
-    | _ -> assert false
-    end;
-    assert (b1 --> a1)
-  ;;
+    let%test_unit _ =
+      let a1 = create () in
+      let b1 = create_with_cell empty_one_handler in
+      connect a1 b1;
+      stabilize ();
+      assert (phys_equal a1.cell empty_one_handler);
+      assert (b1 --> a1)
+    ;;
 
-  let%test_unit _ =
-    let empty_many_handlers1 = cell_of_handler_list [ handler1 ] in
-    let a1 = create_with_cell empty_many_handlers1 in
-    let b1 = create_with_cell (cell_of_handler_list [ handler2 ]) in
-    connect a1 b1;
-    stabilize ();
-    assert (phys_equal a1.cell empty_many_handlers1);
-    begin match a1.cell with
-    | Empty_one_or_more_handlers _ as c ->
-      begin match handler_list_of_cell c with
-      | [ h1; h2 ] ->
-        assert (eq_handlers h1 handler1 && eq_handlers h2 handler2
-                || eq_handlers h1 handler2 && eq_handlers h2 handler1);
+    let%test_unit _ =
+      let a1 = create_with_cell empty_one_handler in
+      let b1 = create () in
+      connect a1 b1;
+      stabilize ();
+      assert (phys_equal a1.cell empty_one_handler);
+      assert (b1 --> a1)
+    ;;
+
+    let%test_unit _ =
+      let a1 = create_with_cell empty_one_handler in
+      let b1 = create_with_cell empty_one_handler in
+      connect a1 b1;
+      stabilize ();
+      begin match a1.cell with
+      | Empty_one_or_more_handlers _ as c ->
+        assert (Handler.length (handler_of_constructor c) = 2);
+        List.iter (handler_list_of_cell c) ~f:(fun (run', execution_context') ->
+          assert (phys_equal execution_context' execution_context);
+          assert (phys_equal run' run));
       | _ -> assert false
-      end
-    | _ -> assert false
-    end;
-    assert (b1 --> a1)
-  ;;
+      end;
+      assert (b1 --> a1)
+    ;;
 
-  let%test_unit _ =
-    let empty_many_handlers1 = cell_of_handler_list [ handler1 ] in
-    let a1 = create_with_cell empty_many_handlers1 in
-    let b1 = create_with_cell empty_one_handler in
-    connect a1 b1;
-    stabilize ();
-    assert (phys_equal a1.cell empty_many_handlers1);
-    begin match a1.cell with
-    | Empty_one_or_more_handlers _ as c ->
-      begin match handler_list_of_cell c with
-      | [ h1; h2 ] ->
-        assert (eq_handlers h1 handler1 || eq_handlers h2 handler1);
+    let%test_unit _ =
+      let empty_many_handlers1 = cell_of_handler_list [ handler1 ] in
+      let a1 = create_with_cell empty_many_handlers1 in
+      let b1 = create_with_cell (cell_of_handler_list [ handler2 ]) in
+      connect a1 b1;
+      stabilize ();
+      assert (phys_equal a1.cell empty_many_handlers1);
+      begin match a1.cell with
+      | Empty_one_or_more_handlers _ as c ->
+        begin match handler_list_of_cell c with
+        | [ h1; h2 ] ->
+          assert (eq_handlers h1 handler1 && eq_handlers h2 handler2
+                  || eq_handlers h1 handler2 && eq_handlers h2 handler1);
+        | _ -> assert false
+        end
       | _ -> assert false
-      end
-    | _ -> assert false
-    end;
-    assert (b1 --> a1)
-  ;;
+      end;
+      assert (b1 --> a1)
+    ;;
 
-  let%test_unit _ =
-    let i1 = create () in
-    let i2 = create_with_cell (Full 13) in
-    connect i1 i2;
-    stabilize ();
-    assert (i1.cell = Full 13);
-    assert (i2.cell = Full 13)
-  ;;
+    let%test_unit _ =
+      let empty_many_handlers1 = cell_of_handler_list [ handler1 ] in
+      let a1 = create_with_cell empty_many_handlers1 in
+      let b1 = create_with_cell empty_one_handler in
+      connect a1 b1;
+      stabilize ();
+      assert (phys_equal a1.cell empty_many_handlers1);
+      begin match a1.cell with
+      | Empty_one_or_more_handlers _ as c ->
+        begin match handler_list_of_cell c with
+        | [ h1; h2 ] ->
+          assert (eq_handlers h1 handler1 || eq_handlers h2 handler1);
+        | _ -> assert false
+        end
+      | _ -> assert false
+      end;
+      assert (b1 --> a1)
+    ;;
 
-  let%test_unit _ =
-    let a1 = create () in
-    let b1 = create_with_cell (Full 13) in
-    let b2 = create_with_cell (Indir b1) in
-    connect a1 b2;
-    stabilize ();
-    assert (a1.cell = Full 13);
-    assert (b1.cell = Full 13);
-    assert (b2 --> a1)
-  ;;
+    let%test_unit _ =
+      let i1 = create () in
+      let i2 = create_with_cell (Full 13) in
+      connect i1 i2;
+      stabilize ();
+      assert (i1.cell = Full 13);
+      assert (i2.cell = Full 13)
+    ;;
 
-  let%test_unit _ =
-    let a1 = create_with_cell empty_one_handler in
-    let b1 = create_with_cell (Full 13) in
-    connect a1 b1;
-    stabilize ();
-    assert (a1.cell = Full 13);
-    assert (b1.cell = Full 13)
-  ;;
+    let%test_unit _ =
+      let a1 = create () in
+      let b1 = create_with_cell (Full 13) in
+      let b2 = create_with_cell (Indir b1) in
+      connect a1 b2;
+      stabilize ();
+      assert (a1.cell = Full 13);
+      assert (b1.cell = Full 13);
+      assert (b2 --> a1)
+    ;;
 
-end)
+    let%test_unit _ =
+      let a1 = create_with_cell empty_one_handler in
+      let b1 = create_with_cell (Full 13) in
+      connect a1 b1;
+      stabilize ();
+      assert (a1.cell = Full 13);
+      assert (b1.cell = Full 13)
+    ;;
+
+  end)

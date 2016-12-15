@@ -10,8 +10,7 @@ module T1 = struct
        [advance_clock]. *)
     ; handle_fired  : Job.t Timing_wheel_ns.Alarm.t -> unit
     ; is_wall_clock : bool
-    ; scheduler     : Scheduler.t
-    }
+    ; scheduler     : Scheduler.t }
   [@@deriving fields]
 
   let sexp_of_t _ { events; handle_fired = _; is_wall_clock; scheduler = _ } =

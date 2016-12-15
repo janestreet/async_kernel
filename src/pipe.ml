@@ -51,12 +51,10 @@ end = struct
     (* [values_read] reflects whether values the consumer has read from the pipe have been
        sent downstream or if not, holds an ivar that is to be filled when they are. *)
     ; mutable values_read : [ `Have_been_sent_downstream
-                            | `Have_not_been_sent_downstream of unit Ivar.t
-                            ]
+                            | `Have_not_been_sent_downstream of unit Ivar.t ]
     (* [downstream_flushed ()] returns when all prior values that the consumer has
        passed downstream have been flushed all the way down the chain of pipes. *)
-    ; downstream_flushed  : unit -> Flushed_result.t Deferred.t
-    }
+    ; downstream_flushed  : unit -> Flushed_result.t Deferred.t }
   [@@deriving fields, sexp_of]
 
   let invariant t : unit =
@@ -75,8 +73,7 @@ end = struct
   let create ~pipe_id ~downstream_flushed =
     { pipe_id
     ; values_read        = `Have_been_sent_downstream
-    ; downstream_flushed
-    }
+    ; downstream_flushed }
   ;;
 
   let start t =
@@ -119,8 +116,7 @@ module Blocked_read = struct
 
   type 'a t =
     { wants : 'a wants
-    ; consumer : Consumer.t option
-    }
+    ; consumer : Consumer.t option }
   [@@deriving fields, sexp_of]
 
   let invariant t : unit =
@@ -167,8 +163,7 @@ module Blocked_flush = struct
      preceding the flush will never be read. *)
   type t =
     { fill_when_num_values_read : int
-    ; ready : [ `Ok | `Reader_closed ] Ivar.t
-    }
+    ; ready : [ `Ok | `Reader_closed ] Ivar.t }
   [@@deriving fields, sexp_of]
 
   let fill t v = Ivar.fill t.ready v
@@ -221,8 +216,7 @@ type ('a, 'phantom) t =
      That function walks to the head(s) of the upstream pipe, and calls
      [downstream_flushed] on the head(s).  See the definition of [upstream_flushed]
      below. *)
-  ; upstream_flusheds         : (unit -> Flushed_result.t Deferred.t) Bag.t
-  }
+  ; upstream_flusheds         : (unit -> Flushed_result.t Deferred.t) Bag.t }
 [@@deriving fields, sexp_of]
 
 type ('a, 'phantom) pipe = ('a, 'phantom) t [@@deriving sexp_of]
@@ -309,8 +303,7 @@ let create () =
     ; blocked_flushes   = Q.create    ()
     ; blocked_reads     = Q.create    ()
     ; consumers         = []
-    ; upstream_flusheds = Bag.create  ()
-    }
+    ; upstream_flusheds = Bag.create  () }
   in
   Ivar.fill t.pushback (); (* initially, the pipe does not pushback *)
   if !check_invariant then (invariant t);
@@ -356,7 +349,7 @@ let create_reader ~close_on_exception f =
   then (upon (f w) (fun () -> close w))
   else (
     don't_wait_for (
-      Monitor.protect (fun () -> f w) ~finally:(fun () -> close w; Deferred.unit)));
+      Monitor.protect (fun () -> f w) ~finally:(fun () -> close w; return ())));
   r
 ;;
 
@@ -365,7 +358,7 @@ let init f = create_reader ~close_on_exception:true f
 let create_writer f =
   let r, w = create () in
   don't_wait_for (
-    Monitor.protect (fun () -> f r) ~finally:(fun () -> close_read r; Deferred.unit));
+    Monitor.protect (fun () -> f r) ~finally:(fun () -> close_read r; return ()));
   w
 ;;
 
@@ -486,7 +479,7 @@ let write_when_ready t ~f =
 ;;
 
 let write_if_open t x =
-  if not (is_closed t) then (write t x) else Deferred.unit;
+  if not (is_closed t) then (write t x) else (return ());
 ;;
 
 let write_without_pushback_if_open t x =
@@ -642,8 +635,7 @@ let downstream_flushed t =
     Deferred.create (fun ready ->
       Q.enqueue t.blocked_flushes
         { fill_when_num_values_read = t.num_values_read + length t
-        ; ready
-        }))
+        ; ready }))
 ;;
 
 (* In practice, along with [Link.create] and [add_upstream_flushed], [upstream_flushed]
@@ -681,8 +673,7 @@ end = struct
   type ('a, 'b) unpacked =
     { downstream                : ('a, 'b) t
     ; consumer                  : Consumer.t
-    ; upstream_flusheds_bag_elt : (unit -> Flushed_result.t Deferred.t) Bag.Elt.t
-    }
+    ; upstream_flusheds_bag_elt : (unit -> Flushed_result.t Deferred.t) Bag.Elt.t }
 
   type t = T : (_, _) unpacked -> t
 
@@ -694,8 +685,7 @@ end = struct
           add_consumer upstream
             ~downstream_flushed:(fun () -> downstream_flushed downstream)
       ; upstream_flusheds_bag_elt =
-          add_upstream_flushed downstream (fun () -> upstream_flushed upstream)
-      }
+          add_upstream_flushed downstream (fun () -> upstream_flushed upstream) }
   ;;
 
   let unlink_upstream (T t) =
@@ -707,8 +697,8 @@ let fold_gen (read_now : ?consumer:Consumer.t -> _ Reader.t -> _) ?consumer t ~i
   if !check_invariant then (invariant t);
   ensure_consumer_matches t ?consumer;
   Deferred.create (fun finished ->
-    (* We do [Deferred.unit >>>] to ensure that [f] is only called asynchronously. *)
-    Deferred.unit
+    (* We do [return () >>>] to ensure that [f] is only called asynchronously. *)
+    return ()
     >>> fun () ->
     let rec loop b =
       match read_now t ?consumer with
@@ -778,8 +768,8 @@ let iter_without_pushback
     else (fun a -> try f a with exn -> Monitor.send_exn (Monitor.current ()) exn)
   in
   Deferred.create (fun finished ->
-    (* We do [Deferred.unit >>>] to ensure that [f] is only called asynchronously. *)
-    Deferred.unit
+    (* We do [return () >>>] to ensure that [f] is only called asynchronously. *)
+    return ()
     >>> fun () ->
     let rec start () = loop ~remaining:max_iterations_per_job
     and loop ~remaining =
@@ -797,14 +787,14 @@ let iter_without_pushback
     start ())
 ;;
 
-let drain t = iter' t ~f:(fun _ -> Deferred.unit)
+let drain t = iter' t ~f:(fun _ -> return ())
 
 let drain_and_count t = fold' t ~init:0 ~f:(fun sum q -> return (sum + Q.length q))
 
 let read_all input =
   let result = Q.create () in
   let%map () =
-    iter' input ~f:(fun q -> Q.blit_transfer ~src:q ~dst:result (); Deferred.unit)
+    iter' input ~f:(fun q -> Q.blit_transfer ~src:q ~dst:result (); return ())
   in
   result
 ;;
@@ -871,11 +861,11 @@ let transfer_gen
     (* When result is filled, we're done with [input].  We unlink to remove pointers from
        [output] to [input], which would cause a space leak if we had single long-lived
        output into which we transfer lots of short-lived inputs. *)
-    ~finally:(fun () -> Link.unlink_upstream link; Deferred.unit)
+    ~finally:(fun () -> Link.unlink_upstream link; return ())
     (fun () ->
        Deferred.create (fun result ->
-         (* We do [Deferred.unit >>>] to ensure that [f] is only called asynchronously. *)
-         Deferred.unit
+         (* We do [return () >>>] to ensure that [f] is only called asynchronously. *)
+         return ()
          >>> fun () ->
          let output_closed () =
            close_read input;
@@ -890,8 +880,7 @@ let transfer_gen
              | `Ok x -> f x continue
              | `Nothing_available ->
                choose [ choice (values_available input) ignore
-                      ; choice (closed output)          ignore
-                      ]
+                      ; choice (closed output)          ignore ]
                >>> fun () ->
                loop ())
          and continue y =
@@ -1003,7 +992,7 @@ let of_sequence sequence =
     in
     let rec loop sequence =
       if is_closed writer || Sequence.is_empty sequence
-      then Deferred.unit
+      then (return ())
       else (
         start_write writer;
         let sequence = enqueue_n sequence (1 + writer.size_budget - length writer) in
@@ -1108,6 +1097,35 @@ let concat inputs =
   r
 ;;
 
+
+(* let fork t =
+ *   let pipe = create () in
+ *   let pipe' = create () in
+ *   let init = [ pipe; pipe' ] in
+ *   upon (fold t ~init ~f:(fun still_open x ->
+ *     let still_open = List.filter still_open ~f:(fun (r, _) -> not (is_closed r)) in
+ *     if List.is_empty still_open then
+ *       begin
+ *         close t;
+ *         return still_open
+ *       end
+ *     else
+ *       begin
+ *         let%map () =
+ *           Deferred.any (List.map still_open ~f:(fun (r, _) -> pushback r))
+ *         in
+ *         (* Check again because a pipe could have been closed while we were waiting. *)
+ *         let still_open = List.filter still_open ~f:(fun (r, _) -> not (is_closed r)) in
+ *         List.iter still_open ~f:(fun (r, w) ->
+ *           if not (is_closed r) then
+ *             begin
+ *               write_without_pushback w x
+ *             end);
+ *         still_open
+ *       end))
+ *     (List.iter ~f:(fun (_, w) -> close w));
+ *   fst pipe, fst pipe' *)
+
 let%test_module _ =
   (module struct
     let () =
@@ -1210,7 +1228,7 @@ let%test_module _ =
     let%test_unit _ =
       let reader = create_reader ~close_on_exception:false (fun writer ->
         write_without_pushback writer ();
-        Deferred.unit) in
+        return ()) in
       stabilize ();
       assert (is_closed reader);
       assert (Option.is_some (peek reader))
@@ -1302,7 +1320,7 @@ let%test_module _ =
         create_writer (fun reader ->
           let%bind () = Scheduler.(yield (t ())) in
           assert (read_now reader = `Ok ());
-          Deferred.unit)
+          return ())
       in
       assert (not (is_closed writer));
       write_without_pushback writer ();
@@ -1625,9 +1643,7 @@ let%test_module _ =
         ; [ [ 27 ]; [ 1; 3; 3; 4; 22; 27; 31; 59; 72 ]; [ 2; 27; 49 ] ]
         ; [ [ 2; 9; 12; 27; 101 ]
           ; [ 1; 3; 3; 4; 22; 27; 31; 59; 72 ]
-          ; [ 2; 27; 49; 127; 311 ]
-          ]
-        ]
+          ; [ 2; 27; 49; 127; 311 ] ] ]
       in
       let transfer_by = [ 1; 2; 3; 5; 10 ] in
       let cmp = Int.compare in
@@ -1680,7 +1696,7 @@ let%test_module _ =
       let l = [ 1; 2; 3 ] in
       let t = of_list l in
       let iter_finished = ref false in
-      upon (iter' t ~f:(fun q -> Queue.iter q ~f:(fun i -> r := !r + i); Deferred.unit))
+      upon (iter' t ~f:(fun q -> Queue.iter q ~f:(fun i -> r := !r + i); return ()))
         (fun () -> iter_finished := true);
       stabilize ();
       assert (!r = 6);
@@ -1698,7 +1714,7 @@ let%test_module _ =
             iter' r ~f:(fun q ->
               Queue.iter q ~f:(fun i ->
                 if i = 17 then (raise_s [%message [%here]]) else (count := !count + i));
-              Deferred.unit)
+              return ())
           in
           upon finished (fun () -> iter_finished := true);
           finished)
@@ -1723,7 +1739,7 @@ let%test_module _ =
                 iter' r ~continue_on_error:true ~f:(fun q ->
                   Queue.iter q ~f:(fun i ->
                     if i = 17 then (raise I_is_17) else (count := !count + i));
-                  Deferred.unit)
+                  return ())
               in
               upon finished (fun () -> iter_finished := true);
               finished))
@@ -1754,7 +1770,7 @@ let%test_module _ =
       let l = [ 1; 2; 3 ] in
       let t = of_list l in
       let iter_finished = ref false in
-      upon (iter t ~f:(fun i -> r := !r + i; Deferred.unit))
+      upon (iter t ~f:(fun i -> r := !r + i; return ()))
         (fun () -> iter_finished := true);
       stabilize ();
       assert (!r = 6);
@@ -1771,7 +1787,7 @@ let%test_module _ =
           let finished =
             iter t ~f:(fun i ->
               if i = 17 then (raise_s [%message [%here]]) else (r := !r + i);
-              Deferred.unit)
+              return ())
           in
           upon finished (fun () -> iter_finished := true);
           finished)
@@ -1791,7 +1807,7 @@ let%test_module _ =
           let finished =
             iter t ~continue_on_error:true ~f:(fun i ->
               if i = 2 then (raise_s [%message [%here]]) else (r := !r + i);
-              Deferred.unit)
+              return ())
           in
           upon finished (fun () -> iter_finished := true);
           finished)
@@ -1953,7 +1969,7 @@ let%test_module _ =
     let%test_unit _ =
       let i = ref 0 in
       let r = of_list [ (); () ] in
-      don't_wait_for (fold r ~init:() ~f:(fun () () -> incr i; close_read r; Deferred.unit));
+      don't_wait_for (fold r ~init:() ~f:(fun () () -> incr i; close_read r; return ()));
       stabilize ();
       assert (!i = 1)
     ;;
@@ -1969,7 +1985,7 @@ let%test_module _ =
     let%test_unit _ =
       let i = ref 0 in
       let r = of_list [ (); () ] in
-      don't_wait_for (iter r ~f:(fun () -> incr i; close_read r; Deferred.unit));
+      don't_wait_for (iter r ~f:(fun () -> incr i; close_read r; return ()));
       stabilize ();
       assert (!i = 1)
     ;;

@@ -8,8 +8,7 @@ type 'a t = 'a Sequence.t
 (* [fold_mapi ?how t ~init ~mapi_f ~fold_f] is a more efficient version of:
 
    {[
-     fold ~init ~f:(fun b a -> return (fold_f b a)) (mapi t ?how ~f:mapi_f)
-   ]}
+     fold ~init ~f:(fun b a -> return (fold_f b a)) (mapi t ?how ~f:mapi_f) ]}
 
    It avoids creating the intermediate sequence that would result from [mapi], and
    allows the [fold] to proceed concurrently with the [mapi], so that one can accumulate

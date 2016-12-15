@@ -28,9 +28,13 @@ module Deferred = Deferred1
 
 type 'a t = 'a Or_error.t Deferred.t
 
-(** [return x = Deferred.return (Ok x)] **)
+(** The applicative operations match the behavior of the applicative operations in
+    [Or_error].  This means that [all] and [all_ignore] are equivalent to [combine_errors]
+    and [combine_errors_unit] respectively. *)
 include Applicative.S with type 'a t := 'a t
-include Monad.S       with type 'a t := 'a t
+
+(** [return x = Deferred.return (Ok x)] **)
+include Monad.S with type 'a t := 'a t
 
 (** [fail error = Deferred.return (Error error)] **)
 val fail : Error.t -> _ t
@@ -75,6 +79,19 @@ val try_with_join
   -> (unit -> 'a t)
   -> 'a t
 
+(** All of the [List] functions that take a [how] argument treat it the following way:
+
+    [`Sequential] indicates both sequential evaluation of the deferreds, and sequential
+    combination of the results.
+
+    [`Parallel] indicates parallel evaluation of the deferreds (in the sense that they are
+    all in the scheduler at the same time), and parallel combination of the results. For
+    example, [List.iter ~how:`Parallel l ~f] will call [f] on each element of [l],
+    creating all of the deferreds, then wait for _all_ of them to finish, then combine any
+    errors (as in [Or_error.combine_errors_unit]).
+
+    [`Max_concurrent_jobs n] acts like [`Parallel] in the way it combines the results, but
+    only evaluates [n] of the deferreds at a time. *)
 module List : Monad_sequence.S
   with type 'a monad := 'a t
   with type 'a t := 'a list

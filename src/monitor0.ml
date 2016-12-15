@@ -14,8 +14,7 @@ type t = Types.Monitor.t =
   (* [Monitor.send_exn] extends each tail in [tails_for_all_errors]. *)
   ; mutable tails_for_all_errors    : exn Types.Tail.t list
   ; mutable has_seen_error          : bool
-  ; mutable is_detached             : bool
-  }
+  ; mutable is_detached             : bool }
 [@@deriving fields]
 
 module Pretty = struct
@@ -24,8 +23,7 @@ module Pretty = struct
     ; here           : Source_code_position.t option
     ; id             : int
     ; has_seen_error : bool
-    ; is_detached    : bool
-    }
+    ; is_detached    : bool }
   [@@deriving sexp_of]
 
   type t = one list
@@ -37,8 +35,7 @@ let to_pretty =
             { name; here; id; parent; has_seen_error; is_detached
             ; next_error = _
             ; handlers_for_all_errors = _
-            ; tails_for_all_errors = _
-            }
+            ; tails_for_all_errors = _ }
             ac =
     let ac =
       { Pretty. name; here; id; has_seen_error; is_detached } :: ac
@@ -73,8 +70,7 @@ let create_with_parent ?here ?info ?name parent =
     ; handlers_for_all_errors = Bag.create ()
     ; tails_for_all_errors    = []
     ; has_seen_error          = false
-    ; is_detached             = false
-    }
+    ; is_detached             = false }
   in
   if debug then (Debug.log "created monitor" t [%sexp_of: t]);
   t

@@ -22,34 +22,35 @@ let unit f =
   fun () -> f () >>| reraise
 ;;
 
-let%test_module _ = (module struct
-  let test memo ~should_raise =
-    let num_calls_to_f = ref 0 in
-    let f =
-      memo (fun () ->
-        incr num_calls_to_f;
-        (* We bind here so that exceptions are raised asynchronously.  It is in this case
-           that functions from [Core_kernel.Std.Memo] behave badly and fail this test. *)
-        let%bind () = return () in
-        if should_raise then (raise_s [%message "boom!"]) else (return 7))
-    in
-    let a = Monitor.try_with (fun () -> f ()) in
-    let b = Monitor.try_with (fun () -> f ()) in
-    Scheduler.run_cycles_until_no_jobs_remain ();
-    [%test_result: int] !num_calls_to_f ~expect:1;
-    let is_correct =
-      if should_raise
-      then (function Some (Error _) -> true | _ -> false)
-      else (function Some (Ok 7)    -> true | _ -> false)
-    in
-    [%test_pred: (int, exn) Result.t option] is_correct (Deferred.peek a);
-    [%test_pred: (int, exn) Result.t option] is_correct (Deferred.peek b);
-  ;;
+let%test_module _ =
+  (module struct
+    let test memo ~should_raise =
+      let num_calls_to_f = ref 0 in
+      let f =
+        memo (fun () ->
+          incr num_calls_to_f;
+          (* We bind here so that exceptions are raised asynchronously.  It is in this case
+             that functions from [Core_kernel.Std.Memo] behave badly and fail this test. *)
+          let%bind () = return () in
+          if should_raise then (raise_s [%message "boom!"]) else (return 7))
+      in
+      let a = Monitor.try_with (fun () -> f ()) in
+      let b = Monitor.try_with (fun () -> f ()) in
+      Scheduler.run_cycles_until_no_jobs_remain ();
+      [%test_result: int] !num_calls_to_f ~expect:1;
+      let is_correct =
+        if should_raise
+        then (function Some (Error _) -> true | _ -> false)
+        else (function Some (Ok 7)    -> true | _ -> false)
+      in
+      [%test_pred: (int, exn) Result.t option] is_correct (Deferred.peek a);
+      [%test_pred: (int, exn) Result.t option] is_correct (Deferred.peek b);
+    ;;
 
-  let general = general (module Unit)
+    let general = general (module Unit)
 
-  let%test_unit _ = test general ~should_raise:false
-  let%test_unit _ = test unit    ~should_raise:false
-  let%test_unit _ = test general ~should_raise:true
-  let%test_unit _ = test unit    ~should_raise:true
-end)
+    let%test_unit _ = test general ~should_raise:false
+    let%test_unit _ = test unit    ~should_raise:false
+    let%test_unit _ = test general ~should_raise:true
+    let%test_unit _ = test unit    ~should_raise:true
+  end)

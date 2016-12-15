@@ -9,12 +9,12 @@ let read = Deferred.of_ivar
 let fill_if_empty t v = if is_empty t then (fill t v)
 
 include Binable.Of_binable1 (Option) (struct
-  type nonrec 'a t = 'a t
+    type nonrec 'a t = 'a t
 
-  let to_binable t = peek t
+    let to_binable t = peek t
 
-  let of_binable = function
-    | None -> create ()
-    | Some a -> create_full a
-  ;;
-end)
+    let of_binable = function
+      | None -> create ()
+      | Some a -> create_full a
+    ;;
+  end)

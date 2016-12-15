@@ -45,11 +45,11 @@ let iter' t ~f = fold' t ~init:() ~f:(fun () v -> f v)
 
 let closed t =
   match Deferred.peek (next t) with
-  | Some Nil -> Deferred.unit
-  | _ -> iter' t ~f:(fun _ -> Deferred.unit)
+  | Some Nil -> return ()
+  | _ -> iter' t ~f:(fun _ -> return ())
 ;;
 
-let iter t ~f = don't_wait_for (iter' t ~f:(fun a -> f a; Deferred.unit))
+let iter t ~f = don't_wait_for (iter' t ~f:(fun a -> f a; return ()))
 
 let create f =
   let tail = Tail.create () in
@@ -157,8 +157,7 @@ let split ?(stop = Deferred.never ()) ?(f = (fun _ -> `Continue)) t =
   let finish v = Tail.close_exn prefix; Ivar.fill reason_for_stopping v in
   let rec loop t =
     choose [ choice stop (fun () -> `Stopped)
-           ; choice (next t) (fun o -> `Next o)
-           ]
+           ; choice (next t) (fun o -> `Next o) ]
     >>> function
     | `Stopped -> finish (`Stopped t)
     | `Next o ->
@@ -183,7 +182,7 @@ let find t ~f =
 let ungroup t =
   create (fun tail ->
     upon (iter' t ~f:(fun l ->
-      List.iter l ~f:(fun x -> Tail.extend tail x); Deferred.unit))
+      List.iter l ~f:(fun x -> Tail.extend tail x); return ()))
       (fun () -> Tail.close_exn tail))
 ;;
 
@@ -202,7 +201,7 @@ let interleave ts =
       iter' ts ~f:(fun t ->
         num_open := !num_open + 1;
         upon (copy_to_tail t tail) close;
-        Deferred.unit)
+        return ())
     in
     upon outer_closed close)
 ;;
@@ -211,8 +210,7 @@ let take_until t d =
   create (fun tail ->
     let rec loop t =
       upon (choose [ choice d        (fun () -> `Stop)
-                   ; choice (next t) (fun z  -> `Next z)
-                   ])
+                   ; choice (next t) (fun z  -> `Next z) ])
         (function
           | `Stop | `Next Nil -> Tail.close_exn tail
           | `Next (Cons (x, t)) -> Tail.extend tail x; loop t)

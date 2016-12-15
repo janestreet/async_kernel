@@ -8,8 +8,7 @@
 
     {v
       ASYNC_CONFIG= foo.exe
-    v}
-*)
+    v} *)
 
 open! Core_kernel.Std
 
@@ -34,8 +33,7 @@ module Dump_core_on_job_delay : sig
 
   type watch =
     { dump_if_delayed_by : Time_ns.Span.t
-    ; how_to_dump        : How_to_dump.t
-    }
+    ; how_to_dump        : How_to_dump.t }
   [@@deriving sexp]
 
   type t =
@@ -88,6 +86,7 @@ val record_backtraces                   : bool
 val report_thread_pool_stuck_for        : Time_ns.Span.t
 val timing_wheel_config                 : Timing_wheel_ns.Config.t
 
+val default_timing_wheel_config_for_word_size : Word_size.t -> Timing_wheel_ns.Config.t
 
 (** [!task_id] is used in debug messages.  It is is set in [Async_unix] to include
     the thread and pid. *)

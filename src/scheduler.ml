@@ -1,5 +1,6 @@
-open Core_kernel.Std
-open Import
+open! Core_kernel.Std
+open! Import
+open! Deferred_std
 
 module Deferred  = Deferred1
 module Scheduler = Scheduler1
@@ -154,8 +155,8 @@ let run_cycle t =
   t.on_end_of_cycle ();
   if debug
   then (Debug.log "run_cycle finished"
-         (uncaught_exn t, is_some (next_upcoming_event t))
-         [%sexp_of: Error.t option * bool]);
+          (uncaught_exn t, is_some (next_upcoming_event t))
+          [%sexp_of: Error.t option * bool]);
 ;;
 
 let run_cycles_until_no_jobs_remain () =
@@ -218,7 +219,7 @@ let yield_every ~n =
     stage (fun t ->
       decr count_until_yield;
       if !count_until_yield > 0
-      then Deferred.unit
+      then (return ())
       else (
         count_until_yield := n;
         yield t)))
@@ -272,20 +273,21 @@ module Very_low_priority_work = struct
   ;;
 end
 
-let%test_module _ = (module struct
+let%test_module _ =
+  (module struct
 
-  (* [Monitor.catch_stream]. *)
-  let%test_unit _ =
-    let d = Stream.next (Monitor.catch_stream (fun () -> raise_s [%message [%here]])) in
-    run_cycles_until_no_jobs_remain ();
-    assert (is_some (Deferred.peek d))
-  ;;
+    (* [Monitor.catch_stream]. *)
+    let%test_unit _ =
+      let d = Stream.next (Monitor.catch_stream (fun () -> raise_s [%message [%here]])) in
+      run_cycles_until_no_jobs_remain ();
+      assert (is_some (Deferred.peek d))
+    ;;
 
-  (* [Monitor.catch]. *)
-  let%test_unit _ =
-    let d = Monitor.catch (fun () -> raise_s [%message [%here]]) in
-    run_cycles_until_no_jobs_remain ();
-    assert (is_some (Deferred.peek d))
-  ;;
+    (* [Monitor.catch]. *)
+    let%test_unit _ =
+      let d = Monitor.catch (fun () -> raise_s [%message [%here]]) in
+      run_cycles_until_no_jobs_remain ();
+      assert (is_some (Deferred.peek d))
+    ;;
 
-end)
+  end)

@@ -12,7 +12,15 @@ let never () = Ivar.read (Ivar.create ())
 module M =
   Monad.Make (struct
     include Deferred0
-    let map t ~f = create (fun i -> upon t (fun a -> Ivar.fill i (f a)))
+
+    let map t ~f =
+      (* We manually inline [Deferred.create] here, because the non-flambda compiler isn't
+         able to optimize away the closure that would be be created. *)
+      let result = Ivar.create () in
+      upon t (fun a -> Ivar.fill result (f a));
+      of_ivar result
+    ;;
+
     let map = `Custom map
   end)
 
@@ -25,8 +33,7 @@ include (M : (module type of struct include M end
    [Deferred0.return], the compiler can see that:
 
    {[
-     return a = { Ivar.Immutable. cell = Full a }
-   ]}
+     return a = { Ivar.Immutable. cell = Full a } ]}
 
    And hence, if [a] is constant, then the return is constant and can be statically
    allocated.  When compiling with flambda, the compiler inlines [return] and this manual

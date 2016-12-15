@@ -17,8 +17,7 @@
     slightly easier when done consistently through this API.
 
     There is no [val of_lazy : 'a Deferred.t Lazy.t -> 'a t] because of the difference
-    in power.
-*)
+    in power. *)
 
 open! Core_kernel.Std
 

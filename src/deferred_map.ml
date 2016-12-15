@@ -48,8 +48,7 @@ module Job = struct
   type ('a, 'b, 'c) t =
     { key            : 'a
     ; data           : 'b
-    ; mutable result : 'c option
-    }
+    ; mutable result : 'c option }
   [@@deriving fields]
 end
 

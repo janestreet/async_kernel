@@ -7,8 +7,7 @@ type t = Types.Execution_context.t =
   { monitor            : Monitor0.t
   ; priority           : Priority.t
   ; local_storage      : Univ_map.t
-  ; backtrace_history  : Backtrace.t list
-  }
+  ; backtrace_history  : Backtrace.t list }
 [@@deriving fields, sexp_of]
 
 include Invariant.S with type t := t

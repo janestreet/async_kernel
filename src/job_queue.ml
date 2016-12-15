@@ -26,8 +26,7 @@ type t = Types.Job_queue.t =
   (* [front] is the index of the first job in the queue.  The array index of that job's
      execution context is [front * slots_per_elt]. *)
   ; mutable front                : int
-  ; mutable length               : int
-  }
+  ; mutable length               : int }
 [@@deriving fields, sexp_of]
 
 let offset t i = ((t.front + i) land t.mask) * slots_per_elt
@@ -68,8 +67,7 @@ let create () =
   ; jobs                 = create_array ~capacity
   ; mask                 = capacity - 1
   ; front                = 0
-  ; length               = 0
-  }
+  ; length               = 0 }
 ;;
 
 let clear t = t.front <- 0; t.length <- 0; t.jobs_left_this_cycle <- 0

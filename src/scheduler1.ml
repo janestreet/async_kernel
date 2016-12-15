@@ -32,8 +32,7 @@ module Bvar = struct
 
   let create () =
     { has_any_waiters = false
-    ; ivar            = Ivar.create ()
-    }
+    ; ivar            = Ivar.create () }
   ;;
 end
 
@@ -47,8 +46,7 @@ module Very_low_priority_worker = struct
 
   type t = Types.Very_low_priority_worker.t =
     { execution_context : Execution_context.t
-    ; exec              : unit -> Exec_result.t
-    }
+    ; exec              : unit -> Exec_result.t }
   [@@deriving fields, sexp_of]
 
   let invariant t =
@@ -118,8 +116,7 @@ type t = Scheduler0.t =
   ; mutable max_num_jobs_per_priority_per_cycle : Max_num_jobs_per_priority_per_cycle.t
   ; mutable record_backtraces                   : bool
   ; mutable on_start_of_cycle                   : unit -> unit
-  ; mutable on_end_of_cycle                     : unit -> unit
-  }
+  ; mutable on_end_of_cycle                     : unit -> unit }
 [@@deriving fields, sexp_of]
 
 let uncaught_exn_unwrapped = uncaught_exn
@@ -242,16 +239,14 @@ let create () =
     ; max_num_jobs_per_priority_per_cycle  = Config.max_num_jobs_per_priority_per_cycle
     ; record_backtraces                    = Config.record_backtraces
     ; on_start_of_cycle                    = Fn.id
-    ; on_end_of_cycle                      = Fn.id
-    }
+    ; on_end_of_cycle                      = Fn.id }
   and events = Timing_wheel_ns.create ~config:Config.timing_wheel_config ~start:now
   and time_source =
     { Time_source.T1.
       events
     ; handle_fired  = (fun alarm -> handle_fired time_source alarm)
     ; is_wall_clock = true
-    ; scheduler     = t
-    }
+    ; scheduler     = t }
   in
   t
 ;;
@@ -324,7 +319,7 @@ let rec run_jobs t =
     | Error _ as e -> e
     | Ok () ->
       if Job_queue.can_run_a_job t.normal_priority_jobs
-         || Job_queue.can_run_a_job t.low_priority_jobs
+      || Job_queue.can_run_a_job t.low_priority_jobs
       then (run_jobs t)
       else Result.ok_unit
 ;;

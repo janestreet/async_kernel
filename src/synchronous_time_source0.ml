@@ -23,14 +23,13 @@ end
 module Alarm_precision = Timing_wheel_ns.Alarm_precision
 
 let default_timing_wheel_config =
-  (* 100 microsecond alarm_precision seems sufficient to avoid having many alarms in the
-     same interval, which avoids quadratic insertion sort when firing alarms.  And the
-     level bits give us levels of >1s, >1m, >1h, >1d.  See test in
+  (* 1/8th of a millisecond alarm_precision seems sufficient to avoid having many alarms
+     in the same interval, which avoids quadratic insertion sort when firing alarms.  And
+     the level bits give us levels of >1s, >1m, >1h, >1d.  See test in
      [../test/test_synchronous_time_source.ml]. *)
-  let alarm_precision, level_bits = Time_ns.Span.of_ms 0.1, [ 14; 6; 6; 4 ] in
   Timing_wheel_ns.Config.create
-    ~alarm_precision:(Alarm_precision.of_span alarm_precision)
-    ~level_bits:(Timing_wheel_ns.Level_bits.create_exn level_bits)
+    ~alarm_precision:(Alarm_precision.(div about_one_millisecond ~pow2:3))
+    ~level_bits:(Timing_wheel_ns.Level_bits.create_exn [ 13; 6; 6; 5 ])
     ()
 ;;
 

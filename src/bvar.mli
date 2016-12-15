@@ -7,8 +7,7 @@
 
     Another way to view [Bvar] is as a restriction of [Condition] that supports only
     broadcast, not [signal]ing a single waiter.  Dropping [signal] simplifies the
-    implementation significantly.
-*)
+    implementation significantly. *)
 
 open! Core_kernel.Std
 open! Import

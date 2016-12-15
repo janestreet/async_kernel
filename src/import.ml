@@ -3,7 +3,7 @@ module Time_ns_in_this_directory = Time_ns
 
 open! Core_kernel.Std
 
-module Debug = Debug_in_this_directory
+module Debug   = Debug_in_this_directory
 module Time_ns = Time_ns_in_this_directory
 
 module Epoll_max_ready_events              = Config.Epoll_max_ready_events

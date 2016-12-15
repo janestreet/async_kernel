@@ -40,7 +40,7 @@ let%test _ =
 let%test_unit _ =
   let t = create ~continue_on_error:false ~max_concurrent_jobs:1 in
   let i = ref 0 in
-  let (_ : unit Deferred.t) = enqueue t (fun () -> incr i; Deferred.unit) in
+  let (_ : unit Deferred.t) = enqueue t (fun () -> incr i; return ()) in
   assert (!i = 0);
   stabilize ();
   assert (!i = 1)
@@ -79,7 +79,7 @@ let%test_unit _ =
   assert (max_concurrent_jobs t = 2);
   let r = ref [] in
   for i = 0 to 99 do
-    don't_wait_for (enqueue t (fun () -> r := i :: !r; Deferred.unit));
+    don't_wait_for (enqueue t (fun () -> r := i :: !r; return ()));
   done;
   stabilize ();
   assert (!r = List.rev (List.init 100 ~f:Fn.id))
@@ -190,8 +190,7 @@ let%test_unit _ =
       assert (!max_observed_concurrent_jobs = min num_jobs max_concurrent_jobs);
       assert (Deferred.is_determined jobs_finished);
       if max_concurrent_jobs = 1
-      then (assert (List.rev !job_starts = List.init num_jobs ~f:Fn.id));
-    ))
+      then (assert (List.rev !job_starts = List.init num_jobs ~f:Fn.id)); ))
 ;;
 
 let at_kill = at_kill
@@ -324,12 +323,12 @@ let%test_unit _ = (* enqueueing withing a job doesn't lead to monitor nesting *)
   let seq = Sequencer.create () in
   let rec loop n =
     if n = 0
-    then Deferred.unit
+    then (return ())
     else (
       enqueue seq (fun () ->
         assert (Monitor.depth (Monitor.current ()) < 5);
         don't_wait_for (loop (n - 1));
-        Deferred.unit))
+        return ()))
   in
   let d = loop 100 in
   stabilize ();

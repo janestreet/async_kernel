@@ -3,8 +3,7 @@
     single wall-clock time source (returned by [wall_clock ()]) that the Async scheduler
     drives and uses for the [Clock_ns] module.  One can also create a user-controlled time
     source via [create], and advance its clock as desired.  This is useful so that state
-    machines can depend on a notion of time that is distinct from wall-clock time.
-*)
+    machines can depend on a notion of time that is distinct from wall-clock time. *)
 
 open! Core_kernel.Std
 open! Import
@@ -96,16 +95,14 @@ module type Time_source = sig
     val status
       : ('a, 'h) t -> [ `Aborted      of 'a
                       | `Happened     of 'h
-                      | `Scheduled_at of Time_ns.t
-                      ]
+                      | `Scheduled_at of Time_ns.t ]
 
     val run_at    : [> read] T1.t -> Time_ns.     t -> ('z -> 'h) -> 'z -> (_, 'h) t
     val run_after : [> read] T1.t -> Time_ns.Span.t -> ('z -> 'h) -> 'z -> (_, 'h) t
 
     val abort : ('a, 'h) t -> 'a -> [ `Ok
                                     | `Previously_aborted  of 'a
-                                    | `Previously_happened of 'h
-                                    ]
+                                    | `Previously_happened of 'h ]
 
     val abort_exn : ('a, 'h) t -> 'a -> unit
 
@@ -117,14 +114,12 @@ module type Time_source = sig
       : ('a, 'h) t -> Time_ns.t      -> [ `Ok
                                         | `Previously_aborted     of 'a
                                         | `Previously_happened    of 'h
-                                        | `Too_late_to_reschedule
-                                        ]
+                                        | `Too_late_to_reschedule ]
     val reschedule_after
       : ('a, 'h) t -> Time_ns.Span.t -> [ `Ok
                                         | `Previously_aborted     of 'a
                                         | `Previously_happened    of 'h
-                                        | `Too_late_to_reschedule
-                                        ]
+                                        | `Too_late_to_reschedule ]
 
     val at    : [> read] T1.t -> Time_ns.t      -> (_, unit) t
     val after : [> read] T1.t -> Time_ns.Span.t -> (_, unit) t
@@ -144,7 +139,7 @@ module type Time_source = sig
     -> unit Async_stream.t
 
   val every'
-    :  ?start             : unit Deferred.t  (** default is [Deferred.unit] *)
+    :  ?start             : unit Deferred.t  (** default is [return ()] *)
     -> ?stop              : unit Deferred.t  (** default is [Deferred.never ()] *)
     -> ?continue_on_error : bool             (** default is [true] *)
     -> [> read] T1.t
@@ -153,7 +148,7 @@ module type Time_source = sig
     -> unit
 
   val every
-    :  ?start             : unit Deferred.t   (** default is [Deferred.unit] *)
+    :  ?start             : unit Deferred.t   (** default is [return ()] *)
     -> ?stop              : unit Deferred.t   (** default is [Deferred.never ()] *)
     -> ?continue_on_error : bool              (** default is [true] *)
     -> [> read] T1.t

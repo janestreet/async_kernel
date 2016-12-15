@@ -71,7 +71,7 @@ val create_writer
   -> 'a Writer.t
 
 val init : ('a Writer.t -> unit Deferred.t) -> 'a Reader.t
-  [@@deprecated "\
+[@@deprecated "\
 [since 2016-03] Use [create_reader ~close_on_exception:true] to preserve behavior, though
 you might want to consider changing the argument [close_on_exception] to the recommended
 [false]."]
@@ -91,10 +91,8 @@ val of_list : 'a list -> 'a Reader.t
 
     For example, to create a pipe of natural numbers:
 
-      {[
-        Pipe.unfold ~init:0 ~f:(fun n -> return (Some (n, n+1)))
-      ]}
-*)
+    {[
+      Pipe.unfold ~init:0 ~f:(fun n -> return (Some (n, n+1))) ]} *)
 val unfold
   :  init:'s
   -> f:('s -> ('a * 's) option Deferred.t)
@@ -274,8 +272,7 @@ val is_empty : (_, _) t -> bool
       fun () -> loop (i+1)     (*   fits or the pipe is closed.           *)
       else close w (* No harm done if reader has already closed the pipe.*)
     in
-    loop 0
-    ]}
+    loop 0 ]}
 
     If the pipe's consumer stops reading early and closes the pipe, [countup] won't error
     out trying to write further values down the pipe: it will immediately wake up and
@@ -300,8 +297,7 @@ val pushback : 'a Writer.t -> unit Deferred.t
     - [write t a = write_without_pushback t a; pushback t]
     - [transfer_in t ~from = transfer_in_without_pushback t ~from; pushback t]
 
-    If [is_closed writer], then all of these functions raise.
-*)
+    If [is_closed writer], then all of these functions raise. *)
 val write                        : 'a Writer.t ->      'a         -> unit Deferred.t
 val write_without_pushback       : 'a Writer.t ->      'a         -> unit
 val transfer_in                  : 'a Writer.t -> from:'a Queue.t -> unit Deferred.t
@@ -320,15 +316,13 @@ val write_when_ready
 
     {[
       let x = e in
-      if not (is_closed w) then write w x else Deferred.unit
-    ]}
+      if not (is_closed w) then (write w x) else (return ()) ]}
 
     Note the difference in allocation and potential side effects when [w] is closed and
     [e] is a complex expression.
 
     [write_without_pushback_if_open] is the same as [write_if_open], except it calls
-    [write_without_pushback] instead of [write].
-*)
+    [write_without_pushback] instead of [write]. *)
 val write_if_open                  : 'a Writer.t -> 'a -> unit Deferred.t
 val write_without_pushback_if_open : 'a Writer.t -> 'a -> unit
 
@@ -380,7 +374,7 @@ val read_at_most
   -> 'a Reader.t
   -> num_values:int
   -> [ `Eof | `Ok of 'a Queue.t ] Deferred.t
-  [@@deprecated "[since 2015-12] Use [read' ~max_queue_length]"]
+[@@deprecated "[since 2015-12] Use [read' ~max_queue_length]"]
 
 (** [read_exactly r ~num_values] reads exactly [num_values] items, unless EOF is
     encountered.  [read_exactly] performs a sequence of [read_at_most] operations, so
@@ -422,7 +416,7 @@ val read_now_at_most
   -> 'a Reader.t
   -> num_values : int
   -> [ `Eof | `Nothing_available | `Ok of 'a Queue.t ]
-  [@@deprecated "[since 2015-12] Use [read_now' ~max_queue_length"]
+[@@deprecated "[since 2015-12] Use [read_now' ~max_queue_length"]
 
 val peek : 'a Reader.t -> 'a option
 
@@ -452,15 +446,13 @@ val values_available : _ Reader.t -> [ `Eof | `Ok ] Deferred.t
     {[
       choice
         (values_available reader)
-        (fun (_ : [ `Ok | `Eof ]) -> read_now reader)
-    ]}
+        (fun (_ : [ `Ok | `Eof ]) -> read_now reader) ]}
 
     [read_choice] consumes a value from [reader] iff the choice is taken.  [read_choice]
     exists to discourage the broken idiom:
 
     {[
-      choice (read reader) (fun ...)
-    ]}
+      choice (read reader) (fun ...) ]}
 
     which is broken because it reads from [reader] even if the choice isn't taken.
     [`Nothing_available] can only be returned if there is a race condition with one or

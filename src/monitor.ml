@@ -99,8 +99,7 @@ module Exn_for_monitor = struct
     { exn               : exn
     ; backtrace         : string list
     ; backtrace_history : Backtrace.t list
-    ; monitor           : Monitor.t
-    }
+    ; monitor           : Monitor.t }
 
   let backtrace_truncation_heuristics =
     let job_queue = "Called from file \"job_queue.ml\"" in
@@ -110,12 +109,14 @@ module Exn_for_monitor = struct
     fun traces ->
       (* ../test/test_try_with_error_display.ml makes sure this stays up-to-date. *)
       match List.rev traces with
-      | t1 :: t2 :: rest
-        when String.is_prefix     t1 ~prefix:job_queue
-          && (String.is_prefix    t2 ~prefix:deferred0 (* bind *)
-              || String.is_prefix t2 ~prefix:deferred1 (* map *)
-              || String.is_prefix t2 ~prefix:monitor   (* try_with *)
-             ) -> List.rev rest
+      | t1 :: rest when String.is_prefix t1 ~prefix:job_queue ->
+        (match rest with
+         | t2 :: rest when
+             String.is_prefix    t2 ~prefix:deferred0 (* bind *)
+             || String.is_prefix t2 ~prefix:deferred1 (* map *)
+             || String.is_prefix t2 ~prefix:monitor   (* try_with *)
+           -> List.rev rest
+         | _ -> List.rev rest)
       | _ -> traces
   ;;
 
@@ -311,8 +312,7 @@ let stream_iter stream ~f =
 module Ok_and_exns = struct
   type 'a t =
     { ok   : 'a Deferred.t
-    ; exns : exn Stream.t
-    }
+    ; exns : exn Stream.t }
   [@@deriving fields, sexp_of]
 
   let create ?here ?info ?name ~run f =
@@ -415,7 +415,7 @@ let handle_errors ?here ?info ?name f handler =
 
 let catch_stream ?here ?info ?name f =
   let { Ok_and_exns. exns; _ } =
-    Ok_and_exns.create ?here ?info ?name ~run:`Now (fun () -> f (); Deferred.unit)
+    Ok_and_exns.create ?here ?info ?name ~run:`Now (fun () -> f (); return ())
   in
   exns
 ;;

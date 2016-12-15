@@ -1,5 +1,6 @@
-open Core_kernel.Std
-open Import
+open! Core_kernel.Std
+open! Import
+open! Deferred_std
 
 let debug = Debug.clock
 
@@ -29,8 +30,7 @@ let create ?(timing_wheel_config = Config.timing_wheel_config) ~now () =
     { events        = Timing_wheel_ns.create ~config:timing_wheel_config ~start:now
     ; handle_fired  = (fun alarm -> Scheduler.handle_fired t alarm)
     ; is_wall_clock = false
-    ; scheduler
-    }
+    ; scheduler }
   in
   t
 ;;
@@ -94,7 +94,7 @@ let at =
   let fill result = Ivar.fill result () in
   fun t time ->
     if Time_ns.( <= ) time (Timing_wheel_ns.now t.events)
-    then Deferred.unit
+    then (return ())
     else (
       let result = Ivar.create () in
       ignore (run_at_internal t time fill result : _ Alarm.t);
@@ -122,8 +122,7 @@ module Event = struct
        in the timing wheel -- if it isn't, then there's a job in Async's job queue that
        will fire the event, unless it is aborted before that job can run. *)
     ; fired                : [ `Aborted of 'a | `Happened of 'h ] Ivar.t
-    ; time_source          : Time_source.t
-    }
+    ; time_source          : Time_source.t }
   [@@deriving fields, sexp_of]
 
   type t_unit = (unit, unit) t [@@deriving sexp_of]
@@ -141,7 +140,7 @@ module Event = struct
         ~scheduled_at:(check (fun scheduled_at ->
           if Timing_wheel_ns.mem events t.alarm
           then ([%test_result: Time_ns.t] scheduled_at
-                 ~expect:(Alarm.at events t.alarm))))
+                  ~expect:(Alarm.at events t.alarm))))
         ~fired:(check (fun fired ->
           match Deferred.peek (Ivar.read fired) with
           | None -> ()
@@ -242,8 +241,7 @@ let at_times ?(stop = Deferred.never ()) t next_time =
   let tail = Tail.create () in
   let rec loop () =
     choose [ choice stop                  (fun () -> `Stop)
-           ; choice (at t (next_time ())) (fun () -> `Tick)
-           ]
+           ; choice (at t (next_time ())) (fun () -> `Tick) ]
     >>> function
     | `Stop -> Tail.close_exn tail
     | `Tick -> Tail.extend tail (); loop ()
@@ -284,10 +282,10 @@ module Continue = struct
 end
 
 let run_repeatedly
-  ?(start = Deferred.unit)
-  ?stop
-  ?(continue_on_error = true)
-  t ~f ~continue =
+      ?(start = return ())
+      ?stop
+      ?(continue_on_error = true)
+      t ~f ~continue =
   start
   >>> fun () ->
   let alarm = ref (Alarm.null ()) in
@@ -332,7 +330,7 @@ let every' ?start ?stop ?continue_on_error t span f =
 ;;
 
 let every ?start ?stop ?continue_on_error t span f =
-  every' t ?start ?stop ?continue_on_error span (fun () -> f (); Deferred.unit)
+  every' t ?start ?stop ?continue_on_error span (fun () -> f (); return ())
 ;;
 
 let run_at_intervals' ?start ?stop ?continue_on_error t interval f =
@@ -354,7 +352,7 @@ let run_at_intervals' ?start ?stop ?continue_on_error t interval f =
 
 let run_at_intervals ?start ?stop ?continue_on_error t interval f =
   run_at_intervals' ?start ?stop ?continue_on_error t interval
-    (fun () -> f (); Deferred.unit)
+    (fun () -> f (); return ())
 ;;
 
 let with_timeout t span d =
@@ -366,7 +364,7 @@ let with_timeout t span d =
     [ choice d (fun v ->
         begin match Event.abort timeout () with
         (* [`Previously_happened] can occur if both [d] and [wait] become determined at
-           the same time, e.g. [with_timeout (sec 0.) Deferred.unit]. *)
+           the same time, e.g. [with_timeout (sec 0.) (return ())]. *)
         | `Ok | `Previously_happened () -> ()
         | `Previously_aborted () ->
           raise_s [%message "Time_source.with_timeout bug: should only abort once"]
@@ -375,6 +373,5 @@ let with_timeout t span d =
     ; choice (Event.fired timeout) (function
         | `Happened () -> `Timeout
         | `Aborted  () ->
-          raise_s [%message "Time_source.with_timeout bug: both completed and timed out"])
-    ]
+          raise_s [%message "Time_source.with_timeout bug: both completed and timed out"]) ]
 ;;

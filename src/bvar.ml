@@ -3,8 +3,7 @@ open! Import
 
 type 'a t = 'a Types.Bvar.t =
   { mutable has_any_waiters : bool
-  ; mutable ivar            : 'a Ivar.t
-  }
+  ; mutable ivar            : 'a Ivar.t }
 [@@deriving fields, sexp_of]
 
 let invariant invariant_a t =

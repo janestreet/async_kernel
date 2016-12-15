@@ -5,8 +5,7 @@
 
    If you need to add functionality to a module but doing so would create a dependency
    cycle, split the file into pieces as needed to break the cycle, e.g. scheduler0.ml,
-   scheduler1.ml, scheduler.ml.
-*)
+   scheduler1.ml, scheduler.ml. *)
 
 open! Core_kernel.Std
 open! Import
@@ -14,8 +13,7 @@ open! Import
 module rec Bvar : sig
   type 'a t =
     { mutable has_any_waiters : bool
-    ; mutable ivar            : 'a Ivar.t
-    }
+    ; mutable ivar            : 'a Ivar.t }
 end = Bvar
 
 and Cell : sig
@@ -24,8 +22,7 @@ and Cell : sig
     | `Empty_one_handler
     | `Empty_one_or_more_handlers
     | `Full
-    | `Indir
-    ]
+    | `Indir ]
 
   type ('a, 'b) t =
     | Empty_one_or_more_handlers
@@ -47,8 +44,7 @@ and Execution_context : sig
     { monitor            : Monitor.t
     ; priority           : Priority.t
     ; local_storage      : Univ_map.t
-    ; backtrace_history  : Backtrace.t list
-    }
+    ; backtrace_history  : Backtrace.t list }
 end = Execution_context
 
 and External_job : sig
@@ -60,18 +56,15 @@ and Handler : sig
     { mutable run       : 'a -> unit
     ; execution_context : Execution_context.t
     ; mutable prev      : 'a t
-    ; mutable next      : 'a t
-    }
+    ; mutable next      : 'a t }
 end = Handler
 
 and Ivar : sig
   type 'a t =
-    { mutable cell : ('a, Cell.any) Cell.t
-    }
+    { mutable cell : ('a, Cell.any) Cell.t }
   module Immutable : sig
     type 'a t =
-      { cell : ('a, Cell.any) Cell.t
-      }
+      { cell : ('a, Cell.any) Cell.t }
   end
 end = Ivar
 
@@ -91,8 +84,7 @@ and Job_queue : sig
     ; mutable jobs                 : Core_kernel.Obj_array.t
     ; mutable mask                 : int
     ; mutable front                : int
-    ; mutable length               : int
-    }
+    ; mutable length               : int }
 end = Job_queue
 
 and Jobs : sig
@@ -100,8 +92,7 @@ and Jobs : sig
     { scheduler        : Scheduler.t
     ; mutable job_pool : Job_pool.t
     ; normal           : Job_queue.t
-    ; low              : Job_queue.t
-    }
+    ; low              : Job_queue.t }
 end = Jobs
 
 and Monitor : sig
@@ -114,8 +105,7 @@ and Monitor : sig
     ; mutable handlers_for_all_errors : (Execution_context.t * (exn -> unit)) Bag.t
     ; mutable tails_for_all_errors    : exn Tail.t list
     ; mutable has_seen_error          : bool
-    ; mutable is_detached             : bool
-    }
+    ; mutable is_detached             : bool }
 end = Monitor
 
 and Scheduler : sig
@@ -145,8 +135,7 @@ and Scheduler : sig
     ; mutable max_num_jobs_per_priority_per_cycle : Max_num_jobs_per_priority_per_cycle.t
     ; mutable record_backtraces                   : bool
     ; mutable on_start_of_cycle                   : unit -> unit
-    ; mutable on_end_of_cycle                     : unit -> unit
-    }
+    ; mutable on_end_of_cycle                     : unit -> unit }
 end = Scheduler
 
 and Stream : sig
@@ -156,8 +145,7 @@ end = Stream
 
 and Tail : sig
   type 'a t =
-    { mutable next: 'a Stream.next Ivar.t
-    }
+    { mutable next: 'a Stream.next Ivar.t }
 end = Tail
 
 and Time_source : sig
@@ -165,8 +153,7 @@ and Time_source : sig
     { events        : Job.t Timing_wheel_ns.t
     ; handle_fired  : Job.t Timing_wheel_ns.Alarm.t -> unit
     ; is_wall_clock : bool
-    ; scheduler     : Scheduler.t
-    }
+    ; scheduler     : Scheduler.t }
 end = Time_source
 
 and Very_low_priority_worker : sig
@@ -178,6 +165,5 @@ and Very_low_priority_worker : sig
 
   type t =
     { execution_context : Execution_context.t
-    ; exec              : unit -> Exec_result.t
-    }
+    ; exec              : unit -> Exec_result.t }
 end = Very_low_priority_worker
