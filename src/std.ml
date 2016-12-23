@@ -58,8 +58,11 @@ include Deferred.Let_syntax
 (** Intended usage is to [open Use_eager_deferred] to shadow operations from the non-eager
     world and rebind them to their eager counterparts. *)
 module Use_eager_deferred = struct
-  module Deferred = Eager_deferred
-  include (Eager_deferred : Monad.Infix with type 'a t := 'a Deferred.t)
+  module Deferred = struct
+    type 'a t = 'a Deferred.t
+    include Eager_deferred
+  end
+  include (Eager_deferred : Monad.Infix with type 'a t := 'a Deferred1.t)
   include Eager_deferred.Let_syntax
   let upon = Eager_deferred.upon
   let ( >>> ) = Eager_deferred.Infix.( >>> )

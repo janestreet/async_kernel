@@ -69,15 +69,84 @@ let any_unit ts =
   else (Deferred.any_unit ts)
 ;;
 
-let rec all_unit = function
-  | [] -> return ()
-  | hd :: tl ->
-    if is_determined hd
-    then (all_unit tl)
-    else (Deferred.bind hd ~f:(fun () -> all_unit tl))
-;;
-
 module Infix = struct
   include Monad_infix
   let (>>>) = upon
 end
+
+module List = struct
+  type 'a t = 'a List.t
+
+  open Infix
+  open Let_syntax
+
+  let foldi t ~init ~f =
+    create
+      (fun result ->
+         let rec loop t i b =
+           match t with
+           | [] -> Ivar.fill result b
+           | x :: xs -> f i b x >>> fun b -> loop xs (i + 1) b
+         in
+         loop t 0 init)
+  ;;
+
+  let fold t ~init ~f = foldi t ~init ~f:(fun _ a -> f a)
+
+  let seqmap t ~f =
+    fold t ~init:[] ~f:(fun bs a -> let%map b = f a in b :: bs)
+    >>| List.rev
+  ;;
+
+  let all ds = seqmap ds ~f:Fn.id
+
+  let all_unit ds = ignore (fold ds ~init:() ~f:(fun () d -> d) : unit T.t)
+
+  let iteri ?(how = `Sequential) t ~f =
+    match how with
+    | `Parallel | `Max_concurrent_jobs _ as how ->
+      all_unit (List.mapi t ~f:(unstage (Throttle.monad_sequence_how2 ~how ~f)))
+    | `Sequential -> foldi t ~init:() ~f:(fun i () x -> f i x)
+  ;;
+
+  let iter ?how t ~f = iteri ?how t ~f:(fun _ a -> f a)
+
+  let map ?(how = `Sequential) t ~f =
+    match how with
+    | `Parallel | `Max_concurrent_jobs _ as how ->
+      all (List.map t ~f:(unstage (Throttle.monad_sequence_how ~how ~f)))
+    | `Sequential -> seqmap t ~f
+  ;;
+
+  let init ?how n ~f = map ?how (List.init n ~f:Fn.id) ~f
+
+  let filter ?how t ~f =
+    let%map bools = map t ?how ~f in
+    List.rev (List.fold2_exn t bools ~init:[]
+                ~f:(fun ac x b -> if b then (x :: ac) else ac))
+  ;;
+
+  let filter_map ?how t ~f = map t ?how ~f >>| List.filter_opt
+
+  let concat_map ?how t ~f = map t ?how ~f >>| List.concat
+
+  let rec find_map t ~f =
+    match t with
+    | [] -> return None
+    | hd :: tl ->
+      match%bind f hd with
+      | None -> find_map tl ~f
+      | Some _ as some -> return some
+  ;;
+
+  let find t ~f =
+    find_map t ~f:(fun elt ->
+      if%map f elt
+      then (Some elt)
+      else None)
+  ;;
+
+end
+
+let all_unit = List.all_unit
+

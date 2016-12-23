@@ -387,7 +387,7 @@ let t =
   | None -> empty
   | Some "" -> usage ()
   | Some string ->
-    match Result.try_with (fun () -> t_of_sexp (Sexp.of_string (String.strip string))) with
+    match Result.try_with (fun () -> t_of_sexp (Sexp.of_string string)) with
     | Ok t -> t
     | Error exn ->
       eprintf "%s\n\n"

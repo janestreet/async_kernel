@@ -7,7 +7,8 @@
     such a world.
 
     {[
-      open Use_eager_deferred ]}
+      open Use_eager_deferred
+    ]}
 
     We do not intend at first for this to implement the entire [Deferred] interface,
     because some of this will require more experimentation and discussions.  We can
@@ -19,29 +20,37 @@
 open! Core_kernel.Std
 open! Import
 
-type +'a t = 'a Deferred1.t [@@deriving sexp_of]
+include sig
+  type +'a t
 
-include Invariant.S1 with type 'a t := 'a t
 
-include Monad with type 'a t := 'a t
+  include Invariant.S1 with type 'a t := 'a t
 
-module Infix : sig
-  include Monad.Infix with type 'a t := 'a t
-  val (>>>) : 'a t -> ('a -> unit) -> unit
+  include Monad with type 'a t := 'a t
+
+  module Infix : sig
+    include Monad.Infix with type 'a t := 'a t
+    val (>>>) : 'a t -> ('a -> unit) -> unit
+  end
+
+  val all            : 'a t list -> 'a list t
+  val all_unit       : unit t list -> unit t
+  val any            : 'a t list -> 'a t
+  val any_unit       : 'a t list -> unit t
+  val both           : 'a t -> 'b t -> ('a * 'b) t
+  val create         : ('a Ivar.t -> unit) -> 'a t
+  val don't_wait_for : unit t -> unit
+  val ignore         : _ t -> unit t
+  val is_determined  : 'a t -> bool
+  val never          : unit -> _ t
+  val ok             : 'a t -> ('a, _) Core_kernel.Std.Result.t t
+  val peek           : 'a t -> 'a option
+  val unit           : unit t
+  val upon           : 'a t -> ('a -> unit) -> unit
+  val value_exn      : 'a t -> 'a
+
+  module List : Deferred1.Monad_sequence with type 'a t = 'a list
 end
-
-val all : 'a t list -> 'a list t
-val all_unit : unit t list -> unit t
-val any : 'a t list -> 'a t
-val any_unit : 'a t list -> unit t
-val both : 'a t -> 'b t -> ('a * 'b) t
-val create : ('a Ivar.t -> unit) -> 'a t
-val don't_wait_for : unit t -> unit
-val ignore : _ t -> unit t
-val is_determined : 'a t -> bool
-val never : unit -> _ t
-val ok : 'a t -> ('a, _) Core_kernel.Std.Result.t t
-val peek : 'a t -> 'a option
-val unit : unit t
-val upon : 'a t -> ('a -> unit) -> unit
-val value_exn : 'a t -> 'a
+(*_ We do not expose [Eager_deferred.t] so that type-error messages refer to
+  [Deferred.t], not [Eager_deferred.t]. *)
+with type 'a t := 'a Deferred1.t
