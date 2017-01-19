@@ -37,7 +37,8 @@ let create ?(timing_wheel_config = Config.timing_wheel_config) ~now () =
 
 let wall_clock () = read_only (Scheduler.t ()).time_source
 
-let alarm_precision t = Timing_wheel_ns.alarm_precision t.events
+let alarm_precision     t = Timing_wheel_ns.alarm_precision     t.events
+let next_alarm_fires_at t = Timing_wheel_ns.next_alarm_fires_at t.events
 
 let now t =
   if t.is_wall_clock
@@ -61,6 +62,40 @@ let advance_by t by = advance t ~to_:(Time_ns.add (now t) by)
 
 let fire_past_alarms t =
   Timing_wheel_ns.fire_past_alarms t.events ~handle_fired:t.handle_fired;
+;;
+
+let yield t = Bvar.wait (Scheduler.yield t.scheduler)
+
+let advance_by_alarms t ~to_ =
+  let run_queued_alarms () =
+    (* All of the alarm thunks that we 'fired past' are queued as deferreds in the
+       [Async.Scheduler]. The simplest way to run those is to [yield].  [yield] enqueues
+       another [Deferred] at the end of this queue, so binding here means the alarm
+       deferreds have had an opportunity to run. *)
+    yield t
+  in
+  let finish () =
+    advance t ~to_;
+    fire_past_alarms t; (* so that alarms scheduled at or before [to_] fire *)
+    run_queued_alarms ()
+  in
+  let rec walk_alarms () =
+    match next_alarm_fires_at t with
+    | None -> finish ()
+    | Some next_alarm_fires_at ->
+      if Time_ns.( >= ) next_alarm_fires_at to_
+      then (finish ())
+      else (
+        advance t ~to_:next_alarm_fires_at;
+        let%bind () = run_queued_alarms () in
+        walk_alarms ())
+  in
+  (* This first [yield] call allows [Clock_ns.every] the opportunity to run its
+     continuation deferreds so that they can reschedule alarms.  This is particularly
+     useful in our "advance hits intermediate alarms" unit test below, but likely useful
+     in other cases where [every] is synchronously followed by [advance]. *)
+  let%bind () = yield t in
+  walk_alarms ()
 ;;
 
 let span_to_time t span = Time_ns.add (now t) span
@@ -103,11 +138,13 @@ let at =
 
 let after t span = at t (span_to_time t span)
 
+let remove_alarm t alarm : unit =
+  Scheduler.free_job t.scheduler (Alarm.value t.events alarm);
+  Timing_wheel_ns.remove t.events alarm;
+;;
+
 let remove_alarm_if_scheduled t alarm =
-  if Timing_wheel_ns.mem t.events alarm
-  then (
-    Scheduler.free_job t.scheduler (Alarm.value t.events alarm);
-    Timing_wheel_ns.remove t.events alarm);
+  if Timing_wheel_ns.mem t.events alarm then (remove_alarm t alarm);
 ;;
 
 module Event = struct
@@ -285,6 +322,7 @@ let run_repeatedly
       ?(start = return ())
       ?stop
       ?(continue_on_error = true)
+      ?(finished = Ivar.create ())
       t ~f ~continue =
   start
   >>> fun () ->
@@ -293,15 +331,20 @@ let run_repeatedly
     match stop with
     | None -> Deferred.never ()
     | Some stop ->
-      upon stop (fun () -> remove_alarm_if_scheduled t !alarm);
+      upon stop (fun () ->
+        if Timing_wheel_ns.mem t.events !alarm
+        then (
+          remove_alarm t !alarm;
+          Ivar.fill_if_empty finished ()));
       stop
   in
   (* [run_f], [continue_f], and [continue_try_with] are defined so that we allocate their
      closures once, not once per iteration. *)
   let rec run_f () =
     (* Before calling [f], we synchronously check whether [stop] is determined. *)
-    if not (Deferred.is_determined stop)
-    then (
+    if Deferred.is_determined stop
+    then (Ivar.fill_if_empty finished ())
+    else (
       if continue_on_error
       then (Monitor.try_with f ~run:`Now ~rest:`Raise >>> continue_try_with)
       else (
@@ -310,8 +353,9 @@ let run_repeatedly
         then (continue_f ())
         else (d >>> continue_f)))
   and continue_f () =
-    if not (Deferred.is_determined stop)
-    then (alarm := run_at_internal t (Continue.at continue t) run_f ())
+    if Deferred.is_determined stop
+    then (Ivar.fill_if_empty finished ())
+    else (alarm := run_at_internal t (Continue.at continue t) run_f ())
   and continue_try_with or_error =
     begin match or_error with
     | Ok () -> ()
@@ -319,18 +363,18 @@ let run_repeatedly
     end;
     continue_f ()
   in
-  run_f ()
+  run_f ();
 ;;
 
-let every' ?start ?stop ?continue_on_error t span f =
+let every' ?start ?stop ?continue_on_error ?finished t span f =
   if Time_ns.Span.( <= ) span Time_ns.Span.zero
   then (
     raise_s [%message "Time_source.every got nonpositive span" (span : Time_ns.Span.t)]);
-  run_repeatedly t ?start ?stop ?continue_on_error ~f ~continue:(After span)
+  run_repeatedly t ?start ?stop ?continue_on_error ?finished ~f ~continue:(After span)
 ;;
 
 let every ?start ?stop ?continue_on_error t span f =
-  every' t ?start ?stop ?continue_on_error span (fun () -> f (); return ())
+  every' t ?start ?stop ?continue_on_error ?finished:None span (fun () -> f (); return ())
 ;;
 
 let run_at_intervals' ?start ?stop ?continue_on_error t interval f =

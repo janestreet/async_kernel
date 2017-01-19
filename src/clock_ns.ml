@@ -17,8 +17,8 @@ let at_intervals ?start ?stop interval =
   Time_source.at_intervals ?start ?stop (time_source ()) interval;
 ;;
 
-let every' ?start ?stop ?continue_on_error span f =
-  Time_source.every' ?start ?stop ?continue_on_error (time_source ()) span f;
+let every' ?start ?stop ?continue_on_error ?finished span f =
+  Time_source.every' ?start ?stop ?continue_on_error ?finished (time_source ()) span f;
 ;;
 
 let every ?start ?stop ?continue_on_error span f =

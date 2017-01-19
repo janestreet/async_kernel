@@ -336,7 +336,7 @@ let field_descriptions () : string =
   history of stack backtraces (obtained via [Backtrace.get]) that led
   to the current job.  If an Async job has an unhandled exception,
   this backtrace history will be recorded in the exception.  In
-  particular the history will appean in an unhandled exception that
+  particular the history will appear in an unhandled exception that
   reaches the main monitor.  This can have a substantial performance
   impact, both in running time and space usage.
 " ])

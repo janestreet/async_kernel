@@ -210,11 +210,15 @@ module type Clock = sig
       continues when the result of [f] becomes determined.
 
       Exceptions raised by [f] are always sent to monitor in effect when [every'] was
-      called, even with [~continue_on_error:true]. *)
+      called, even with [~continue_on_error:true].
+
+      If [finished] is supplied, [every'] will fill it once all of the following become
+      determined: [start], [stop], and the result of the final call to [f]. *)
   val every'
     :  ?start : unit Deferred.t   (** default is [return ()] *)
     -> ?stop : unit Deferred.t    (** default is [Deferred.never ()] *)
     -> ?continue_on_error : bool  (** default is [true] *)
+    -> ?finished : unit Ivar.t
     -> Time.Span.t
     -> (unit -> unit Deferred.t) -> unit
 
@@ -358,6 +362,7 @@ module type Clock_deprecated = sig
     :  ?start : unit Deferred.t   (** default is [return ()] *)
     -> ?stop : unit Deferred.t    (** default is [Deferred.never ()] *)
     -> ?continue_on_error : bool  (** default is [true] *)
+    -> ?finished : unit Ivar.t
     -> Time.Span.t
     -> (unit -> unit Deferred.t) -> unit
   [@@deprecated "[since 2016-02] Use [Time_source]"]

@@ -45,12 +45,25 @@ module type Time_source = sig
   val wall_clock : unit -> t
 
   (** Accessors.  [now (wall_clock ())] behaves specially; see [wall_clock] above. *)
-  val alarm_precision : [> read] T1.t -> Time_ns.Span.t
-  val now             : [> read] T1.t -> Time_ns.t
+  val alarm_precision     : [> read] T1.t -> Time_ns.Span.t
+  val next_alarm_fires_at : [> read] T1.t -> Time_ns.t option
+  val now                 : [> read] T1.t -> Time_ns.t
 
   val advance          : [> write] T1.t -> to_:Time_ns.t -> unit
   val advance_by       : [> write] T1.t -> Time_ns.Span.t -> unit
   val fire_past_alarms : [> write] T1.t -> unit
+
+  (** [advance_by_alarms t] repeatedly calls [advance t] to drive the time forward in
+      steps, where each step is the minimum of [to_] and the next alarm time.  After each
+      step, [advance_by_alarms] waits on [Scheduler.yield ()] to allow a chance for the
+      triggered alarms to run before moving forward, which also allows triggered timers to
+      execute and potentially rearm for subsequent steps.  The returned deferred is filled
+      when [to_] is reached.
+
+      [advance_by_alarms] is useful in simulation when one wants to efficiently advance to
+      a time in the future while giving periodic timers (e.g. resulting from [every]) a
+      chance to fire with approximately the same timing as they would live. *)
+  val advance_by_alarms : [> write] T1.t -> to_:Time_ns.t -> unit Deferred.t
 
   module Continue : sig
     type t
@@ -58,10 +71,12 @@ module type Time_source = sig
     val immediately : t
   end
 
+  (** See {!Clock.every'} for documentation. *)
   val run_repeatedly
     :  ?start             : unit Deferred.t  (** default is [return ()] *)
     -> ?stop              : unit Deferred.t  (** default is [Deferred.never ()] *)
     -> ?continue_on_error : bool             (** default is [true] *)
+    -> ?finished          : unit Ivar.t
     -> [> read] T1.t
     -> f:(unit -> unit Deferred.t)
     -> continue : Continue.t
@@ -138,10 +153,12 @@ module type Time_source = sig
     -> Time_ns.Span.t
     -> unit Async_stream.t
 
+  (** See {!Clock.every'} for documentation. *)
   val every'
     :  ?start             : unit Deferred.t  (** default is [return ()] *)
     -> ?stop              : unit Deferred.t  (** default is [Deferred.never ()] *)
     -> ?continue_on_error : bool             (** default is [true] *)
+    -> ?finished          : unit Ivar.t
     -> [> read] T1.t
     -> Time_ns.Span.t
     -> (unit -> unit Deferred.t)
