@@ -1,4 +1,4 @@
-open! Core_kernel.Std
+open! Core_kernel
 open! Import
 
 type 'a t = 'a Types.Bvar.t =

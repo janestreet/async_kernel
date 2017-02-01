@@ -1,6 +1,6 @@
 (** Internal to Async -- see {!Async_unix.Scheduler} for the public API. *)
 
-open! Core_kernel.Std
+open! Core_kernel
 open! Import
 
 module Deferred = Deferred1

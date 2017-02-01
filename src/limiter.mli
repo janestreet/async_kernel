@@ -9,7 +9,7 @@
     (in a deferred manner) instead.
 
     Jobs are always executed in FIFO order. *)
-open! Core_kernel.Std
+open! Core_kernel
 
 (** The outcome of a job *)
 module Outcome : sig
@@ -181,5 +181,5 @@ module Expert : sig
 
   (** returns the underlying limiter.  It is an error to do anything with the limiter that
       isn't a read-only operation. *)
-  val to_jane_limiter  : t -> Core_kernel.Std.Limiter.t
+  val to_jane_limiter  : t -> Core_kernel.Limiter.t
 end

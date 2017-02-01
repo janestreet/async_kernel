@@ -1,8 +1,8 @@
-open Core_kernel.Std
+open Core_kernel
 open Deferred_std
-open Core_kernel.Std.Limiter.Infinite_or_finite
+open Core_kernel.Limiter.Infinite_or_finite
 
-module Limiter = Core_kernel.Std.Limiter
+module Limiter = Core_kernel.Limiter
 
 module Outcome = struct
   type 'a t =

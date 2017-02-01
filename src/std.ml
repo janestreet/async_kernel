@@ -1,6 +1,6 @@
 module Limiter_in_this_directory = Limiter
 
-open! Core_kernel.Std
+open! Core_kernel
 open! Import
 
 module Bvar                         = Bvar

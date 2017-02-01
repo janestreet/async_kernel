@@ -1,8 +1,8 @@
-open! Core_kernel.Std
+open! Core_kernel
 open! Deferred.Let_syntax
 open! Import
 
-include Core_kernel.Std.Invariant
+include Core_kernel.Invariant
 
 module Async = struct
   include Async_invariant_intf.Async

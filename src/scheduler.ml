@@ -1,4 +1,4 @@
-open! Core_kernel.Std
+open! Core_kernel
 open! Import
 open! Deferred_std
 
@@ -102,7 +102,7 @@ let add_finalizer t heap_block f =
     thread_safe_enqueue_external_job t execution_context f heap_block;
   in
   if Debug.finalizers then (Debug.log_string "adding finalizer");
-  (* We use [Caml.Gc.finalise] instead of [Core_kernel.Std.Gc.add_finalizer] because the latter
+  (* We use [Caml.Gc.finalise] instead of [Core_kernel.Gc.add_finalizer] because the latter
      has its own wrapper around [Caml.Gc.finalise] to run finalizers synchronously. *)
   Caml.Gc.finalise finalizer heap_block;
 ;;

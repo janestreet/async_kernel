@@ -1,7 +1,7 @@
 module Debug_in_this_directory = Debug
 module Time_ns_in_this_directory = Time_ns
 
-open! Core_kernel.Std
+open! Core_kernel
 
 module Debug   = Debug_in_this_directory
 module Time_ns = Time_ns_in_this_directory

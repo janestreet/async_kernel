@@ -4,7 +4,7 @@
     run in the future.  The Async scheduler is responsible for waking up at the right time
     to run the jobs. *)
 
-open Core_kernel.Std
+open Core_kernel
 
 module Deferred = Deferred1
 

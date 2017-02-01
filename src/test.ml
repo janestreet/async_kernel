@@ -1,5 +1,6 @@
-open Core_kernel.Std
-open Std
+module Local_std = Std
+open Core_kernel
+open Local_std
 
 let%test_module _ =
   (module struct
@@ -45,7 +46,7 @@ let%test_module _ =
               let d = M.change t k ~f:(fun x -> return (f x)) in
               stabilize ();
               let o1 = Deferred.peek d in
-              let o2 = Some (Core_kernel.Std.Map.change t k ~f) in
+              let o2 = Some (Core_kernel.Map.change t k ~f) in
               if not (Option.equal equal o1 o2)
               then (
                 raise_s [%message
@@ -64,7 +65,7 @@ let%test_module _ =
               let d = M.update t k ~f:(fun x -> return (f x)) in
               stabilize ();
               let o1 = Deferred.peek d in
-              let o2 = Some (Core_kernel.Std.Map.update t k ~f) in
+              let o2 = Some (Core_kernel.Map.update t k ~f) in
               if not (Option.equal equal o1 o2)
               then (
                 raise_s [%message
@@ -79,7 +80,7 @@ let%test_module _ =
             don't_wait_for (M.iteri t ~how ~f:(fun ~key ~data:_ -> return (r := !r + key)));
             stabilize ();
             let i1 = !r in
-            let i2 = Core_kernel.Std.Map.fold t ~init:0 ~f:(fun ~key ~data:_ ac -> key + ac) in
+            let i2 = Core_kernel.Map.fold t ~init:0 ~f:(fun ~key ~data:_ ac -> key + ac) in
             if i1 <> i2
             then (
               raise_s [%message
@@ -106,7 +107,7 @@ let%test_module _ =
           ~f:(fun f ->
             test_map_like "map"
               (fun t ~how ->
-                 (Core_kernel.Std.Map.map t ~f,
+                 (Core_kernel.Map.map t ~f,
                   M.map t ~how ~f:(fun x -> return (f x)))))
       ;;
 
@@ -115,7 +116,7 @@ let%test_module _ =
           ~f:(fun f ->
             test_map_like "mapi"
               (fun t ~how ->
-                 (Core_kernel.Std.Map.mapi t ~f,
+                 (Core_kernel.Map.mapi t ~f,
                   M.mapi ~how t ~f:(fun ~key ~data -> return (f ~key ~data)))))
       ;;
 
@@ -127,7 +128,7 @@ let%test_module _ =
           ~f:(fun f ->
             test_map_like "filteri"
               (fun t ~how ->
-                 (Core_kernel.Std.Map.filteri t ~f,
+                 (Core_kernel.Map.filteri t ~f,
                   M.filteri ~how t ~f:(fun ~key ~data -> return (f ~key ~data)))))
       ;;
 
@@ -140,7 +141,7 @@ let%test_module _ =
           ~f:(fun f ->
             test_map_like "filter_map"
               (fun t ~how ->
-                 (Core_kernel.Std.Map.filter_map t ~f,
+                 (Core_kernel.Map.filter_map t ~f,
                   M.filter_map ~how t ~f:(fun data -> return (f data)))))
       ;;
 
@@ -152,14 +153,14 @@ let%test_module _ =
           ~f:(fun f ->
             test_map_like "filter_mapi"
               (fun t ~how ->
-                 (Core_kernel.Std.Map.filter_mapi t ~f,
+                 (Core_kernel.Map.filter_mapi t ~f,
                   M.filter_mapi ~how t ~f:(fun ~key ~data -> return (f ~key ~data)))))
       ;;
 
       let%test_unit _ =
         let folds =
-          [ "fold"      , M.fold      , Core_kernel.Std.Map.fold
-          ; "fold_right", M.fold_right, Core_kernel.Std.Map.fold_right ]
+          [ "fold"      , M.fold      , Core_kernel.Map.fold
+          ; "fold_right", M.fold_right, Core_kernel.Map.fold_right ]
         in
         let fs = [ fun ~key ~data ac -> (Int.to_string key ^ data) ^ ac ] in
         List.iter folds ~f:(fun (name, m_fold, core_fold) ->
@@ -194,7 +195,7 @@ let%test_module _ =
                 let d = M.merge t1 t2 ~f:(fun ~key z -> return (f ~key z)) in
                 stabilize ();
                 let o1 = Deferred.peek d in
-                let o2 = Some (Core_kernel.Std.Map.merge t1 t2 ~f) in
+                let o2 = Some (Core_kernel.Map.merge t1 t2 ~f) in
                 if not (Option.equal equal o1 o2)
                 then (
                   raise_s [%message

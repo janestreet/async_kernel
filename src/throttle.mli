@@ -18,7 +18,7 @@
     already started will continue, and return [`Ok] or [`Raised] as usual when they
     finish.  Jobs enqueued into a killed throttle will be immediately aborted. *)
 
-open! Core_kernel.Std
+open! Core_kernel
 
 module Deferred = Deferred1
 

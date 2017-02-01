@@ -1,6 +1,6 @@
 (** The context in which an Async job runs. *)
 
-open! Core_kernel.Std
+open! Core_kernel
 open! Import
 
 type t = Types.Execution_context.t =

@@ -1,4 +1,4 @@
-open Core_kernel.Std
+open Core_kernel
 open Std
 
 let%test_module _ =

@@ -1,4 +1,4 @@
-open! Core_kernel.Std
+open! Core_kernel
 open! Import
 
 module Time_ns = struct
@@ -6,7 +6,7 @@ module Time_ns = struct
 
   external format : float -> string -> string = "core_kernel_time_ns_format"
 
-  (* We use a more pleasant format than [Core_kernel.Std.Time_ns.sexp_of_t],
+  (* We use a more pleasant format than [Core_kernel.Time_ns.sexp_of_t],
      which has to be messier for round trippability. *)
   let sexp_of_t t =
     [%sexp (format (t |> to_span_since_epoch |> Span.to_sec) "%Y-%m-%dT%H:%M:%S%z"

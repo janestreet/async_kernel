@@ -1,7 +1,7 @@
 (** A synchronous version of [Async_kernel.Time_source].  [advance_by_alarms] runs
     alarms immediately, rather than enqueueing Async jobs. *)
 
-open! Core_kernel.Std
+open! Core_kernel
 open! Import
 
 module T1 : sig

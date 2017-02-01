@@ -1,4 +1,4 @@
-open Core_kernel.Std
+open Core_kernel
 open Deferred_std
 module List = Deferred_list
 

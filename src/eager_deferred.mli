@@ -17,7 +17,7 @@
     [test/test_eager_deferred] verifies that this interface is a sub interface of the
     [Deferred] interface.  For documentation, refer to [Deferred]. *)
 
-open! Core_kernel.Std
+open! Core_kernel
 open! Import
 
 include sig
@@ -43,7 +43,7 @@ include sig
   val ignore         : _ t -> unit t
   val is_determined  : 'a t -> bool
   val never          : unit -> _ t
-  val ok             : 'a t -> ('a, _) Core_kernel.Std.Result.t t
+  val ok             : 'a t -> ('a, _) Core_kernel.Result.t t
   val peek           : 'a t -> 'a option
   val unit           : unit t
   val upon           : 'a t -> ('a -> unit) -> unit

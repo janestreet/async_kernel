@@ -10,19 +10,19 @@ module Queue    = Deferred_queue
 module Result   = Deferred_result
 module Sequence = Deferred_sequence
 
-include Monad_sequence_unit_tests.Make (Core_kernel.Std.Array)    (Array)
-include Monad_sequence_unit_tests.Make (Core_kernel.Std.Sequence) (Sequence)
+include Monad_sequence_unit_tests.Make (Core_kernel.Array)    (Array)
+include Monad_sequence_unit_tests.Make (Core_kernel.Sequence) (Sequence)
 
 include Monad_sequence_unit_tests.Make
     (struct
-      include Core_kernel.Std.Queue
-      let compare cmp t1 t2 = Core_kernel.Std.List.compare cmp (to_list t1) (to_list t2)
+      include Core_kernel.Queue
+      let compare cmp t1 t2 = Core_kernel.List.compare cmp (to_list t1) (to_list t2)
     end)
     (Queue)
 
 include Monad_sequence_unit_tests.Make
     (struct
-      include Core_kernel.Std.List
+      include Core_kernel.List
       let compare cmp t1 t2 = compare cmp t1 t2
     end)
     (List)

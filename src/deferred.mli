@@ -4,7 +4,7 @@
     at some point become determined with value v, and will henceforth always be determined
     with value v. *)
 
-open! Core_kernel.Std
+open! Core_kernel
 open! Import
 
 module Array    : module type of Deferred_array
@@ -200,4 +200,4 @@ val forever
 
 (** Useful for lifting values from the [Deferred.t] monad to the [Result.t Deferred.t]
     monad *)
-val ok : 'a t -> ('a, _) Core_kernel.Std.Result.t t
+val ok : 'a t -> ('a, _) Core_kernel.Result.t t

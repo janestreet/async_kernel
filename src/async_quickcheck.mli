@@ -1,4 +1,4 @@
-open! Core_kernel.Std
+open! Core_kernel
 open Async_quickcheck_intf
 
 module Generator = Quickcheck.Generator

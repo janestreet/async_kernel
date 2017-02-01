@@ -1,3 +1,3 @@
-open! Core_kernel.Std
+open! Core_kernel
 
 include Monad.S with type 'a t = 'a option Deferred0.t

@@ -19,7 +19,7 @@
     There is no [val of_lazy : 'a Deferred.t Lazy.t -> 'a t] because of the difference
     in power. *)
 
-open! Core_kernel.Std
+open! Core_kernel
 
 type 'a t
 

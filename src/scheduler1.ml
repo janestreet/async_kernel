@@ -1,4 +1,4 @@
-open Core_kernel.Std
+open Core_kernel
 open Import
 
 include (Scheduler0 : module type of Scheduler0 with type t := Scheduler0.t)

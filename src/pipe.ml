@@ -1,4 +1,4 @@
-open Core_kernel.Std
+open Core_kernel
 open Import
 open Deferred_std
 module Stream = Async_stream

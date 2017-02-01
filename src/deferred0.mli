@@ -1,6 +1,6 @@
 (** Internal to Async -- see {!Deferred} for the public API. *)
 
-open! Core_kernel.Std
+open! Core_kernel
 open! Import
 
 type +'a t = 'a Types.Deferred.t [@@deriving sexp_of]

@@ -9,7 +9,7 @@
     broadcast, not [signal]ing a single waiter.  Dropping [signal] simplifies the
     implementation significantly. *)
 
-open! Core_kernel.Std
+open! Core_kernel
 open! Import
 
 type 'a t = 'a Types.Bvar.t [@@deriving sexp_of]

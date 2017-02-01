@@ -5,7 +5,7 @@
     source via [create], and advance its clock as desired.  This is useful so that state
     machines can depend on a notion of time that is distinct from wall-clock time. *)
 
-open! Core_kernel.Std
+open! Core_kernel
 open! Import
 
 module Deferred = Deferred1

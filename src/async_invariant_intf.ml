@@ -1,7 +1,7 @@
 (** This module defines signatures that extend [Core_kernel.Invariant] with an [Async]
     submodule for invariants that use async computation and return [unit Deferred.t]. *)
 
-open! Core_kernel.Std
+open! Core_kernel
 open! Import
 
 module Async = struct
@@ -32,7 +32,7 @@ end
 
 module type Async_invariant = sig
 
-  include module type of Core_kernel.Std.Invariant
+  include module type of Core_kernel.Invariant
 
   module Async : sig
     open Async

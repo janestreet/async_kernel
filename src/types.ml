@@ -7,7 +7,7 @@
    cycle, split the file into pieces as needed to break the cycle, e.g. scheduler0.ml,
    scheduler1.ml, scheduler.ml. *)
 
-open! Core_kernel.Std
+open! Core_kernel
 open! Import
 
 module rec Bvar : sig

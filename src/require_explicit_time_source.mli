@@ -9,7 +9,7 @@
     {[
       include Require_explicit_time_source ]} *)
 
-open! Core_kernel.Std
+open! Core_kernel
 open! Import
 
 module Clock_ns : Clock_intf.Clock_deprecated with module Time := Time_ns

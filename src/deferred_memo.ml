@@ -1,4 +1,4 @@
-open Core_kernel.Std
+open Core_kernel
 open Deferred_std
 
 module Deferred = Deferred1
@@ -30,7 +30,7 @@ let%test_module _ =
         memo (fun () ->
           incr num_calls_to_f;
           (* We bind here so that exceptions are raised asynchronously.  It is in this case
-             that functions from [Core_kernel.Std.Memo] behave badly and fail this test. *)
+             that functions from [Core_kernel.Memo] behave badly and fail this test. *)
           let%bind () = return () in
           if should_raise then (raise_s [%message "boom!"]) else (return 7))
       in

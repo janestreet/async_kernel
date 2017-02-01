@@ -1,4 +1,4 @@
-open! Core_kernel.Std
+open! Core_kernel
 open! Import
 
 module Deferred = Deferred1
@@ -152,11 +152,11 @@ let%test_module _ =
   (module struct
 
     (* Ounit generates code using [List.rev], but we rebound [List] above, so we need to
-       [open Core_kernel.Std] to get [List].  But that shadows a couple other things we need, so we
+       [open Core_kernel] to get [List].  But that shadows a couple other things we need, so we
        bind them first. *)
     module Seqlist = List
 
-    module List = Core_kernel.Std.List
+    module List = Core_kernel.List
 
     let tasks = Queue.create ()
 

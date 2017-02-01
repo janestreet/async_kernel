@@ -1,6 +1,6 @@
 (** Internal to Async -- a queue of jobs to run. *)
 
-open! Core_kernel.Std
+open! Core_kernel
 open! Import
 
 module Scheduler = Scheduler0

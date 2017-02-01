@@ -1,5 +1,6 @@
-open Core_kernel.Std
-open Std
+module Local_std = Std
+open Core_kernel
+open Local_std
 open Monitor
 
 let%test_module _ =
