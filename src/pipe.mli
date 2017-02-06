@@ -197,7 +197,7 @@ module Consumer : sig
       downstream portion where the consumer acts as a sentinel to report when the element
       has been fully processed.
 
-      For instance, consider the simple case of a pipe attached to an [Async.Std.Writer]
+      For instance, consider the simple case of a pipe attached to an [Async.Writer]
       that is writing elements to disk.  Part one would be whatever transform the consumer
       applies to the elements in the pipe before it hands them off to the writer, and part
       two would be waiting for the writer to finish writing the transformed element to

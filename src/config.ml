@@ -91,7 +91,9 @@ module Debug_tag = struct
       | Thread_pool
       | Thread_safe
       | Writer
-    [@@deriving sexp]
+    [@@deriving compare, sexp]
+
+    let equal = [%compare.equal: t]
   end
 
   include T
@@ -404,7 +406,7 @@ module Print_debug_messages_for = struct
   let print_debug_messages_for tag =
     match t.print_debug_messages_for with
     | None -> false
-    | Some l -> List.mem l tag
+    | Some l -> List.mem l tag ~equal:Debug_tag.equal
   ;;
 
   let all = print_debug_messages_for All

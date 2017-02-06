@@ -8,11 +8,14 @@ let show_debug_messages = ref false
 let check_invariant = ref false
 
 module Flushed_result = struct
-  type t = [ `Ok | `Reader_closed ] [@@deriving sexp_of]
+  type t = [ `Ok | `Reader_closed ]
+  [@@deriving compare, sexp_of]
+
+  let equal = [%compare.equal: t]
 
   let combine (l : t Deferred.t list) =
     let%map l = Deferred.all l in
-    match List.mem l `Reader_closed with
+    match List.mem l `Reader_closed ~equal with
     | true  -> `Reader_closed
     | false -> `Ok
   ;;
