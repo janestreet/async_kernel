@@ -10,19 +10,51 @@ module Queue    = Deferred_queue
 module Result   = Deferred_result
 module Sequence = Deferred_sequence
 
-include Monad_sequence_unit_tests.Make (Core_kernel.Array)    (Array)
-include Monad_sequence_unit_tests.Make (Core_kernel.Sequence) (Sequence)
+let%test_module "Deferred_array_tests" =
+  (module struct
+    include Monad_sequence_unit_tests.Make
+        (struct
+          include Core_kernel.Std.Array
+          let map t ~f = map t ~f
+          let mapi t ~f = mapi t ~f
+          let iteri t ~f = iteri t ~f
+          let filter t ~f = filter t ~f
+          let filteri t ~f = filteri t ~f
+        end)
+        (Array)
+  end)
 
-include Monad_sequence_unit_tests.Make
-    (struct
-      include Core_kernel.Queue
-      let compare cmp t1 t2 = Core_kernel.List.compare cmp (to_list t1) (to_list t2)
-    end)
-    (Queue)
+let%test_module "Deferred_sequence_tests" =
+  (module struct
+    include Monad_sequence_unit_tests.Make
+        (struct
+          include Core_kernel.Std.Sequence
+          let fold t ~init ~f = fold t ~init ~f
+          let foldi t ~init ~f = foldi t ~init ~f
+        end)
+        (Sequence)
+  end)
 
-include Monad_sequence_unit_tests.Make
-    (struct
-      include Core_kernel.List
-      let compare cmp t1 t2 = compare cmp t1 t2
-    end)
-    (List)
+let%test_module "Deferred_queue_tests" =
+  (module struct
+    include Monad_sequence_unit_tests.Make
+        (struct
+          include Core_kernel.Std.Queue
+          let compare cmp t1 t2 = Core_kernel.Std.List.compare cmp (to_list t1) (to_list t2)
+          let concat_map t ~f = concat_map t ~f:(fun x -> to_list (f x))
+          let concat_mapi t ~f = concat_mapi t ~f:(fun i x -> to_list (f i x))
+        end)
+        (Queue)
+  end)
+
+
+let%test_module "Deferred_list_tests" =
+  (module struct
+    include Monad_sequence_unit_tests.Make
+        (struct
+          include Core_kernel.Std.List
+          let compare cmp t1 t2 = compare cmp t1 t2
+          let foldi t ~init ~f = foldi t ~init ~f
+        end)
+        (List)
+  end)

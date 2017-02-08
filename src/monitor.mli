@@ -107,11 +107,13 @@ val has_seen_error : t -> bool
 val send_exn : t -> ?backtrace:[ `Get | `This of string ] -> exn -> unit
 
 (** [try_with f] runs [f ()] in a monitor and returns the result as [Ok x] if [f] finishes
-    normally, or returns [Error e] if there is some error.  It either runs [f] now, if
+    normally, or returns [Error e] if there is an exception.  It either runs [f] now, if
     [run = `Now], or schedules a job to run [f], if [run = `Schedule].  Once a result is
-    returned, the rest of the errors raised by [f] are logged or re-raised, as per [rest].
-    [try_with] never raises synchronously, and may only raise asynchronously with [rest =
-    `Raise].
+    returned, subsequent exceptions raised to the monitor are handled according to [rest]:
+
+    [`Log]: Logged to a global error log (cannot raise).
+    [`Raise]: Reraised to the monitor of [try_with]'s caller.
+    [`Call f]: Passed to [f] within the context of the caller of [try_with]'s monitor.
 
     The [name] argument is used to give a name to the monitor the computation will be
     running in.  This name will appear when printing errors.
@@ -129,7 +131,7 @@ val send_exn : t -> ?backtrace:[ `Get | `This of string ] -> exn -> unit
 val try_with
   : (?extract_exn : bool             (** default is [false] *)
      -> ?run : [ `Now | `Schedule ]  (** default is [`Schedule] *)
-     -> ?rest : [ `Log | `Raise ]    (** default is [`Log] *)
+     -> ?rest : [ `Log | `Raise | `Call of (exn -> unit) ] (** default is [`Log] *)
      -> (unit -> 'a Deferred.t)
      -> ('a, exn) Result.t Deferred.t
     ) with_optional_monitor_name

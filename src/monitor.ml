@@ -344,12 +344,15 @@ let fill_result_and_handle_background_errors
 
 let make_handle_exn rest =
   match rest with
-  | `Log   -> !try_with_log_exn
+  | `Log   ->
+    (* We are careful to not close over current context, which is not needed. *)
+    !try_with_log_exn
   | `Raise ->
-    (* We close over [parent] only in the [`Raise] case, to avoid a space leak in the
-       [`Log] case. *)
     let parent = current () in
     fun exn -> send_exn parent exn ?backtrace:None
+  | `Call f ->
+    let parent = current () in
+    fun exn -> within ~monitor:parent (fun () -> f exn)
 ;;
 
 let try_with

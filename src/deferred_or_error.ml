@@ -93,15 +93,14 @@ module List = struct
     loop 0 acc list
   ;;
 
-  let fold t ~init ~f = foldi t ~init ~f:(fun _ a -> f a)
+  let fold t ~init ~f = foldi t ~init ~f:(fun _ a x -> f a x)
 
-  let seqmap t ~f =
-    fold t ~init:[] ~f:(fun bs a -> let%map b = f a in b :: bs)
+  let seqmapi t ~f =
+    foldi t ~init:[] ~f:(fun i bs a -> let%map b = f i a in b :: bs)
     >>| List.rev
   ;;
 
   let all = all
-
   let all_unit = all_ignore
 
   let iteri ?(how = `Sequential) t ~f =
@@ -112,39 +111,64 @@ module List = struct
       foldi t ~init:() ~f:(fun i () x -> f i x)
   ;;
 
-  let iter ?how t ~f = iteri ?how t ~f:(fun _ a -> f a)
-
-  let map ?(how=`Sequential) t ~f =
+  let mapi ?(how=`Sequential) t ~f =
     match how with
     | `Parallel | `Max_concurrent_jobs _ as how ->
-      all (List.map t ~f:(unstage (Throttle.monad_sequence_how ~how ~f)))
-    | `Sequential -> seqmap t ~f
+      all (List.mapi t ~f:(unstage (Throttle.monad_sequence_how2 ~how ~f)))
+    | `Sequential -> seqmapi t ~f
   ;;
 
-  let init ?how n ~f = map ?how (List.init n ~f:Fn.id) ~f
+  let filter_mapi ?how t ~f = mapi t ?how ~f >>| List.filter_opt
+  let concat_mapi ?how t ~f = mapi t ?how ~f >>| List.concat
 
-  let filter_map ?how t ~f = map t ?how ~f >>| List.filter_opt
-
-  let concat_map ?how t ~f = map t ?how ~f >>| List.concat
-
-  let filter ?how t ~f =
-    filter_map ?how t ~f:(fun x ->
-      let%map b = f x in
+  let filteri ?how t ~f =
+    filter_mapi ?how t ~f:(fun i x ->
+      let%map b = f i x in
       if b then (Some x) else None)
   ;;
 
-  let rec find_map t ~f =
-    match t with
-    | [] -> return None
-    | hd :: tl ->
-      match%bind f hd with
-      | None -> find_map tl ~f
-      | Some _ as some -> return some
+  let find_mapi t ~f =
+    let rec find_mapi t ~f i =
+      match t with
+      | [] -> return None
+      | hd :: tl ->
+        match%bind f i hd with
+        | None -> find_mapi tl ~f (i+1)
+        | Some _ as some -> return some
+    in
+    find_mapi t ~f 0
+  ;;
+  let find_map t ~f =
+    find_mapi t ~f:(fun _ a -> f a)
   ;;
 
+  let findi t ~f =
+    find_mapi t ~f:(fun i elt -> let%map b = f i elt in if b then (Some (i,elt)) else None)
+  ;;
   let find t ~f =
     find_map t ~f:(fun elt -> let%map b = f elt in if b then (Some elt) else None)
   ;;
+
+  let existsi t ~f =
+    match%map find_mapi t ~f:(fun i elt -> let%map b = f i elt in if b then (Some ()) else None) with
+    | Some () -> true
+    | None -> false
+
+  let for_alli t ~f =
+    match%map find_mapi t ~f:(fun i elt -> let%map b = f i elt in if not b then (Some ()) else None) with
+    | Some () -> false
+    | None -> true
+
+  let iter       ?how t ~f = iteri       ?how t ~f:(fun _ a -> f a)
+  let map        ?how t ~f = mapi        ?how t ~f:(fun _ a -> f a)
+  let filter     ?how t ~f = filteri     ?how t ~f:(fun _ a -> f a)
+  let filter_map ?how t ~f = filter_mapi ?how t ~f:(fun _ a -> f a)
+  let concat_map ?how t ~f = concat_mapi ?how t ~f:(fun _ a -> f a)
+  let find_map t ~f = find_mapi t ~f:(fun _ a -> f a)
+  let exists   t ~f = existsi   t ~f:(fun _ a -> f a)
+  let for_all  t ~f = for_alli  t ~f:(fun _ a -> f a)
+
+  let init ?how n ~f = map ?how (List.init n ~f:Fn.id) ~f
 
 end
 
@@ -239,11 +263,29 @@ let%test_module _ =
 
     let%test_unit _ =
       let def =
+        Seqlist.mapi [ 2 ; 1 ; 0 ]
+          ~f:(fun i value -> return (i * 10 + value))
+      in
+      stabilize ();
+      assert (determined def [ 2 ; 11 ; 20 ])
+    ;;
+
+    let%test_unit _ =
+      let def =
         Seqlist.filter [ 0 ; 1 ; 2 ; 3 ; 4 ]
           ~f:(fun value -> return (value mod 2 = 0))
       in
       stabilize ();
       assert (determined def [ 0 ; 2 ; 4 ])
+    ;;
+
+    let%test_unit _ =
+      let def =
+        Seqlist.filteri [ 4 ; 3 ; 2 ; 1 ; 0 ]
+          ~f:(fun i value -> return (i > value))
+      in
+      stabilize ();
+      assert (determined def [ 1 ; 0 ])
     ;;
 
     let%test_unit _ =
@@ -258,11 +300,230 @@ let%test_module _ =
     ;;
 
     let%test_unit _ =
+      let def =
+        Seqlist.filter_mapi [ 4 ; 3 ; 2 ; 1 ; 0 ]
+          ~f:(fun i value ->
+            return (
+              if i > value then (Some (i,value)) else None))
+      in
+      stabilize ();
+      assert (determined def [ (3,1) ; (4,0) ])
+    ;;
+
+    let%test_unit _ =
+      let def =
+        Seqlist.concat_map [ 0 ; 1 ; 2 ; 3 ; 4 ]
+          ~f:(fun value ->
+            return (
+              List.init (4-value) ~f:Fn.id))
+      in
+      stabilize ();
+      assert (determined def [ 0 ; 1 ; 2 ; 3 ; 0 ; 1 ; 2 ; 0 ; 1 ; 0 ])
+    ;;
+
+    let%test_unit _ =
+      let def =
+        Seqlist.concat_mapi [ 4 ; 3 ; 2 ; 1 ; 0 ]
+          ~f:(fun i value ->
+            return (
+              List.init value ~f:(fun j -> i+j)))
+      in
+      stabilize ();
+      assert (determined def [ 0 ; 1 ; 2 ; 3 ; 1 ; 2 ; 3 ; 2 ; 3 ; 3 ])
+    ;;
+
+    let%test_unit _ =
+      let def =
+        Seqlist.foldi [ 0 ; 1 ; 2 ] ~init:"" ~f:(fun i acc value ->
+          return (acc ^ Int.to_string value ^ Int.to_string (i+3)))
+      in
+      stabilize ();
+      assert (determined def "031425")
+    ;;
+
+    let%test_unit _ =
       let list = List.init 3 ~f:(fun i -> return i) in
       let def = Seqlist.all list in
       stabilize ();
       assert (determined def [ 0 ; 1 ; 2 ])
     ;;
+
+    let%test_unit _ =
+      let def =
+        Seqlist.find [ 0 ; 1 ; 2 ; 3 ; 4 ]
+          ~f:(fun value ->
+            return (
+              value = 3))
+      in
+      stabilize ();
+      assert (determined def (Some 3))
+    ;;
+
+    let%test_unit _ =
+      let def =
+        Seqlist.find [ 0 ; 1 ; 2 ; 3 ; 4 ]
+          ~f:(fun value ->
+            return (
+              value = 5))
+      in
+      stabilize ();
+      assert (determined def None)
+    ;;
+
+    let%test_unit _ =
+      let def =
+        Seqlist.findi [ 4 ; 3 ; 2 ; 1 ; 0 ]
+          ~f:(fun i value ->
+            return (
+              i > value))
+      in
+      stabilize ();
+      assert (determined def (Some (3,1)))
+    ;;
+
+    let%test_unit _ =
+      let def =
+        Seqlist.findi [ 4 ; 3 ; 2 ; 1 ; 0 ]
+          ~f:(fun i value ->
+            return (
+              i + value = 5))
+      in
+      stabilize ();
+      assert (determined def None)
+    ;;
+
+    let%test_unit _ =
+      let def =
+        Seqlist.find_map [ 0 ; 1 ; 2 ; 3 ; 4 ]
+          ~f:(fun value ->
+            return (
+              if value = 3 then (Some (succ value)) else None))
+      in
+      stabilize ();
+      assert (determined def (Some 4))
+    ;;
+
+    let%test_unit _ =
+      let def =
+        Seqlist.find_map [ 0 ; 1 ; 2 ; 3 ; 4 ]
+          ~f:(fun value ->
+            return (
+              if value = 5 then (Some (succ value)) else None))
+      in
+      stabilize ();
+      assert (determined def None)
+    ;;
+
+    let%test_unit _ =
+      let def =
+        Seqlist.find_mapi [ 4 ; 3 ; 2 ; 1 ; 0 ]
+          ~f:(fun i value ->
+            return (
+              if value = 3 then (Some (i,succ value)) else None))
+      in
+      stabilize ();
+      assert (determined def (Some (1,4)))
+    ;;
+
+    let%test_unit _ =
+      let def =
+        Seqlist.find_mapi [ 4 ; 3 ; 2 ; 1 ; 0 ]
+          ~f:(fun i value ->
+            return (
+              if value = 5 then (Some (i,succ value)) else None))
+      in
+      stabilize ();
+      assert (determined def None)
+    ;;
+
+    let%test_unit _ =
+      let def =
+        Seqlist.exists [ 0 ; 1 ; 2 ; 3 ; 4 ]
+          ~f:(fun value ->
+            return (
+              value = 3))
+      in
+      stabilize ();
+      assert (determined def true)
+    ;;
+
+    let%test_unit _ =
+      let def =
+        Seqlist.exists [ 0 ; 1 ; 2 ; 3 ; 4 ]
+          ~f:(fun value ->
+            return (
+              value = 5))
+      in
+      stabilize ();
+      assert (determined def false)
+    ;;
+
+    let%test_unit _ =
+      let def =
+        Seqlist.existsi [ 4 ; 3 ; 2 ; 1 ; 0 ]
+          ~f:(fun i value ->
+            return (
+              i > value))
+      in
+      stabilize ();
+      assert (determined def true)
+    ;;
+
+    let%test_unit _ =
+      let def =
+        Seqlist.existsi [ 4 ; 3 ; 2 ; 1 ; 0 ]
+          ~f:(fun i value ->
+            return (
+              i + value = 5))
+      in
+      stabilize ();
+      assert (determined def false)
+    ;;
+
+    let%test_unit _ =
+      let def =
+        Seqlist.for_all [ 0 ; 1 ; 2 ; 3 ; 4 ]
+          ~f:(fun value ->
+            return (
+              value <> 3))
+      in
+      stabilize ();
+      assert (determined def false)
+    ;;
+
+    let%test_unit _ =
+      let def =
+        Seqlist.for_all [ 0 ; 1 ; 2 ; 3 ; 4 ]
+          ~f:(fun value ->
+            return (
+              value <> 5))
+      in
+      stabilize ();
+      assert (determined def true)
+    ;;
+
+    let%test_unit _ =
+      let def =
+        Seqlist.for_alli [ 4 ; 3 ; 2 ; 1 ; 0 ]
+          ~f:(fun i value ->
+            return (
+              i <= value))
+      in
+      stabilize ();
+      assert (determined def false)
+    ;;
+
+    let%test_unit _ =
+      let def =
+        Seqlist.for_alli [ 4 ; 3 ; 2 ; 1 ; 0 ]
+          ~f:(fun i value ->
+            return (
+              i + value <> 5))
+      in
+      stabilize ();
+      assert (determined def true)
+    ;;
+
 
     let%test _ =
       let f _ = Deferred.return (Error (Error.of_string "error")) in

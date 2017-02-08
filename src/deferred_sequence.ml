@@ -80,38 +80,54 @@ let all t =
 
 let all_unit t = fold t ~init:() ~f:(fun () v -> v)
 
-let rec find_map t ~f =
-  match Sequence.next t with
-  | None           -> return None
-  | Some (v, rest) ->
-    match%bind f v with
-    | None           -> find_map rest ~f
-    | Some _ as some -> return some
+let find_mapi t ~f =
+  let rec find_mapi t ~f i =
+    match Sequence.next t with
+    | None           -> return None
+    | Some (v, rest) ->
+      match%bind f i v with
+      | None           -> find_mapi rest ~f (i+1)
+      | Some _ as some -> return some
+  in
+  find_mapi t ~f 0
 ;;
 
-let find t ~f =
-  find_map t ~f:(fun elt -> let%map b = f elt in if b then (Some elt) else None)
+let findi t ~f =
+  find_mapi t ~f:(fun i elt -> let%map b = f i elt in if b then (Some (i,elt)) else None)
 ;;
+let find t ~f =
+  find_mapi t ~f:(fun _ elt -> let%map b = f elt in if b then (Some elt) else None)
+;;
+
+let existsi t ~f =
+  match%map find_mapi t ~f:(fun i elt -> let%map b = f i elt in if b then (Some ()) else None) with
+  | Some () -> true
+  | None -> false
+
+let for_alli t ~f =
+  match%map find_mapi t ~f:(fun i elt -> let%map b = f i elt in if not b then (Some ()) else None) with
+  | Some () -> false
+  | None -> true
+
 
 let iteri ?how t ~f : unit Deferred.t =
   fold_mapi ?how t ~mapi_f:f ~init:() ~fold_f:(fun () () -> ())
 ;;
 
-let iter ?how t ~f = iteri ?how t ~f:(fun _ a -> f a)
 
-let map ?how t ~f =
+let mapi ?how t ~f =
   let%map bs =
-    fold_mapi ?how t ~mapi_f:(fun _ a -> f a) ~init:[] ~fold_f:(fun bs b -> b :: bs)
+    fold_mapi ?how t ~mapi_f:(fun i a -> f i a) ~init:[] ~fold_f:(fun bs b -> b :: bs)
   in
   Sequence.of_list (List.rev bs)
 ;;
 
-(* [filter_map] is implemented using [fold_mapi] rather than [map] so that we never need
+(* [filter_mapi] is implemented using [fold_mapi] rather than [map] so that we never need
    to keep a long stream of intermediate [None] results in the accumulator, only to later
    filter them all out. *)
-let filter_map ?how t ~f =
+let filter_mapi ?how t ~f =
   let%map bs =
-    fold_mapi t ?how ~mapi_f:(fun _ a -> f a) ~init:[] ~fold_f:(fun bs maybe_v ->
+    fold_mapi t ?how ~mapi_f:(fun i a -> f i a) ~init:[] ~fold_f:(fun bs maybe_v ->
       match maybe_v with
       | None   -> bs
       | Some b -> b :: bs)
@@ -119,13 +135,23 @@ let filter_map ?how t ~f =
   Sequence.of_list (List.rev bs)
 ;;
 
-let concat_map ?how t ~f = map ?how t ~f >>| Sequence.concat
+let concat_mapi ?how t ~f = mapi ?how t ~f >>| Sequence.concat
 
-let filter ?how t ~f =
-  filter_map ?how t ~f:(fun a ->
-    match%map f a with
+let filteri ?how t ~f =
+  filter_mapi ?how t ~f:(fun i a ->
+    match%map f i a with
     | true -> Some a
     | false -> None)
 ;;
 
+let iter       ?how t ~f = iteri       ?how t ~f:(fun _ a -> f a)
+let map        ?how t ~f = mapi        ?how t ~f:(fun _ a -> f a)
+let filter     ?how t ~f = filteri     ?how t ~f:(fun _ a -> f a)
+let filter_map ?how t ~f = filter_mapi ?how t ~f:(fun _ a -> f a)
+let concat_map ?how t ~f = concat_mapi ?how t ~f:(fun _ a -> f a)
+let find_map t ~f = find_mapi t ~f:(fun _ a -> f a)
+let exists   t ~f = existsi   t ~f:(fun _ a -> f a)
+let for_all  t ~f = for_alli  t ~f:(fun _ a -> f a)
+
 let init ?how n ~f = map ?how (Sequence.init n ~f:Fn.id) ~f
+

@@ -19,12 +19,23 @@ module type S = sig
   val iter       : ?how:how -> 'a t -> f:(       'a ->       unit monad) -> unit monad
   val iteri      : ?how:how -> 'a t -> f:(int -> 'a ->       unit monad) -> unit monad
   val map        : ?how:how -> 'a t -> f:(       'a ->         'b monad) -> 'b t monad
+  val mapi       : ?how:how -> 'a t -> f:(int -> 'a ->         'b monad) -> 'b t monad
   val filter     : ?how:how -> 'a t -> f:(       'a ->       bool monad) -> 'a t monad
+  val filteri    : ?how:how -> 'a t -> f:(int -> 'a ->       bool monad) -> 'a t monad
   val filter_map : ?how:how -> 'a t -> f:(       'a  -> 'b option monad) -> 'b t monad
+  val filter_mapi: ?how:how -> 'a t -> f:(int -> 'a  -> 'b option monad) -> 'b t monad
   val concat_map : ?how:how -> 'a t -> f:(       'a  -> 'b      t monad) -> 'b t monad
+  val concat_mapi: ?how:how -> 'a t -> f:(int -> 'a  -> 'b      t monad) -> 'b t monad
 
-  val find     : 'a t -> f:('a -> bool      monad) -> 'a option monad
-  val find_map : 'a t -> f:('a -> 'b option monad) -> 'b option monad
+  val find     : 'a t -> f:(       'a -> bool      monad) -> 'a option monad
+  val findi    : 'a t -> f:(int -> 'a -> bool      monad) -> (int * 'a) option monad
+  val find_map : 'a t -> f:(       'a -> 'b option monad) -> 'b option monad
+  val find_mapi: 'a t -> f:(int -> 'a -> 'b option monad) -> 'b option monad
+
+  val exists  : 'a t -> f:(       'a -> bool      monad) -> bool monad
+  val existsi : 'a t -> f:(int -> 'a -> bool      monad) -> bool monad
+  val for_all : 'a t -> f:(       'a -> bool      monad) -> bool monad
+  val for_alli: 'a t -> f:(int -> 'a -> bool      monad) -> bool monad
 
   val all      : 'a   monad t -> 'a t monad
   val all_unit : unit monad t -> unit monad
