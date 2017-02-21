@@ -1,6 +1,6 @@
 ## 113.43.00
 
-- Export `Time_source` from `Async_kernel.Std`.
+- Export `Time_source` from `Async_kernel`.
 
 - Name the non-`t` arguments to `Error.tag` and similar functions to allow
   easier partial application.

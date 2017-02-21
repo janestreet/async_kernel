@@ -3,7 +3,9 @@ module Limiter_in_this_directory = Limiter
 open! Core_kernel
 open! Import
 
+module Async_kernel_config          = Config
 module Bvar                         = Bvar
+module Clock_intf                   = Clock_intf
 module Clock_ns                     = Clock_ns
 module Condition                    = Async_condition
 module Deferred                     = Deferred
@@ -66,6 +68,18 @@ module Use_eager_deferred = struct
   include Eager_deferred.Let_syntax
   let upon = Eager_deferred.upon
   let ( >>> ) = Eager_deferred.Infix.( >>> )
+end
+
+module Async_kernel_private = struct
+  module Debug       = Debug
+  module Deferred1   = Deferred1
+  module Ivar0       = Ivar0
+  module Ivar_filler = Ivar_filler
+  module Job         = Job
+  module Monitor0    = Monitor0
+  module Scheduler   = Scheduler
+  module Scheduler1  = Scheduler1
+  module Time_ns     = Time_ns
 end
 
 (* This test must be in this library, because it requires [return] to be inlined.  Moving
