@@ -1,15 +1,12 @@
 open Core_kernel
 
-include Quickcheck_intf
-
 module type Quickcheck_async_configured = sig
 
-  include Quickcheck_configured
-    with type 'a gen := 'a Quickcheck.Generator.t
+  include Quickcheck.Quickcheck_configured
 
   (** Like [test], but for asynchronous tests. *)
   val async_test
-    :  ?seed    : seed
+    :  ?seed    : Quickcheck.seed
     -> ?trials  : int
     -> ?sexp_of : ('a -> Sexp.t)
     -> 'a Quickcheck.Generator.t

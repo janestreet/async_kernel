@@ -6,4 +6,4 @@ module Observer  = Quickcheck.Observer
 
 include Quickcheck_async_configured
 
-module Configure (Config : Quickcheck_config) : Quickcheck_async_configured
+module Configure (Config : Quickcheck.Quickcheck_config) : Quickcheck_async_configured

@@ -1,12 +1,11 @@
 open Core_kernel
-open Async_quickcheck_intf
 
 open Deferred.Infix
 
 module Generator = Quickcheck.Generator
 module Observer  = Quickcheck.Observer
 
-module Configure (Config : Quickcheck_config) = struct
+module Configure (Config : Quickcheck.Quickcheck_config) = struct
 
   include Quickcheck.Configure (Config)
 

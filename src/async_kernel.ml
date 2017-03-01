@@ -15,7 +15,6 @@ module Gc                           = Async_gc
 module Handler                      = Handler
 module Invariant                    = Async_invariant
 module Ivar                         = Ivar
-module Quickcheck_intf              = Async_quickcheck_intf
 module Quickcheck                   = Async_quickcheck
 module Lazy_deferred                = Lazy_deferred
 module Limiter                      = Limiter_in_this_directory
