@@ -1,11 +1,9 @@
 (library
  ((name async_kernel)
-  (inline_tests ((javascript build_and_run)))
   (public_name async_kernel)
   (libraries (core_kernel))
   (preprocess (pps (ppx_jane -annotated-ignores -ite-check -check-doc-comments)))
-  (js_of_ocaml ())))
+))
 
-(enforce_style ())
 
 (jbuild_version jane_street)

@@ -23,7 +23,6 @@ module Monitor                      = Monitor
 module Mvar                         = Mvar
 module Pipe                         = Pipe
 module Priority                     = Priority
-module Require_explicit_time_source = Require_explicit_time_source
 module Sequencer                    = Throttle.Sequencer
 module Stream                       = Async_stream
 module Synchronous_time_source      = Synchronous_time_source
@@ -70,15 +69,16 @@ module Use_eager_deferred = struct
 end
 
 module Async_kernel_private = struct
-  module Debug       = Debug
-  module Deferred1   = Deferred1
-  module Ivar0       = Ivar0
-  module Ivar_filler = Ivar_filler
-  module Job         = Job
-  module Monitor0    = Monitor0
-  module Scheduler   = Scheduler
-  module Scheduler1  = Scheduler1
-  module Time_ns     = Time_ns
+  module Debug                        = Debug
+  module Deferred1                    = Deferred1
+  module Ivar0                        = Ivar0
+  module Ivar_filler                  = Ivar_filler
+  module Job                          = Job
+  module Monitor0                     = Monitor0
+  module Require_explicit_time_source = Require_explicit_time_source
+  module Scheduler                    = Scheduler
+  module Scheduler1                   = Scheduler1
+  module Time_ns                      = Time_ns
 end
 
 (* This test must be in this library, because it requires [return] to be inlined.  Moving

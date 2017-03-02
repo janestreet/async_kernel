@@ -7,15 +7,15 @@
 open! Core_kernel
 open! Import
 
-module Array    : module type of Deferred_array
-module List     : module type of Deferred_list
-module Map      : module type of Deferred_map
-module Memo     : module type of Deferred_memo
-module Option   : module type of Deferred_option
-module Or_error : module type of Deferred_or_error
-module Queue    : module type of Deferred_queue
-module Result   : module type of Deferred_result
-module Sequence : module type of Deferred_sequence
+module Array    = Deferred_array
+module List     = Deferred_list
+module Map      = Deferred_map
+module Memo     = Deferred_memo
+module Option   = Deferred_option
+module Or_error = Deferred_or_error
+module Queue    = Deferred_queue
+module Result   = Deferred_result
+module Sequence = Deferred_sequence
 
 type +'a t = 'a Deferred1.t [@@deriving sexp_of]
 
