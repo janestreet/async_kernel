@@ -205,13 +205,10 @@ let send_exn t ?backtrace exn =
       match t.parent with
       | Some t' -> loop t'
       | None ->
-        (* Ignore shutdown errors that reach the top. *)
-        if exn <> Shutdown
-        then (
-          (* Do not change this branch to print the exception or to exit.  Having the
-             scheduler raise an uncaught exception is the necessary behavior for programs
-             that call [Scheduler.go] and want to handle it. *)
-          Scheduler.(got_uncaught_exn (t ())) exn (!Config.task_id ())));
+        (* Do not change this branch to print the exception or to exit.  Having the
+           scheduler raise an uncaught exception is the necessary behavior for programs
+           that call [Scheduler.go] and want to handle it. *)
+        Scheduler.(got_uncaught_exn (t ())) exn (!Config.task_id ()));
   in
   loop t
 ;;

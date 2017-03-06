@@ -2,7 +2,7 @@
  ((name async_kernel)
   (public_name async_kernel)
   (libraries (core_kernel))
-  (preprocess (pps (ppx_jane -annotated-ignores -ite-check -check-doc-comments)))
+  (preprocess (pps (ppx_jane -annotated-ignores -ite-check -check-doc-comments ppx_driver.runner)))
 ))
 
 

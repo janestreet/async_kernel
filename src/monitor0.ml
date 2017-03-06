@@ -78,8 +78,6 @@ let create_with_parent ?here ?info ?name parent =
 
 let main = create_with_parent ~name:"main" None
 
-exception Shutdown
-
 (* [try_with_log_exn] is defined here so that it is available via [Monitor0], because we
    don't want to expose it in [Monitor].  It is set in [Async_unix] to a function that
    logs ignored exceptions. *)
