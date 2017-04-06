@@ -11,10 +11,27 @@ open! Core_kernel
 open! Import
 
 module rec Bvar : sig
-  type 'a t =
+  type ('a, -'permission) t
+
+  (** [repr] exists so that we may hide the implementation of a [Bvar.t], and then add a
+      phantom type to it upstream.  Without this, the phantom type variable would allow
+      for anything to be coerced in and out, since it is unused. *)
+  type 'a repr =
     { mutable has_any_waiters : bool
     ; mutable ivar            : 'a Ivar.t }
-end = Bvar
+
+  val of_repr : 'a repr -> ('a, 'permission) t
+  val to_repr : ('a, 'permission) t -> 'a repr
+end = struct
+  type 'a repr =
+    { mutable has_any_waiters : bool
+    ; mutable ivar            : 'a Ivar.t }
+
+  type ('a, 'permission) t = 'a repr
+
+  let to_repr t = t
+  let of_repr t = t
+end
 
 and Cell : sig
   type any =
@@ -129,8 +146,8 @@ and Scheduler : sig
     ; mutable thread_safe_external_job_hook       : unit -> unit
     ; mutable job_queued_hook                     : (Priority.t -> unit) option
     ; mutable event_added_hook                    : (Time_ns.t -> unit) option
-    ; mutable yield                               : unit Bvar.t
-    ; mutable yield_until_no_jobs_remain          : unit Bvar.t
+    ; mutable yield                               : (unit, read_write) Bvar.t
+    ; mutable yield_until_no_jobs_remain          : (unit, read_write) Bvar.t
     ; mutable check_invariants                    : bool
     ; mutable max_num_jobs_per_priority_per_cycle : Max_num_jobs_per_priority_per_cycle.t
     ; mutable record_backtraces                   : bool

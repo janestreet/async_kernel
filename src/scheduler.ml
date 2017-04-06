@@ -104,7 +104,12 @@ let add_finalizer t heap_block f =
   if Debug.finalizers then (Debug.log_string "adding finalizer");
   (* We use [Caml.Gc.finalise] instead of [Core_kernel.Gc.add_finalizer] because the latter
      has its own wrapper around [Caml.Gc.finalise] to run finalizers synchronously. *)
-  Caml.Gc.finalise finalizer heap_block;
+  try
+    Caml.Gc.finalise finalizer heap_block
+  with Invalid_argument _ ->
+    (* [Heap_block] ensures that this will only fail for static data, in which case we
+       can drop the finalizer since the block will never be collected.*)
+    ()
 ;;
 
 let add_finalizer_exn t x f =
@@ -254,7 +259,7 @@ module Very_low_priority_work = struct
       | Finished     -> run_workers t        ~num_execs_before_yielding
       | Not_finished -> run_worker  t worker ~num_execs_before_yielding
       | exception exn ->
-        let bt = Exn.backtrace () in
+        let bt = Backtrace.Exn.most_recent () in
         Monitor.send_exn (Monitor.current ()) exn ~backtrace:(`This bt);
         run_workers t ~num_execs_before_yielding)
   ;;

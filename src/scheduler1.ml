@@ -31,8 +31,8 @@ module Bvar = struct
   open Types.Bvar
 
   let create () =
-    { has_any_waiters = false
-    ; ivar            = Ivar.create () }
+    of_repr { has_any_waiters = false
+            ; ivar            = Ivar.create () }
   ;;
 end
 
@@ -108,8 +108,8 @@ type t = Scheduler0.t =
   ; mutable job_queued_hook                     : (Priority.t -> unit) option
   ; mutable event_added_hook                    : (Time_ns.t  -> unit) option
 
-  ; mutable yield                               : unit Types.Bvar.t sexp_opaque
-  ; mutable yield_until_no_jobs_remain          : unit Types.Bvar.t sexp_opaque
+  ; mutable yield                               : (unit, read_write) Types.Bvar.t sexp_opaque
+  ; mutable yield_until_no_jobs_remain          : (unit, read_write) Types.Bvar.t sexp_opaque
 
   (* configuration*)
   ; mutable check_invariants                    : bool

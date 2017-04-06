@@ -165,6 +165,6 @@ let run_jobs (type a) t scheduler =
     (* We call [Exn.backtrace] immediately after catching an unhandled exception, to
        ensure there is no intervening code that interferes with the global backtrace
        state. *)
-    let backtrace = Exn.backtrace () in
+    let backtrace = Backtrace.Exn.most_recent () in
     Error (exn, backtrace)
 ;;

@@ -7,22 +7,24 @@
 
     Another way to view [Bvar] is as a restriction of [Condition] that supports only
     broadcast, not [signal]ing a single waiter.  Dropping [signal] simplifies the
-    implementation significantly. *)
+    implementation significantly.
+
+    The ['permissions] parameter is used read/write permissions.  Also see [Perms]. *)
 
 open! Core_kernel
 open! Import
 
-type 'a t = 'a Types.Bvar.t [@@deriving sexp_of]
+type ('a, -'permissions) t = ('a, 'permissions) Types.Bvar.t [@@deriving sexp_of]
 
-include Invariant.S1 with type 'a t := 'a t
+include Invariant.S2 with type ('a, 'permissions) t := ('a, 'permissions) t
 
-val create : unit -> 'a t
+val create : unit -> ('a, read_write) t
 
 (** [wait t] becomes determined by the next call to [broadcast t a]. *)
-val wait : 'a t -> 'a Deferred0.t
+val wait : ('a, [> read]) t -> 'a Deferred0.t
 
-val broadcast : 'a t -> 'a -> unit
+val broadcast : ('a, [> write]) t -> 'a -> unit
 
 (** [has_any_waiters t] returns [true] iff there has been a call to [wait t] since the
     most recent call to [broadcast t]. *)
-val has_any_waiters : 'a t -> bool
+val has_any_waiters : ('a, _) t -> bool

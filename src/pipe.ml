@@ -932,7 +932,7 @@ let filter_map ?max_queue_length input ~f =
     k (Queue.filter_map q ~f:(fun x -> if is_read_closed input then None else (f x))))
 ;;
 
-let fold_filter_map ?max_queue_length input ~init ~f =
+let folding_filter_map ?max_queue_length input ~init ~f =
   let accum = ref init in
   filter_map ?max_queue_length input ~f:(fun x ->
     let a, x = f !accum x in
@@ -940,12 +940,16 @@ let fold_filter_map ?max_queue_length input ~init ~f =
     x)
 ;;
 
-let fold_map ?max_queue_length input ~init ~f =
+let fold_filter_map = folding_filter_map
+
+let folding_map ?max_queue_length input ~init ~f =
   fold_filter_map ?max_queue_length input ~init
     ~f:(fun accum a ->
       let accum, b = f accum a in
       accum, Some b)
 ;;
+
+let fold_map = folding_map
 
 let filter input ~f = filter_map input ~f:(fun x -> if f x then (Some x) else None)
 

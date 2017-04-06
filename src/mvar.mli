@@ -83,3 +83,9 @@ val taken : (_, [> write]) t -> unit Deferred.t
     t].  [peek_exn t] is like [peek], except it raises if [is_empty t]. *)
 val peek     : ('a, [> read]) t -> 'a option
 val peek_exn : ('a, [> read]) t -> 'a
+
+(** [pipe_when_ready t] returns a pipe, then repeatedly takes a value from [t] and writes
+    it to the pipe.  After each write, [pipe_when_ready] waits for the pipe to be ready to
+    accept another value before taking the next value.  Once the pipe is closed,
+    [pipe_when_ready] will no longer take values from [t]. *)
+val pipe_when_ready : ('a, [> read]) t -> 'a Pipe.Reader.t

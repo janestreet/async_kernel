@@ -116,8 +116,8 @@ val is_dead : (_, _) T2.t -> bool
     is raised to the monitor in effect when [at_kill] was called. *)
 val at_kill : ('a, _) T2.t -> ('a -> unit Deferred.t) -> unit
 
-(** [cleaned t] becomes determined after [t] is killed and all of its [at_kill] clean
-    functions have completed. *)
+(** [cleaned t] becomes determined after [t] is killed, all its running jobs have
+    completed, and all [at_kill] clean functions have completed. *)
 val cleaned : (_, _) T2.t -> unit Deferred.t
 
 (** A sequencer is a throttle that is specialized to only allow one job at a time and to,

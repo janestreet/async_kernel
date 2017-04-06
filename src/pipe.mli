@@ -592,14 +592,22 @@ val map'
 (** [map] is like [map'], except that it processes one element at time. *)
 val map : 'a Reader.t -> f:('a -> 'b) -> 'b Reader.t
 
-(** [fold_map] is a combination of [fold] and [map] that threads an accumulator through
-    calls to [f]. *)
+(** [folding_map] is a version of [map] that threads an accumulator through calls to [f].
+*)
+val folding_map
+  :  ?max_queue_length : int  (** default is [Int.max_value] *)
+  -> 'a Reader.t
+  -> init              : 'accum
+  -> f                 : ('accum -> 'a -> 'accum * 'b)
+  -> 'b Reader.t
+
 val fold_map
   :  ?max_queue_length : int  (** default is [Int.max_value] *)
   -> 'a Reader.t
   -> init              : 'accum
   -> f                 : ('accum -> 'a -> 'accum * 'b)
   -> 'b Reader.t
+[@@deprecated "[since 2017-03] Use folding_map instead"]
 
 (** [filter_map' input ~f] returns a reader, [output], and repeatedly applies [f] to
     elements from [input], with the results that aren't [None] appearing in [output].  If
@@ -619,14 +627,22 @@ val filter_map
   -> f:('a -> 'b option)
   -> 'b Reader.t
 
-(** [fold_filter_map] is a combination of [fold] and [filter_map] that threads an
-    accumulator through calls to [f]. *)
+(** [folding_filter_map] is a version [filter_map] that threads an accumulator through
+    calls to [f]. *)
+val folding_filter_map
+  :  ?max_queue_length : int  (** default is [Int.max_value] *)
+  -> 'a Reader.t
+  -> init              : 'accum
+  -> f                 : ('accum -> 'a -> 'accum * 'b option)
+  -> 'b Reader.t
+
 val fold_filter_map
   :  ?max_queue_length : int  (** default is [Int.max_value] *)
   -> 'a Reader.t
   -> init              : 'accum
   -> f                 : ('accum -> 'a -> 'accum * 'b option)
   -> 'b Reader.t
+[@@deprecated "[since 2017-03] Use folding_filter_map instead"]
 
 (** [filter input ~f] returns a reader, [output], and copies to [output] each element from
     [input] that satisfies the predicate [f].  If [output] is closed, then [filter] closes

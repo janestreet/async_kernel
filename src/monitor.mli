@@ -103,7 +103,7 @@ val has_seen_error : t -> bool
 (** [send_exn t exn ?backtrace] sends the exception [exn] as an error to be handled by
     monitor [t].  By default, the error will not contain a backtrace.  However, the caller
     can supply one using [`This], or use [`Get] to request that [send_exn] obtain one
-    using [Exn.backtrace ()]. *)
+    using [Backtrace.Exn.most_recent ()]. *)
 val send_exn : t -> ?backtrace:[ `Get | `This of string ] -> exn -> unit
 
 (** [try_with f] runs [f ()] in a monitor and returns the result as [Ok x] if [f] finishes

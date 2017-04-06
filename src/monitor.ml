@@ -179,7 +179,7 @@ let send_exn t ?backtrace exn =
       let backtrace =
         match backtrace with
         | None -> []
-        | Some `Get -> String.split_lines (Exn.backtrace ())
+        | Some `Get -> String.split_lines (Backtrace.Exn.most_recent ())
         | Some (`This b) -> String.split_lines b
       in
       let backtrace_history = (current_execution_context ()).backtrace_history in

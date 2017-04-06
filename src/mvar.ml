@@ -4,7 +4,7 @@ open! Deferred_std
 
 type ('a, 'phantom) t =
   { current_value           : 'a Moption.t
-  ; taken                   : unit Bvar.t
+  ; taken                   : (unit, read_write) Bvar.t
   ; mutable value_available : unit Ivar.t }
 [@@deriving fields, sexp_of]
 
@@ -17,7 +17,7 @@ let invariant invariant_a _ (t : _ t) =
     let check f = Invariant.check_field t f in
     Fields.iter
       ~current_value:(check (Moption.invariant invariant_a))
-      ~taken:(check (Bvar.invariant Unit.invariant))
+      ~taken:(check (Bvar.invariant Unit.invariant ignore))
       ~value_available:(check (fun value_available ->
         [%test_result: bool] (Ivar.is_full value_available)
           ~expect:(Moption.is_some t.current_value))))
@@ -99,4 +99,21 @@ let rec put t v =
   else (
     let%bind () = taken t in
     put t v)
+;;
+
+let pipe_when_ready t =
+  let (r, w) = Pipe.create () in
+  let rec loop () =
+    let%bind () = value_available t in
+    if not (Pipe.is_closed w)
+    then (
+      match take_now t with
+      | None -> loop ()
+      | Some x ->
+        let%bind () = Pipe.write w x in
+        loop ())
+    else (return ())
+  in
+  don't_wait_for(loop ());
+  r
 ;;
