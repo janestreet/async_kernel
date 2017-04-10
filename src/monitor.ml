@@ -97,7 +97,7 @@ let create ?here ?info ?name () =
 module Exn_for_monitor = struct
   type t =
     { exn               : exn
-    ; backtrace         : string list
+    ; backtrace         : Backtrace.t option
     ; backtrace_history : Backtrace.t list
     ; monitor           : Monitor.t }
 
@@ -143,7 +143,13 @@ module Exn_for_monitor = struct
       | None    , Some name -> [sprintf "Caught by monitor %s" name]
       | Some pos, Some name -> [sprintf "Caught by monitor %s at %s" name pos]
     in
-    let backtrace = backtrace_truncation_heuristics backtrace @ monitor in
+    let backtrace =
+      let backtrace =
+        match backtrace with
+        | None -> []
+        | Some backtrace -> Backtrace.to_string_list backtrace
+      in
+      backtrace_truncation_heuristics backtrace @ monitor in
     let list_if_not_empty = function [] -> None | _ :: _ as l -> Some l in
     [%sexp
       (exn : exn),
@@ -178,9 +184,9 @@ let send_exn t ?backtrace exn =
     | _ ->
       let backtrace =
         match backtrace with
-        | None -> []
-        | Some `Get -> String.split_lines (Backtrace.Exn.most_recent ())
-        | Some (`This b) -> String.split_lines b
+        | None -> None
+        | Some `Get -> Some (Backtrace.Exn.most_recent ())
+        | Some (`This b) -> Some b
       in
       let backtrace_history = (current_execution_context ()).backtrace_history in
       Error_ { Exn_for_monitor. exn; backtrace; backtrace_history; monitor = t }
