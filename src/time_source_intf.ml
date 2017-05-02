@@ -107,34 +107,52 @@ module type Time_source = sig
 
     val scheduled_at : (_, _) t -> Time_ns.t
 
-    val status
-      : ('a, 'h) t -> [ `Aborted      of 'a
-                      | `Happened     of 'h
-                      | `Scheduled_at of Time_ns.t ]
+    module Status : sig
+      type ('a, 'h) t =
+        | Aborted      of 'a
+        | Happened     of 'h
+        | Scheduled_at of Time_ns.t
+      [@@deriving sexp_of]
+    end
+
+    val status : ('a, 'h) t -> ('a, 'h) Status.t
 
     val run_at    : [> read] T1.t -> Time_ns.     t -> ('z -> 'h) -> 'z -> (_, 'h) t
     val run_after : [> read] T1.t -> Time_ns.Span.t -> ('z -> 'h) -> 'z -> (_, 'h) t
 
-    val abort : ('a, 'h) t -> 'a -> [ `Ok
-                                    | `Previously_aborted  of 'a
-                                    | `Previously_happened of 'h ]
+    module Abort_result : sig
+      type ('a, 'h) t =
+        | Ok
+        | Previously_aborted  of 'a
+        | Previously_happened of 'h
+      [@@deriving sexp_of]
+    end
+
+    val abort : ('a, 'h) t -> 'a -> ('a, 'h) Abort_result.t
 
     val abort_exn : ('a, 'h) t -> 'a -> unit
 
     val abort_if_possible : ('a, _) t -> 'a -> unit
 
-    val fired : ('a, 'h) t -> [ `Aborted of 'a | `Happened of 'h ] Deferred.t
+    module Fired : sig
+      type ('a, 'h) t =
+        | Aborted  of 'a
+        | Happened of 'h
+      [@@deriving sexp_of]
+    end
 
-    val reschedule_at
-      : ('a, 'h) t -> Time_ns.t      -> [ `Ok
-                                        | `Previously_aborted     of 'a
-                                        | `Previously_happened    of 'h
-                                        | `Too_late_to_reschedule ]
-    val reschedule_after
-      : ('a, 'h) t -> Time_ns.Span.t -> [ `Ok
-                                        | `Previously_aborted     of 'a
-                                        | `Previously_happened    of 'h
-                                        | `Too_late_to_reschedule ]
+    val fired : ('a, 'h) t -> ('a, 'h) Fired.t Deferred.t
+
+    module Reschedule_result : sig
+      type ('a, 'h) t =
+        | Ok
+        | Previously_aborted  of 'a
+        | Previously_happened of 'h
+      [@@deriving sexp_of]
+    end
+
+    val reschedule_at    : ('a, 'h) t -> Time_ns.t      -> ('a, 'h) Reschedule_result.t
+    val reschedule_after : ('a, 'h) t -> Time_ns.Span.t -> ('a, 'h) Reschedule_result.t
 
     val at    : [> read] T1.t -> Time_ns.t      -> (_, unit) t
     val after : [> read] T1.t -> Time_ns.Span.t -> (_, unit) t

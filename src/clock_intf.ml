@@ -59,34 +59,39 @@ module type Clock = sig
 
     val scheduled_at : (_, _) t -> Time.t
 
-    (** If [status] returns [`Scheduled_at time], it is possible that [time < Time.now
-        ()], if Async's scheduler hasn't yet gotten the chance to update its clock, e.g.
-        due to user jobs running. *)
-    val status
-      : ('a, 'h) t -> [ `Aborted      of 'a
-                      | `Happened     of 'h
-                      | `Scheduled_at of Time.t ]
+    module Status : sig
+      type ('a, 'h) t =
+        | Aborted      of 'a
+        | Happened     of 'h
+        | Scheduled_at of Time.t
+      [@@deriving sexp_of]
+    end
+
+    (** If [status] returns [Scheduled_at time], it is possible that [time < Time.now ()],
+        if Async's scheduler hasn't yet gotten the chance to update its clock, e.g.  due
+        to user jobs running. *)
+    val status : ('a, 'h) t -> ('a, 'h) Status.t
 
     (** Let [t = run_at time f z].  At [time], this runs [f z] and transitions [status t]
-        to [`Happened h], where [h] is result of [f z].
+        to [Happened h], where [h] is result of [f z].
 
         More precisely, at [time], provided [abort t a] has not previously been called,
-        this will call [f z], with the guarantee that [status t = `Scheduled_at time].  If
-        [f z] returns [h] and did not call [abort t a], then [status t] becomes [`Happened
+        this will call [f z], with the guarantee that [status t = Scheduled_at time].  If
+        [f z] returns [h] and did not call [abort t a], then [status t] becomes [Happened
         h].  If [f z] calls [abort t a], then the result of [f] is ignored, and [status t]
-        is [`Aborted a].
+        is [Aborted a].
 
-        If [f z] raises, then [status t] does not transition and remains [`Scheduled_at
+        If [f z] raises, then [status t] does not transition and remains [Scheduled_at
         time], and the exception is sent to the monitor in effect when [run_at] was
         called. *)
     val run_at    : Time.     t -> ('z -> 'h) -> 'z -> (_, 'h) t
     val run_after : Time.Span.t -> ('z -> 'h) -> 'z -> (_, 'h) t
 
-    (** [abort t] changes [status t] to [`Aborted] and returns [`Ok], unless [t]
+    module Abort_result = Time_source.Event.Abort_result
+
+    (** [abort t] changes [status t] to [Aborted] and returns [Ok], unless [t]
         previously happened or was previously aborted. *)
-    val abort : ('a, 'h) t -> 'a -> [ `Ok
-                                    | `Previously_aborted  of 'a
-                                    | `Previously_happened of 'h ]
+    val abort : ('a, 'h) t -> 'a -> ('a, 'h) Abort_result.t
 
     (** [abort_exn t a] returns unit if [abort t a = `Ok], and otherwise raises. *)
     val abort_exn : ('a, 'h) t -> 'a -> unit
@@ -94,32 +99,25 @@ module type Clock = sig
     (** [abort_if_possible t a = ignore (abort t a)]. *)
     val abort_if_possible : ('a, _) t -> 'a -> unit
 
-    val fired : ('a, 'h) t -> [ `Aborted of 'a | `Happened of 'h ] Deferred.t
+    module Fired = Time_source.Event.Fired
+
+    val fired : ('a, 'h) t -> ('a, 'h) Fired.t Deferred.t
+
+    module Reschedule_result = Time_source.Event.Reschedule_result
 
     (** [reschedule_at t] and [reschedule_after t] change the time that [t] will fire, if
-        possible, and if not, give a reason why.  [`Too_late_to_reschedule] means that the
-        Async job to fire [t] has been enqueued, but has not yet run.
-
-        Like [run_at], if the requested time is in the past, the event will be scheduled
-        to run immediately.  If [reschedule_at t time = `Ok], then subsequently
-        [scheduled_at t = time].  *)
-    val reschedule_at
-      : ('a, 'h) t -> Time.t      -> [ `Ok
-                                     | `Previously_aborted     of 'a
-                                     | `Previously_happened    of 'h
-                                     | `Too_late_to_reschedule ]
-    val reschedule_after
-      : ('a, 'h) t -> Time.Span.t -> [ `Ok
-                                     | `Previously_aborted     of 'a
-                                     | `Previously_happened    of 'h
-                                     | `Too_late_to_reschedule ]
+        possible, and if not, give a reason why.  Like [run_at], if the requested time is
+        in the past, the event will be scheduled to run immediately.  If [reschedule_at t
+        time = Ok], then subsequently [scheduled_at t = time].  *)
+    val reschedule_at    : ('a, 'h) t -> Time.t      -> ('a, 'h) Reschedule_result.t
+    val reschedule_after : ('a, 'h) t -> Time.Span.t -> ('a, 'h) Reschedule_result.t
 
     (** [at time]    is [run_at    time ignore ()].
         [after time] is [run_after time ignore ()].
 
         You should generally prefer to use the [run_*] functions, which allow one to
         synchronously update state via a user-supplied function when the event
-        transitions to [`Happened].  That is, there is an important difference between:
+        transitions to [Happened].  That is, there is an important difference between:
 
         {[
           let t = run_at time f () ]}
@@ -130,10 +128,10 @@ module type Clock = sig
           let t = at time in
           fired t
           >>> function
-          | `Happened () -> f ()
-          | `Aborted () -> () ]}
+          | Happened () -> f ()
+          | Aborted () -> () ]}
 
-        With [run_at], if [status t = `Happened], one knows that [f] has run.  With [at]
+        With [run_at], if [status t = Happened], one knows that [f] has run.  With [at]
         and [fired], one does not know whether [f] has yet run; it may still be scheduled
         to run.  Thus, with [at] and [fired], it is easy to introduce a race.  For
         example, consider these two code snippets:
@@ -141,23 +139,23 @@ module type Clock = sig
         {[
           let t = Event.after (sec 2.) in
           upon (Event.fired t) (function
-            | `Aborted () -> ()
-            | `Happened () -> printf "Timer fired");
+            | Aborted () -> ()
+            | Happened () -> printf "Timer fired");
           upon deferred_event (fun () ->
             match Event.abort t () with
-            | `Ok -> printf "Event occurred"
-            | `Previously_aborted () -> assert false
-            | `Previously_happened () -> printf "Event occurred after timer fired"); ]}
+            | Ok -> printf "Event occurred"
+            | Previously_aborted () -> assert false
+            | Previously_happened () -> printf "Event occurred after timer fired"); ]}
 
         {[
           let t = Event.run_after (sec 2.) printf "Timer fired" in
           upon deferred_event (fun () ->
             match Event.abort t () with
-            | `Ok -> printf "Event occurred"
-            | `Previously_aborted () -> assert false
-            | `Previously_happened () -> printf "Event occurred after timer fired"); ]}
+            | Ok -> printf "Event occurred"
+            | Previously_aborted () -> assert false
+            | Previously_happened () -> printf "Event occurred after timer fired"); ]}
 
-        In both snippets, if [Event.abort] returns [`Ok], "Timer fired" is never printed.
+        In both snippets, if [Event.abort] returns [Ok], "Timer fired" is never printed.
         However, the first snippet might print "Event occurred after timer fired" and then
         "Timer fired".  This confused ordering cannot happen with [Event.run_after]. *)
     val at    : Time.t      -> (_, unit) t
@@ -300,10 +298,15 @@ module type Clock_deprecated = sig
     val scheduled_at : (_, _) t -> Time.t
     [@@deprecated "[since 2016-02] Use [Time_source]"]
 
-    val status
-      : ('a, 'h) t -> [ `Aborted      of 'a
-                      | `Happened     of 'h
-                      | `Scheduled_at of Time.t ]
+    module Status : sig
+      type ('a, 'h) t =
+        | Aborted      of 'a
+        | Happened     of 'h
+        | Scheduled_at of Time.t
+      [@@deriving sexp_of]
+    end
+
+    val status : ('a, 'h) t -> ('a, 'h) Status.t
     [@@deprecated "[since 2016-02] Use [Time_source]"]
 
     val run_at    : Time.     t -> ('z -> 'h) -> 'z -> (_, 'h) t
@@ -312,9 +315,9 @@ module type Clock_deprecated = sig
     val run_after : Time.Span.t -> ('z -> 'h) -> 'z -> (_, 'h) t
     [@@deprecated "[since 2016-02] Use [Time_source]"]
 
-    val abort : ('a, 'h) t -> 'a -> [ `Ok
-                                    | `Previously_aborted  of 'a
-                                    | `Previously_happened of 'h ]
+    module Abort_result = Time_source.Event.Abort_result
+
+    val abort : ('a, 'h) t -> 'a -> ('a, 'h) Abort_result.t
     [@@deprecated "[since 2016-02] Use [Time_source]"]
 
     val abort_exn : ('a, 'h) t -> 'a -> unit
@@ -323,21 +326,19 @@ module type Clock_deprecated = sig
     val abort_if_possible : ('a, _) t -> 'a -> unit
     [@@deprecated "[since 2016-02] Use [Time_source]"]
 
-    val fired : ('a, 'h) t -> [ `Aborted of 'a | `Happened of 'h ] Deferred.t
+    module Fired = Time_source.Event.Fired
+
+    val fired : ('a, 'h) t -> ('a, 'h) Fired.t Deferred.t
     [@@deprecated "[since 2016-02] Use [Time_source]"]
 
+    module Reschedule_result = Time_source.Event.Reschedule_result
+
     val reschedule_at
-      : ('a, 'h) t -> Time.t      -> [ `Ok
-                                     | `Previously_aborted     of 'a
-                                     | `Previously_happened    of 'h
-                                     | `Too_late_to_reschedule ]
+      : ('a, 'h) t -> Time.t      -> ('a, 'h) Reschedule_result.t
     [@@deprecated "[since 2016-02] Use [Time_source]"]
 
     val reschedule_after
-      : ('a, 'h) t -> Time.Span.t -> [ `Ok
-                                     | `Previously_aborted     of 'a
-                                     | `Previously_happened    of 'h
-                                     | `Too_late_to_reschedule ]
+      : ('a, 'h) t -> Time.Span.t -> ('a, 'h) Reschedule_result.t
     [@@deprecated "[since 2016-02] Use [Time_source]"]
 
     val at    : Time.t      -> (_, unit) t

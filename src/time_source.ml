@@ -148,18 +148,31 @@ let remove_alarm_if_scheduled t alarm =
 ;;
 
 module Event = struct
+  module Fired = struct
+    type ('a, 'h) t =
+      | Aborted  of 'a
+      | Happened of 'h
+    [@@deriving sexp_of]
+  end
+
   type ('a, 'h) t =
-    { alarm                : Job.t Alarm.t
-    (* [scheduled_at] is the time at which [t] has most recently been scheduled to fire.
-       While [t.alarm] is still in the timing wheel, this is the same as [Alarm.at
-       t.alarm]. *)
-    ; mutable scheduled_at : Time_ns.t
+    { mutable alarm             : Job.t Alarm.t
+    ; mutable fire              : (unit -> unit)
     (* As long as [Ivar.is_empty fired], we have not yet committed to whether the event
        will happen or be aborted.  When [Ivar.is_empty fired], the alarm may or may not be
        in the timing wheel -- if it isn't, then there's a job in Async's job queue that
        will fire the event, unless it is aborted before that job can run. *)
-    ; fired                : [ `Aborted of 'a | `Happened of 'h ] Ivar.t
-    ; time_source          : Time_source.t }
+    ; fired                     : ('a, 'h) Fired.t Ivar.t
+    (* [num_fires_to_skip] is used to reschedule events that have fired and entered the
+       Async job queue, but have not yet run.  Those jobs only run if [num_fires_to_skip =
+       0], and otherwise just decrement it.  So, to reschedule an event in such a state,
+       we increment [num_fires_to_skip] and add a new alarm to the timing wheel. *)
+    ; mutable num_fires_to_skip : int
+    (* [scheduled_at] is the time at which [t] has most recently been scheduled to fire.
+       While [t.alarm] is still in the timing wheel, this is the same as [Alarm.at
+       t.alarm]. *)
+    ; mutable scheduled_at      : Time_ns.t
+    ; time_source               : Time_source.t }
   [@@deriving fields, sexp_of]
 
   type t_unit = (unit, unit) t [@@deriving sexp_of]
@@ -174,76 +187,108 @@ module Event = struct
         ~alarm:(check (fun alarm ->
           if Ivar.is_full t.fired
           then (assert (not (Timing_wheel_ns.mem events alarm)))))
+        ~fire:ignore
+        ~fired:(check (fun (fired : _ Fired.t Ivar.t) ->
+          match Deferred.peek (Ivar.read fired) with
+          | None -> ()
+          | Some (Aborted a)  -> invariant_a a
+          | Some (Happened h) -> invariant_h h))
+        ~num_fires_to_skip:(check (fun num_fires_to_skip ->
+          assert (num_fires_to_skip >= 0)))
         ~scheduled_at:(check (fun scheduled_at ->
           if Timing_wheel_ns.mem events t.alarm
           then ([%test_result: Time_ns.t] scheduled_at
                   ~expect:(Alarm.at events t.alarm))))
-        ~fired:(check (fun fired ->
-          match Deferred.peek (Ivar.read fired) with
-          | None -> ()
-          | Some (`Aborted a)  -> invariant_a a
-          | Some (`Happened h) -> invariant_h h))
         ~time_source:ignore)
   ;;
 
-  let status t =
+  module Status = struct
+    type ('a, 'h) t =
+      | Aborted      of 'a
+      | Happened     of 'h
+      | Scheduled_at of Time_ns.t
+    [@@deriving sexp_of]
+  end
+
+  let status t : _ Status.t =
     match Deferred.peek (Ivar.read t.fired) with
-    | None -> `Scheduled_at t.scheduled_at
-    | Some x -> (x :> [ `Happened of _ | `Aborted of _ | `Scheduled_at of Time_ns.t ])
+    | None -> Scheduled_at t.scheduled_at
+    | Some (Aborted  a) -> Aborted  a
+    | Some (Happened h) -> Happened h
   ;;
 
-  let abort t a =
+  module Abort_result = struct
+    type ('a, 'h) t =
+      | Ok
+      | Previously_aborted  of 'a
+      | Previously_happened of 'h
+    [@@deriving sexp_of]
+  end
+
+  let abort t a : _ Abort_result.t =
     if debug then (Debug.log "Time_source.Event.abort" t [%sexp_of: (_, _) t]);
     match Deferred.peek (fired t) with
-    | Some (`Aborted  a) -> `Previously_aborted  a
-    | Some (`Happened h) -> `Previously_happened h
+    | Some (Aborted  a) -> Previously_aborted  a
+    | Some (Happened h) -> Previously_happened h
     | None ->
-      Ivar.fill t.fired (`Aborted a);
+      Ivar.fill t.fired (Aborted a);
       remove_alarm_if_scheduled t.time_source t.alarm;
-      `Ok
+      Ok
   ;;
 
   let abort_exn t a =
     match abort t a with
-    | `Ok -> ()
-    | `Previously_happened _ ->
+    | Ok -> ()
+    | Previously_happened _ ->
       raise_s [%message
         "Clock.Event.abort_exn failed to abort event that previously happened"]
-    | `Previously_aborted _ ->
+    | Previously_aborted _ ->
       raise_s [%message
         "Clock.Event.abort_exn failed to abort event that previously aborted"]
   ;;
 
   let abort_if_possible t a =
-    ignore (abort t a : [ `Ok | `Previously_aborted of _ | `Previously_happened of _ ]);
+    ignore (abort t a : _ Abort_result.t);
   ;;
 
-  let reschedule_at t at =
+  let schedule t =
+    t.alarm <- run_at_internal t.time_source t.scheduled_at t.fire ();
+  ;;
+
+  module Reschedule_result = struct
+    type ('a, 'h) t =
+      | Ok
+      | Previously_aborted  of 'a
+      | Previously_happened of 'h
+    [@@deriving sexp_of]
+  end
+
+  let reschedule_at t at : _ Reschedule_result.t =
     if debug
     then (
       Debug.log "Time_source.Event.reschedule_at" (t, at)
         [%sexp_of: (_, _) t * Time_ns.t]);
     match Deferred.peek (fired t) with
-    | Some (`Aborted  a) -> `Previously_aborted  a
-    | Some (`Happened h) -> `Previously_happened h
+    | Some (Aborted  a) -> Previously_aborted  a
+    | Some (Happened h) -> Previously_happened h
     | None ->
       let events = t.time_source.events in
       let is_in_timing_wheel = Timing_wheel_ns.mem events t.alarm in
       let am_trying_to_reschedule_in_the_future =
         Time_ns.( > ) at (Timing_wheel_ns.now events)
       in
-      if am_trying_to_reschedule_in_the_future && not is_in_timing_wheel
-      then `Too_late_to_reschedule
-      else (
-        t.scheduled_at <- at;
-        if is_in_timing_wheel
-        then (
-          if am_trying_to_reschedule_in_the_future
-          then (Timing_wheel_ns.reschedule events t.alarm ~at)
-          else (
-            t.time_source.handle_fired t.alarm;
-            Timing_wheel_ns.remove events t.alarm));
-        `Ok);;
+      t.scheduled_at <- at;
+      (match am_trying_to_reschedule_in_the_future, is_in_timing_wheel with
+       | false, false -> ()
+       | false, true ->
+         t.time_source.handle_fired t.alarm;
+         Timing_wheel_ns.remove events t.alarm;
+       | true, false ->
+         t.num_fires_to_skip <- t.num_fires_to_skip + 1;
+         schedule t;
+       | true, true ->
+         Timing_wheel_ns.reschedule events t.alarm ~at);
+      Ok
   ;;
 
   let reschedule_after t span = reschedule_at t (span_to_time t.time_source span)
@@ -251,18 +296,27 @@ module Event = struct
   let run_at time_source scheduled_at f z =
     if debug
     then (Debug.log "Time_source.Event.run_at" scheduled_at [%sexp_of: Time_ns.t]);
-    let fired = Ivar.create () in
-    let fire z =
+    let t =
+      { alarm             = Alarm.null ()
+      ; fire              = ignore (* set below *)
+      ; fired             = Ivar.create ()
+      ; num_fires_to_skip = 0
+      ; scheduled_at
+      ; time_source       = read_only time_source } in
+    let fire () =
       (* [fire] runs in an Async job.  The event may have been aborted after the job
          was enqueued, so [fire] must check [fired]. *)
-      if Ivar.is_empty fired
+      if Ivar.is_empty t.fired
       then (
-        let result = f z in
-        (* [f z] may have aborted the event, so we must check [fired] again. *)
-        if Ivar.is_empty fired then (Ivar.fill fired (`Happened result)));
-    in
-    let alarm = run_at_internal time_source scheduled_at fire z in
-    { alarm; scheduled_at; fired; time_source = read_only time_source }
+        if t.num_fires_to_skip > 0
+        then (t.num_fires_to_skip <- t.num_fires_to_skip - 1)
+        else (
+          let result = f z in
+          (* [f z] may have aborted the event, so we must check [fired] again. *)
+          if Ivar.is_empty t.fired then (Ivar.fill t.fired (Happened result)))) in
+    t.fire <- fire;
+    schedule t;
+    t
   ;;
 
   let at time_source time = run_at time_source time ignore ()
@@ -407,15 +461,15 @@ let with_timeout t span d =
        [with_timeout]. *)
     [ choice d (fun v ->
         begin match Event.abort timeout () with
-        (* [`Previously_happened] can occur if both [d] and [wait] become determined at
+        (* [Previously_happened] can occur if both [d] and [wait] become determined at
            the same time, e.g. [with_timeout (sec 0.) (return ())]. *)
-        | `Ok | `Previously_happened () -> ()
-        | `Previously_aborted () ->
+        | Ok | Previously_happened () -> ()
+        | Previously_aborted () ->
           raise_s [%message "Time_source.with_timeout bug: should only abort once"]
         end;
         `Result v)
     ; choice (Event.fired timeout) (function
-        | `Happened () -> `Timeout
-        | `Aborted  () ->
+        | Happened () -> `Timeout
+        | Aborted  () ->
           raise_s [%message "Time_source.with_timeout bug: both completed and timed out"]) ]
 ;;
