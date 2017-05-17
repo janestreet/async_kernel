@@ -19,6 +19,7 @@
 
     There are distinct [Reader] and [Writer] modules and types, but all of the operations
     on readers and writers are available directly from the [Pipe] module. *)
+
 open! Core_kernel
 
 type ('a, 'phantom) t [@@deriving sexp_of]
