@@ -134,25 +134,29 @@ module T1 = struct
   end
 
   type -'rw t =
-    { (* [am_advancing] is true only during [advance_by_alarms], and is used to cause
+    { (* [advance_errors] accumulates errors raised by alarms run by
+         [advance_by_alarms]. *)
+      mutable advance_errors : Error.t list
+    ; (* [am_advancing] is true only during [advance_by_alarms], and is used to cause
          callbacks to raise if they call [advance_by_alarms]. *)
-      mutable am_advancing : bool
-    ; events               : Event.t Timing_wheel_ns.t
+      mutable am_advancing   : bool
+    ; events                 : Event.t Timing_wheel_ns.t
     (* [fired_events] is the front of the singly linked list of fired events, which is
        stored in increasing order of [Event.at]. *)
-    ; mutable fired_events : Event.t
-    ; handle_fired         : Event.t Alarm.t -> unit
-    ; is_wall_clock        : bool
-    ; wrap_callback        : callback -> callback Staged.t }
+    ; mutable fired_events   : Event.t
+    ; handle_fired           : Event.t Alarm.t -> unit
+    ; is_wall_clock          : bool
+    ; wrap_callback          : callback -> callback Staged.t }
 
   [@@deriving fields]
 
-  let sexp_of_t _ { am_advancing  = _
+  let sexp_of_t _ { advance_errors  = _
+                  ; am_advancing    = _
                   ; events
-                  ; fired_events  = _
-                  ; handle_fired  = _
+                  ; fired_events    = _
+                  ; handle_fired    = _
                   ; is_wall_clock
-                  ; wrap_callback = _ } =
+                  ; wrap_callback   = _ } =
     let now = Timing_wheel_ns.now events in
     if is_wall_clock
     then [%message "wall_clock" (now : Time_ns.t)]
@@ -172,6 +176,7 @@ module T1 = struct
     Invariant.invariant [%here] t [%sexp_of: _ t] (fun () ->
       let check f = Invariant.check_field t f in
       Fields.iter
+        ~advance_errors:ignore
         ~am_advancing:ignore
         ~events:(check (fun events ->
           Timing_wheel_ns.invariant ignore events;
@@ -233,7 +238,8 @@ let fire t (event : Event.t) =
 let internal_create ~is_wall_clock ~now ~timing_wheel_config ~wrap_callback =
   let events = Timing_wheel_ns.create ~config:timing_wheel_config ~start:now in
   let rec t =
-    { am_advancing  = false
+    { advance_errors  = []
+    ; am_advancing  = false
     ; events
     ; handle_fired  = (fun alarm -> fire t (Alarm.value events alarm))
     ; fired_events  = Event.none
@@ -319,7 +325,7 @@ let run_after        t span callback = ignore (Event.after        t span callbac
 let run_at           t at   callback = ignore (Event.at           t at   callback : Event.t)
 let run_at_intervals t span callback = ignore (Event.at_intervals t span callback : Event.t)
 
-let run_fired_events t ~accum_errors =
+let run_fired_events t =
   while Event.is_some t.fired_events do
     let event = t.fired_events in
     t.fired_events <- event.next_fired;
@@ -332,7 +338,7 @@ let run_fired_events t ~accum_errors =
       let status : Event.Status.t =
         match event.callback () with
         | exception exn ->
-          accum_errors := Error.of_exn exn :: !accum_errors;
+          t.advance_errors <- Error.of_exn exn :: t.advance_errors;
           Happened
         | () ->
           match event.interval with
@@ -346,18 +352,20 @@ let run_fired_events t ~accum_errors =
   done;
 ;;
 
-let advance t ~to_ ~accum_errors =
+let advance t ~to_ =
   Timing_wheel_ns.advance_clock    t.events ~to_ ~handle_fired:t.handle_fired;
   Timing_wheel_ns.fire_past_alarms t.events      ~handle_fired:t.handle_fired;
-  run_fired_events t ~accum_errors;
+  run_fired_events t
 ;;
 
 let advance_by_alarms t ~to_ =
   if t.am_advancing
   then (raise_s [%message "cannot call [advance_by_alarms] from callback"]);
   t.am_advancing <- true;
-  let accum_errors = ref [] in
-  run_fired_events t ~accum_errors;
+  (match t.advance_errors with
+   | [] -> ()
+   | _ -> t.advance_errors <- []);
+  run_fired_events t;
   let continue = ref true in
   while !continue do
     if Timing_wheel_ns.is_empty t.events
@@ -370,12 +378,13 @@ let advance_by_alarms t ~to_ =
         (* We use the actual alarm time, rather than [next_alarm_fires_at], so as not to
            expose (or accumulate errors associated with) the precision of
            [Timing_wheel_ns]. *)
-        advance t ~accum_errors
-          ~to_:(Timing_wheel_ns.max_alarm_time_in_min_interval_exn t.events)))
+        advance t ~to_:(Timing_wheel_ns.max_alarm_time_in_min_interval_exn t.events)))
   done;
-  advance t ~to_ ~accum_errors;
+  advance t ~to_;
   t.am_advancing <- false;
-  match !accum_errors with
+  match t.advance_errors with
   | [] -> Ok ()
-  | errors -> Error (Error.of_list errors)
+  | errors ->
+    t.advance_errors <- [];
+    Error (Error.of_list errors)
 ;;
