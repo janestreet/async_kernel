@@ -420,6 +420,7 @@ val read_now_at_most
 [@@deprecated "[since 2015-12] Use [read_now' ~max_queue_length"]
 
 val peek : 'a Reader.t -> 'a option
+val peek' : 'a Reader.t -> 'a Queue.t
 
 (** [clear reader] consumes all of the values currently in [reader], and all blocked
     flushes become determined with [`Ok]. *)
