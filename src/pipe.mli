@@ -58,11 +58,11 @@ end
     race between those two actions, which can easily lead to confusion or bugs.
 
     [create_writer] is symmetric.  It creates a new pipe, applies [f] to its reader end,
-    and returns its writer end.  [init] calls [close_read] when the result of [f] becomes
-    determined.  If [f] raises, [create_writer] closes the pipe and raises the exception
-    to the caller of [create_writer].  [create_writer] closes on exception, unlike
-    [create_reader] because closing closing the read end of a pipe is a signal to the
-    writer that the consumer has failed. *)
+    and returns its writer end.  [create_writer] calls [close_read] when the result of [f]
+    becomes determined.  If [f] raises, [create_writer] closes the pipe and raises the
+    exception to the caller of [create_writer].  [create_writer] closes on exception,
+    unlike [create_reader] because closing closing the read end of a pipe is a signal to
+    the writer that the consumer has failed. *)
 val create_reader
   :  close_on_exception : bool
   -> ('a Writer.t -> unit Deferred.t)

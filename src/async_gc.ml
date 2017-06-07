@@ -10,6 +10,11 @@ include Gc
 let add_finalizer     heap_block f = Scheduler.(add_finalizer     (t ())) heap_block f
 let add_finalizer_exn heap_block f = Scheduler.(add_finalizer_exn (t ())) heap_block f
 
+let add_finalizer_last heap_block f =
+  Scheduler.(add_finalizer_last (t ())) heap_block f
+let add_finalizer_last_exn heap_block f =
+  Scheduler.(add_finalizer_last_exn (t ())) heap_block f
+
 module Alarm = struct
   module Alarm = Gc.Expert.Alarm
 

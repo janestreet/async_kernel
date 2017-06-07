@@ -117,6 +117,32 @@ let add_finalizer_exn t x f =
     (fun heap_block -> f (Heap_block.value heap_block))
 ;;
 
+let add_finalizer_last t heap_block f =
+  let execution_context = current_execution_context t in
+  let finalizer () =
+    (* Here we can be in any thread, and may not be holding the async lock.  So, we can
+       only do thread-safe things. *)
+    if Debug.finalizers then
+      (Debug.log_string "enqueueing finalizer (using 'last' semantic)");
+    thread_safe_enqueue_external_job t execution_context f ();
+  in
+  if Debug.finalizers then (Debug.log_string "adding finalizer (using 'last' semantic)");
+  (* We use [Caml.Gc.finalise_last] instead of [Core_kernel.Gc.add_finalizer_last] because
+     the latter has its own wrapper around [Caml.Gc.finalise_last] to run finalizers
+     synchronously. *)
+  try
+    Caml.Gc.finalise_last finalizer heap_block
+  with Invalid_argument _ ->
+    (* [Heap_block] ensures that this will only fail for static data, in which case we
+       can drop the finalizer since the block will never be collected.*)
+    ()
+;;
+
+let add_finalizer_last_exn t x f =
+  add_finalizer_last t (Heap_block.create_exn x) f
+;;
+
+
 (** [force_current_cycle_to_end] sets the number of normal jobs allowed to run in this
     cycle to zero.  Thus, after the currently running job completes, the scheduler will
     switch to low priority jobs and then end the current cycle. *)

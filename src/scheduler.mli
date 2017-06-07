@@ -51,6 +51,9 @@ val create_alarm : t -> (unit -> unit) -> Gc.Expert.Alarm.t
 val add_finalizer     : t -> 'a Heap_block.t -> ('a Heap_block.t -> unit) -> unit
 val add_finalizer_exn : t -> 'a              -> ('a              -> unit) -> unit
 
+val add_finalizer_last     : t -> 'a Heap_block.t -> (unit -> unit) -> unit
+val add_finalizer_last_exn : t -> 'a              -> (unit -> unit) -> unit
+
 val set_thread_safe_external_job_hook : t -> (unit -> unit) -> unit
 
 val set_job_queued_hook  : t -> (Priority.t -> unit) -> unit
