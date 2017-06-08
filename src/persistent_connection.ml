@@ -185,10 +185,13 @@ module Make (Conn : T) = struct
       | None ->
         begin
           d >>= function
-          | `Close_started -> Deferred.never ()
-          | `Ok conn -> return conn
+          | `Close_started ->
+            Deferred.never ()
+          | `Ok conn ->
+            return conn
         end
-      | Some `Close_started -> Deferred.never ()
+      | Some `Close_started ->
+        Deferred.never ()
       | Some (`Ok conn) ->
         if Conn.is_closed conn
         then begin
