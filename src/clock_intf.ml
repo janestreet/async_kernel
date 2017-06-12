@@ -396,6 +396,7 @@ module type Clock_deprecated = sig
 end
 
 include (struct
+  [@@@warning "-3"]
   module F1 (C : Clock) = (C : Clock_deprecated)
   module F2 (C : Clock_deprecated) = (C : Clock)
 end : sig end)
