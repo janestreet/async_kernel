@@ -94,8 +94,9 @@ val detach_and_get_error_stream : t -> exn Tail.Stream.t
     call has detached [t], then errors will still bubble up the monitor tree. *)
 val get_next_error : t -> exn Deferred.t
 
-(** [extract_exn exn] extracts the exn from an error exn that comes from a monitor.  If it
-    is not supplied such an error exn, it returns the exn itself. *)
+(** [extract_exn exn] extracts the exn from an error exn that comes from a monitor. If it
+    is not supplied such an error exn, it returns the exn itself.  It removes the
+    backtrace from the error (see discussion in [try_with]). *)
 val extract_exn : exn -> exn
 
 (** [has_seen_error t] returns true iff the monitor has ever seen an error. *)

@@ -6,8 +6,10 @@ include Synchronous_time_source0
 let wall_clock =
   let t =
     lazy (
+      let timing_wheel_config = Config.timing_wheel_config in
+      let now = Time_ns.now () in
       let t =
-        create ~now:(Time_ns.now ()) () ~wrap_callback:(fun callback ->
+        create ~timing_wheel_config ~now () ~wrap_callback:(fun callback ->
           let monitor = Monitor.current () in
           stage (fun () ->
             try
