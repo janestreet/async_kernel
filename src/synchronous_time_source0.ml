@@ -265,6 +265,8 @@ let now t =
   else (timing_wheel_now t)
 ;;
 
+let timing_wheel_now = timing_wheel_now
+
 let schedule t (event : Event.t) =
   event.alarm <- Timing_wheel_ns.add t.events ~at:event.at event;
 ;;

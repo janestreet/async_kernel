@@ -168,16 +168,16 @@ let run_cycle t =
   List.iter t.run_every_cycle_start ~f:(fun f -> f ());
   advance_clock t ~now;
   start_cycle t ~max_num_jobs_per_priority:t.max_num_jobs_per_priority_per_cycle;
-  let rec run_jobs () =
+  let rec run_jobs t =
     match Scheduler.run_jobs t with
     | Ok () -> ()
     | Error (exn, backtrace) ->
       Monitor.send_exn (Monitor.current ()) exn ~backtrace:(`This backtrace);
       (* [run_jobs] stopped due to an exn.  There may still be jobs that could be run
          this cycle, so [run_jobs] again. *)
-      run_jobs ()
+      run_jobs t
   in
-  run_jobs ();
+  run_jobs t;
   t.last_cycle_time <- Time_ns.diff (Time_ns.now ()) t.cycle_start;
   t.last_cycle_num_jobs <- num_jobs_run t - num_jobs_run_at_start_of_cycle;
   if Bvar.has_any_waiters t.yield_until_no_jobs_remain

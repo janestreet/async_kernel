@@ -960,6 +960,13 @@ let of_list l =
   reader
 ;;
 
+let singleton x =
+  let reader, writer = create () in
+  write_without_pushback writer x;
+  close writer;
+  reader
+;;
+
 let unfold ~init:s ~f =
   (* To get some batching, we run the continuation immediately if the deferred is
      determined.  However, we always check for pushback.  Because size budget can't be
@@ -1149,6 +1156,12 @@ let%test_module _ =
         ~f:(fun l ->
           let reader = of_list l in
           upon (read_all reader) (fun q -> assert (Q.to_list q = l)));
+      stabilize ()
+    ;;
+
+    let%test_unit _ =
+      let reader = singleton 0 in
+      upon (read_all reader) (fun q -> assert (Q.to_list q = [0]));
       stabilize ()
     ;;
 

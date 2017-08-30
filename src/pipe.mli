@@ -85,6 +85,9 @@ val create : unit -> 'a Reader.t * 'a Writer.t
 (** [of_list l] returns a closed pipe reader filled with the contents of [l]. *)
 val of_list : 'a list -> 'a Reader.t
 
+(** [singleton x] returns a closed pipe reader filled with the single value [x]. *)
+val singleton : 'a -> 'a Reader.t
+
 (** [unfold ~init ~f] returns a pipe that it fills with ['a]s by repeatedly applying [f]
     to values of the state type ['s].  When [f] returns [None], the resulting pipe is
     closed.  [unfold] respects pushback on the resulting pipe.  If [f] raises, then the
