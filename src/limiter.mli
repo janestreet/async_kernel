@@ -35,7 +35,7 @@ module type Common = sig
 
   (** kills [t], which aborts all enqueued jobs that haven't started and all jobs enqueued
       in the future.  If [t] has already been killed, then calling [kill t] has no effect.
-      Note that kill does not effect currently running jobs in any way. *)
+      Note that kill does not affect currently running jobs in any way. *)
   val kill : _ t -> unit
 
   (** [is_dead t] returns [true] if [t] was killed, either by [kill] or by an unhandled
@@ -169,7 +169,7 @@ end
 module Expert : sig
   (** kills [t], which aborts all enqueued jobs that haven't started and all jobs enqueued
       in the future.  If [t] has already been killed, then calling [kill t] has no effect.
-      Note that kill does not effect currently running jobs in any way. *)
+      Note that kill does not affect currently running jobs in any way. *)
   val kill : t -> unit
 
   (** [is_dead t] returns [true] if [t] was killed, either by [kill] or by an unhandled

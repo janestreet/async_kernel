@@ -290,7 +290,7 @@ module Event = struct
 
   let at t at callback = add t ~at ~interval:None ~callback
 
-  let after t span callback = at t (Time_ns.add (now t) span) callback
+  let after t span callback = at t (Time_ns.after (now t) span) callback
 
   let at_intervals t span callback =
     let alarm_precision = alarm_precision t in
@@ -346,7 +346,7 @@ let run_fired_events t =
           match event.interval with
           | None -> Happened
           | Some interval ->
-            event.at <- Time_ns.add event.at interval;
+            event.at <- Time_ns.after event.at interval;
             schedule t event;
             Scheduled
       in

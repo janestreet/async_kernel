@@ -40,6 +40,8 @@ let wall_clock () = read_only (Scheduler.t ()).time_source
 let alarm_precision     t = Timing_wheel_ns.alarm_precision     t.events
 let next_alarm_fires_at t = Timing_wheel_ns.next_alarm_fires_at t.events
 
+let timing_wheel_now t = Timing_wheel_ns.now t.events
+
 let now t =
   if t.is_wall_clock
   then
@@ -51,14 +53,14 @@ let now t =
        implementation. *)
     (Time_ns.now ())
   else
-    (Timing_wheel_ns.now t.events)
+    (timing_wheel_now t)
 ;;
 
 let advance t ~to_ =
   Timing_wheel_ns.advance_clock t.events ~to_ ~handle_fired:t.handle_fired;
 ;;
 
-let advance_by t by = advance t ~to_:(Time_ns.add (now t) by)
+let advance_by t by = advance t ~to_:(Time_ns.after (now t) by)
 
 let fire_past_alarms t =
   Timing_wheel_ns.fire_past_alarms t.events ~handle_fired:t.handle_fired;
@@ -98,7 +100,7 @@ let advance_by_alarms t ~to_ =
   walk_alarms ()
 ;;
 
-let span_to_time t span = Time_ns.add (now t) span
+let span_to_time t span = Time_ns.after (now t) span
 
 let schedule_job t ~at execution_context f a =
   let alarm =
@@ -342,7 +344,7 @@ let at_times ?(stop = Deferred.never ()) t next_time =
 ;;
 
 let at_varying_intervals ?stop t compute_span =
-  at_times t ?stop (fun () -> Time_ns.add (now t) (compute_span ()))
+  at_times t ?stop (fun () -> Time_ns.after (now t) (compute_span ()))
 ;;
 
 let at_intervals ?start ?stop t interval =

@@ -49,6 +49,10 @@ module type Time_source = sig
   val next_alarm_fires_at : [> read] T1.t -> Time_ns.t option
   val now                 : [> read] T1.t -> Time_ns.t
 
+  (** Removes the special behavior of [now] for [wall_clock]; it always returns the
+      timing_wheel's notion of now. *)
+  val timing_wheel_now    : [> read] T1.t -> Time_ns.t
+
   val advance          : [> write] T1.t -> to_:Time_ns.t -> unit
   val advance_by       : [> write] T1.t -> Time_ns.Span.t -> unit
   val fire_past_alarms : [> write] T1.t -> unit
