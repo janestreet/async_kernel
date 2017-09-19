@@ -15,27 +15,41 @@ let choice = Deferred.choice
 
 let ( >>> ) = upon
 
-module Time_source = Time_source0
+module T1 = struct
+  include Synchronous_time_source0.T1
 
-include (Time_source : (module type of struct include Time_source end
-                         with module Scheduler := Time_source.Scheduler))
+  let sexp_of_t _ { advance_errors = _
+                  ; am_advancing   = _
+                  ; events
+                  ; fired_events   = _
+                  ; handle_fired   = _
+                  ; is_wall_clock
+                  ; scheduler      = _ } =
+    if is_wall_clock
+    then [%message "<wall_clock>"]
+    else [%message (is_wall_clock : bool)
+                     (* We don't display the [Job.t]s in [events] because those are
+                        pool pointers, which are uninformative. *)
+                     (events : _ Timing_wheel_ns.t)]
+  ;;
+end
 
-open Types.Time_source (* for the fields *)
+open T1
+
+module Read_write = struct
+  type t = read_write T1.t [@@deriving sexp_of]
+
+  let invariant = invariant
+end
+
+type t = read T1.t [@@deriving sexp_of]
+
+let invariant = invariant
 
 let read_only (t : [> read] T1.t) = (t :> t)
 
-let create ?(timing_wheel_config = Config.timing_wheel_config) ~now () =
-  let scheduler = Scheduler.t () in
-  let rec t =
-    { events        = Timing_wheel_ns.create ~config:timing_wheel_config ~start:now
-    ; handle_fired  = (fun alarm -> Scheduler.handle_fired t alarm)
-    ; is_wall_clock = false
-    ; scheduler }
-  in
-  t
-;;
-
-let wall_clock () = read_only (Scheduler.t ()).time_source
+let create     = Scheduler.create_time_source
+let wall_clock = Scheduler.wall_clock
 
 let alarm_precision     t = Timing_wheel_ns.alarm_precision     t.events
 let next_alarm_fires_at t = Timing_wheel_ns.next_alarm_fires_at t.events
@@ -56,15 +70,14 @@ let now t =
     (timing_wheel_now t)
 ;;
 
-let advance t ~to_ =
-  Timing_wheel_ns.advance_clock t.events ~to_ ~handle_fired:t.handle_fired;
-;;
+(* We preallocate [send_exn] to avoid allocating it on each call to [advance_clock]. *)
+let send_exn = Some Monitor.send_exn
+
+let advance t ~to_ = Synchronous_time_source0.advance_clock t ~to_ ~send_exn
 
 let advance_by t by = advance t ~to_:(Time_ns.after (now t) by)
 
-let fire_past_alarms t =
-  Timing_wheel_ns.fire_past_alarms t.events ~handle_fired:t.handle_fired;
-;;
+let fire_past_alarms t = Synchronous_time_source0.fire_past_alarms t ~send_exn
 
 let yield t = Bvar.wait (Scheduler.yield t.scheduler)
 
@@ -105,7 +118,7 @@ let span_to_time t span = Time_ns.after (now t) span
 let schedule_job t ~at execution_context f a =
   let alarm =
     Timing_wheel_ns.add t.events ~at
-      (Scheduler.create_job t.scheduler execution_context f a)
+      (Job_or_event.of_job (Scheduler.create_job t.scheduler execution_context f a))
   in
   begin match t.scheduler.event_added_hook with
   | None -> ()
@@ -141,7 +154,15 @@ let at =
 let after t span = at t (span_to_time t span)
 
 let remove_alarm t alarm : unit =
-  Scheduler.free_job t.scheduler (Alarm.value t.events alarm);
+  let job_or_event = Alarm.value t.events alarm in
+  (let open Job_or_event.Match in
+   let K k = kind job_or_event in
+   match k, project k job_or_event with
+   | Job   , job -> Scheduler.free_job t.scheduler job
+   | Event , _   ->
+     (* This is unreachable because [alarm] only ever comes from [Event.alarm] which only
+        ever gets populated by a call to [schedule_job]. *)
+     assert false);
   Timing_wheel_ns.remove t.events alarm;
 ;;
 
@@ -158,7 +179,7 @@ module Event = struct
   end
 
   type ('a, 'h) t =
-    { mutable alarm             : Job.t Alarm.t
+    { mutable alarm             : Job_or_event.t Alarm.t
     ; mutable fire              : (unit -> unit)
     (* As long as [Ivar.is_empty fired], we have not yet committed to whether the event
        will happen or be aborted.  When [Ivar.is_empty fired], the alarm may or may not be
@@ -174,7 +195,7 @@ module Event = struct
        While [t.alarm] is still in the timing wheel, this is the same as [Alarm.at
        t.alarm]. *)
     ; mutable scheduled_at      : Time_ns.t
-    ; time_source               : Time_source.t }
+    ; time_source               : Synchronous_time_source.t }
   [@@deriving fields, sexp_of]
 
   type t_unit = (unit, unit) t [@@deriving sexp_of]
@@ -188,7 +209,9 @@ module Event = struct
       Fields.iter
         ~alarm:(check (fun alarm ->
           if Ivar.is_full t.fired
-          then (assert (not (Timing_wheel_ns.mem events alarm)))))
+          then (assert (not (Timing_wheel_ns.mem events alarm)))
+          else if Timing_wheel_ns.mem events alarm
+          then (assert (Job_or_event.is_job (Alarm.value events alarm)))))
         ~fire:ignore
         ~fired:(check (fun (fired : _ Fired.t Ivar.t) ->
           match Deferred.peek (Ivar.read fired) with
@@ -475,3 +498,6 @@ let with_timeout t span d =
         | Aborted  () ->
           raise_s [%message "Time_source.with_timeout bug: both completed and timed out"]) ]
 ;;
+
+let of_synchronous t = t
+let to_synchronous t = t

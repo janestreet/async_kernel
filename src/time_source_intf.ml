@@ -9,14 +9,13 @@ open! Core_kernel
 open! Import
 
 module Deferred = Deferred1
-module Time_source = Time_source0
 
 module type Time_source = sig
 
   (** A time source has a phantom read-write parameter, where [write] gives permission to
       call [advance] and [fire_past_alarms]. *)
   module T1 : sig
-    type -'rw t = 'rw Time_source.T1.t [@@deriving sexp_of]
+    type -'rw t [@@deriving sexp_of]
   end
 
   module Read_write : sig
@@ -53,6 +52,10 @@ module type Time_source = sig
       timing_wheel's notion of now. *)
   val timing_wheel_now    : [> read] T1.t -> Time_ns.t
 
+  (** Unlike in [Synchronous_time_source], [advance] function here only approximately
+      determines the set of events to fire. You should also call [fire_past_alarms] if you
+      want precision (see docs for [Timing_wheel_ns.advance_clock] vs
+      [Timing_wheel_ns.fire_past_alarms]). *)
   val advance          : [> write] T1.t -> to_:Time_ns.t -> unit
   val advance_by       : [> write] T1.t -> Time_ns.Span.t -> unit
   val fire_past_alarms : [> write] T1.t -> unit
@@ -212,4 +215,9 @@ module type Time_source = sig
     -> Time_ns.Span.t
     -> (unit -> unit)
     -> unit
+
+  (** [Time_source] and [Synchronous_time_source] are the same data structure and use the
+      same underlying timing wheel.  The types are freely interchangeable. *)
+  val of_synchronous : 'a Synchronous_time_source.T1.t -> 'a T1.t
+  val to_synchronous : 'a T1.t -> 'a Synchronous_time_source.T1.t
 end

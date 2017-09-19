@@ -6,10 +6,11 @@ module Deferred  = Deferred1
 module Scheduler = Scheduler1
 module Stream    = Async_stream
 
-include (Scheduler : (module type of Scheduler
-                       with module Bvar        := Scheduler.Bvar
-                       with module Ivar        := Scheduler.Ivar
-                       with module Time_source := Scheduler.Time_source))
+include (Scheduler
+         : (module type of Scheduler
+             with module Bvar        := Scheduler.Bvar
+             with module Ivar        := Scheduler.Ivar
+             with module Synchronous_time_source := Scheduler.Synchronous_time_source))
 
 let t = Scheduler.t
 
@@ -142,7 +143,6 @@ let add_finalizer_last_exn t x f =
   add_finalizer_last t (Heap_block.create_exn x) f
 ;;
 
-
 (** [force_current_cycle_to_end] sets the number of normal jobs allowed to run in this
     cycle to zero.  Thus, after the currently running job completes, the scheduler will
     switch to low priority jobs and then end the current cycle. *)
@@ -150,11 +150,11 @@ let force_current_cycle_to_end t =
   Job_queue.set_jobs_left_this_cycle t.normal_priority_jobs 0
 ;;
 
+(* We preallocate [send_exn] to avoid allocating it on each call to [advance_clock]. *)
+let send_exn = Some Monitor.send_exn
+
 let advance_clock t ~now =
-  Time_source.advance t.time_source ~to_:now;
-  match t.advance_synchronous_wall_clock with
-  | None -> ()
-  | Some f -> f ~now;
+  Synchronous_time_source0.advance t.time_source ~to_:now ~send_exn
 ;;
 
 let run_cycle t =
@@ -201,9 +201,6 @@ let run_cycles_until_no_jobs_remain () =
   let rec loop () =
     run_cycle t;
     advance_clock t ~now:(Time_ns.now ());
-    (* We [fire_past_alarms] just before checking if there are pending jobs, so that clock
-       events that fire become jobs, and thus cause an additional [loop]. *)
-    Time_source.fire_past_alarms t.time_source;
     if can_run_a_job t then (loop ())
   in
   loop ();

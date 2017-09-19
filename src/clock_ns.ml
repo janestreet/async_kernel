@@ -3,7 +3,7 @@ open! Import
 
 module Scheduler = Scheduler1
 
-let time_source () = (Scheduler.t ()).time_source
+let time_source () = (Scheduler.t ()).time_source |> Time_source.of_synchronous
 
 let after span = Time_source.after (time_source ()) span
 

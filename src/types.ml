@@ -56,6 +56,26 @@ and Deferred : sig
   type +'a t
 end = Deferred
 
+and Event : sig
+  module Status : sig
+    type t =
+      | Aborted
+      | Fired
+      | Happening
+      | Happened
+      | Scheduled
+  end
+
+  type t =
+    { mutable alarm      : Job_or_event.t Timing_wheel_ns.Alarm.t
+    ; mutable at         : Time_ns.t
+    ; callback           : unit -> unit
+    ; execution_context  : Execution_context.t
+    ; mutable interval   : Time_ns.Span.t option
+    ; mutable next_fired : t
+    ; mutable status     : Status.t }
+end = Event
+
 and Execution_context : sig
   type t =
     { monitor            : Monitor.t
@@ -89,6 +109,10 @@ and Job : sig
   type slots = (Execution_context.t, Obj.t -> unit, Obj.t) Pool.Slots.t3
   type t = slots Pool.Pointer.t
 end = Job
+
+and Job_or_event : sig
+  type t
+end = Job_or_event
 
 and Job_pool : sig
   type t = Job.slots Pool.t
@@ -140,7 +164,6 @@ and Scheduler : sig
     ; mutable run_every_cycle_start               : (unit -> unit) list
     ; mutable last_cycle_time                     : Time_ns.Span.t
     ; mutable last_cycle_num_jobs                 : int
-    ; mutable advance_synchronous_wall_clock      : (now:Time_ns.t -> unit) option
     ; mutable time_source                         : read_write Time_source.t1
     ; external_jobs                               : External_job.t Thread_safe_queue.t
     ; mutable thread_safe_external_job_hook       : unit -> unit
@@ -167,10 +190,13 @@ end = Tail
 
 and Time_source : sig
   type -'rw t1 =
-    { events        : Job.t Timing_wheel_ns.t
-    ; handle_fired  : Job.t Timing_wheel_ns.Alarm.t -> unit
-    ; is_wall_clock : bool
-    ; scheduler     : Scheduler.t }
+    { mutable advance_errors : Error.t list
+    ; mutable am_advancing   : bool
+    ; events                 : Job_or_event.t Timing_wheel_ns.t
+    ; mutable fired_events   : Event.t
+    ; handle_fired           : Job_or_event.t Timing_wheel_ns.Alarm.t -> unit
+    ; is_wall_clock          : bool
+    ; scheduler              : Scheduler.t }
 end = Time_source
 
 and Very_low_priority_worker : sig
