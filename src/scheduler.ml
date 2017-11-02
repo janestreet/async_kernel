@@ -173,8 +173,8 @@ let run_cycle t =
     | Ok () -> ()
     | Error (exn, backtrace) ->
       Monitor.send_exn (Monitor.current ()) exn ~backtrace:(`This backtrace);
-      (* [run_jobs] stopped due to an exn.  There may still be jobs that could be run
-         this cycle, so [run_jobs] again. *)
+      (* [run_jobs] stopped due to an exn.  There may still be jobs that could be
+         run this cycle, so [run_jobs] again. *)
       run_jobs t
   in
   run_jobs t;
@@ -319,3 +319,7 @@ let%test_module _ =
     ;;
 
   end)
+
+module For_bench = struct
+  let advance_clock = advance_clock
+end

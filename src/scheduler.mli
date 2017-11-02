@@ -106,3 +106,9 @@ module Very_low_priority_work : sig
       returns [Finished]. *)
   val enqueue : f:(unit -> Worker_result.t) -> unit
 end
+
+(**/**)
+
+module For_bench : sig
+  val advance_clock : t -> now : Time_ns.t -> unit
+end

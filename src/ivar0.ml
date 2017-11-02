@@ -43,8 +43,8 @@ module Handler = struct
     let t =
       { run
       ; execution_context
-      ; prev              = Obj.magic ()
-      ; next              = Obj.magic () }
+      ; prev              = Obj.magic None
+      ; next              = Obj.magic None }
     in
     t.prev <- t;
     t.next <- t;
@@ -70,8 +70,8 @@ module Handler = struct
     let t1 =
       { run               = run1
       ; execution_context = execution_context1
-      ; prev              = Obj.magic ()
-      ; next              = Obj.magic () }
+      ; prev              = Obj.magic None
+      ; next              = Obj.magic None }
     in
     let t2 =
       { run               = run2

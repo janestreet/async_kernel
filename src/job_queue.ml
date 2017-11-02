@@ -58,7 +58,7 @@ let invariant t : unit =
         assert (length <= capacity t))))
 ;;
 
-let create_array ~capacity = A.create ~len:(capacity * slots_per_elt)
+let create_array ~capacity = A.create_zero ~len:(capacity * slots_per_elt)
 
 let create () =
   let capacity = 1 in

@@ -58,7 +58,11 @@ module type S = sig
       another one when looking up the address afterwards.
 
       All connection events (see the type above) are passed to the [on_event] callback, if
-      given.
+      given.  When this callback becomes determined, we move on to the next step in our
+      connection attempt (e.g. we won't actually attempt to connect until
+      [on_event Attempting_to_connect] is finished).  Note that [on_event Disconnected]
+      will only be called once [on_event (Connected conn)] finishes even if the connection
+      goes down during that callback.
 
       [`Failed_to_connect error] and [`Obtained_address addr] events are only reported if
       they are distinct from the most recent event of the same type that has taken place
@@ -71,7 +75,7 @@ module type S = sig
       retried, and if that failed, wait for another retry delay and retry. *)
   val create
     :  server_name  : string
-    -> ?on_event    : (Event.t -> unit)
+    -> ?on_event    : (Event.t -> unit Deferred.t)
     -> ?retry_delay : (unit -> Time_ns.Span.t)
     -> connect      : (address -> conn Or_error.t Deferred.t)
     -> (unit -> address Or_error.t Deferred.t)

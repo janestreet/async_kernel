@@ -21,7 +21,7 @@ module Make (Conn : T) = struct
     module Handler = struct
       type t =
         { server_name     : string
-        ; on_event        : event -> unit
+        ; on_event        : event -> unit Deferred.t
         }
     end
 
@@ -71,10 +71,10 @@ module Make (Conn : T) = struct
           | Some previous_address -> Conn.Address.equal addr previous_address
         in
         previous_address := Some addr;
-        if not same_as_previous_address
-        then begin
-          handle_event t (Obtained_address addr)
-        end;
+        (if same_as_previous_address
+         then Deferred.unit
+         else (handle_event t (Obtained_address addr)))
+        >>= fun () ->
         t.connect addr
     in
     let rec loop () =
@@ -93,10 +93,10 @@ module Make (Conn : T) = struct
             | Some previous_err -> same_error err previous_err
           in
           previous_error := Some err;
-          if not same_as_previous_error
-          then begin
-            handle_event t (Failed_to_connect err)
-          end;
+          (if same_as_previous_error
+           then Deferred.unit
+           else (handle_event t (Failed_to_connect err)))
+          >>= fun () ->
           Deferred.any [t.retry_delay (); Ivar.read t.close_started]
           >>= fun () ->
           loop ()
@@ -104,8 +104,8 @@ module Make (Conn : T) = struct
     in
     loop ()
 
-  let create ~server_name ?(on_event = ignore) ?(retry_delay = const (Time_ns.Span.of_sec 10.))
-        ~connect get_address
+  let create ~server_name ?(on_event = fun _ -> Deferred.unit)
+        ?(retry_delay = const (Time_ns.Span.of_sec 10.)) ~connect get_address
     =
     let event_handler = { Event.Handler. server_name; on_event } in
     let retry_delay () =
@@ -135,7 +135,8 @@ module Make (Conn : T) = struct
     (* this loop finishes once [close t] has been called, in which case it makes sure to
        leave [t.conn] filled with [`Close_started]. *)
     don't_wait_for @@ Deferred.repeat_until_finished () (fun () ->
-      handle_event t Attempting_to_connect;
+      handle_event t Attempting_to_connect
+      >>= fun () ->
       let ready_to_retry_connecting = t.retry_delay () in
       try_connecting_until_successful t
       >>= fun maybe_conn ->
@@ -143,11 +144,13 @@ module Make (Conn : T) = struct
       match maybe_conn with
       | `Close_started -> return (`Finished ())
       | `Ok conn ->
-        handle_event t (Connected conn);
+        handle_event t (Connected conn)
+        >>= fun () ->
         Conn.close_finished conn
         >>= fun () ->
         t.conn <- Ivar.create ();
-        handle_event t Disconnected;
+        handle_event t Disconnected
+        >>= fun () ->
         (* waits until [retry_delay ()] time has passed since the time just before we last
            tried to connect rather than the time we noticed being disconnected, so that if
            a long-lived connection dies, we will attempt to reconnect immediately. *)
