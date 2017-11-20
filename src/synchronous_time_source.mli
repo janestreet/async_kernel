@@ -77,9 +77,20 @@ module Event : sig
   val after        : [> read] T1.t -> Time_ns.Span.t -> callback -> t
   val at_intervals : [> read] T1.t -> Time_ns.Span.t -> callback -> t
 
+  module Abort_result : sig
+    type t =
+      | Ok
+      | Currently_happening
+      | Previously_aborted
+      | Previously_happened
+    [@@deriving sexp_of]
+  end
+
   (** [abort t] aborts the event [t], if possible, and returns [Ok] if the event was
-      aborted, or [Error] with the reason it could not be aborted. *)
-  val abort : [> read] T1.t -> t -> unit Or_error.t
+      aborted, or the reason it could not be aborted. *)
+  val abort             : [> read] T1.t -> t -> Abort_result.t
+  val abort_exn         : [> read] T1.t -> t -> unit
+  val abort_if_possible : [> read] T1.t -> t -> unit
 end
 
 val default_timing_wheel_config : Timing_wheel_ns.Config.t

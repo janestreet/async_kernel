@@ -311,24 +311,41 @@ module Event = struct
     add t ~at:(now t) ~interval:(Some span) ~callback
   ;;
 
-  let abort t (event : Event.t) =
+  module Abort_result = struct
+    type t =
+      | Ok
+      | Currently_happening
+      | Previously_aborted
+      | Previously_happened
+    [@@deriving sexp_of]
+  end
+
+  let abort t (event : Event.t) : Abort_result.t =
     match event.status with
-    | Aborted   -> error_s [%message "previously aborted"]
-    | Happened  -> error_s [%message "previously happened"]
+    | Aborted   -> Previously_aborted
+    | Happened  -> Previously_happened
     | Happening ->
       if Option.is_none event.interval
-      then (error_s [%message "currently happening"])
-      else (
-        event.interval <- None;
-        Ok ())
+      then Currently_happening
+      else (event.interval <- None; Ok)
     | Fired ->
       Event.set_status event Aborted;
-      Ok ()
+      Ok
     | Scheduled ->
       Event.set_status event Aborted;
       Timing_wheel_ns.remove t.events event.alarm;
       event.alarm <- Alarm.null ();
-      Ok ()
+      Ok
+  ;;
+
+  let abort_if_possible t event = ignore (abort t event : Abort_result.t)
+
+  let abort_exn t event =
+    match abort t event with
+    | Ok -> ()
+    | reason ->
+      raise_s [%message "[Synchronous_time_source.abort_exn] cannot abort event"
+                          (reason : Abort_result.t)]
   ;;
 end
 

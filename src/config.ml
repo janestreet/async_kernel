@@ -37,7 +37,7 @@ module Max_num_open_file_descrs = struct
       let validate = Int.validate_positive
     end)
 
-  let default = create_exn 8192
+  let default = create_exn (1 lsl 15)
 
   let equal (t1 : t) t2 = t1 = t2
 end
@@ -277,10 +277,18 @@ let field_descriptions () : string =
                                    ~f:File_descr_watcher.to_string);
                               ".
 " ])
-      ~max_num_open_file_descrs:(field [%sexp_of: Max_num_open_file_descrs.t]
-                                   ["
-  The maximum number of open file descriptors allowed at any one time.
-" ])
+      ~max_num_open_file_descrs:(
+        field
+          (fun default ->
+             [%message
+               ""
+                 ~_:(concat
+                       [ "min "
+                       ; default |> Max_num_open_file_descrs.raw |> Int.to_string_hum
+                       ; " [ulimit -n -H]" ]
+                     : string)])
+          ["
+  The maximum number of open file descriptors allowed at any one time." ])
       ~max_num_threads:(field [%sexp_of: Max_num_threads.t]
                           ["
   The maximum number of threads that Async will create to do blocking
