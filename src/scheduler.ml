@@ -51,6 +51,13 @@ let map_cycle_times t ~f =
     run_every_cycle_start t ~f:(fun () -> Tail.extend tail (f t.last_cycle_time)));
 ;;
 
+let long_cycles t ~at_least =
+  Stream.create (fun tail ->
+    run_every_cycle_start t ~f:(fun () ->
+      if Time_ns.Span.( >= ) t.last_cycle_time at_least
+      then (Tail.extend tail t.last_cycle_time)));
+;;
+
 let cycle_num_jobs t =
   Stream.create (fun tail ->
     run_every_cycle_start t ~f:(fun () -> Tail.extend tail t.last_cycle_num_jobs));
