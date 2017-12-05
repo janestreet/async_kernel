@@ -49,7 +49,7 @@ include sig
   val upon           : 'a t -> ('a -> unit) -> unit
   val value_exn      : 'a t -> 'a
 
-  module List : Deferred1.Monad_sequence with type 'a t = 'a list
+  module List : Deferred1.Monad_sequence with type 'a t := 'a list
 end
 (*_ We do not expose [Eager_deferred.t] so that type-error messages refer to
   [Deferred.t], not [Eager_deferred.t]. *)

@@ -3,8 +3,6 @@ open Deferred_std
 
 module Deferred = Deferred1
 
-type 'a t = 'a Array.t
-
 let foldi t ~init ~f =
   Deferred.create
     (fun result ->
@@ -103,4 +101,3 @@ let exists   t ~f = existsi   t ~f:(fun _ a -> f a)
 let for_all  t ~f = for_alli  t ~f:(fun _ a -> f a)
 
 let init ?how n ~f = map ?how (Array.init n ~f:Fn.id) ~f
-

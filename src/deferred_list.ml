@@ -3,8 +3,6 @@ open Deferred_std
 
 module Deferred = Deferred1
 
-type 'a t = 'a List.t
-
 let foldi t ~init ~f =
   Deferred.create
     (fun result ->

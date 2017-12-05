@@ -10,8 +10,6 @@ module List = Deferred_list
    iterating over a list, only the remaining tail of the list is kept alive.  So, using
    arrays rather than lists would increase the live-space needed by the program. *)
 
-type 'a t = 'a Queue.t
-
 let foldi t ~init ~f = List.foldi (Queue.to_list t) ~init ~f
 let fold t ~init ~f = List.fold (Queue.to_list t) ~init ~f
 

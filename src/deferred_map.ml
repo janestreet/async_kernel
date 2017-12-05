@@ -13,7 +13,7 @@ let change t k ~f =
 
 let update t k ~f =
   let%map data = f (Map.find t k) in
-  Map.add t ~key:k ~data
+  Map.set t ~key:k ~data
 ;;
 
 let iter_keys ?how t ~f =

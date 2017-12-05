@@ -3,8 +3,6 @@ open Deferred_std
 
 module Deferred = Deferred1
 
-type 'a t = 'a Sequence.t
-
 (* [fold_mapi ?how t ~init ~mapi_f ~fold_f] is a more efficient version of:
 
    {[
@@ -17,7 +15,7 @@ type 'a t = 'a Sequence.t
 let fold_mapi
       (type a) (type b) (type c)
       ?(how = `Sequential)
-      (t : a t)
+      (t : a Sequence.t)
       ~(init : c)
       ~(mapi_f : int -> a -> b Deferred.t)
       ~(fold_f : c -> b -> c)
@@ -154,4 +152,3 @@ let exists   t ~f = existsi   t ~f:(fun _ a -> f a)
 let for_all  t ~f = for_alli  t ~f:(fun _ a -> f a)
 
 let init ?how n ~f = map ?how (Sequence.init n ~f:Fn.id) ~f
-

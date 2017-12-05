@@ -19,8 +19,6 @@ let deferred_result d =
 
 open Deferred.Sequence
 
-type nonrec 'a t = 'a Sequence.t
-
 let fold = fold
 
 let%test_unit _ =

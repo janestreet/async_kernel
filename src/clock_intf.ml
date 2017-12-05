@@ -37,10 +37,11 @@ module type Clock = sig
   val at    : Time.t      -> unit Deferred.t
   val after : Time.Span.t -> unit Deferred.t
 
-  (** [with_timeout span d] does pretty much what one would expect.  Note that at the
-      point of checking if [d] is determined and the timeout has expired, the resulting
-      deferred will be determined with [`Result].  In other words, since there is an
-      inherent race between [d] and the timeout, preference is given to [d]. *)
+  (** [with_timeout span d] returns a deferred that will become determined after either
+      [span] elapses or [d] is determined, returning either [`Timeout] or [`Result]
+      depending on which one succeeded first.  At the time the returned deferred becomes
+      determined, both things may have happened, in which case [`Result] is given
+      preference. *)
   val with_timeout
     :  Time.Span.t
     -> 'a Deferred.t

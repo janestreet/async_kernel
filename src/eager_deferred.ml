@@ -75,8 +75,6 @@ module Infix = struct
 end
 
 module List = struct
-  type 'a t = 'a List.t
-
   open Infix
   open Let_syntax
 
@@ -188,4 +186,3 @@ let%test_module "Eager_deferred_list_tests" =
         end)
         (List)
   end)
-
