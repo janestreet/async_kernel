@@ -7,16 +7,6 @@
 open! Core_kernel
 open! Import
 
-module Array    = Deferred_array
-module List     = Deferred_list
-module Map      = Deferred_map
-module Memo     = Deferred_memo
-module Option   = Deferred_option
-module Or_error = Deferred_or_error
-module Queue    = Deferred_queue
-module Result   = Deferred_result
-module Sequence = Deferred_sequence
-
 type +'a t = 'a Deferred1.t [@@deriving sexp_of]
 
 include Invariant.S1 with type 'a t := 'a t
@@ -201,3 +191,25 @@ val forever
 (** Useful for lifting values from the [Deferred.t] monad to the [Result.t Deferred.t]
     monad *)
 val ok : 'a t -> ('a, _) Core_kernel.Result.t t
+
+(** {2 Deferred collections}
+
+    These contain operations for iterating in a deferred manner over different
+    collection types. *)
+
+module Array    = Deferred_array
+module List     = Deferred_list
+module Map      = Deferred_map
+module Memo     = Deferred_memo
+module Queue    = Deferred_queue
+module Sequence = Deferred_sequence
+
+(** {2 Error-carrying deferreds}
+
+    These contain interfaces for working with deferred type containing error-aware types,
+    like ['a Option.t Deferred.t], or ['a Or_error.t Deferred.t].  These all include
+    support for monadic programming. *)
+
+module Option   = Deferred_option
+module Or_error = Deferred_or_error
+module Result   = Deferred_result

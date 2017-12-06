@@ -1,6 +1,6 @@
 open! Core_kernel
 
-include Monad.S2 with type ('a, 'b) t = ('a, 'b) Result.t Deferred1.t
+include Monad.S2 with type ('a, 'b) t = ('a, 'b) Result.t Deferred1.t (** @open *)
 
 val ignore : (_, 'err) t -> (unit, 'err) t
 
