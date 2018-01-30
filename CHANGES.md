@@ -1,3 +1,18 @@
+## v0.10
+
+- Added `Pipe.singleton` function, for creating a pipe filled with a single
+  element.
+
+- Removed a per-cycle allocation from the Async scheduler.
+
+- Added `Synchronous_time_source.timing_wheel_now`, which removes the special
+  behavior of now for the wall-clock time source.
+
+- Removed some type aliases from `Deferred` submodules: `Array.t`, `List.t`,
+  `Queue.t`, `Sequence.t`.
+
+## v0.9
+
 ## 113.43.00
 
 - Export `Time_source` from `Async_kernel`.
