@@ -1,3 +1,9 @@
+(** Contains Async's core data structures, like {{!Async_kernel.Deferred}[Deferred]},
+    {{!Async_kernel.Ivar}[Ivar]}, and {{!Async_kernel.Clock_intf.Clock}[Clock]}.
+
+    [Async_kernel] is designed to depend only on {{!Core_kernel}[Core_kernel]} (as opposed
+    to {{!Core}[Core]}), and so is more platform-independent. *)
+
 (**/**)
 module Limiter_in_this_directory = Limiter
 (**/**)

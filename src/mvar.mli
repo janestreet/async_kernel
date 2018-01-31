@@ -4,20 +4,20 @@
 
     Having an [Mvar.Writer.t] gives the capability to mutate the mvar.
 
-    The key difference between an [Mvar] and an [Ivar] is that an [Mvar] may be filled
-    multiple times.
+    The key difference between an [Mvar] and an {{!Async_kernel.Ivar}[Ivar]} is that an
+    [Mvar] may be filled multiple times.
 
     This implementation of [Mvar] also allows one to replace the value without any
     guarantee that the reading side has seen it.  This is useful in situations where
-    last-value semantics are desired (i.e. you want to signal whenever a config file is
-    updated, but only care about the most recent values).
+    last-value semantics are desired (e.g., you want to signal whenever a config file is
+    updated, but only care about the most recent contents).
 
-    A [Mvar] can also be used as a baton passing mechanism between a producer
-    and consumer.  For instance, a producer reading from a socket and producing
-    a set of deserialized messages can put the batch from a single read into an
-    [Mvar] and can wait for [taken] to return as a pushback mechanism.  The
-    consumer meanwhile waits on [value_available].  This way the natural batch
-    size is passed between the two sub-systems with minimal overhead. *)
+    An [Mvar] can also be used as a baton-passing mechanism between a producer and
+    consumer.  For instance, a producer reading from a socket and producing a set of
+    deserialized messages can [put] the batch from a single read into an [Mvar] and can
+    wait for [taken] to return as a pushback mechanism.  The consumer meanwhile waits on
+    [value_available].  This way the natural batch size is passed between the two
+    sub-systems with minimal overhead. *)
 
 open! Core_kernel
 open! Import
@@ -41,8 +41,8 @@ val create : unit -> 'a Read_write.t
 val is_empty : (_, _) t -> bool
 
 (** [put t a] waits until [is_empty t], and then does [set t a].  If there are multiple
-    concurrent [put]s, there is no fairness guarantee (i.e. [put]s may happen out of order
-    or may be starved). *)
+    concurrent [put]s, there is no fairness guarantee (i.e., [put]s may happen out of
+    order or may be starved). *)
 val put : ('a, [> write]) t -> 'a -> unit Deferred.t
 
 (** [set t a] sets the value in [t] to [a], even if [not (is_empty t)].  This is useful if
@@ -50,9 +50,10 @@ val put : ('a, [> write]) t -> 'a -> unit Deferred.t
 val set : ('a, [> write]) t -> 'a -> unit
 
 (** [update t ~f] applies [f] to the value in [t] and [set]s [t] to the result.  This is
-    useful if you want takers to have accumulated-value semantics.  [update_exn] is like
-    [update], except it raises if [is_empty t]. *)
+    useful if you want takers to have accumulated-value semantics. *)
 val update     : ('a, read_write) t -> f:('a option -> 'a) -> unit
+
+(** [update_exn] is like [update], except it raises if [is_empty t]. *)
 val update_exn : ('a, read_write) t -> f:('a        -> 'a) -> unit
 
 val read_only  : ('a, [> read] ) t -> ('a, read)  t
@@ -80,8 +81,10 @@ val take_now_exn : ('a, [> read]) t -> 'a
 val taken : (_, [> write]) t -> unit Deferred.t
 
 (** [peek t] returns the value in [t] without clearing [t], or returns [None] is [is_empty
-    t].  [peek_exn t] is like [peek], except it raises if [is_empty t]. *)
-val peek     : ('a, [> read]) t -> 'a option
+    t]. *)
+val peek : ('a, [> read]) t -> 'a option
+
+(** [peek_exn t] is like [peek], except it raises if [is_empty t]. *)
 val peek_exn : ('a, [> read]) t -> 'a
 
 (** [pipe_when_ready t] returns a pipe, then repeatedly takes a value from [t] and writes

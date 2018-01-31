@@ -1,5 +1,5 @@
-(** The part of the {!Execution_context} that determines what to do when there is an
-    unhandled exception.
+(** The part of the {{!Async_kernel.Execution_context}[Execution_context]} that determines
+    what to do when there is an unhandled exception.
 
     Every Async computation runs within the context of some monitor, which, when the
     computation is running, is referred to as the "current" monitor.  Monitors are
@@ -8,12 +8,12 @@
 
     If a computation raises an unhandled exception, the behavior depends on whether the
     current monitor is "detached" or "attached".  If the monitor has been "detached", via
-    one of the [detach*] functions, then whomever detached it is responsible for dealing
+    one of the [detach*] functions, then whoever detached it is responsible for dealing
     with the exception.  If the monitor is still attached, then the exception bubbles to
-    monitor's parent.  If an exception bubbles to the initial monitor, i.e. the root of
+    monitor's parent.  If an exception bubbles to the initial monitor, i.e., the root of
     the monitor tree, that prints an unhandled-exception message and calls exit 1.
 
-    {1 NOTE ABOUT THE TOPLEVEL MONITOR }
+    {2 Note about the toplevel monitor}
 
     It is important to note that in the toplevel monitor, exceptions will only be caught
     in the Async part of a computation.  For example, in:
@@ -62,7 +62,7 @@ val parent : t -> t option
 
 val depth : t -> int
 
-(** [current ()] returns the current monitor *)
+(** [current ()] returns the current monitor. *)
 val current : unit -> t
 
 
@@ -113,9 +113,9 @@ val send_exn : t -> ?backtrace:[ `Get | `This of Backtrace.t ] -> exn -> unit
     [run = `Now], or schedules a job to run [f], if [run = `Schedule].  Once a result is
     returned, subsequent exceptions raised to the monitor are handled according to [rest]:
 
-    [`Log]: Logged to a global error log (cannot raise).
-    [`Raise]: Reraised to the monitor of [try_with]'s caller.
-    [`Call f]: Passed to [f] within the context of the caller of [try_with]'s monitor.
+    - [`Log]: Logged to a global error log (cannot raise).
+    - [`Raise]: Reraised to the monitor of [try_with]'s caller.
+    - [`Call f]: Passed to [f] within the context of the caller of [try_with]'s monitor.
 
     The [name] argument is used to give a name to the monitor the computation will be
     running in.  This name will appear when printing errors.
@@ -127,9 +127,7 @@ val send_exn : t -> ?backtrace:[ `Get | `This of Backtrace.t ] -> exn -> unit
 
     If [extract_exn = true], then in an [Error exn] result, the [exn] will be the actual
     exception raised by the computation.  If [extract_exn = false], then the [exn] will
-    include additional information, like the monitor and backtrace.  One typically wants
-    [extract_exn = false] due to the additional information.  However, sometimes one wants
-    the concision of [extract_exn = true]. *)
+    include additional information, like the monitor and backtrace. *)
 val try_with
   : (?extract_exn : bool             (** default is [false] *)
      -> ?run : [ `Now | `Schedule ]  (** default is [`Schedule] *)
@@ -166,7 +164,7 @@ val try_with_join_or_error
     called.
 
     Errors that are raised after [f ()] becomes determined will still be sent to
-    [handler]; i.e. the new monitor lives as long as jobs created by [f] live. *)
+    [handler], i.e., the new monitor lives as long as jobs created by [f] live. *)
 val handle_errors
   : ((unit -> 'a Deferred.t)
      -> (exn -> unit)
@@ -197,7 +195,7 @@ val protect
      -> 'a Deferred.t
     ) with_optional_monitor_name
 
-(** This it the initial monitor and is the root of the monitor tree.  Unhandled exceptions
+(** This is the initial monitor and is the root of the monitor tree.  Unhandled exceptions
     are raised to this monitor. *)
 val main : t
 

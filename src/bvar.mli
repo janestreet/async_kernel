@@ -9,7 +9,7 @@
     broadcast, not [signal]ing a single waiter.  Dropping [signal] simplifies the
     implementation significantly.
 
-    The ['permissions] parameter is used read/write permissions.  Also see [Perms]. *)
+    The ['permissions] parameter is used for read/write permissions.  Also see [Perms]. *)
 
 open! Core_kernel
 open! Import

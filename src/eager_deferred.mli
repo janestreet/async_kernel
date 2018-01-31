@@ -6,23 +6,21 @@
     The goal with that approach is that one can locally write the following to switch to
     such a world.
 
-    {[
-      open Use_eager_deferred
-    ]}
+    {[ open Use_eager_deferred ]}
 
     We do not intend at first for this to implement the entire [Deferred] interface,
     because some of this will require more experimentation and discussions.  We can
     proceed incrementally to enrich this interface.
 
     [test/test_eager_deferred] verifies that this interface is a sub interface of the
-    [Deferred] interface.  For documentation, refer to [Deferred]. *)
+    [Deferred] interface.  For documentation, refer to
+    {{!Async_kernel.Deferred}[Deferred]}. *)
 
 open! Core_kernel
 open! Import
 
 include sig
   type +'a t
-
 
   include Invariant.S1 with type 'a t := 'a t
 
@@ -50,6 +48,7 @@ include sig
   val value_exn      : 'a t -> 'a
 
   module List : Deferred1.Monad_sequence with type 'a t := 'a list
+  module Or_error = Eager_deferred_or_error
 end
 (*_ We do not expose [Eager_deferred.t] so that type-error messages refer to
   [Deferred.t], not [Eager_deferred.t]. *)

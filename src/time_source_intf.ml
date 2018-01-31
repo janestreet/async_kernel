@@ -1,9 +1,11 @@
 (** A time source holds a time (possibly wall-clock time, possibly simulated time) and
-    gives the ability to schedule Async jobs to run when that time advances.  There is a
-    single wall-clock time source (returned by [wall_clock ()]) that the Async scheduler
-    drives and uses for the [Clock_ns] module.  One can also create a user-controlled time
-    source via [create], and advance its clock as desired.  This is useful so that state
-    machines can depend on a notion of time that is distinct from wall-clock time. *)
+    gives the ability to schedule Async jobs to run when that time advances.
+
+    There is a single wall-clock time source (returned by [wall_clock ()]) that the Async
+    scheduler drives and uses for the [Clock_ns] module.  One can also create a
+    user-controlled time source via [create], and advance its clock as desired.  This is
+    useful so that state machines can depend on a notion of time that is distinct from
+    wall-clock time. *)
 
 open! Core_kernel
 open! Import
@@ -35,8 +37,8 @@ module type Time_source = sig
     -> unit
     -> read_write T1.t
 
-  (** A time source with [now t] given by wall-clock time (i.e. [Time_ns.now]) and that is
-      advanced automatically as time passes (specifically, at the start of each Async
+  (** A time source with [now t] given by wall-clock time (i.e., [Time_ns.now]) and that
+      is advanced automatically as time passes (specifically, at the start of each Async
       cycle).  There is only one wall-clock time source; every call to [wall_clock ()]
       returns the same value.  The behavior of [now] is special for [wall_clock ()]; it
       always calls [Time_ns.now ()], so it can return times that the time source has not
@@ -44,6 +46,7 @@ module type Time_source = sig
   val wall_clock : unit -> t
 
   (** Accessors.  [now (wall_clock ())] behaves specially; see [wall_clock] above. *)
+
   val alarm_precision     : [> read] T1.t -> Time_ns.Span.t
   val next_alarm_fires_at : [> read] T1.t -> Time_ns.t option
   val now                 : [> read] T1.t -> Time_ns.t
@@ -52,9 +55,9 @@ module type Time_source = sig
       timing_wheel's notion of now. *)
   val timing_wheel_now    : [> read] T1.t -> Time_ns.t
 
-  (** Unlike in [Synchronous_time_source], [advance] function here only approximately
+  (** Unlike in [Synchronous_time_source], the [advance] function here only approximately
       determines the set of events to fire. You should also call [fire_past_alarms] if you
-      want precision (see docs for [Timing_wheel_ns.advance_clock] vs
+      want precision (see docs for [Timing_wheel_ns.advance_clock] vs.
       [Timing_wheel_ns.fire_past_alarms]). *)
   val advance          : [> write] T1.t -> to_:Time_ns.t -> unit
   val advance_by       : [> write] T1.t -> Time_ns.Span.t -> unit
@@ -68,7 +71,7 @@ module type Time_source = sig
       when [to_] is reached.
 
       [advance_by_alarms] is useful in simulation when one wants to efficiently advance to
-      a time in the future while giving periodic timers (e.g. resulting from [every]) a
+      a time in the future while giving periodic timers (e.g., resulting from [every]) a
       chance to fire with approximately the same timing as they would live. *)
   val advance_by_alarms : [> write] T1.t -> to_:Time_ns.t -> unit Deferred.t
 
@@ -78,7 +81,7 @@ module type Time_source = sig
     val immediately : t
   end
 
-  (** See {!Clock.every'} for documentation. *)
+  (** See {{!Async_kernel.Clock_intf.Clock.every'}[Clock.every]} for documentation. *)
   val run_repeatedly
     :  ?start             : unit Deferred.t  (** default is [return ()] *)
     -> ?stop              : unit Deferred.t  (** default is [Deferred.never ()] *)
@@ -90,7 +93,8 @@ module type Time_source = sig
     -> unit
 
   (** The functions below here are the same as in clock_intf.ml, except they take an
-      explicit [t] argument.  See clock_intf.ml for documentation. *)
+      explicit [t] argument.  See {{!Async_kernel.Clock_intf}[Clock_intf]} for
+      documentation. *)
 
   val run_at    : [> read] T1.t -> Time_ns.t      -> ('a -> unit) -> 'a -> unit
   val run_after : [> read] T1.t -> Time_ns.Span.t -> ('a -> unit) -> 'a -> unit

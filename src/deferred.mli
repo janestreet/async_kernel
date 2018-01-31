@@ -16,7 +16,7 @@ include Invariant.S1 with type 'a t := 'a t
 
     This is just for display purposes.  There is no [t_of_sexp]. *)
 
-(** [create f] calls [f i], where [i] is empty ivar.  [create] returns a deferred that
+(** [create f] calls [f i], where [i] is an empty ivar.  [create] returns a deferred that
     becomes determined when [f] fills [i]. *)
 val create : ('a Ivar.t -> unit) -> 'a t
 
@@ -36,24 +36,21 @@ val is_determined : 'a t -> bool
 
 (** Deferreds form a monad.
 
-    [let%bind v = t in f v] returns a deferred [t'] that waits until t is determined to
-    have value [v], at which point it waits for [f v] to become determined with value
+    [let%bind v = t in f v] returns a deferred [t'] that waits until [t] is determined
+    with value [v], at which point it waits for [f v] to become determined with value
     [v'], to which [t'] will become determined.
 
-    [return v] returns a deferred that is immediately determined with value
-    v.
+    [return v] returns a deferred that is immediately determined with value v.
 
     Note that:
 
-    {[
-      upon t f ]}
+    {[ upon t f ]}
 
     is more efficient than:
 
-    {[
-      ignore (let%bind a = t in f a; return ()) ]}
+    {[ ignore (let%bind a = t in f a; return ()) ]}
 
-    because [upon], unlike [let%bind] does not create a deferred to hold the result.
+    because [upon], unlike [let%bind], does not create a deferred to hold the result.
 
     For example, one can write a loop that has good constant factors with:
 
@@ -82,24 +79,24 @@ val unit : unit t
 
 val ignore : _ t -> unit t
 
-(** [never ()] returns a deferred that never becomes determined *)
+(** [never ()] returns a deferred that never becomes determined. *)
 val never : unit -> _ t
 
 (** [both t1 t2] becomes determined after both [t1] and [t2] become determined. *)
 val both : 'a t -> 'b t -> ('a * 'b) t
 
-(** [all ts] returns a deferred that becomes determined when every t in ts
-    is determined.  The output is in the same order as the input. *)
+(** [all ts] returns a deferred that becomes determined when every [t] in [t]s is
+    determined.  The output is in the same order as the input. *)
 val all : 'a t list -> 'a list t
 
-(** Like [all], but ignores results of the component deferreds *)
+(** Like [all], but ignores results of the component deferreds. *)
 val all_unit : unit t list -> unit t
 
-(** [any ts] returns a deferred that is fulfilled when any of the underlying deferreds is
-    fulfilled *)
+(** [any ts] returns a deferred that is determined when any of the underlying deferreds is
+    determined. *)
 val any : 'a t list -> 'a t
 
-(** [any_unit ts] like [any] but ignores results of the component deferreds *)
+(** [any_unit] is like [any], but ignores results of the component deferreds. *)
 val any_unit : 'a t list -> unit t
 
 (** [don't_wait_for t] ignores [t].  It is like [Fn.ignore], but is more constrained
@@ -123,9 +120,9 @@ type 'a choice = 'a Choice.t
 val choice : 'a t -> ('a -> 'b) -> 'b Choice.t
 
 (** [enabled [choice t1 f1; ... choice tn fn;]] returns a deferred [d] that becomes
-    determined when any of the [ti] become determined.  The value of [d] is a function [f]
-    that when called, for each [ti] that is enabled, applies [fi] to [ti], and returns a
-    list of the results.  It is guaranteed that the list is in the same order as the
+    determined when any of the [ti] becomes determined. The value of [d] is a function
+    [f] that when called, for each [ti] that is enabled, applies [fi] to [ti], and returns
+    a list of the results. It is guaranteed that the list is in the same order as the
     choices supplied to [enabled], but of course it may be shorter than the input list if
     not all [ti] are determined. *)
 val enabled : 'b Choice.t list -> (unit -> 'b list) t
@@ -189,7 +186,7 @@ val forever
   -> unit
 
 (** Useful for lifting values from the [Deferred.t] monad to the [Result.t Deferred.t]
-    monad *)
+    monad. *)
 val ok : 'a t -> ('a, _) Core_kernel.Result.t t
 
 (** {2 Deferred collections}

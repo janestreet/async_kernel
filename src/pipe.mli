@@ -25,7 +25,7 @@ open! Core_kernel
 type ('a, 'phantom) t [@@deriving sexp_of]
 type ('a, 'phantom) pipe = ('a, 'phantom) t [@@deriving sexp_of]
 
-(** {1 Reader and Writer modules} *)
+(** {2 Reader and Writer modules} *)
 
 (** These provide reader- and writer-specific types for the base pipe type. *)
 
@@ -43,7 +43,7 @@ module Reader : sig
   val invariant : _ t -> unit
 end
 
-(** {1 Creation} *)
+(** {2 Creation} *)
 
 (** [create_reader ~close_on_exception f] creates a new pipe, applies [f] to its writer
     end, and returns its reader end.  [create_reader] closes the writer end when the
@@ -55,18 +55,19 @@ end
     write end of a pipe is taken to mean that the writer completed successfully.  With
     [close_on_exception:true], the caller will both see the pipe closed and an exception
     will be raised to the monitor in effect when [create_reader] was called.  There is a
-    race between those two actions, which can easily lead to confusion or bugs.
-
-    [create_writer] is symmetric.  It creates a new pipe, applies [f] to its reader end,
-    and returns its writer end.  [create_writer] calls [close_read] when the result of [f]
-    becomes determined.  If [f] raises, [create_writer] closes the pipe and raises the
-    exception to the caller of [create_writer].  [create_writer] closes on exception,
-    unlike [create_reader] because closing closing the read end of a pipe is a signal to
-    the writer that the consumer has failed. *)
+    race between those two actions, which can easily lead to confusion or bugs. *)
 val create_reader
   :  close_on_exception : bool
   -> ('a Writer.t -> unit Deferred.t)
   -> 'a Reader.t
+
+(** [create_writer] is symmetric with {{!create_reader}[create_reader]}.  It creates a new
+    pipe, applies [f] to its reader end, and returns its writer end.  [create_writer]
+    calls [close_read] when the result of [f] becomes determined.  If [f] raises,
+    [create_writer] closes the pipe and raises the exception to the caller of
+    [create_writer].  [create_writer] closes on exception, unlike [create_reader], because
+    closing closing the read end of a pipe is a signal to the writer that the consumer has
+    failed. *)
 val create_writer
   :  ('a Reader.t -> unit Deferred.t)
   -> 'a Writer.t
@@ -107,7 +108,7 @@ val unfold
 val of_sequence : 'a Sequence.t -> 'a Reader.t
 
 (** [to_sequence reader] returns a sequence that can be consumed to extract values from
-    [reader].  If [Wait_for d] is returned the consumer must wait for [d] to become
+    [reader].  If [Wait_for d] is returned, the consumer must wait for [d] to become
     determined before pulling the next value.  Repeatedly asking for the next value
     without waiting on [d] will infinite loop. *)
 type 'a to_sequence_elt =
@@ -115,7 +116,7 @@ type 'a to_sequence_elt =
   | Wait_for  : _ Deferred.t -> _ to_sequence_elt
 val to_sequence : 'a Reader.t -> 'a to_sequence_elt Sequence.t
 
-(** {1 Closing} *)
+(** {2 Closing} *)
 
 (** [close t] closes the write end of the pipe:
 
@@ -130,15 +131,15 @@ val to_sequence : 'a Reader.t -> 'a to_sequence_elt Sequence.t
 
     Thus, after a pipe has been closed, reads never block.
 
-    Close is idempotent.
+    [close] is idempotent. *)
+val close : _ Writer.t -> unit
 
-    [close_read t] closes both the read and write ends of the pipe.  It does everything
+(** [close_read t] closes both the read and write ends of the pipe.  It does everything
     [close] does, and in addition:
 
     - all pending flushes become determined with [`Reader_closed].
     - the pipe buffer is cleared.
-    - all subsequent reads will get [`Eof] *)
-val close       : _ Writer.t -> unit
+    - all subsequent reads will get [`Eof]. *)
 val close_read  : _ Reader.t -> unit
 
 (** [is_closed t] returns [true] iff [close t] or [close_read t] has been called. *)
@@ -148,7 +149,7 @@ val is_closed : (_, _) t -> bool
     is called. *)
 val closed : (_, _) t -> unit Deferred.t
 
-(** {1 Flushing} *)
+(** {2 Flushing} *)
 
 module Flushed_result : sig
   type t = [ `Ok | `Reader_closed ] [@@deriving sexp_of]
@@ -157,11 +158,9 @@ end
 (** Deferreds returned by [upstream_flushed] and [downstream_flushed] become determined
     when all values written prior to the call have been consumed, or if the reader end of
     the pipe is closed.  The difference between "upstream" and "downstream" comes if one
-    has a chain of pipes that are linked (e.g. by [Pipe.map]):
+    has a chain of pipes that are linked (e.g., by [Pipe.map]):
 
-    {v
-      P1 --> P2 --> P3
-    v}
+    {v P1 --> P2 --> P3 v}
 
     Calling [downstream_flushed P2] ensures that everything in P2 has made it out of P3.
     Calling [upstream_flushed P2] ensures that everything in P1 has made it out of P3.
@@ -178,9 +177,10 @@ end
 
     The following [Pipe] functions automatically link their input and output pipes
     together so that [*_flushed] on upstream pipes will propagate to downstream pipes:
-    [transfer*], [map*], [filter_map*], [filter], [interleave], [concat].  There is *not*
-    automatic linking with [iter*]; however, user code can customize the behavior of
-    flush functions using [Consumer], see below. *)
+    [transfer*], [map*], [filter_map*], [filter], [interleave], [concat].  There is {e
+    not} automatic linking with [iter*]; however, user code can customize the behavior of
+    flush functions using {{!Consumer}[Consumer]}. *)
+
 val   upstream_flushed : (_, _) t -> Flushed_result.t Deferred.t
 val downstream_flushed : (_, _) t -> Flushed_result.t Deferred.t
 
@@ -196,8 +196,9 @@ module Consumer : sig
         Pipe --> Consumer --> Pipe --> ...
       v}
 
+
       The time outside of the pipe can be broken down into two parts: a part (probably
-      short lived) during which the consumer processes the elements in some way, and a
+      short-lived) during which the consumer processes the elements in some way, and a
       downstream portion where the consumer acts as a sentinel to report when the element
       has been fully processed.
 
@@ -223,6 +224,7 @@ module Consumer : sig
       flushed the moment it leaves the pipe.  This may lead to odd results as entire
       queues of elements are removed by a call to [read'] but are processed over a long
       period. *)
+
   type t
 
   val values_sent_downstream : t -> unit
@@ -241,26 +243,26 @@ val add_consumer
   -> downstream_flushed:(unit -> Flushed_result.t Deferred.t)
   -> Consumer.t
 
-(** {1 Generic pipe operations} *)
+(** {2 Generic pipe operations} *)
 
 (** These operations apply to all values of type [(_, _) t], that is, both readers and
     writers. *)
 
-(** [length t] returns the number of elements currently queued in [t] *)
+(** [length t] returns the number of elements currently queued in [t]. *)
 val length : (_, _) t -> int
 
 (** [is_empty t] is true iff there are no values in the pipe. *)
 val is_empty : (_, _) t -> bool
 
-(** {1 Writing} *)
+(** {2 Writing} *)
 
 (** The write operations return a deferred value that is determined when either (1) it is
     OK to write again to the pipe or (2) the pipe has been closed.  This deferred is the
     data-producer's interface to the pipe pushback mechanism: it tells the producer when
     it should proceed after doing a write -- either to produce and write more data to the
-    pipe, or to abandon production entirely.  The pushback mechansim is just advisory: a
+    pipe, or to abandon production entirely.  The pushback mechanism is just advisory: a
     producer task can, but typically should not, dump arbitrary amounts of data into a
-    pipe even if there is no consumer draining the pipe.
+    pipe even if there is no consumer draining it.
 
     Producers that write a sequence of values to a pipe should be aware that the consumers
     who read from the pipe can close the pipe early -- that is, before the producer has
@@ -330,7 +332,7 @@ val write_when_ready
 val write_if_open                  : 'a Writer.t -> 'a -> unit Deferred.t
 val write_without_pushback_if_open : 'a Writer.t -> 'a -> unit
 
-(** {1 Reading} *)
+(** {2 Reading} *)
 
 (** With two special exceptions, all read procedures have a best-effort/forward-progress
     semantics:
@@ -471,22 +473,23 @@ val read_choice_single_consumer_exn
   -> Source_code_position.t
   -> [ `Eof | `Ok of 'a ] Deferred.choice
 
-(** {1 Sequence functions} *)
+(** {2 Sequence functions} *)
 
 (** Issues: {ul
-    {- Scalar & batch sequence processing
+    {- Scalar & batch sequence processing:
 
-    Each of the sequence functions (fold, iter, transfer, map) comes in two versions:
-    "scalar" and "batch" processing.  The scalar version has the ordinary type for [f],
-    which handles an element at a time in a non-deferred way.  In the batch version, [f]
-    deals with a queue of elements from the pipe at a time, and can block, which will
-    cause pushback on writers due to elements not being consumed. }
-    {- Early-close and functions that copy between pipes
+    Each of the sequence functions ([fold], [iter], [transfer], [map]) comes in two
+    versions: "scalar" and "batch" processing.  The scalar version has the ordinary type
+    for [f], which handles an element at a time in a non-deferred way.  In the batch
+    version, [f] deals with a queue of elements from the pipe at a time, and can block,
+    which will cause pushback on writers due to elements not being consumed.}
+
+    {- Early-close and functions that copy between pipes:
 
     Some functions ([transfer], [map], [filter_map], [filter], [interleave], [concat], and
     their primed, batch-processing variants) spawn a background task that copies data from
     some upstream pipe to some downstream pipe, perhaps with some processing inserted
-    in-between.  These copying tasks finish under two circumstances.  The standard,
+    in between.  These copying tasks finish under two circumstances.  The standard,
     "normal" case is when the copying task gets EOF from the upstream pipe -- there is no
     more data to copy.  In this case, the copying task closes the downstream pipe, if
     necessary, and exits.
@@ -573,7 +576,7 @@ val transfer'
   -> f : ('a Queue.t -> 'b Queue.t Deferred.t)
   -> unit Deferred.t
 
-(** [transfer] is like [transfer'], except that it processes one element at time. *)
+(** [transfer] is like [transfer'], except that it processes one element at a time. *)
 val transfer : 'a Reader.t -> 'b Writer.t -> f:('a -> 'b ) -> unit Deferred.t
 
 (** [transfer_id] is a specialization of [transfer'] with [f = Fn.id]. *)
@@ -593,7 +596,7 @@ val map'
   -> f:('a Queue.t -> 'b Queue.t Deferred.t)
   -> 'b Reader.t
 
-(** [map] is like [map'], except that it processes one element at time. *)
+(** [map] is like [map'], except that it processes one element at a time. *)
 val map : 'a Reader.t -> f:('a -> 'b) -> 'b Reader.t
 
 (** [folding_map] is a version of [map] that threads an accumulator through calls to [f].
@@ -653,7 +656,7 @@ val fold_filter_map
     [input]. *)
 val filter : 'a Reader.t -> f:('a -> bool) -> 'a Reader.t
 
-(** [interleave inputs] returns a reader [output], and, for each input, transfers batches
+(** [interleave inputs] returns a reader, [output], and, for each input, transfers batches
     of values from that input to [output], using [transfer_id].  Each input is transferred
     to [output] independently.  So, batches of values from different inputs can be in
     flight to [output] simultaneously, but at most one batch at a time from any particular
@@ -679,7 +682,7 @@ val concat : 'a Reader.t list -> 'a Reader.t
     a stream to instead consume from a pipe reader. *)
 val to_stream_deprecated : 'a Reader.t -> 'a Async_stream.t
 
-(** [of_stream_deprecated reader] return a pipe that has one element for every element on
+(** [of_stream_deprecated reader] returns a pipe that has one element for every element on
     the stream.  This function is deprecated because one should change the code that is
     producing a stream to instead produce a pipe reader. *)
 val of_stream_deprecated : 'a Async_stream.t -> 'a Reader.t
@@ -695,18 +698,18 @@ val drain_and_count : 'a Reader.t -> int  Deferred.t
     list of these values. *)
 val to_list : 'a Reader.t -> 'a list Deferred.t
 
-(** {1 Miscellaneous} *)
+(** {2 Miscellaneous} *)
 
-(** [hash] a hash function suitable for pipes *)
+(** [hash] is a hash function based on the internal id of the pipe. *)
 val hash : (_, _) t -> int
 
 (** [equal] on pipes is physical equality. *)
 val equal : ('a, 'b) t -> ('a, 'b) t -> bool
 
-(** [compare] on pipes is based on the internal id of the pipe *)
+(** [compare] on pipes is based on the internal id of the pipe. *)
 val compare : (_, _) t -> (_, _) t -> int
 
-(** {1 Size budget} *)
+(** {2 Size budget} *)
 
 (** Every pipe has a "size budget", which governs the pushback that is used to discourage
     writers from enqueueing arbitrarily large amounts of data.  As long as the length of
@@ -721,10 +724,10 @@ val size_budget: (_, _) t -> int
     allowed. *)
 val set_size_budget: (_, _) t -> int -> unit
 
-(** {1 Debugging} *)
+(** {2 Debugging} *)
 
-(** [show_debug_messages], if true will cause a message to be printed at the start of each
-    operation, showing the pipe and other arguments. *)
+(** [show_debug_messages], if true, will cause a message to be printed at the start of
+    each operation, showing the pipe and other arguments. *)
 val show_debug_messages : bool ref
 
 (** [check_invariant], if true, will cause pipes' invariants to be checked at the start of

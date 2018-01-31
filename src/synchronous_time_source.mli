@@ -22,8 +22,7 @@ val read_only : [> read] T1.t -> t
 type callback = unit -> unit
 
 (** [create ~now ()] creates a new time source.  The default [timing_wheel_config] has 100
-    microsecond precision, with levels of >1s, >1m, >1h, >1d.  [wrap_callback], if
-    supplied, will be applied to each callback that is added. *)
+    microsecond precision, with levels of >1s, >1m, >1h, >1d. *)
 val create
   :  ?timing_wheel_config : Timing_wheel_ns.Config.t
   -> now : Time_ns.t
@@ -46,9 +45,9 @@ val now : [> read] T1.t -> Time_ns.t
 val timing_wheel_now : [> read] T1.t -> Time_ns.t
 
 (** [advance_by_alarms t ~to_] advances [t]'s time to [to_], running callbacks for all
-    alarms in [t] whose [at <= to_].  If [to_ <= now t], then [now t] does not change (and
-    in particular does not go backward), but alarms with [at <= to_] may still may
-    fire. *)
+    alarms in [t] whose [at <= to_].  Callbacks run in nondecreasing order of [at].  If
+    [to_ <= now t], then [now t] does not change (and in particular does not go backward),
+    but alarms with [at <= to_] may still may fire. *)
 val advance_by_alarms : [> write] T1.t -> to_:Time_ns.t -> unit Or_error.t
 
 (** [run_at t at f] schedules an alarm that will run [f] during the next subsequent
@@ -87,7 +86,9 @@ module Event : sig
   end
 
   (** [abort t] aborts the event [t], if possible, and returns [Ok] if the event was
-      aborted, or the reason it could not be aborted. *)
+      aborted, or the reason it could not be aborted.  [abort] returns
+      [Currently_happening] iff it is called on an event while running that event's
+      callback. *)
   val abort             : [> read] T1.t -> t -> Abort_result.t
   val abort_exn         : [> read] T1.t -> t -> unit
   val abort_if_possible : [> read] T1.t -> t -> unit

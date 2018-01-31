@@ -11,10 +11,10 @@
 
     The type is not exposed nor defined as ['a Deferred.t Lazy.t] or ['a Or_error.t
     Deferred.t Lazy.t], because there is a difference in power with these types.  There is
-    no way to hook an asynchronous computation to a lazy value in OCaml to be triggered
-    when the lazy gets computed.  This functionality is indeed offered by this module
-    (see [wait]).  Plus, dealing with exception raised by the closures provided is
-    slightly easier when done consistently through this API.
+    no way in standard OCaml to hook an asynchronous computation to be triggered when a
+    lazy value gets computed.  This functionality is offered by this module (see [wait]).
+    Plus, dealing with an exception raised by the closures provided is slightly easier
+    when done consistently through this API.
 
     There is no [val of_lazy : 'a Deferred.t Lazy.t -> 'a t] because of the difference
     in power. *)

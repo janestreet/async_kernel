@@ -1,13 +1,15 @@
 open! Core_kernel
 open! Import
 
-module Deferred = Deferred1
+module Deferred = Eager_deferred0
+
+module Deferred_result = Eager_deferred_result
 
 module Monitor = struct
-  let try_with = Monitor.try_with ?run:None
+  let try_with = Monitor.try_with ~run:`Now
 end
 
-(* Copied to [eager_deferred_or_error.ml].  There should be no diffs below this line. *)
+(* Copied from [deferred_or_error.ml].  There should be no diffs below this line. *)
 
 include (Deferred_result : Monad.S2
          with type ('a, 'b) t := ('a, 'b) Deferred_result.t

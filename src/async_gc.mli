@@ -12,14 +12,13 @@ include module type of Core_kernel.Gc
     the monitor that called [add_finalizer b f].
 
     The OCaml runtime only supports finalizers on heap blocks, hence [add_finalizer]
-    requires [b : _ Heap_block.t].  [add_finalizer_exn b f] is like [add_finalizer], but
-    will raise if [b] is not a heap block.
+    requires [b : _ Heap_block.t].
 
     The runtime essentially maintains a set of finalizer pairs:
 
-    {v
+    {[
       'a Heap_block.t * ('a Heap_block.t -> unit)
-    v}
+    ]}
 
     Each call to [add_finalizer] adds a new pair to the set.  It is allowed for many pairs
     to have the same heap block, the same function, or both.  Each pair is a distinct
@@ -37,15 +36,19 @@ include module type of Core_kernel.Gc
     pair [(b, f)] is removed from the set of finalizers.
 
     The [f] function can use all features of OCaml and Async, since it runs as an ordinary
-    Async job.  [f] can even make make [b] reachable again.  It can even call
-    [add_finalizer] on [b] or other values to register other finalizer functions. *)
+    Async job.  [f] can even make [b] reachable again.  It can even call [add_finalizer]
+    on [b] or other values to register other finalizer functions. *)
 val add_finalizer     : 'a Heap_block.t -> ('a Heap_block.t -> unit) -> unit
+
+(** [add_finalizer_exn b f] is like {{!add_finalizer}[add_finalizer]}, but will raise if
+    [b] is not a heap block. *)
 val add_finalizer_exn : 'a -> ('a -> unit) -> unit
 
-(** Same as {!add_finalizer} except that the function is not called until the value has
-    become unreachable for the last time.  This means that the finalization function does
-    not recieve the value as an argument.  Every weak pointer and ephemeron that contained
-    this value as key or data is unset before running the finalization function. *)
+(** Same as {{!add_finalizer}[add_finalizer]} except that the function is not called until
+    the value has become unreachable for the last time.  This means that the finalization
+    function does not receive the value as an argument.  Every weak pointer and ephemeron
+    that contained this value as key or data is unset before running the finalization
+    function. *)
 val add_finalizer_last     : 'a Heap_block.t -> (unit -> unit) -> unit
 val add_finalizer_last_exn : 'a -> (unit -> unit) -> unit
 

@@ -1,3 +1,9 @@
+(** [Monad_sequence.S] is a generic interface specifying functions that deal with a
+    container and a monad.  It is specialized to the [Deferred] monad and used with
+    various containers in modules [Deferred.Array], [Deferred.List], [Deferred.Queue], and
+    [Deferred.Sequence].  The [Monad_sequence.how] type specifies the parallelism of
+    container iterators. *)
+
 open! Core_kernel
 open! Import
 

@@ -7,4 +7,24 @@
 ))
 
 
+(rule
+ ((targets (eager-deferred-or-error.diff))
+  (fallback)
+  (deps (eager_deferred_or_error.ml deferred_or_error.ml))
+  (action (bash "patdiff -default deferred_or_error.ml eager_deferred_or_error.ml \
+             >eager-deferred-or-error.diff || true"))))
+
+(rule
+ ((targets (eager-deferred-result.diff))
+  (fallback)
+  (deps (eager_deferred_result.ml deferred_result.ml))
+  (action (bash "patdiff -default deferred_result.ml eager_deferred_result.ml \
+             >eager-deferred-result.diff || true"))))
+
+(alias
+ ((name DEFAULT)
+  (deps
+   (eager-deferred-or-error.diff
+    eager-deferred-result.diff))))
+
 (jbuild_version 1)

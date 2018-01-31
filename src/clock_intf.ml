@@ -17,24 +17,22 @@ module type Clock = sig
   end
 
   (** [run_at time f a] runs [f a] as soon as possible after [time].  If [time] is in the
-      past, then [run_at] will immediately schedule a job t that will run [f a].  In no
+      past, then [run_at] will immediately schedule a job [t] that will run [f a].  In no
       situation will [run_at] actually call [f] itself.  The call to [f] will always be in
-      another job.
+      another job. *)
+  val run_at : Time.t -> ('a -> unit) -> 'a -> unit
 
-      [run_after] is like [run_at], except that one specifies a time span rather than an
+  (** [run_after] is like [run_at], except that one specifies a time span rather than an
       absolute time. *)
-  val run_at    : Time.t      -> ('a -> unit) -> 'a -> unit
   val run_after : Time.Span.t -> ('a -> unit) -> 'a -> unit
 
   (** [at time] returns a deferred [d] that will become determined as soon as possible
-      after [time]
+      after [time] *)
+  val at : Time.t -> unit Deferred.t
 
-      [after] is like [at], except that one specifies a time span rather than an absolute
-      time.
-
-      If you set up a lot of [after] events at the beginning of your program they will
-      trigger at the same time.  Use [Time.Span.randomize] to even that out. *)
-  val at    : Time.t      -> unit Deferred.t
+  (** [after] is like [at], except that one specifies a time span rather than an absolute
+      time.  If you set up a lot of [after] events at the beginning of your program they
+      will trigger at the same time.  Use [Time.Span.randomize] to even them out. *)
   val after : Time.Span.t -> unit Deferred.t
 
   (** [with_timeout span d] returns a deferred that will become determined after either
@@ -68,8 +66,8 @@ module type Clock = sig
       [@@deriving sexp_of]
     end
 
-    (** If [status] returns [Scheduled_at time], it is possible that [time < Time.now ()],
-        if Async's scheduler hasn't yet gotten the chance to update its clock, e.g.  due
+    (** If [status] returns [Scheduled_at time], it is possible that [time < Time.now ()]
+        if Async's scheduler hasn't yet gotten the chance to update its clock, e.g., due
         to user jobs running. *)
     val status : ('a, 'h) t -> ('a, 'h) Status.t
 
@@ -94,7 +92,7 @@ module type Clock = sig
         previously happened or was previously aborted. *)
     val abort : ('a, 'h) t -> 'a -> ('a, 'h) Abort_result.t
 
-    (** [abort_exn t a] returns unit if [abort t a = `Ok], and otherwise raises. *)
+    (** [abort_exn t a] returns [unit] if [abort t a = `Ok], and otherwise raises. *)
     val abort_exn : ('a, 'h) t -> 'a -> unit
 
     (** [abort_if_possible t a = ignore (abort t a)]. *)
@@ -116,7 +114,7 @@ module type Clock = sig
     (** [at time]    is [run_at    time ignore ()].
         [after time] is [run_after time ignore ()].
 
-        You should generally prefer to use the [run_*] functions, which allow one to
+        You should generally prefer to use the [run_*] functions, which allow you to
         synchronously update state via a user-supplied function when the event
         transitions to [Happened].  That is, there is an important difference between:
 
@@ -187,7 +185,7 @@ module type Clock = sig
       then there will be no element before the [interval] has passed.
 
       If the interval is too small or the CPU is too loaded, [at_intervals] will skip
-      until the next upcoming multiple of [interval] after start. *)
+      until the next upcoming multiple of [interval] after [start]. *)
   val at_intervals
     :  ?start:Time.t
     -> ?stop:unit Deferred.t
@@ -222,7 +220,7 @@ module type Clock = sig
     -> (unit -> unit Deferred.t) -> unit
 
   (** [every ?start ?stop span f] is
-      [every' ?start ?stop span (fun () -> f (); return ())] *)
+      [every' ?start ?stop span (fun () -> f (); return ())]. *)
   val every
     :  ?start : unit Deferred.t   (** default is [return ()] *)
     -> ?stop : unit Deferred.t    (** default is [Deferred.never ()] *)
@@ -231,7 +229,7 @@ module type Clock = sig
     -> (unit -> unit) -> unit
 
   (** [run_at_intervals' ?start ?stop span f] runs [f()] at increments of [start + i *
-      span] for non-negative integers [i], until [stop] becomes determined.
+      span] for nonnegative integers [i], until [stop] becomes determined.
       [run_at_intervals'] waits for the result of [f] to become determined before waiting
       for the next interval.
 
@@ -400,4 +398,4 @@ include (struct
   [@@@warning "-3"]
   module F1 (C : Clock) = (C : Clock_deprecated)
   module F2 (C : Clock_deprecated) = (C : Clock)
-end : sig end)
+end : sig end) (** @inline *)
