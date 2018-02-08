@@ -13,14 +13,14 @@ module Sequence = Deferred_sequence
 let%test_module "Deferred_array_tests" =
   (module struct
     include Monad_sequence_unit_tests.Make
-        (Core_kernel.Std.Array)
+        (Core_kernel.Array)
         (Array)
   end)
 
 let%test_module "Deferred_sequence_tests" =
   (module struct
     include Monad_sequence_unit_tests.Make
-        (Core_kernel.Std.Sequence)
+        (Core_kernel.Sequence)
         (Sequence)
   end)
 
@@ -28,8 +28,8 @@ let%test_module "Deferred_queue_tests" =
   (module struct
     include Monad_sequence_unit_tests.Make
         (struct
-          include Core_kernel.Std.Queue
-          let compare cmp t1 t2 = Core_kernel.Std.List.compare cmp (to_list t1) (to_list t2)
+          include Core_kernel.Queue
+          let compare cmp t1 t2 = Core_kernel.List.compare cmp (to_list t1) (to_list t2)
           let concat_map t ~f = concat_map t ~f:(fun x -> to_list (f x))
           let concat_mapi t ~f = concat_mapi t ~f:(fun i x -> to_list (f i x))
         end)
@@ -40,6 +40,6 @@ let%test_module "Deferred_queue_tests" =
 let%test_module "Deferred_list_tests" =
   (module struct
     include Monad_sequence_unit_tests.Make
-        (Core_kernel.Std.List)
+        (Core_kernel.List)
         (List)
   end)

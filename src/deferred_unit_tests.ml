@@ -1,5 +1,4 @@
 open Core_kernel
-open Std
 
 let%test_module _ =
   (module struct

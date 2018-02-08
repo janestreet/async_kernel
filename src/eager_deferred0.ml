@@ -180,7 +180,7 @@ let%test_module "Eager_deferred_list_tests" =
   (module struct
     include Monad_sequence_unit_tests.Make
         (struct
-          include Core_kernel.Std.List
+          include Core_kernel.List
           let compare cmp t1 t2 = compare cmp t1 t2
           let foldi t ~init ~f = foldi t ~init ~f
         end)
