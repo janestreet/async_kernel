@@ -240,12 +240,12 @@ let create () =
     ; yield                                = Bvar.create ()
     ; yield_until_no_jobs_remain           = Bvar.create ()
     (* configuration *)
-    ; check_invariants                     = Config.check_invariants
-    ; max_num_jobs_per_priority_per_cycle  = Config.max_num_jobs_per_priority_per_cycle
-    ; record_backtraces                    = Config.record_backtraces
+    ; check_invariants                     = Async_kernel_config.check_invariants
+    ; max_num_jobs_per_priority_per_cycle  = Async_kernel_config.max_num_jobs_per_priority_per_cycle
+    ; record_backtraces                    = Async_kernel_config.record_backtraces
     ; on_start_of_cycle                    = Fn.id
     ; on_end_of_cycle                      = Fn.id }
-  and events = Timing_wheel_ns.create ~config:Config.timing_wheel_config ~start:now
+  and events = Timing_wheel_ns.create ~config:Async_kernel_config.timing_wheel_config ~start:now
   and time_source =
     { Synchronous_time_source.T1.
       advance_errors = []
@@ -341,7 +341,10 @@ let stabilize t =
   | Error (exn, _backtrace) -> Error exn
 ;;
 
-let create_time_source ?(timing_wheel_config = Config.timing_wheel_config) ~now () =
+let create_time_source
+      ?(timing_wheel_config = Async_kernel_config.timing_wheel_config)
+      ~now
+      () =
   let t = t () in
   let events = Timing_wheel_ns.create ~config:timing_wheel_config ~start:now in
   let rec time_source : _ Synchronous_time_source.T1.t =

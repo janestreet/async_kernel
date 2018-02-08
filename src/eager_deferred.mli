@@ -47,6 +47,13 @@ include sig
   val upon           : 'a t -> ('a -> unit) -> unit
   val value_exn      : 'a t -> 'a
 
+  val repeat_until_finished
+    :  'state
+    ->  ('state -> [ `Repeat of 'state
+                   | `Finished of 'result
+                   ] t)
+    -> 'result t
+
   module List : Deferred1.Monad_sequence with type 'a t := 'a list
   module Or_error = Eager_deferred_or_error
 end

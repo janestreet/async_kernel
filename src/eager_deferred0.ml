@@ -74,6 +74,18 @@ module Infix = struct
   let (>>>) = upon
 end
 
+let repeat_until_finished state f =
+  let open Infix in
+  create (fun finished ->
+    let rec loop state =
+      f state
+      >>> function
+      | `Repeat state -> loop state
+      | `Finished result -> Ivar.fill finished result
+    in
+    loop state)
+;;
+
 module List = struct
   open Infix
   open Let_syntax

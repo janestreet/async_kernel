@@ -1,6 +1,9 @@
 open! Core_kernel
 open! Import
 
+module type Clock            = Clock_intf.Clock
+module type Clock_deprecated = Clock_intf.Clock_deprecated
+
 module Scheduler = Scheduler1
 
 let time_source () = (Scheduler.t ()).time_source |> Time_source.of_synchronous

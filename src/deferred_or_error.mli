@@ -55,6 +55,10 @@ val unimplemented : string -> _ t
 val combine_errors : 'a t list -> 'a list t
 val combine_errors_unit : unit t list -> unit t
 
+(** [find_map_ok l ~f] returns the first value in [l] for which [f] returns [Ok],
+    otherwise it returns the same error as [combine_errors (Deferred.List.map l ~f)]. *)
+val find_map_ok : 'a list -> f:('a -> 'b t) -> 'b t
+
 (** [ok_unit = return ()] *)
 val ok_unit : unit t
 

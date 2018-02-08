@@ -3,6 +3,7 @@ open Async_quickcheck_intf
 
 module Generator = Quickcheck.Generator
 module Observer  = Quickcheck.Observer
+module Shrinker  = Quickcheck.Shrinker
 
 include Quickcheck_async_configured
 

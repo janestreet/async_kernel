@@ -231,7 +231,7 @@ let send_exn t ?backtrace exn =
         (* Do not change this branch to print the exception or to exit.  Having the
            scheduler raise an uncaught exception is the necessary behavior for programs
            that call [Scheduler.go] and want to handle it. *)
-        Scheduler.(got_uncaught_exn (t ())) exn (!Config.task_id ()));
+        Scheduler.(got_uncaught_exn (t ())) exn (!Async_kernel_config.task_id ()));
   in
   loop t
 ;;
@@ -362,11 +362,18 @@ let fill_result_and_handle_background_errors
     handle_exns_after_result exns);
 ;;
 
+module Expert = struct
+  let try_with_log_exn : (exn -> unit) ref =
+    ref (fun exn ->
+      raise_s [%message "failed to set [Monitor.Expert.try_with_log_exn]" (exn : Exn.t)])
+  ;;
+end
+
 let make_handle_exn rest =
   match rest with
   | `Log   ->
     (* We are careful to not close over current context, which is not needed. *)
-    !try_with_log_exn
+    !Expert.try_with_log_exn
   | `Raise ->
     let parent = current () in
     fun exn -> send_exn parent exn ?backtrace:None

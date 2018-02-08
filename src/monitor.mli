@@ -199,6 +199,12 @@ val protect
     are raised to this monitor. *)
 val main : t
 
+module Expert : sig
+  (** [try_with_log_exn] is called by [try_with] when an exception is raised to a
+      [try_with] that already returned.  [Async_unix] sets it to a function that logs. *)
+  val try_with_log_exn : (exn -> unit) ref
+end
+
 module Exported_for_scheduler : sig
   type 'a with_options =
     ?monitor:t

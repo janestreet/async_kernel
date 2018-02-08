@@ -4,6 +4,7 @@ open Deferred.Infix
 
 module Generator = Quickcheck.Generator
 module Observer  = Quickcheck.Observer
+module Shrinker  = Quickcheck.Shrinker
 
 module Configure (Config : Quickcheck.Quickcheck_config) = struct
 

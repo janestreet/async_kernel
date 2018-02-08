@@ -11,32 +11,33 @@ module Limiter_in_this_directory = Limiter
 open! Core_kernel
 open! Import
 
-module Async_kernel_config     = Config
-module Bvar                    = Bvar
-module Clock_intf              = Clock_intf
-module Clock_ns                = Clock_ns
-module Condition               = Async_condition
-module Deferred                = Deferred
-module Eager_deferred          = Eager_deferred
-module Execution_context       = Execution_context
-module Gc                      = Async_gc
-module Handler                 = Handler
-module Invariant               = Async_invariant
-module Ivar                    = Ivar
-module Quickcheck              = Async_quickcheck
-module Lazy_deferred           = Lazy_deferred
-module Limiter                 = Limiter_in_this_directory
-module Monad_sequence          = Monad_sequence
-module Monitor                 = Monitor
-module Mvar                    = Mvar
-module Pipe                    = Pipe
-module Priority                = Priority
-module Sequencer               = Throttle.Sequencer
-module Stream                  = Async_stream
-module Synchronous_time_source = Synchronous_time_source
-module Tail                    = Tail
-module Throttle                = Throttle
-module Time_source             = Time_source
+module Async_kernel_config          = Async_kernel_config
+module Async_kernel_scheduler       = Scheduler
+module Bvar                         = Bvar
+module Clock_ns                     = Clock_ns
+module Condition                    = Async_condition
+module Deferred                     = Deferred
+module Eager_deferred               = Eager_deferred
+module Execution_context            = Execution_context
+module Gc                           = Async_gc
+module Invariant                    = Async_invariant
+module Ivar                         = Ivar
+module Quickcheck                   = Async_quickcheck
+module Lazy_deferred                = Lazy_deferred
+module Limiter                      = Limiter_in_this_directory
+module Monad_sequence               = Monad_sequence
+module Monitor                      = Monitor
+module Mvar                         = Mvar
+module Persistent_connection        = Persistent_connection
+module Pipe                         = Pipe
+module Priority                     = Priority
+module Require_explicit_time_source = Require_explicit_time_source
+module Sequencer                    = Throttle.Sequencer
+module Stream                       = Async_stream
+module Synchronous_time_source      = Synchronous_time_source
+module Tail                         = Tail
+module Throttle                     = Throttle
+module Time_source                  = Time_source
 
 (** Intended usage is to [open Use_eager_deferred] to shadow operations from the non-eager
     world and rebind them to their eager counterparts. *)
@@ -90,19 +91,13 @@ include Deferred.Let_syntax
 
 
 (**/**)
+(** The modules in [Async_kernel_private] are used for constructing and testing Async, and
+    should not otherwise be used. *)
 module Async_kernel_private = struct
-  module Debug                        = Debug
-  module Deferred1                    = Deferred1
-  module Ivar0                        = Ivar0
-  module Ivar_filler                  = Ivar_filler
-  module Job                          = Job
-  module Monitor0                     = Monitor0
-  module Persistent_connection        = Persistent_connection
-  module Persistent_connection_intf   = Persistent_connection_intf
-  module Require_explicit_time_source = Require_explicit_time_source
-  module Scheduler                    = Scheduler
-  module Scheduler1                   = Scheduler1
-  module Time_ns                      = Time_ns
+  module Debug       = Debug
+  module Ivar0       = Ivar0
+  module Ivar_filler = Ivar_filler
+  module Job         = Job
 end
 (**/**)
 

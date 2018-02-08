@@ -75,6 +75,18 @@ let combine_errors_unit l =
   Deferred.map (Deferred.all l) ~f:Or_error.combine_errors_unit
 ;;
 
+let find_map_ok l ~f =
+  Deferred.repeat_until_finished (l, []) (fun (l, errors) ->
+    match l with
+    | [] ->
+      let errors = Error.of_list (List.rev errors) in
+      Deferred.return (`Finished (Error errors))
+    | hd :: tl ->
+      Deferred.map (f hd) ~f:(function
+        | Error current_error -> `Repeat   (tl, current_error :: errors)
+        | Ok    result        -> `Finished (Ok  result)))
+;;
+
 let ok_unit = return ()
 
 let never = Deferred.never

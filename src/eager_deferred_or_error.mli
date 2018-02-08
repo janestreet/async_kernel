@@ -19,6 +19,8 @@ val tag : 'a t -> tag:string -> 'a t
 val tag_arg : 'a t -> string -> 'b -> ('b -> Sexp.t) -> 'a t
 val unimplemented : string -> _ t
 
+val find_map_ok : 'a list -> f:('a -> 'b t) -> 'b t
+
 (** Note that [try_with f] is eager only in the [Ok] case. *)
 val try_with
   :  ?extract_exn:bool

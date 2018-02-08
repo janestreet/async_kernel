@@ -1,3 +1,12 @@
+## git version
+
+- Removed a number of modules from `Async_kernel.Async_kernel_private`.
+  Exposed some modules directly in `Async_kernel`:
+  + `Async_kernel_scheduler`
+  + `Persistent_connection`
+  + `Require_explicit_time_source`
+
+
 ## v0.10
 
 - Added `Pipe.singleton` function, for creating a pipe filled with a single
