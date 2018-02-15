@@ -360,6 +360,7 @@ type send_exn
   -> unit
 
 let run_fired_events t ~(send_exn : send_exn option) =
+  let current_execution_context = t.scheduler.current_execution_context in
   while Event.is_some t.fired_events do
     let event = t.fired_events in
     t.fired_events <- event.next_fired;
@@ -370,6 +371,9 @@ let run_fired_events t ~(send_exn : send_exn option) =
     | Fired ->
       Event.set_status event Happening;
       let status : Event.Status.t =
+        (* We set the execution context so that [event.callback] runs in the same context
+           that was in place when [event] was created. *)
+        Scheduler0.set_execution_context t.scheduler event.execution_context;
         match event.callback () with
         | exception exn ->
           (match send_exn with
@@ -390,6 +394,7 @@ let run_fired_events t ~(send_exn : send_exn option) =
       in
       Event.set_status event status;
   done;
+  Scheduler0.set_execution_context t.scheduler current_execution_context;
 ;;
 
 let advance_clock t ~to_ ~send_exn =

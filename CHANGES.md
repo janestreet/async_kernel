@@ -3,8 +3,9 @@
 - Removed a number of modules from `Async_kernel.Async_kernel_private`.
   Exposed some modules directly in `Async_kernel`:
   + `Async_kernel_scheduler`
-  + `Persistent_connection`
+  + `Persistent_connection` (as `Async_kernel_persistent_connection`)
   + `Require_explicit_time_source`
+    (as `Async_kernel_require_explicit_time_source`)
 
 
 ## v0.10
