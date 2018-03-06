@@ -123,11 +123,11 @@ val to_sequence : 'a Reader.t -> 'a to_sequence_elt Sequence.t
     - Future write attempts will fail, raising an exception.
 
     - If, at the time of the close, there are reads blocked waiting for data, these reads
-    will unblock, producing [`Eof].
+      will unblock, producing [`Eof].
 
     - Future read attempts will drain the data that was in the pipe at the time of the
-    close, until the pipe's buffer has been exhausted; subsequent reads will immediately
-    get [`Eof].
+      close, until the pipe's buffer has been exhausted; subsequent reads will immediately
+      get [`Eof].
 
     Thus, after a pipe has been closed, reads never block.
 
@@ -214,11 +214,11 @@ module Consumer : sig
       In each case the consumer is responsible for indicating when:
 
       - it has finished any local work (by attaching itself to elements via the ~consumer
-      argument to [read] and [read']) and calling [values_sent_downstream] when it has
-      sent the values downstream.
+        argument to [read] and [read']) and calling [values_sent_downstream] when it has
+        sent the values downstream.
 
       - when any further processing has been completed (by providing an appropriate
-      function to [~downstream_flushed] when [add_consumer] is called).
+        function to [~downstream_flushed] when [add_consumer] is called).
 
       If a reader does not use a consumer to do the reading then an element is considered
       flushed the moment it leaves the pipe.  This may lead to odd results as entire
@@ -338,11 +338,11 @@ val write_without_pushback_if_open : 'a Writer.t -> 'a -> unit
     semantics:
 
     - Best effort: When you do a read, you get what's available {e right now}, which might
-    be less than you requested.
+      be less than you requested.
 
     - Forward progress: However, if {e nothing is available}, you block until some data
-    comes in (unless you're at EOF, in which case there's obviously no point in waiting).
-    So the only time you ever get an empty, 0-item read is when you're at EOF.
+      comes in (unless you're at EOF, in which case there's obviously no point in waiting).
+      So the only time you ever get an empty, 0-item read is when you're at EOF.
 
     The best-effort semantics allows you to program in a style that processes data in big
     slabs, yet also moves data through your processing in as timely a way as possible.

@@ -25,7 +25,7 @@ end
    processes them, allowing that process:
    - to communicate that it has taken responsibility for the values
    - to signal when it has finished with the values to interested parties (via
-   [downstream_flushed])
+     [downstream_flushed])
 
    It is used in two steps:
 

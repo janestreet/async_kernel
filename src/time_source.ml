@@ -481,8 +481,10 @@ let run_at_intervals ?start ?stop ?continue_on_error t interval f =
 let with_timeout t span d =
   let timeout = Event.after t span in
   choose
-    (* [choose] is supposed to call at most one choice function one time.  So, the bug
-       messages below, should they raise, likely indicate a bug in [choose] rather than
+    (* The code below does exhaustive case analysis in both [choice]s.  Because [timeout]
+       does not escape the scope of this function, certain cases should be impossible, and
+       are marked as such with exceptions.  We do not expect those exceptions to occur,
+       but if they do, it likely indicates a bug in [choose] rather than
        [with_timeout]. *)
     [ choice d (fun v ->
         begin match Event.abort timeout () with
