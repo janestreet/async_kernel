@@ -1,4 +1,4 @@
-## git version
+## v0.11
 
 - Removed a number of modules from `Async_kernel.Async_kernel_private`.
   Exposed some modules directly in `Async_kernel`:
