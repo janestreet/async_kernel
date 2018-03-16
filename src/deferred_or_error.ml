@@ -119,7 +119,7 @@ module List = struct
   ;;
 
   let all = all
-  let all_unit = all_ignore
+  let all_unit = all_unit
 
   let iteri ?(how = `Sequential) t ~f =
     match how with
@@ -553,7 +553,7 @@ let%test_module _ =
     ;;
 
     let%test _ =
-      let f _ = raise Not_found in
+      let f _ = raise Caml.Not_found in
       let def = try_with (fun () -> Seqlist.iter ~f [0]) in
       stabilize ();
       match Deferred.peek def with

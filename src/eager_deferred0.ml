@@ -186,7 +186,7 @@ module List = struct
 end
 
 let all_unit = List.all_unit
-
+let all_ignore = all_unit
 
 let%test_module "Eager_deferred_list_tests" =
   (module struct

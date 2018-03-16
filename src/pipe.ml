@@ -1670,8 +1670,8 @@ let%test_module _ =
       let finished =
         Deferred.List.iter cases ~f:(fun lists ->
           (* The merge function assumes that the pipes return ordered values. *)
-          let lists = List.map lists ~f:(fun list -> List.sort list ~cmp) in
-          let expected_result = List.sort ~cmp (List.concat lists) in
+          let lists = List.map lists ~f:(fun list -> List.sort list ~compare:cmp) in
+          let expected_result = List.sort ~compare:cmp (List.concat lists) in
           Deferred.List.iter transfer_by ~f:(fun transfer_by ->
             let pipes = List.map lists ~f:(fun _ -> create ()) in
             let merged_pipe = merge (List.map pipes ~f:fst) ~cmp in

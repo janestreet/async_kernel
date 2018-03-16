@@ -207,5 +207,6 @@ let seqmap t ~f =
 let all ds = seqmap ds ~f:Fn.id
 
 let all_unit ds = fold ds ~init:() ~f:(fun () d -> d)
+let all_ignore = all_unit
 
 let ok x = x >>| fun x -> Ok x

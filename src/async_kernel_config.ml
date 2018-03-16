@@ -367,7 +367,7 @@ let field_descriptions () : string =
   concat
     (List.map
        (List.sort fields
-          ~cmp:(fun (name1, _, _) (name2, _, _) -> String.compare name1 name2))
+          ~compare:(fun (name1, _, _) (name2, _, _) -> String.compare name1 name2))
        ~f:(fun (name, default, description) ->
          concat ("\n"
                  :: name :: " (default " :: Sexp.to_string default :: ")"

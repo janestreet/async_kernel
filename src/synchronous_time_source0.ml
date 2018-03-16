@@ -185,7 +185,7 @@ module T1 = struct
       Timing_wheel_ns.iter events ~f:(fun alarm ->
         all_events := (Alarm.at events alarm, Alarm.value events alarm) :: !all_events);
       let events =
-        List.sort !all_events ~cmp:(fun (at1, _) (at2, _) -> Time_ns.compare at1 at2)
+        List.sort !all_events ~compare:(fun (at1, _) (at2, _) -> Time_ns.compare at1 at2)
         |> List.map ~f:snd
       in
       [%message

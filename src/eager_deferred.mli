@@ -31,8 +31,6 @@ include sig
     val (>>>) : 'a t -> ('a -> unit) -> unit
   end
 
-  val all            : 'a t list -> 'a list t
-  val all_unit       : unit t list -> unit t
   val any            : 'a t list -> 'a t
   val any_unit       : 'a t list -> unit t
   val both           : 'a t -> 'b t -> ('a * 'b) t
