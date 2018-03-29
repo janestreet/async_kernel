@@ -1056,10 +1056,10 @@ let interleave inputs =
   interleave_pipe (of_list inputs)
 ;;
 
-let merge inputs ~cmp =
+let merge inputs ~compare =
   let r, w = create () in
   upon (closed w) (fun () -> List.iter inputs ~f:close_read);
-  let heap = Heap.create ~cmp:(fun (a1, _) (a2, _) -> cmp a1 a2) () in
+  let heap = Heap.create ~cmp:(fun (a1, _) (a2, _) -> compare a1 a2) () in
   let handle_read input eof_or_ok =
     match eof_or_ok with
     | `Eof -> ()
@@ -1666,15 +1666,15 @@ let%test_module _ =
           ; [ 2; 27; 49; 127; 311 ] ] ]
       in
       let transfer_by = [ 1; 2; 3; 5; 10 ] in
-      let cmp = Int.compare in
+      let compare = Int.compare in
       let finished =
         Deferred.List.iter cases ~f:(fun lists ->
           (* The merge function assumes that the pipes return ordered values. *)
-          let lists = List.map lists ~f:(fun list -> List.sort list ~compare:cmp) in
-          let expected_result = List.sort ~compare:cmp (List.concat lists) in
+          let lists = List.map lists ~f:(fun list -> List.sort list ~compare) in
+          let expected_result = List.sort ~compare (List.concat lists) in
           Deferred.List.iter transfer_by ~f:(fun transfer_by ->
             let pipes = List.map lists ~f:(fun _ -> create ()) in
-            let merged_pipe = merge (List.map pipes ~f:fst) ~cmp in
+            let merged_pipe = merge (List.map pipes ~f:fst) ~compare in
             List.iter2_exn lists pipes ~f:(fun list (_, writer) ->
               let rec loop index = function
                 | [] -> close writer
@@ -1703,7 +1703,7 @@ let%test_module _ =
     let%test_unit _ = (* [merge] stops and closes its input when its output is closed *)
       let r, w = create () in
       write_without_pushback w 1;
-      let t = merge [ r ] ~cmp:Int.compare in
+      let t = merge [ r ] ~compare:Int.compare in
       close_read t;
       stabilize ();
       assert (is_closed w)

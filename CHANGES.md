@@ -1,3 +1,7 @@
+## git version
+
+- rename paramater of `Pipe.merge` from `cmp` to `compare`.
+
 ## v0.11
 
 - Removed a number of modules from `Async_kernel.Async_kernel_private`.

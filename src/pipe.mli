@@ -666,11 +666,11 @@ val filter : 'a Reader.t -> f:('a -> bool) -> 'a Reader.t
 val interleave      : 'a Reader.t list     -> 'a Reader.t
 val interleave_pipe : 'a Reader.t Reader.t -> 'a Reader.t
 
-(** [merge inputs ~cmp] returns a reader, [output], that merges all the inputs.  Assuming
-    that for each input, values are sorted according to the comparison function [cmp],
-    values for each input will be transfered to [output] and the values returned by
-    [output] will be sorted according to [cmp]. *)
-val merge : 'a Reader.t list -> cmp:('a -> 'a -> int) -> 'a Reader.t
+(** [merge inputs ~compare] returns a reader, [output], that merges all the inputs.
+    Assuming that for each input, values are sorted according to the comparison function
+    [compare], values for each input will be transfered to [output] and the values
+    returned by [output] will be sorted according to [compare]. *)
+val merge : 'a Reader.t list -> compare:('a -> 'a -> int) -> 'a Reader.t
 
 (** [concat inputs] return a reader, [output], with the values from each pipe in [inputs]
     in sequence.  [concat] closes [output] once it reaches EOF on the final input.
