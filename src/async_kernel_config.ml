@@ -18,7 +18,7 @@ module Max_inter_cycle_timeout =
   Validated.Make (struct
     include Time_ns.Span
     let here = [%here]
-    let validate = Time_ns.Span.validate_positive
+    let validate = Time_ns.Span.validate_non_negative
   end)
 
 module Min_inter_cycle_timeout =

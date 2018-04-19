@@ -36,3 +36,6 @@ val try_with_join
   -> ?name:string
   -> (unit -> 'a t)
   -> 'a t
+
+val combine_errors      : 'a   t list -> 'a list t
+val combine_errors_unit : unit t list -> unit    t

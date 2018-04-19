@@ -59,11 +59,6 @@ let create f =
   t
 ;;
 
-let%test _ =
-  let s = create Tail.close_exn in
-  Deferred.is_determined (closed s)
-;;
-
 let unfold b ~f =
   create (fun tail ->
     let rec loop b =

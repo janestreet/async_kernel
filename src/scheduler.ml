@@ -308,25 +308,6 @@ module Very_low_priority_work = struct
   ;;
 end
 
-let%test_module _ =
-  (module struct
-
-    (* [Monitor.catch_stream]. *)
-    let%test_unit _ =
-      let d = Stream.next (Monitor.catch_stream (fun () -> raise_s [%message [%here]])) in
-      run_cycles_until_no_jobs_remain ();
-      assert (is_some (Deferred.peek d))
-    ;;
-
-    (* [Monitor.catch]. *)
-    let%test_unit _ =
-      let d = Monitor.catch (fun () -> raise_s [%message [%here]]) in
-      run_cycles_until_no_jobs_remain ();
-      assert (is_some (Deferred.peek d))
-    ;;
-
-  end)
-
 module For_bench = struct
   let advance_clock = advance_clock
 end

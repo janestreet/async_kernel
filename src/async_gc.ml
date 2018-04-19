@@ -24,37 +24,3 @@ module Alarm = struct
 
   let delete = Alarm.delete
 end
-
-let%test_module _ [@tags "no-js"] =
-  (module struct
-
-    let stabilize () =
-      Gc.full_major ();
-      Scheduler.run_cycles_until_no_jobs_remain ();
-    ;;
-
-    let%test_unit _ =
-      let x = ref 0 in
-      let r = ref 13 in
-      add_finalizer_exn x (fun z -> r := !z);
-      stabilize ();
-      assert (!r = 13);
-      x := 17;
-      stabilize ();
-      assert (!r = 17)
-    ;;
-
-    let%test_unit _ =
-      let r = ref false in
-      let alarm = Alarm.create (fun () -> r := true) in
-      stabilize ();
-      assert !r;
-      r := false;
-      stabilize ();
-      assert !r;
-      Alarm.delete alarm;
-      r := false;
-      stabilize ();
-      assert (not !r)
-    ;;
-  end)

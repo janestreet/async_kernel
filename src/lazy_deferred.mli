@@ -10,14 +10,21 @@
     when [force_exn] ([wait_exn], [peek_exn], etc.) was called.
 
     The type is not exposed nor defined as ['a Deferred.t Lazy.t] or ['a Or_error.t
-    Deferred.t Lazy.t], because there is a difference in power with these types.  There is
-    no way in standard OCaml to hook an asynchronous computation to be triggered when a
-    lazy value gets computed.  This functionality is offered by this module (see [wait]).
-    Plus, dealing with an exception raised by the closures provided is slightly easier
-    when done consistently through this API.
+    Deferred.t Lazy.t], because there is a difference in power with these types.  Any
+    value of type ['a Deferred.t Lazy.t] would mishandle asynchronous exceptions in the
+    computation of ['a].  For instance, the following code blocks forever regardless of
+    how [v] is defined:
+
+    {[
+      let v : Nothing.t Deferred.t Lazy.t = lazy (return "" >>| failwith) in
+      let%bind _ = try_with (fun () -> force v) in
+      let%bind _ = try_with (fun () -> force v) in
+    ]}
 
     There is no [val of_lazy : 'a Deferred.t Lazy.t -> 'a t] because of the difference
-    in power. *)
+    in power.
+
+    See also [Deferred.Memo.unit], if you only are interested in [create] and [force]. *)
 
 open! Core_kernel
 
