@@ -31,7 +31,11 @@ end
 
    1. calling [Consumer.start] at the point where the consumer takes values out of the
    Pipe via [read] or [read'].
+
    2. calling [Consumer.values_sent_downstream].
+
+   By calling [values_sent_downstream] one asserts that the [downstream_flushed] function
+   supplied to [create] will now wait for this value.
 
    If no [Consumer.t] is supplied when a value is read then the value is defined to be
    flushed at that time. *)
@@ -79,6 +83,7 @@ end = struct
     ; downstream_flushed }
   ;;
 
+
   let start t =
     match t.values_read with
     | `Have_not_been_sent_downstream _ -> ()
@@ -101,6 +106,7 @@ end = struct
       let%bind () = Ivar.read when_sent_downstream in
       t.downstream_flushed ()
   ;;
+
 end
 
 module Blocked_read = struct
@@ -696,7 +702,27 @@ end = struct
   ;;
 end
 
-let fold_gen (read_now : ?consumer:Consumer.t -> _ Reader.t -> _) ?consumer t ~init ~f =
+module Flushed = struct
+  type t =
+    | Consumer of Consumer.t
+    | When_value_processed
+    | When_value_read
+  [@@deriving sexp_of]
+end
+
+let fold_gen
+      (read_now : ?consumer:Consumer.t -> _ Reader.t -> _)
+      ?(flushed = Flushed.When_value_read)
+      t ~init ~f =
+  let consumer =
+    match flushed with
+    | When_value_read -> None
+    | Consumer consumer -> Some consumer
+    | When_value_processed ->
+      (* The fact that "no consumer" behaves different from "trivial consumer" is weird,
+         but that's how the consumer machinery works. *)
+      Some (add_consumer t ~downstream_flushed:(fun () -> return `Ok))
+  in
   if !check_invariant then (invariant t);
   ensure_consumer_matches t ?consumer;
   Deferred.create (fun finished ->
@@ -706,23 +732,27 @@ let fold_gen (read_now : ?consumer:Consumer.t -> _ Reader.t -> _) ?consumer t ~i
     let rec loop b =
       match read_now t ?consumer with
       | `Eof -> Ivar.fill finished b
-      | `Ok v -> f b v loop
+      | `Ok v -> f b v continue
       | `Nothing_available -> values_available t >>> fun _ -> loop b
+    and continue b =
+      Option.iter consumer ~f:Consumer.values_sent_downstream;
+      loop b
     in
     loop init)
 ;;
 
-let fold' ?consumer ?max_queue_length t ~init ~f =
-  fold_gen (read_now' ?max_queue_length) ?consumer
+let fold' ?flushed ?max_queue_length t ~init ~f =
+  fold_gen (read_now' ?max_queue_length) ?flushed
     t ~init ~f:(fun b q loop -> f b q >>> loop)
 ;;
 
-let fold ?consumer t ~init ~f =
-  fold_gen read_now ?consumer t ~init ~f:(fun b a loop -> f b a >>> loop)
+let fold ?flushed t ~init ~f =
+  fold_gen read_now ?flushed t ~init ~f:(fun b a loop -> f b a >>> loop)
 ;;
 
 let fold_without_pushback ?consumer t ~init ~f =
-  fold_gen read_now ?consumer t ~init ~f:(fun b a loop -> loop (f b a))
+  fold_gen read_now t ~init ~f:(fun b a loop -> loop (f b a))
+    ?flushed:(match consumer with None -> None | Some c -> Some (Consumer c))
 ;;
 
 let with_error_to_current_monitor ?(continue_on_error = false) f a =
@@ -734,13 +764,13 @@ let with_error_to_current_monitor ?(continue_on_error = false) f a =
     | Error exn -> Monitor.send_exn (Monitor.current ()) (Monitor.extract_exn exn));;
 ;;
 
-let iter' ?consumer ?continue_on_error ?max_queue_length t ~f =
-  fold' ?max_queue_length ?consumer t ~init:() ~f:(fun () q ->
+let iter' ?continue_on_error ?flushed ?max_queue_length t ~f =
+  fold' ?max_queue_length ?flushed t ~init:() ~f:(fun () q ->
     with_error_to_current_monitor ?continue_on_error f q)
 ;;
 
-let iter ?consumer ?continue_on_error t ~f =
-  fold_gen read_now ?consumer t ~init:() ~f:(fun () a loop ->
+let iter ?continue_on_error ?flushed t ~f =
+  fold_gen read_now ?flushed t ~init:() ~f:(fun () a loop ->
     with_error_to_current_monitor ?continue_on_error f a
     >>> fun () ->
     loop ())

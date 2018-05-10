@@ -223,7 +223,8 @@ module Consumer : sig
       If a reader does not use a consumer to do the reading then an element is considered
       flushed the moment it leaves the pipe.  This may lead to odd results as entire
       queues of elements are removed by a call to [read'] but are processed over a long
-      period. *)
+      period.  In particular, the [fold*] and [iter*] functions cause values to be flushed
+      as soon as they are read, unless one passes [~flushed:When_value_processed]. *)
 
   type t
 
@@ -475,6 +476,14 @@ val read_choice_single_consumer_exn
 
 (** {2 Sequence functions} *)
 
+module Flushed : sig
+  type t =
+    | Consumer of Consumer.t
+    | When_value_processed
+    | When_value_read
+  [@@deriving sexp_of]
+end
+
 (** Issues: {ul
     {- Scalar & batch sequence processing:
 
@@ -506,7 +515,7 @@ val read_choice_single_consumer_exn
     waits for [f] to finish, and then repeats.  [fold'] finishes when the call to [f] on
     the final batch of elements from [reader] finishes. *)
 val fold'
-  :  ?consumer         : Consumer.t
+  :  ?flushed          : Flushed.t (** default is [When_value_read] *)
   -> ?max_queue_length : int  (** default is [Int.max_value] *)
   -> 'a Reader.t
   -> init              : 'accum
@@ -515,8 +524,9 @@ val fold'
 
 (** [fold reader ~init ~f] folds over the elements of [reader], consuming them as they
     come in.  [fold] finishes when the final call to [f] returns. *)
+
 val fold
-  :  ?consumer : Consumer.t
+  :  ?flushed : Flushed.t  (** default is [When_value_read] *)
   -> 'a Reader.t
   -> init      : 'accum
   -> f         : ('accum -> 'a -> 'accum Deferred.t)
@@ -533,12 +543,13 @@ val fold_without_pushback
     for each call to [f] to finish before continuing.  The deferred returned by [iter']
     becomes determined when the call to [f] on the final batch of elements finishes.
     [~continue_on_error:true] causes the iteration to continue even if [f] raises.
-    [~consumer] is used to extend the meaning of values being flushed (see the [Consumer]
-    module above). *)
+
+    [~flushed:When_value_processed] means values in batch [b] are flushed only after [f
+    b] is filled. *)
 val iter'
-  :  ?consumer          : Consumer.t
-  -> ?continue_on_error : bool  (** default is [false] *)
-  -> ?max_queue_length : int  (** default is [Int.max_value] *)
+  :  ?continue_on_error : bool      (** default is [false]           *)
+  -> ?flushed           : Flushed.t (** default is [When_value_read] *)
+  -> ?max_queue_length  : int       (** default is [Int.max_value]   *)
   -> 'a Reader.t
   -> f:('a Queue.t -> unit Deferred.t)
   -> unit Deferred.t
@@ -546,8 +557,8 @@ val iter'
 (** [iter t f] is a specialization of [iter'] that applies the [f] to each element in the
     batch, waiting for one call to [f] to finish before making the next call to [f]. *)
 val iter
-  :  ?consumer          : Consumer.t
-  -> ?continue_on_error : bool  (** default is [false] *)
+  :  ?continue_on_error : bool      (** default is [false]           *)
+  -> ?flushed           : Flushed.t (** default is [When_value_read] *)
   -> 'a Reader.t
   -> f                  : ('a -> unit Deferred.t)
   -> unit Deferred.t
