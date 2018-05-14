@@ -248,13 +248,14 @@ let create () =
   and events = Timing_wheel_ns.create ~config:Async_kernel_config.timing_wheel_config ~start:now
   and time_source =
     { Synchronous_time_source.T1.
-      advance_errors = []
-    ; am_advancing   = false
+      advance_errors      = []
+    ; am_advancing        = false
     ; events
-    ; handle_fired   = (fun alarm -> handle_fired time_source (Alarm.value events alarm))
-    ; fired_events   = Event.none
-    ; is_wall_clock  = true
-    ; scheduler      = t }
+    ; handle_fired        = (fun alarm -> handle_fired time_source (Alarm.value events alarm))
+    ; fired_events        = Event.none
+    ; is_wall_clock       = true
+    ; most_recently_fired = Event.none
+    ; scheduler           = t }
   in
   t
 ;;
@@ -348,13 +349,15 @@ let create_time_source
   let t = t () in
   let events = Timing_wheel_ns.create ~config:timing_wheel_config ~start:now in
   let rec time_source : _ Synchronous_time_source.T1.t =
-    { advance_errors = []
-    ; am_advancing   = false
+    { advance_errors      = []
+    ; am_advancing        = false
     ; events
-    ; handle_fired   = (fun alarm -> handle_fired time_source (Alarm.value events alarm))
-    ; fired_events   = Event.none
-    ; is_wall_clock  = false
-    ; scheduler      = t }
+    ; handle_fired        =
+        (fun alarm -> handle_fired time_source (Alarm.value events alarm))
+    ; fired_events        = Event.none
+    ; is_wall_clock       = false
+    ; most_recently_fired = Event.none
+    ; scheduler           = t }
   in
   time_source
 ;;

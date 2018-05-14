@@ -18,13 +18,14 @@ let ( >>> ) = upon
 module T1 = struct
   include Synchronous_time_source0.T1
 
-  let sexp_of_t _ { advance_errors = _
-                  ; am_advancing   = _
+  let sexp_of_t _ { advance_errors      = _
+                  ; am_advancing        = _
                   ; events
-                  ; fired_events   = _
-                  ; handle_fired   = _
+                  ; fired_events        = _
+                  ; handle_fired        = _
                   ; is_wall_clock
-                  ; scheduler      = _ } =
+                  ; most_recently_fired = _
+                  ; scheduler           = _ } =
     if is_wall_clock
     then [%message "<wall_clock>"]
     else [%message (is_wall_clock : bool)

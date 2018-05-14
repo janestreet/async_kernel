@@ -163,6 +163,13 @@ module T1 = struct
     (* [fired_events] is the front of the singly linked list of fired events, which is
        stored in increasing order of [Event.at]. *)
     ; mutable fired_events   : Event.t
+    (* [most_recently_fired] is the event that was most recently inserted into
+       [fired_events].  It is used as an optimization to allow insertion of subsequent
+       events to start later in the list rather than at the beginning.  It specifically
+       avoids quadratic behavior when inserting multiple events that have exactly the same
+       time -- the time source fires such events in the order they were added, and we want
+       them to be in that same order in [fired_events]. *)
+    ; mutable most_recently_fired : Event.t
     (* We store [handle_fired] in [t] to avoid allocating it every time we call
        [advance_clock]. *)
     ; handle_fired           : Job_or_event.t Alarm.t -> unit
@@ -170,13 +177,14 @@ module T1 = struct
     ; scheduler              : Scheduler0.t }
   [@@deriving fields]
 
-  let sexp_of_t _ { advance_errors  = _
-                  ; am_advancing    = _
+  let sexp_of_t _ { advance_errors      = _
+                  ; am_advancing        = _
                   ; events
-                  ; fired_events    = _
-                  ; handle_fired    = _
+                  ; fired_events        = _
+                  ; handle_fired        = _
                   ; is_wall_clock
-                  ; scheduler       = _ } =
+                  ; most_recently_fired = _
+                  ; scheduler           = _ } =
     let now = Timing_wheel_ns.now events in
     if is_wall_clock
     then [%message "wall_clock" (now : Time_ns.t)]
@@ -195,6 +203,17 @@ module T1 = struct
   ;;
 
   let timing_wheel_now t = Timing_wheel_ns.now t.events
+
+  let is_in_fired_events t event =
+    with_return (fun r ->
+      let current = ref t.fired_events in
+      while Event.is_some !current do
+        if phys_equal !current event
+        then (r.return true);
+        current := !current.next_fired;
+      done;
+      false)
+  ;;
 
   let invariant (type rw) (t : rw t) =
     Invariant.invariant [%here] t [%sexp_of: _ t] (fun () ->
@@ -224,6 +243,9 @@ module T1 = struct
           done))
         ~handle_fired:ignore
         ~is_wall_clock:ignore
+        ~most_recently_fired:(check (fun most_recently_fired ->
+          if Event.is_some t.most_recently_fired
+          then (assert (is_in_fired_events t most_recently_fired))))
         ~scheduler:ignore)
   ;;
 end
@@ -254,11 +276,26 @@ let fire t (event : Event.t) =
   event.alarm <- Alarm.null ();
   let prev = ref Event.none in
   let current = ref t.fired_events in
-  while Event.is_some !current && Time_ns.( < ) !current.at event.at do
+  (* If [event] belongs after [t.most_recently_fired], then we start the insertion there
+     rather than at the front of [t.fired_events].  This works nicely if we're getting the
+     alarms in non-decreasing time order, which is close to what [Timing_wheel_ns]
+     provides (although [Timing_wheel_ns] doesn't guarantee time ordering for times in the
+     same interval). *)
+  if Event.is_some t.most_recently_fired
+  && Time_ns.( >= ) event.at t.most_recently_fired.at
+  then (
+    prev := t.most_recently_fired;
+    current := !prev.next_fired);
+  (* We use [Time_ns.( <= )] rather than [<] so that [event] is added after other events
+     at the same time.  Since [Timing_wheel_ns] fires alarms in a bucket in the order in
+     which they were added, using [<=] keeps events at the same time in the order in which
+     they were added. *)
+  while Event.is_some !current && Time_ns.( <= ) !current.at event.at do
     prev := !current;
     current := !current.next_fired;
   done;
   event.next_fired <- !current;
+  t.most_recently_fired <- event;
   if Event.is_none !prev
   then (t.fired_events <- event)
   else (!prev.next_fired <- event);
@@ -363,6 +400,8 @@ let run_fired_events t ~(send_exn : send_exn option) =
   let current_execution_context = t.scheduler.current_execution_context in
   while Event.is_some t.fired_events do
     let event = t.fired_events in
+    if phys_equal event t.most_recently_fired
+    then (t.most_recently_fired <- Event.none);
     t.fired_events <- event.next_fired;
     event.next_fired <- Event.none;
     match event.status with
