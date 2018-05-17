@@ -39,3 +39,7 @@ val try_with_join
 
 val combine_errors      : 'a   t list -> 'a list t
 val combine_errors_unit : unit t list -> unit    t
+
+module List : Monad_sequence.S
+  with type 'a monad := 'a t
+  with type 'a t := 'a list
