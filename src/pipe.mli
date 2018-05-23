@@ -688,6 +688,26 @@ val merge : 'a Reader.t list -> compare:('a -> 'a -> int) -> 'a Reader.t
     If [output] is closed, then [concat] closes all its inputs. *)
 val concat : 'a Reader.t list -> 'a Reader.t
 
+(** [fork input] returns a pair of readers and transfers each of the values in [input]
+    into both of the returned readers.  It closes [input] early if both of the readers are
+    closed early.
+
+    If [pushback_uses = `Both_consumers], then [fork] waits for [pushback] on both readers
+    when writing.  If one of the readers is not read from or is slow to be read from, it
+    may block the other from receiving data.  Beware of possible deadlocks in downstream
+    code due to blocking on reading too many elements from one before reading the other.
+
+    If [pushback_uses = `Fast_consumer_only], then [fork] waits for [pushback] only on the
+    faster of the two readers when writing.  In this case the slow reader cannot block the
+    faster one, but [fork] could be forced to buffer arbitrarily many elements.  Beware of
+    unbounded resource usage in downstream code where one reader might fall behind.
+
+    Note that {!upstream_flushed} will not work with the pipes returned by [fork]. *)
+val fork
+  : 'a Reader.t
+  -> pushback_uses:[ `Both_consumers | `Fast_consumer_only ]
+  -> 'a Reader.t * 'a Reader.t
+
 (** [to_stream_deprecated reader] returns a stream that reads everything from the pipe.
     This function is deprecated because one should change the code that is consuming
     a stream to instead consume from a pipe reader. *)

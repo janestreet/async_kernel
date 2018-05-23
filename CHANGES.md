@@ -2,6 +2,9 @@
 
 - rename paramater of `Pipe.merge` from `cmp` to `compare`.
 
+- Added `Pipe.fork` function, to transfer the read values into two
+  freshly-created readers
+
 ## v0.11
 
 - Removed a number of modules from `Async_kernel.Async_kernel_private`.

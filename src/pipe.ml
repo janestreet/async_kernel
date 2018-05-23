@@ -466,6 +466,12 @@ let transfer_in t ~from =
   pushback t;
 ;;
 
+let copy_in_without_pushback t ~from =
+  start_write t;
+  Queue.iter from ~f:(fun x -> Queue.enqueue t.buffer x);
+  finish_write t;
+;;
+
 (* [write'] is used internally *)
 let write' t q = transfer_in t ~from:q
 
@@ -1141,31 +1147,54 @@ let concat inputs =
   r
 ;;
 
-
-(* let fork t =
- *   let pipe = create () in
- *   let pipe' = create () in
- *   let init = [ pipe; pipe' ] in
- *   upon (fold t ~init ~f:(fun still_open x ->
- *     let still_open = List.filter still_open ~f:(fun (r, _) -> not (is_closed r)) in
- *     if List.is_empty still_open then
- *       begin
- *         close t;
- *         return still_open
- *       end
- *     else
- *       begin
- *         let%map () =
- *           Deferred.any (List.map still_open ~f:(fun (r, _) -> pushback r))
- *         in
- *         (* Check again because a pipe could have been closed while we were waiting. *)
- *         let still_open = List.filter still_open ~f:(fun (r, _) -> not (is_closed r)) in
- *         List.iter still_open ~f:(fun (r, w) ->
- *           if not (is_closed r) then
- *             begin
- *               write_without_pushback w x
- *             end);
- *         still_open
- *       end))
- *     (List.iter ~f:(fun (_, w) -> close w));
- *   fst pipe, fst pipe' *)
+let fork t ~pushback_uses =
+  let reader0, writer0 = create () in
+  let reader1, writer1 = create () in
+  let some_reader_was_closed = ref false in
+  let consumer =
+    add_consumer t
+      ~downstream_flushed:(fun () ->
+        let some_reader_was_closed = !some_reader_was_closed in
+        match%map
+          Flushed_result.combine
+            [ downstream_flushed writer0
+            ; downstream_flushed writer1 ]
+        with
+        | `Reader_closed -> `Reader_closed
+        | `Ok ->
+          (* In this case, there could have been no pending items in [writer0] nor in
+             [writer1], in which case we could have had a closed pipe that missed some
+             writes, but [Flushed_result.combine] would still have returned [`Ok] *)
+          if some_reader_was_closed then `Reader_closed else `Ok)
+  in
+  don't_wait_for (
+    let still_open = [ writer0; writer1 ] in
+    let filter_open still_open =
+      (* Only call [filter] and reallocate list if something will get filtered *)
+      if not (List.exists still_open ~f:is_closed)
+      then still_open
+      else (
+        some_reader_was_closed := true;
+        let still_open = List.filter still_open ~f:(fun w -> not (is_closed w)) in
+        if List.is_empty still_open then (close t);
+        still_open)
+    in
+    let%bind still_open =
+      fold' t ~flushed:(Consumer consumer) ~init:still_open ~f:(fun still_open queue ->
+        let still_open = filter_open still_open in
+        if List.is_empty still_open
+        then (return [])
+        else (
+          let%map () =
+            match pushback_uses with
+            | `Fast_consumer_only -> Deferred.any (List.map still_open ~f:pushback)
+            | `Both_consumers -> Deferred.all_unit (List.map still_open ~f:pushback)
+          in
+          let still_open = filter_open still_open in
+          List.iter still_open ~f:(fun w -> copy_in_without_pushback w ~from:queue);
+          still_open))
+    in
+    List.iter still_open ~f:close;
+    return ());
+  reader0, reader1
+;;
