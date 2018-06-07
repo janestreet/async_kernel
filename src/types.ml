@@ -43,8 +43,11 @@ and Cell : sig
 
   type ('a, 'b) t =
     | Empty_one_or_more_handlers
-      :  ('a -> unit) * Execution_context.t * 'a Handler.t * 'a Handler.t
-      ->                                       ('a, [> `Empty_one_or_more_handlers ]) t
+      : { mutable run       : 'a -> unit
+        ; execution_context : Execution_context.t
+        ; mutable prev      : 'a Handler.t
+        ; mutable next      : 'a Handler.t
+        } ->                                   ('a, [> `Empty_one_or_more_handlers ]) t
     | Empty_one_handler
       :  ('a -> unit) * Execution_context.t -> ('a, [> `Empty_one_handler          ]) t
     | Empty                                  : ('a, [> `Empty                      ]) t
@@ -89,11 +92,7 @@ and External_job : sig
 end = External_job
 
 and Handler : sig
-  type 'a t =
-    { mutable run       : 'a -> unit
-    ; execution_context : Execution_context.t
-    ; mutable prev      : 'a t
-    ; mutable next      : 'a t }
+  type 'a t = ('a, [ `Empty_one_or_more_handlers ]) Cell.t
 end = Handler
 
 and Ivar : sig

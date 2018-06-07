@@ -32,7 +32,8 @@ val connect : bind_result:'a t -> bind_rhs:'a t -> unit
 val fill : 'a t -> 'a  -> unit
 
 module Handler : sig
-  type 'a t [@@deriving sexp_of]
+  type 'a t = ('a, [ `Empty_one_or_more_handlers ]) Cell.t
+  [@@deriving sexp_of]
 
   val length : _ t -> int
   val of_list : (('a -> unit) * Execution_context.t) list -> 'a t option
@@ -40,8 +41,6 @@ module Handler : sig
 end
 
 val cell_of_handler : 'a Handler.t -> ('a, Cell.any) Cell.t
-
-val handler_of_constructor : ('a, [ `Empty_one_or_more_handlers ]) Cell.t -> 'a Handler.t
 
 val add_handler : 'a t -> ('a -> unit) -> Execution_context.t -> 'a Handler.t
 val remove_handler : 'a t -> 'a Handler.t -> unit
