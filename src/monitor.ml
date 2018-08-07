@@ -426,9 +426,9 @@ let try_with_join_or_error ?here ?info ?(name = "try_with_join_or_error") ?extra
   try_with_or_error f ?here ?info ~name ?extract_exn >>| Or_error.join
 ;;
 
-let protect ?here ?info ?(name = "Monitor.protect") f ~finally =
-  let%bind r = try_with ?here ?info ~name f in
-  let%map fr = try_with ?here ?info ~name:"finally" finally in
+let protect ?here ?info ?(name = "Monitor.protect") ?extract_exn f ~finally =
+  let%bind r = try_with ?extract_exn ?here ?info ~name f in
+  let%map fr = try_with ~extract_exn:false ?here ?info ~name:"finally" finally in
   match r, fr with
   | Error exn, Error finally_exn ->
     raise_s [%message "Async finally" (exn : exn) (finally_exn : exn)]

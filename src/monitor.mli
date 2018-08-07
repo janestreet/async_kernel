@@ -190,7 +190,8 @@ val catch_error : ((unit -> unit) -> Error.t Deferred.t) with_optional_monitor_n
     The [name] argument is used to give a name to the monitor the computation will be
     running in.  This name will appear when printing the errors. *)
 val protect
-  : ((unit -> 'a Deferred.t)
+  : (?extract_exn : bool  (** default is [false] *)
+     -> (unit -> 'a Deferred.t)
      -> finally:(unit -> unit Deferred.t)
      -> 'a Deferred.t
     ) with_optional_monitor_name
