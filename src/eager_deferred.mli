@@ -53,7 +53,7 @@ include sig
     -> 'result t
 
   module List : Deferred1.Monad_sequence with type 'a t := 'a list
-  module Or_error = Eager_deferred_or_error
+  module Or_error : module type of Eager_deferred_or_error
 end
 (*_ We do not expose [Eager_deferred.t] so that type-error messages refer to
   [Deferred.t], not [Eager_deferred.t]. *)

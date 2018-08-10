@@ -1,4 +1,4 @@
-(** Implements an async aware throttling rate limiter on top of [Core.Limiter].
+(** Implements an async aware throttling rate limiter on top of [Limiter].
 
     All forms of [enqueue_exn] and [enqueue'] below will raise if the requested job
     is not possible to run within the resource limitations given to the related
@@ -11,6 +11,7 @@
     Jobs are always executed in FIFO order. *)
 
 open! Core_kernel
+open! Async_kernel
 
 (** The outcome of a job *)
 module Outcome : sig
@@ -48,6 +49,9 @@ end
 
 module Token_bucket : sig
   type t [@@deriving sexp_of]
+  type _ u = t
+  (*_ This type synonym is introduced because older versions of OCaml
+    do not support destructive substitutions with `type 'a t1 = t2`. *)
 
   val create_exn
     :  burst_size:int
@@ -79,8 +83,6 @@ module Token_bucket : sig
       input [a].  No part of f is run before [enqueue'] returns. *)
   val enqueue'    : t -> int -> ('a -> 'b Deferred.t) -> 'a -> 'b Outcome.t Deferred.t
 
-  (** Include [Common], with the hack to remove the type parameter *)
-  type 'a u = t
   include Common with type 'a t := 'a u
 end
 
@@ -100,6 +102,9 @@ end
     mutable, however, and so may be violated temporarily if the value is reduced. *)
 module Throttle : sig
   type t [@@ deriving sexp_of]
+  type _ u = t
+  (*_ This type synonym is introduced because older versions of OCaml
+    do not support destructive substitutions with `type 'a t1 = t2`. *)
 
   val create_exn
     :  concurrent_jobs_target:int
@@ -116,8 +121,6 @@ module Throttle : sig
   val enqueue_exn        : t -> ?allow_immediate_run:bool -> ('a -> unit) -> 'a -> unit
   val enqueue'           : t -> ('a -> 'b Deferred.t) -> 'a -> 'b Outcome.t Deferred.t
 
-  (** Include [Common], with the hack to remove the type parameter *)
-  type 'a u = t
   include Common with type 'a t := 'a u
 end
 
@@ -125,6 +128,9 @@ end
     by default, not continue on error. *)
 module Sequencer : sig
   type t [@@deriving sexp_of]
+  type _ u = t
+  (*_ This type synonym is introduced because older versions of OCaml
+    do not support destructive substitutions with `type 'a t1 = t2`. *)
 
   val create
     :  ?continue_on_error:bool (** default is [false] *)
@@ -138,8 +144,6 @@ module Sequencer : sig
 
   val num_jobs_waiting_to_start : t -> int
 
-  (** Include [Common], with the hack to remove the type parameter *)
-  type 'a u = t
   include Common with type 'a t := 'a u
 end
 
@@ -182,5 +186,5 @@ module Expert : sig
 
   (** returns the underlying limiter.  It is an error to do anything with the limiter that
       isn't a read-only operation. *)
-  val to_jane_limiter  : t -> Core_kernel.Limiter.t
+  val to_jane_limiter  : t -> Limiter.t
 end

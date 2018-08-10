@@ -39,27 +39,27 @@ module T1 = struct
   module Event = struct
     module Status = struct
       type t = Types.Event.Status.t =
-        | Aborted   (* will never run *)
-        | Fired     (* in [fired_events], ready to run *)
-        | Happening (* currently running the callback *)
-        | Happened  (* callback ran *)
-        | Scheduled (* in the timing wheel *)
+        | Fired        (* in [fired_events], ready to run *)
+        | Happening    (* currently running the callback *)
+        | Scheduled    (* in the timing wheel *)
+        | Unscheduled  (* not in timing wheel or [fired_events] *)
       [@@deriving compare, sexp_of]
 
       let transition_is_allowed ~from ~to_ =
         match from, to_ with
-        | Fired,     Aborted   (* aborted *)
-        | Fired,     Happening (* started running callback *)
-        | Happening, Happened  (* finished running callback *)
-        | Happening, Scheduled (* for repeating events *)
-        | Scheduled, Aborted   (* aborted *)
-        | Scheduled, Fired     (* moved from timing wheel to [fired_events] *)
+        | Fired,       Happening    (* started running callback *)
+        | Fired,       Unscheduled  (* aborted *)
+        | Happening,   Scheduled    (* for repeating events *)
+        | Happening,   Unscheduled  (* event callback finished *)
+        | Scheduled,   Fired        (* moved from timing wheel to [fired_events] *)
+        | Scheduled,   Unscheduled  (* aborted *)
+        | Unscheduled, Fired        (* event scheduled in the past *)
+        | Unscheduled, Scheduled    (* event scheduled in the future *)
           -> true
-        | (Aborted
-          | Fired
+        | ( Fired
           | Happening
-          | Happened
-          | Scheduled), _
+          | Scheduled
+          | Unscheduled), _
           -> false
       ;;
     end
@@ -87,7 +87,7 @@ module T1 = struct
       ; execution_context = Execution_context.main
       ; interval          = None
       ; next_fired        = none
-      ; status            = Aborted }
+      ; status            = Unscheduled }
     ;;
 
     let is_none t = phys_equal t none
@@ -115,13 +115,17 @@ module T1 = struct
             [%test_result: bool] (Alarm.is_null alarm)
               ~expect:(
                 match t.status with
-                | Aborted | Fired | Happening | Happened -> true
+                | Fired | Happening | Unscheduled -> true
                 | Scheduled -> false)))
           ~at:ignore
           ~callback:ignore
           ~execution_context:ignore
           ~interval:ignore
-          ~next_fired:ignore
+          ~next_fired:(check (fun next_fired ->
+            if is_some next_fired
+            then (match t.status with
+              | Fired -> ()
+              | _ -> assert false)))
           ~status:ignore)
     ;;
 
@@ -264,14 +268,14 @@ end
 
 let is_wall_clock t = t.is_wall_clock
 
+let alarm_upper_bound t =
+  Timing_wheel_ns.alarm_upper_bound t.events
+
 let read_only (t : [> read] T1.t) = (t :> t)
 
 (* [fire t event] sets [event.status = Fired] and inserts [event] into [t.fired_events] in
    sorted time order. *)
 let fire t (event : Event.t) =
-  (match event.status with
-   | Scheduled -> ()
-   | Aborted | Fired | Happening | Happened -> assert false);
   Event.set_status event Fired;
   event.alarm <- Alarm.null ();
   let prev = ref Event.none in
@@ -312,6 +316,7 @@ let now t =
 let timing_wheel_now = timing_wheel_now
 
 let schedule t (event : Event.t) =
+  Event.set_status event Scheduled;
   event.alarm <-
     Timing_wheel_ns.add t.events ~at:event.at (event |> Job_or_event.of_event);
 ;;
@@ -319,24 +324,35 @@ let schedule t (event : Event.t) =
 module Event = struct
   include Event
 
-  let add t ~at ~interval ~callback =
-    let event =
-      { alarm             = Alarm.null ()
-      ; at
-      ; callback
-      ; execution_context = t.scheduler.current_execution_context
-      ; interval
-      ; next_fired        = none
-      ; status            = Scheduled } in
-    if Time_ns.( <= ) at (timing_wheel_now t)
+  let create_internal t ~at ~interval ~callback =
+    { alarm             = Alarm.null ()
+    ; at
+    ; callback
+    ; execution_context = t.scheduler.current_execution_context
+    ; interval
+    ; next_fired        = none
+    ; status            = Unscheduled
+    }
+
+  let add t event =
+    if Time_ns.( <= ) event.at (timing_wheel_now t)
     then (fire t event)
-    else (schedule t event);
+    else (schedule t event)
+  ;;
+
+  let create_and_add t ~at ~interval ~callback =
+    let event = create_internal t ~at ~interval ~callback in
+    add t event;
     event
   ;;
 
-  let at t at callback = add t ~at ~interval:None ~callback
+  let at t at callback =
+    create_and_add t ~at ~interval:None ~callback
+  ;;
 
-  let after t span callback = at t (Time_ns.after (now t) span) callback
+  let after t span callback =
+    create_and_add t ~at:(Time_ns.after (now t) span) ~interval:None ~callback
+  ;;
 
   let at_intervals t span callback =
     let alarm_precision = alarm_precision t in
@@ -345,34 +361,32 @@ module Event = struct
       raise_s [%message "at_intervals got span smaller than alarm precision"
                           (span : Time_ns.Span.t)
                           (alarm_precision : Time_ns.Span.t)]);
-    add t ~at:(now t) ~interval:(Some span) ~callback
+    create_and_add t ~at:(now t) ~interval:(Some span) ~callback
   ;;
 
   module Abort_result = struct
     type t =
       | Ok
       | Currently_happening
-      | Previously_aborted
-      | Previously_happened
+      | Previously_unscheduled
     [@@deriving sexp_of]
   end
 
-  let abort t (event : Event.t) : Abort_result.t =
+  let abort t (event : t) : Abort_result.t =
     match event.status with
-    | Aborted   -> Previously_aborted
-    | Happened  -> Previously_happened
     | Happening ->
       if Option.is_none event.interval
       then Currently_happening
       else (event.interval <- None; Ok)
     | Fired ->
-      Event.set_status event Aborted;
+      Event.set_status event Unscheduled;
       Ok
     | Scheduled ->
-      Event.set_status event Aborted;
+      Event.set_status event Unscheduled;
       Timing_wheel_ns.remove t.events event.alarm;
       event.alarm <- Alarm.null ();
       Ok
+    | Unscheduled -> Previously_unscheduled
   ;;
 
   let abort_if_possible t event = ignore (abort t event : Abort_result.t)
@@ -384,6 +398,27 @@ module Event = struct
       raise_s [%message "[Synchronous_time_source.abort_exn] cannot abort event"
                           (reason : Abort_result.t)]
   ;;
+
+  let create t callback =
+    create_internal t ~at:Time_ns.epoch ~interval:None ~callback
+  ;;
+
+  let schedule_at t (event : t) at =
+    (* [Fired] is disallowed to prevent the user from entering into an infinite loop.  The
+       user could specify [at] in the past which would constantly add [callback] to the
+       back of [t.next_fired] if this function is called from [callback]. *)
+    match event.status with
+    | Happening | Scheduled | Fired as status ->
+      Or_error.error_s [%message "cannot schedule an event with status"
+                                   ~_:(status : Event.Status.t)]
+    | Unscheduled ->
+      event.at <- at;
+      add t event;
+      Ok ()
+  ;;
+
+  let schedule_after t event span = schedule_at t event (Time_ns.after (now t) span)
+
 end
 
 let run_after        t span callback = ignore (Event.after        t span callback : Event.t)
@@ -405,33 +440,29 @@ let run_fired_events t ~(send_exn : send_exn option) =
     t.fired_events <- event.next_fired;
     event.next_fired <- Event.none;
     match event.status with
-    | Aborted -> ()
-    | Happened | Happening | Scheduled -> assert false
+    | Unscheduled -> ()
+    | Happening | Scheduled -> assert false
     | Fired ->
       Event.set_status event Happening;
-      let status : Event.Status.t =
-        (* We set the execution context so that [event.callback] runs in the same context
-           that was in place when [event] was created. *)
-        Scheduler0.set_execution_context t.scheduler event.execution_context;
-        match event.callback () with
-        | exception exn ->
-          (match send_exn with
-           | None -> t.advance_errors <- Error.of_exn exn :: t.advance_errors
-           | Some send_exn ->
-             let backtrace = Backtrace.get () in
-             send_exn event.execution_context.monitor exn ~backtrace:(`This backtrace));
-          Happened
-        | () ->
-          match event.interval with
-          | None -> Happened
-          | Some interval ->
-            event.at <-
-              Time_ns.next_multiple ()
-                ~base:event.at ~after:(timing_wheel_now t) ~interval;
-            schedule t event;
-            Scheduled
-      in
-      Event.set_status event status;
+      (* We set the execution context so that [event.callback] runs in the same context
+         that was in place when [event] was created. *)
+      Scheduler0.set_execution_context t.scheduler event.execution_context;
+      match event.callback () with
+      | exception exn ->
+        (match send_exn with
+         | None -> t.advance_errors <- Error.of_exn exn :: t.advance_errors
+         | Some send_exn ->
+           let backtrace = Backtrace.get () in
+           send_exn event.execution_context.monitor exn ~backtrace:(`This backtrace));
+        Event.set_status event Unscheduled
+      | () ->
+        match event.interval with
+        | None -> Event.set_status event Unscheduled
+        | Some interval ->
+          event.at <-
+            Time_ns.next_multiple ()
+              ~base:event.at ~after:(timing_wheel_now t) ~interval;
+          schedule t event
   done;
   Scheduler0.set_execution_context t.scheduler current_execution_context;
 ;;

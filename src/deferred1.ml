@@ -40,7 +40,10 @@ include (M : (module type of struct include M end
    rebinding would not help; we've decided to do it anyway so that non-flambda builds
    get the optimization. *)
 let return = Deferred0.return
-module Let_syntax : module type of struct include M.Let_syntax end = struct
+module Let_syntax
+  : module type of struct
+    include M.Let_syntax
+  end [@ocaml.remove_aliases] = struct
   include (M.Let_syntax : (module type of struct include M.Let_syntax end
                             with module Let_syntax := M.Let_syntax.Let_syntax))
   let return = Deferred0.return

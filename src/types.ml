@@ -62,11 +62,10 @@ end = Deferred
 and Event : sig
   module Status : sig
     type t =
-      | Aborted
       | Fired
       | Happening
-      | Happened
       | Scheduled
+      | Unscheduled
   end
 
   type t =

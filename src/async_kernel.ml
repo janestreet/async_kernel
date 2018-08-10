@@ -4,10 +4,6 @@
     [Async_kernel] is designed to depend only on {{!Core_kernel}[Core_kernel]} (as opposed
     to {{!Core}[Core]}), and so is more platform-independent. *)
 
-(**/**)
-module Limiter_in_this_directory = Limiter
-(**/**)
-
 open! Core_kernel
 open! Import
 
@@ -26,7 +22,6 @@ module Invariant                                 = Async_invariant
 module Ivar                                      = Ivar
 module Quickcheck                                = Async_quickcheck
 module Lazy_deferred                             = Lazy_deferred
-module Limiter                                   = Limiter_in_this_directory
 module Monad_sequence                            = Monad_sequence
 module Monitor                                   = Monitor
 module Mvar                                      = Mvar

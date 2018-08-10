@@ -65,6 +65,11 @@ val run_after : [> read] T1.t -> Time_ns.Span.t -> callback -> unit
     k = 0, 1, 2, etc.  [run_at_intervals] raises if [span < alarm_precision t]. *)
 val run_at_intervals : [> read] T1.t -> Time_ns.Span.t -> callback -> unit
 
+(** [alarm_upper_bound t] returns the upper bound on a [Time_ns.t] that can be
+    supplied to [run_at].  [alarm_upper_bound t] is not constant; its value
+    increases as [now t] increases. *)
+val alarm_upper_bound : [> read] T1.t -> Time_ns.t
+
 module Event : sig
   type t [@@deriving sexp_of]
 
@@ -80,8 +85,7 @@ module Event : sig
     type t =
       | Ok
       | Currently_happening
-      | Previously_aborted
-      | Previously_happened
+      | Previously_unscheduled
     [@@deriving sexp_of]
   end
 
@@ -92,6 +96,16 @@ module Event : sig
   val abort             : [> read] T1.t -> t -> Abort_result.t
   val abort_exn         : [> read] T1.t -> t -> unit
   val abort_if_possible : [> read] T1.t -> t -> unit
+
+  (** [create timesource callback] creates an event that is not scheduled in
+      [timesource]'s timing wheel but is available to be scheduled using [schedule_at] and
+      [schedule_after]. *)
+  val create : [> read] T1.t -> callback -> t
+
+  (** [schedule_at timesource t time] schedules [t] to fire at [time].  [schedule_at]
+      returns [Error] if [t] is currently scheduled to run. *)
+  val schedule_at    : [> read] T1.t -> t -> Time_ns.t      -> unit Or_error.t
+  val schedule_after : [> read] T1.t -> t -> Time_ns.Span.t -> unit Or_error.t
 end
 
 val default_timing_wheel_config : Timing_wheel_ns.Config.t

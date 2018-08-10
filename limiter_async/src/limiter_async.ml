@@ -1,8 +1,8 @@
 open Core_kernel
-open Deferred_std
-open Core_kernel.Limiter.Infinite_or_finite
+open Async_kernel
+open Limiter.Infinite_or_finite
 
-module Limiter = Core_kernel.Limiter
+module Scheduler = Async_kernel_scheduler
 
 module Outcome = struct
   type 'a t =
@@ -265,7 +265,7 @@ end
 
 module Token_bucket = struct
   type t = limiter [@@deriving sexp_of]
-  type 'a u = t
+  type _ u = t
 
   let create_exn
         ~burst_size:bucket_limit
@@ -298,7 +298,7 @@ end
 module Throttle = struct
   type t = limiter
   [@@deriving sexp_of]
-  type 'a u = t
+  type _ u = t
 
   let create_exn
         ~concurrent_jobs_target
