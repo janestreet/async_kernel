@@ -104,8 +104,9 @@ module Event : sig
 
   (** [schedule_at timesource t time] schedules [t] to fire at [time].  [schedule_at]
       returns [Error] if [t] is currently scheduled to run. *)
-  val schedule_at    : [> read] T1.t -> t -> Time_ns.t      -> unit Or_error.t
-  val schedule_after : [> read] T1.t -> t -> Time_ns.Span.t -> unit Or_error.t
+  val schedule_at           : [> read] T1.t -> t -> Time_ns.t      -> unit Or_error.t
+  val schedule_after        : [> read] T1.t -> t -> Time_ns.Span.t -> unit Or_error.t
+  val schedule_at_intervals : [> read] T1.t -> t -> Time_ns.Span.t -> unit Or_error.t
 end
 
 val default_timing_wheel_config : Timing_wheel_ns.Config.t

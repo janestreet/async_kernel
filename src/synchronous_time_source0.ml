@@ -354,13 +354,17 @@ module Event = struct
     create_and_add t ~at:(Time_ns.after (now t) span) ~interval:None ~callback
   ;;
 
-  let at_intervals t span callback =
+  let require_span_at_least_alarm_precision t span =
     let alarm_precision = alarm_precision t in
     if Time_ns.Span.( < ) span alarm_precision
     then (
-      raise_s [%message "at_intervals got span smaller than alarm precision"
+      raise_s [%message "interval span smaller than alarm precision"
                           (span : Time_ns.Span.t)
                           (alarm_precision : Time_ns.Span.t)]);
+  ;;
+
+  let at_intervals t span callback =
+    require_span_at_least_alarm_precision t span;
     create_and_add t ~at:(now t) ~interval:(Some span) ~callback
   ;;
 
@@ -403,7 +407,7 @@ module Event = struct
     create_internal t ~at:Time_ns.epoch ~interval:None ~callback
   ;;
 
-  let schedule_at t (event : t) at =
+  let schedule_at_internal t (event : t) at ~interval =
     (* [Fired] is disallowed to prevent the user from entering into an infinite loop.  The
        user could specify [at] in the past which would constantly add [callback] to the
        back of [t.next_fired] if this function is called from [callback]. *)
@@ -413,11 +417,19 @@ module Event = struct
                                    ~_:(status : Event.Status.t)]
     | Unscheduled ->
       event.at <- at;
+      event.interval <- interval;
       add t event;
       Ok ()
   ;;
 
+  let schedule_at t event at = schedule_at_internal t event at ~interval:None
+
   let schedule_after t event span = schedule_at t event (Time_ns.after (now t) span)
+
+  let schedule_at_intervals t event span =
+    require_span_at_least_alarm_precision t span;
+    schedule_at_internal t event (now t) ~interval:(Some span)
+  ;;
 
 end
 
