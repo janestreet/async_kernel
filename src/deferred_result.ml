@@ -31,4 +31,7 @@ include Monad.Make2 (struct
 
 let ignore = ignore_m
 
+let fail x = Deferred.return (Error x)
+let failf format = Printf.ksprintf fail format
+
 let map_error t ~f = Deferred.map t ~f:(fun r -> Result.map_error r ~f)
