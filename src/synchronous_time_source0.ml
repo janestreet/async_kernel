@@ -39,6 +39,7 @@ module T1 = struct
   module Event = struct
     module Status = struct
       type t = Types.Event.Status.t =
+        | Aborted      (* in [fired_events], must not run *)
         | Fired        (* in [fired_events], ready to run *)
         | Happening    (* currently running the callback *)
         | Scheduled    (* in the timing wheel *)
@@ -47,8 +48,9 @@ module T1 = struct
 
       let transition_is_allowed ~from ~to_ =
         match from, to_ with
+        | Aborted,     Unscheduled  (* skipped running callback *)
         | Fired,       Happening    (* started running callback *)
-        | Fired,       Unscheduled  (* aborted *)
+        | Fired,       Aborted      (* aborted *)
         | Happening,   Scheduled    (* for repeating events *)
         | Happening,   Unscheduled  (* event callback finished *)
         | Scheduled,   Fired        (* moved from timing wheel to [fired_events] *)
@@ -56,7 +58,8 @@ module T1 = struct
         | Unscheduled, Fired        (* event scheduled in the past *)
         | Unscheduled, Scheduled    (* event scheduled in the future *)
           -> true
-        | ( Fired
+        | ( Aborted
+          | Fired
           | Happening
           | Scheduled
           | Unscheduled), _
@@ -115,7 +118,7 @@ module T1 = struct
             [%test_result: bool] (Alarm.is_null alarm)
               ~expect:(
                 match t.status with
-                | Fired | Happening | Unscheduled -> true
+                | Aborted | Fired | Happening | Unscheduled -> true
                 | Scheduled -> false)))
           ~at:ignore
           ~callback:ignore
@@ -124,8 +127,8 @@ module T1 = struct
           ~next_fired:(check (fun next_fired ->
             if is_some next_fired
             then (match t.status with
-              | Fired -> ()
-              | _ -> assert false)))
+              | Aborted | Fired -> ()
+              | Happening | Scheduled | Unscheduled -> assert false)))
           ~status:ignore)
     ;;
 
@@ -378,12 +381,13 @@ module Event = struct
 
   let abort t (event : t) : Abort_result.t =
     match event.status with
+    | Aborted -> Previously_unscheduled
     | Happening ->
       if Option.is_none event.interval
       then Currently_happening
       else (event.interval <- None; Ok)
     | Fired ->
-      Event.set_status event Unscheduled;
+      Event.set_status event Aborted;
       Ok
     | Scheduled ->
       Event.set_status event Unscheduled;
@@ -412,7 +416,7 @@ module Event = struct
        user could specify [at] in the past which would constantly add [callback] to the
        back of [t.next_fired] if this function is called from [callback]. *)
     match event.status with
-    | Happening | Scheduled | Fired as status ->
+    | Aborted | Happening | Scheduled | Fired as status ->
       Or_error.error_s [%message "cannot schedule an event with status"
                                    ~_:(status : Event.Status.t)]
     | Unscheduled ->
@@ -452,8 +456,8 @@ let run_fired_events t ~(send_exn : send_exn option) =
     t.fired_events <- event.next_fired;
     event.next_fired <- Event.none;
     match event.status with
-    | Unscheduled -> ()
-    | Happening | Scheduled -> assert false
+    | Aborted -> Event.set_status event Unscheduled
+    | Happening | Scheduled | Unscheduled -> assert false
     | Fired ->
       Event.set_status event Happening;
       (* We set the execution context so that [event.callback] runs in the same context
