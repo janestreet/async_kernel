@@ -12,6 +12,7 @@
 
 open! Core_kernel
 
+
 module Epoll_max_ready_events              : Validated.S with type raw := int
 module Max_inter_cycle_timeout             : Validated.S with type raw := Time_ns.Span.t
 module Min_inter_cycle_timeout             : Validated.S with type raw := Time_ns.Span.t
@@ -23,6 +24,19 @@ module Max_num_open_file_descrs : sig
   include Equal.S     with type t := t
 
   val default : t
+end
+
+module Thread_pool_cpu_affinity : sig
+
+  module Cpuset : sig
+    include Validated.S with type raw := Int.Set.t
+    include Equal.S with type t := t
+  end
+
+  type t =
+    | Inherit
+    | Cpuset of Cpuset.t
+  [@@deriving sexp_of]
 end
 
 module Dump_core_on_job_delay : sig
@@ -75,6 +89,7 @@ val abort_after_thread_pool_stuck_for   : Time_ns.Span.t
 val check_invariants                    : bool
 val detect_invalid_access_from_thread   : bool
 val dump_core_on_job_delay              : Dump_core_on_job_delay.t
+val thread_pool_cpu_affinity            : Thread_pool_cpu_affinity.t
 val epoll_max_ready_events              : Epoll_max_ready_events.t
 val file_descr_watcher                  : File_descr_watcher.t
 val max_inter_cycle_timeout             : Max_inter_cycle_timeout.t

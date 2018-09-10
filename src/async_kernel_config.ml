@@ -7,6 +7,32 @@ let sec = Time_ns.Span.of_sec
 
 let concat = String.concat
 
+module Thread_pool_cpu_affinity = struct
+
+  module Cpuset = struct
+    include
+      Validated.Make (struct
+        type t = Int.Set.t
+        [@@deriving sexp]
+
+        let here = [%here]
+        let validate t =
+          Validate.first_failure
+            (Int.validate_lbound ~min:(Incl 1) (Int.Set.length t))
+            (Int.Set.to_list t
+             |> List.map ~f:Int.validate_non_negative
+             |> Validate.name_list "Thread_pool_cpuset")
+      end)
+
+    let equal t1 t2 = Int.Set.equal (t1 |> raw) (t2 |> raw)
+  end
+
+  type t =
+    | Inherit
+    | Cpuset of Cpuset.t
+  [@@deriving sexp]
+end
+
 module Epoll_max_ready_events =
   Validated.Make (struct
     include Int
@@ -149,6 +175,7 @@ type t =
   ; print_debug_messages_for            : Debug_tag.t list                      sexp_option
   ; record_backtraces                   : bool                                  sexp_option
   ; report_thread_pool_stuck_for        : Time_ns.Span.t                        sexp_option
+  ; thread_pool_cpu_affinity            : Thread_pool_cpu_affinity.t            sexp_option
   ; timing_wheel_config                 : Timing_wheel_ns.Config.t              sexp_option }
 [@@deriving fields, sexp]
 
@@ -167,6 +194,7 @@ let empty =
   ; print_debug_messages_for            = None
   ; record_backtraces                   = None
   ; report_thread_pool_stuck_for        = None
+  ; thread_pool_cpu_affinity            = None
   ; timing_wheel_config                 = None }
 ;;
 
@@ -209,12 +237,17 @@ let default =
   ; print_debug_messages_for            = Some []
   ; record_backtraces                   = Some false
   ; report_thread_pool_stuck_for        = Some (sec 1.)
+  ; thread_pool_cpu_affinity            = Some Inherit
   ; timing_wheel_config                 = Some default_timing_wheel_config }
 ;;
 
 let example =
   { default with
-    print_debug_messages_for = Some Debug_tag.([ Fd; Scheduler ]) }
+    print_debug_messages_for = Some Debug_tag.([ Fd; Scheduler ])
+  ; thread_pool_cpu_affinity =
+      Some (Cpuset ([ 0; 1; 2 ]
+                    |> Int.Set.of_list
+                    |> Thread_pool_cpu_affinity.Cpuset.create_exn))}
 ;;
 
 let environment_variable = "ASYNC_CONFIG"
@@ -265,6 +298,7 @@ let field_descriptions () : string =
   The maximum number of ready events that Async's call to [Epoll.wait]
   will handle.
 " ])
+
       ~file_descr_watcher:(field [%sexp_of: File_descr_watcher.t]
                              ["
   This determines what OS subsystem Async uses to watch file descriptors for being ready.
@@ -355,6 +389,9 @@ let field_descriptions () : string =
   By default, Async will print a message to stderr every second if
   the thread pool is stuck for longer than this.
 " ])
+      ~thread_pool_cpu_affinity:(field [%sexp_of: Thread_pool_cpu_affinity.t]
+                                   ["
+  Whether and how threads in the thread pool should be affinitized to CPUs."])
       ~timing_wheel_config:(field [%sexp_of: Timing_wheel_ns.Config.t]
                               ["
   This is used to adjust the time/space tradeoff in the timing wheel
@@ -447,6 +484,7 @@ let abort_after_thread_pool_stuck_for   = !! Fields.abort_after_thread_pool_stuc
 let check_invariants                    = !! Fields.check_invariants
 let detect_invalid_access_from_thread   = !! Fields.detect_invalid_access_from_thread
 let epoll_max_ready_events              = !! Fields.epoll_max_ready_events
+let thread_pool_cpu_affinity            = !! Fields.thread_pool_cpu_affinity
 let file_descr_watcher                  = !! Fields.file_descr_watcher
 let max_inter_cycle_timeout             = !! Fields.max_inter_cycle_timeout
 let max_num_open_file_descrs            = !! Fields.max_num_open_file_descrs
@@ -463,6 +501,7 @@ let t =
   ; check_invariants                    = Some check_invariants
   ; detect_invalid_access_from_thread   = Some detect_invalid_access_from_thread
   ; dump_core_on_job_delay              = Some dump_core_on_job_delay
+  ; thread_pool_cpu_affinity            = Some thread_pool_cpu_affinity
   ; epoll_max_ready_events              = Some epoll_max_ready_events
   ; file_descr_watcher                  = Some file_descr_watcher
   ; max_inter_cycle_timeout             = Some max_inter_cycle_timeout
