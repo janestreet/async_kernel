@@ -5,7 +5,8 @@ type ('a, 'permission) t = ('a, 'permission) Types.Bvar.t
 
 type 'a repr = 'a Types.Bvar.repr =
   { mutable has_any_waiters : bool
-  ; mutable ivar            : 'a Ivar.t }
+  ; mutable ivar : 'a Ivar.t
+  }
 [@@deriving fields, sexp_of]
 
 let invariant invariant_a _ t =
@@ -13,12 +14,13 @@ let invariant invariant_a _ t =
   Invariant.invariant [%here] repr [%sexp_of: _ repr] (fun () ->
     let check f = Invariant.check_field repr f in
     Fields_of_repr.iter
-      ~has_any_waiters:(check (fun has_any_waiters ->
-        if Ivar.has_handlers repr.ivar
-        then (assert has_any_waiters)))
-      ~ivar:(check (fun ivar ->
-        Ivar.invariant invariant_a ivar;
-        assert (Ivar.is_empty ivar))))
+      ~has_any_waiters:
+        (check (fun has_any_waiters ->
+           if Ivar.has_handlers repr.ivar then assert has_any_waiters))
+      ~ivar:
+        (check (fun ivar ->
+           Ivar.invariant invariant_a ivar;
+           assert (Ivar.is_empty ivar))))
 ;;
 
 let sexp_of_t _ _ t =
@@ -41,7 +43,7 @@ let broadcast t a =
 let wait t =
   let repr = Types.Bvar.to_repr t in
   repr.has_any_waiters <- true;
-  Ivar.read repr.ivar;
+  Ivar.read repr.ivar
 ;;
 
 let has_any_waiters t =

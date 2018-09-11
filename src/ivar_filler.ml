@@ -6,8 +6,7 @@ type 'a u =
   | Full
 [@@deriving sexp_of]
 
-type 'a t = 'a u ref
-[@@deriving sexp_of]
+type 'a t = 'a u ref [@@deriving sexp_of]
 
 let invariant _ t =
   Invariant.invariant [%here] t [%sexp_of: _ t] (fun () ->
@@ -25,11 +24,13 @@ let create () =
 let is_empty t =
   match !t with
   | Empty _ -> true
-  | Full    -> false
+  | Full -> false
 ;;
 
 let fill t a =
   match !t with
-  | Empty i -> t := Full; Ivar.fill i a
+  | Empty i ->
+    t := Full;
+    Ivar.fill i a
   | Full -> raise_s [%message "attempt to fill full ivar"]
 ;;

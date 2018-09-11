@@ -1,9 +1,9 @@
+
 (** Memoization functions like in [Core_kernel.Memo], with re-raising of exceptions
     thrown asynchronously. *)
 
 open! Core_kernel
 open! Import
-
 module Deferred = Deferred1
 
 (** [general hashable f] returns a memoized version of [f], where the results are stored
@@ -20,8 +20,7 @@ module Deferred = Deferred1
 val general
   :  (module Hashable with type t = 'a)
   -> ('a -> 'b Deferred.t)
-  -> ('a -> 'b Deferred.t)
+  -> 'a
+  -> 'b Deferred.t
 
-val unit
-  :  (unit -> 'a Deferred.t)
-  -> (unit -> 'a Deferred.t)
+val unit : (unit -> 'a Deferred.t) -> unit -> 'a Deferred.t

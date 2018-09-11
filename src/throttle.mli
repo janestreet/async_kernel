@@ -19,7 +19,6 @@
     enqueued into a killed throttle will be immediately aborted. *)
 
 open! Core_kernel
-
 module Deferred = Deferred1
 
 (** We use a phantom type to distinguish between throttles, which have
@@ -29,6 +28,7 @@ module Deferred = Deferred1
     job can be running at a time. *)
 module T2 : sig
   type ('a, 'kind) t [@@deriving sexp_of]
+
   include Invariant.S2 with type ('a, 'b) t := ('a, 'b) t
 end
 
@@ -41,39 +41,38 @@ include Invariant.S1 with type 'a t := 'a t
 
     If some job raises an exception, then the throttle will be killed, unless
     [continue_on_error] is true. *)
-val create
-  :  continue_on_error   : bool
-  -> max_concurrent_jobs : int
-  -> unit t
+val create : continue_on_error:bool -> max_concurrent_jobs:int -> unit t
 
 (** [create_with ~continue_on_error job_resources] returns a throttle that will run up to
     [List.length job_resources] concurrently, and will ensure that all running jobs are
     supplied distinct elements of [job_resources]. *)
-val create_with
-  :  continue_on_error : bool
-  -> 'a list
-  -> 'a t
+val create_with : continue_on_error:bool -> 'a list -> 'a t
 
-type 'a outcome = [ `Ok of 'a | `Aborted | `Raised of exn ] [@@deriving sexp_of]
+type 'a outcome =
+  [ `Ok of 'a
+  | `Aborted
+  | `Raised of exn ]
+[@@deriving sexp_of]
 
 (** [enqueue t job] schedules [job] to be run as soon as possible.  Jobs are guaranteed to
     be started in the order they are [enqueue]d and to not be started during the call to
     [enqueue].  If [t] is dead, then [job] will be immediately aborted (for [enqueue],
     this will send an exception to the monitor in effect). *)
 val enqueue' : ('a, _) T2.t -> ('a -> 'b Deferred.t) -> 'b outcome Deferred.t
-val enqueue  : ('a, _) T2.t -> ('a -> 'b Deferred.t) -> 'b         Deferred.t
+
+val enqueue : ('a, _) T2.t -> ('a -> 'b Deferred.t) -> 'b Deferred.t
 
 (** [monad_sequence_how ~how ~f] returns a function that behaves like [f], except that it
     uses a throttle to limit the number of concurrent invocations that can be running
     simultaneously.  The throttle has [continue_on_error = false]. *)
 val monad_sequence_how
-  :  ?how : Monad_sequence.how
-  -> f    : ('a -> 'b Deferred.t)
+  :  ?how:Monad_sequence.how
+  -> f:('a -> 'b Deferred.t)
   -> ('a -> 'b Deferred.t) Staged.t
 
 val monad_sequence_how2
-  :  ?how : Monad_sequence.how
-  -> f    : ('a1 -> 'a2 -> 'b Deferred.t)
+  :  ?how:Monad_sequence.how
+  -> f:('a1 -> 'a2 -> 'b Deferred.t)
   -> ('a1 -> 'a2 -> 'b Deferred.t) Staged.t
 
 (** [prior_jobs_done t] becomes determined when all of the jobs that were previously

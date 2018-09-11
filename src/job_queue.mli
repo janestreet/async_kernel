@@ -2,7 +2,6 @@
 
 open! Core_kernel
 open! Import
-
 module Scheduler = Scheduler0
 
 type t = Types.Job_queue.t [@@deriving sexp_of]

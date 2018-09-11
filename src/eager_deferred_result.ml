@@ -1,5 +1,4 @@
 open Core_kernel
-
 module Deferred = Eager_deferred0
 open Deferred.Let_syntax
 
@@ -12,7 +11,8 @@ end
 include T
 
 let combine t1 t2 ~ok ~err =
-  let%map t1 = t1 and t2 = t2 in
+  let%map t1 = t1
+  and t2 = t2 in
   Result.combine t1 t2 ~ok ~err
 ;;
 
@@ -32,5 +32,4 @@ include Monad.Make2 (struct
   end)
 
 let ignore = ignore_m
-
 let map_error t ~f = Deferred.map t ~f:(fun r -> Result.map_error r ~f)

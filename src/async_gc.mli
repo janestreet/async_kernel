@@ -4,8 +4,7 @@ open! Core_kernel
 
 (** We remove the [Expert] module, which has functions that are superseded by
     Async-friendly functions below. *)
-include module type of Core_kernel.Gc
-  with module Expert := Core_kernel.Gc.Expert
+include module type of Core_kernel.Gc with module Expert := Core_kernel.Gc.Expert
 
 (** [add_finalizer b f] ensures that [f] runs after [b] becomes unreachable.  [f b] will
     run in its own Async job.  If [f] raises, the unhandled exception will be raised to
@@ -38,7 +37,7 @@ include module type of Core_kernel.Gc
     The [f] function can use all features of OCaml and Async, since it runs as an ordinary
     Async job.  [f] can even make [b] reachable again.  It can even call [add_finalizer]
     on [b] or other values to register other finalizer functions. *)
-val add_finalizer     : 'a Heap_block.t -> ('a Heap_block.t -> unit) -> unit
+val add_finalizer : 'a Heap_block.t -> ('a Heap_block.t -> unit) -> unit
 
 (** [add_finalizer_exn b f] is like {{!add_finalizer}[add_finalizer]}, but will raise if
     [b] is not a heap block. *)
@@ -49,12 +48,12 @@ val add_finalizer_exn : 'a -> ('a -> unit) -> unit
     function does not receive the value as an argument.  Every weak pointer and ephemeron
     that contained this value as key or data is unset before running the finalization
     function. *)
-val add_finalizer_last     : 'a Heap_block.t -> (unit -> unit) -> unit
+val add_finalizer_last : 'a Heap_block.t -> (unit -> unit) -> unit
+
 val add_finalizer_last_exn : 'a -> (unit -> unit) -> unit
 
 (** A GC alarm calls a user function after the end of each major GC cycle. *)
 module Alarm : sig
-
   type t [@@deriving sexp_of]
 
   (** [create f] arranges for [f] to be called after the end of each major GC cycle,

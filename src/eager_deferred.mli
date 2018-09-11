@@ -19,37 +19,36 @@
 open! Core_kernel
 open! Import
 
-include sig
+include
+sig
   type +'a t
 
   include Invariant.S1 with type 'a t := 'a t
-
   include Monad with type 'a t := 'a t
 
   module Infix : sig
     include Monad.Infix with type 'a t := 'a t
-    val (>>>) : 'a t -> ('a -> unit) -> unit
+
+    val ( >>> ) : 'a t -> ('a -> unit) -> unit
   end
 
-  val any            : 'a t list -> 'a t
-  val any_unit       : 'a t list -> unit t
-  val both           : 'a t -> 'b t -> ('a * 'b) t
-  val create         : ('a Ivar.t -> unit) -> 'a t
+  val any : 'a t list -> 'a t
+  val any_unit : 'a t list -> unit t
+  val both : 'a t -> 'b t -> ('a * 'b) t
+  val create : ('a Ivar.t -> unit) -> 'a t
   val don't_wait_for : unit t -> unit
-  val ignore         : _ t -> unit t
-  val is_determined  : 'a t -> bool
-  val never          : unit -> _ t
-  val ok             : 'a t -> ('a, _) Core_kernel.Result.t t
-  val peek           : 'a t -> 'a option
-  val unit           : unit t
-  val upon           : 'a t -> ('a -> unit) -> unit
-  val value_exn      : 'a t -> 'a
+  val ignore : _ t -> unit t
+  val is_determined : 'a t -> bool
+  val never : unit -> _ t
+  val ok : 'a t -> ('a, _) Core_kernel.Result.t t
+  val peek : 'a t -> 'a option
+  val unit : unit t
+  val upon : 'a t -> ('a -> unit) -> unit
+  val value_exn : 'a t -> 'a
 
   val repeat_until_finished
     :  'state
-    ->  ('state -> [ `Repeat of 'state
-                   | `Finished of 'result
-                   ] t)
+    -> ('state -> [`Repeat of 'state | `Finished of 'result] t)
     -> 'result t
 
   module List : Deferred1.Monad_sequence with type 'a t := 'a list

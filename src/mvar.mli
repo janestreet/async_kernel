@@ -37,7 +37,6 @@ module Read_only : sig
 end
 
 val create : unit -> 'a Read_write.t
-
 val is_empty : (_, _) t -> bool
 
 (** [put t a] waits until [is_empty t], and then does [set t a].  If there are multiple
@@ -51,12 +50,12 @@ val set : ('a, [> write]) t -> 'a -> unit
 
 (** [update t ~f] applies [f] to the value in [t] and [set]s [t] to the result.  This is
     useful if you want takers to have accumulated-value semantics. *)
-val update     : ('a, read_write) t -> f:('a option -> 'a) -> unit
+val update : ('a, read_write) t -> f:('a option -> 'a) -> unit
 
 (** [update_exn] is like [update], except it raises if [is_empty t]. *)
-val update_exn : ('a, read_write) t -> f:('a        -> 'a) -> unit
+val update_exn : ('a, read_write) t -> f:('a -> 'a) -> unit
 
-val read_only  : ('a, [> read] ) t -> ('a, read)  t
+val read_only : ('a, [> read]) t -> ('a, read) t
 val write_only : ('a, [> write]) t -> ('a, write) t
 
 (** [value_available t] returns a deferred [d] that becomes determined when a value is in
@@ -71,10 +70,11 @@ val value_available : (_, [> read]) t -> unit Deferred.t
     value of [t] and and clears [t].  If there are multiple concurrent calls to [take]
     then only one of them will be fulfilled and the others will continue waiting on future
     values.  There is no ordering guarantee for which [take] call will be filled first. *)
-val take         : ('a, [> read]) t -> 'a Deferred.t
+val take : ('a, [> read]) t -> 'a Deferred.t
 
 (** [take_now] is an immediate form of [take]. *)
-val take_now     : ('a, [> read]) t -> 'a option
+val take_now : ('a, [> read]) t -> 'a option
+
 val take_now_exn : ('a, [> read]) t -> 'a
 
 (** [taken t] returns a deferred that is filled the next time [take] clears [t]. *)

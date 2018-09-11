@@ -1,6 +1,5 @@
 open! Core_kernel
 open! Import
-
 open Pool
 module Pointer = Pointer
 module Slot = Slot
@@ -15,5 +14,4 @@ type slots = (Execution_context.t, Obj.t -> unit, Obj.t sexp_opaque) Slots.t3
 type t = slots Pool.t [@@deriving sexp_of]
 
 let invariant t = Pool.invariant ignore t
-
 let create () = create Slots.t3 ~capacity:1 ~dummy:(dummy_e, dummy_f, dummy_a)

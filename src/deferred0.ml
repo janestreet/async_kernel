@@ -1,8 +1,6 @@
 open! Core_kernel
 open! Import
-
 module Ivar = Ivar0
-
 module Handler = Ivar.Handler
 
 (* Deferreds present a covariant view of ivars.  We could actually implement deferreds
@@ -24,26 +22,23 @@ module Handler = Ivar.Handler
        ; upon'                     : ('a -> unit) -> Unregister.t
        ; install_removable_handler : ('a, 'execution_context) Raw_handler.t -> Unregister.t; } ]} *)
 
-type +'a t = 'a Types.Deferred.t  (* the abstract covariant type, equivalent to ivar *)
+type +'a t = 'a Types.Deferred.t
+
+(* the abstract covariant type, equivalent to ivar *)
 
 type 'a deferred = 'a t
 
-let of_ivar (type a) (ivar : a Ivar.t) = (Obj.magic ivar : a t)
-
-let to_ivar (type a) t = (Obj.magic (t : a t) : a Ivar.t)
-
+let of_ivar (type a) (ivar : a Ivar.t) : a t = Obj.magic ivar
+let to_ivar (type a) t : a Ivar.t = Obj.magic (t : a t)
 let invariant invariant_a t = Ivar.invariant invariant_a (to_ivar t)
-
 let sexp_of_t sexp_of_a t = Ivar.sexp_of_t sexp_of_a (to_ivar t)
-
 let peek t = Ivar.peek (to_ivar t)
-
 let return a = of_ivar (Ivar.create_full a)
-
 let is_determined t = Ivar.is_full (to_ivar t)
 
 let value_exn t =
-  Ivar.value (to_ivar t)
+  Ivar.value
+    (to_ivar t)
     ~if_empty_then_failwith:"Deferred.value_exn called on undetermined deferred"
 ;;
 
@@ -52,7 +47,7 @@ let upon t f = Ivar.upon (to_ivar t) f
 let create f =
   let result = Ivar.create () in
   f result;
-  of_ivar result;
+  of_ivar result
 ;;
 
 (* don't use [create] here as it would allocate one more closure *)
@@ -62,8 +57,5 @@ let bind t ~f =
   of_ivar bind_result
 ;;
 
-let add_handler t f execution_context =
-  Ivar.add_handler (to_ivar t) f execution_context
-;;
-
+let add_handler t f execution_context = Ivar.add_handler (to_ivar t) f execution_context
 let remove_handler t h = Ivar.remove_handler (to_ivar t) h

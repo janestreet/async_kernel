@@ -33,12 +33,14 @@ module Writer : sig
   type phantom
   type 'a t = ('a, phantom) pipe [@@deriving sexp_of]
 
+
   val invariant : _ t -> unit
 end
 
 module Reader : sig
   type phantom
   type 'a t = ('a, phantom) pipe [@@deriving sexp_of]
+
 
   val invariant : _ t -> unit
 end
@@ -57,7 +59,7 @@ end
     will be raised to the monitor in effect when [create_reader] was called.  There is a
     race between those two actions, which can easily lead to confusion or bugs. *)
 val create_reader
-  :  close_on_exception : bool
+  :  close_on_exception:bool
   -> ('a Writer.t -> unit Deferred.t)
   -> 'a Reader.t
 
@@ -68,15 +70,13 @@ val create_reader
     [create_writer].  [create_writer] closes on exception, unlike [create_reader], because
     closing closing the read end of a pipe is a signal to the writer that the consumer has
     failed. *)
-val create_writer
-  :  ('a Reader.t -> unit Deferred.t)
-  -> 'a Writer.t
+val create_writer : ('a Reader.t -> unit Deferred.t) -> 'a Writer.t
 
 val init : ('a Writer.t -> unit Deferred.t) -> 'a Reader.t
-[@@deprecated "\
-[since 2016-03] Use [create_reader ~close_on_exception:true] to preserve behavior, though
+[@@deprecated
+  {|[since 2016-03] Use [create_reader ~close_on_exception:true] to preserve behavior, though
 you might want to consider changing the argument [close_on_exception] to the recommended
-[false]."]
+[false].|}]
 
 (** [create ()] creates a new pipe.  It is preferable to use [create_reader] or
     [create_writer] instead of [create], since they provide exception handling and
@@ -98,10 +98,7 @@ val singleton : 'a -> 'a Reader.t
 
     {[
       Pipe.unfold ~init:0 ~f:(fun n -> return (Some (n, n+1))) ]} *)
-val unfold
-  :  init:'s
-  -> f:('s -> ('a * 's) option Deferred.t)
-  -> 'a Reader.t
+val unfold : init:'s -> f:('s -> ('a * 's) option Deferred.t) -> 'a Reader.t
 
 (** [of_sequence sequence] returns a pipe reader that gets filled with the elements of
     [sequence].  [of_sequence] respects pushback on the resulting pipe. *)
@@ -112,8 +109,9 @@ val of_sequence : 'a Sequence.t -> 'a Reader.t
     determined before pulling the next value.  Repeatedly asking for the next value
     without waiting on [d] will infinite loop. *)
 type 'a to_sequence_elt =
-  | Value    of 'a
-  | Wait_for  : _ Deferred.t -> _ to_sequence_elt
+  | Value of 'a
+  | Wait_for : _ Deferred.t -> _ to_sequence_elt
+
 val to_sequence : 'a Reader.t -> 'a to_sequence_elt Sequence.t
 
 (** {2 Closing} *)
@@ -140,7 +138,7 @@ val close : _ Writer.t -> unit
     - all pending flushes become determined with [`Reader_closed].
     - the pipe buffer is cleared.
     - all subsequent reads will get [`Eof]. *)
-val close_read  : _ Reader.t -> unit
+val close_read : _ Reader.t -> unit
 
 (** [is_closed t] returns [true] iff [close t] or [close_read t] has been called. *)
 val is_closed : (_, _) t -> bool
@@ -152,7 +150,10 @@ val closed : (_, _) t -> unit Deferred.t
 (** {2 Flushing} *)
 
 module Flushed_result : sig
-  type t = [ `Ok | `Reader_closed ] [@@deriving sexp_of]
+  type t =
+    [ `Ok
+    | `Reader_closed ]
+  [@@deriving sexp_of]
 end
 
 (** Deferreds returned by [upstream_flushed] and [downstream_flushed] become determined
@@ -181,7 +182,7 @@ end
     not} automatic linking with [iter*]; however, user code can customize the behavior of
     flush functions using {{!Consumer}[Consumer]}. *)
 
-val   upstream_flushed : (_, _) t -> Flushed_result.t Deferred.t
+val upstream_flushed : (_, _) t -> Flushed_result.t Deferred.t
 val downstream_flushed : (_, _) t -> Flushed_result.t Deferred.t
 
 module Consumer : sig
@@ -305,9 +306,10 @@ val pushback : 'a Writer.t -> unit Deferred.t
     - [transfer_in t ~from = transfer_in_without_pushback t ~from; pushback t]
 
     If [is_closed writer], then all of these functions raise. *)
-val write                        : 'a Writer.t ->      'a         -> unit Deferred.t
-val write_without_pushback       : 'a Writer.t ->      'a         -> unit
-val transfer_in                  : 'a Writer.t -> from:'a Queue.t -> unit Deferred.t
+val write : 'a Writer.t -> 'a -> unit Deferred.t
+
+val write_without_pushback : 'a Writer.t -> 'a -> unit
+val transfer_in : 'a Writer.t -> from:'a Queue.t -> unit Deferred.t
 val transfer_in_without_pushback : 'a Writer.t -> from:'a Queue.t -> unit
 
 (** [write_when_ready writer ~f] waits until there is space available in the pipe, and
@@ -317,7 +319,7 @@ val transfer_in_without_pushback : 'a Writer.t -> from:'a Queue.t -> unit
 val write_when_ready
   :  'a Writer.t
   -> f:(('a -> unit) -> 'b)
-  -> [ `Closed | `Ok of 'b ] Deferred.t
+  -> [`Closed | `Ok of 'b] Deferred.t
 
 (** [write_if_open w e] is equivalent to:
 
@@ -330,7 +332,8 @@ val write_when_ready
 
     [write_without_pushback_if_open] is the same as [write_if_open], except it calls
     [write_without_pushback] instead of [write]. *)
-val write_if_open                  : 'a Writer.t -> 'a -> unit Deferred.t
+val write_if_open : 'a Writer.t -> 'a -> unit Deferred.t
+
 val write_without_pushback_if_open : 'a Writer.t -> 'a -> unit
 
 (** {2 Reading} *)
@@ -363,24 +366,21 @@ val write_without_pushback_if_open : 'a Writer.t -> 'a -> unit
     [read'] raises if [max_queue_length <= 0].  The [consumer] is used to extend the
     meaning of values being flushed (see the [Consumer] module above). *)
 val read'
-  :  ?consumer         : Consumer.t
-  -> ?max_queue_length : int  (** default is [Int.max_value] *)
+  :  ?consumer:Consumer.t
+  -> ?max_queue_length:int (** default is [Int.max_value] *)
   -> 'a Reader.t
-  -> [ `Eof | `Ok of 'a Queue.t ] Deferred.t
+  -> [`Eof | `Ok of 'a Queue.t] Deferred.t
 
 (** [read pipe] reads a single value from the pipe.  The [consumer] is used to extend the
     meaning of values being flushed (see the [Consumer] module above). *)
-val read
-  :  ?consumer:Consumer.t
-  -> 'a Reader.t
-  -> [ `Eof | `Ok of 'a ] Deferred.t
+val read : ?consumer:Consumer.t -> 'a Reader.t -> [`Eof | `Ok of 'a] Deferred.t
 
 (** [read_at_most t ~num_values] is [read' t ~max_queue_length:num_values]. *)
 val read_at_most
   :  ?consumer:Consumer.t
   -> 'a Reader.t
   -> num_values:int
-  -> [ `Eof | `Ok of 'a Queue.t ] Deferred.t
+  -> [`Eof | `Ok of 'a Queue.t] Deferred.t
 [@@deprecated "[since 2015-12] Use [read' ~max_queue_length]"]
 
 (** [read_exactly r ~num_values] reads exactly [num_values] items, unless EOF is
@@ -395,9 +395,9 @@ val read_exactly
   -> 'a Reader.t
   -> num_values:int
   -> [ `Eof
-     | `Fewer of 'a Queue.t    (** [0 < Q.length q < num_values] *)
-     | `Exactly of 'a Queue.t  (** [Q.length q = num_values] *)
-     ] Deferred.t
+     | `Fewer of 'a Queue.t  (** [0 < Q.length q < num_values] *)
+     | `Exactly of 'a Queue.t  (** [Q.length q = num_values] *) ]
+       Deferred.t
 
 (** [read_now' reader] reads values from [reader] that are immediately available.  The
     resulting queue will satisfy [0 <= Q.length q <= max_queue_length].  If [reader] is
@@ -405,25 +405,26 @@ val read_exactly
     [`Nothing_available].  The [consumer] is used to extend the meaning of values being
     flushed (see the [Consumer] module above). *)
 val read_now'
-  :  ?consumer         : Consumer.t
-  -> ?max_queue_length : int  (** default is [Int.max_value] *)
+  :  ?consumer:Consumer.t
+  -> ?max_queue_length:int (** default is [Int.max_value] *)
   -> 'a Reader.t
-  -> [ `Eof | `Nothing_available | `Ok of 'a Queue.t ]
+  -> [`Eof | `Nothing_available | `Ok of 'a Queue.t]
 
 (** [read_now] is like [read_now'], except that it reads a single value rather than
     everything that is available. *)
 val read_now
-  :  ?consumer : Consumer.t
+  :  ?consumer:Consumer.t
   -> 'a Reader.t
-  -> [ `Eof | `Nothing_available | `Ok of 'a ]
+  -> [`Eof | `Nothing_available | `Ok of 'a]
 
 (** [read_now_at_most t ~num_values] is [read_now' t ~max_queue_length:num_values] *)
 val read_now_at_most
-  :  ?consumer  : Consumer.t
+  :  ?consumer:Consumer.t
   -> 'a Reader.t
-  -> num_values : int
-  -> [ `Eof | `Nothing_available | `Ok of 'a Queue.t ]
+  -> num_values:int
+  -> [`Eof | `Nothing_available | `Ok of 'a Queue.t]
 [@@deprecated "[since 2015-12] Use [read_now' ~max_queue_length"]
+
 
 val peek : 'a Reader.t -> 'a option
 
@@ -446,7 +447,7 @@ val read_all : 'a Reader.t -> 'a Queue.t Deferred.t
     pipe, so that one can be sure and not remove values and drop them on the floor.
 
     [values_available] is roughly equivalent to [read' ~max_queue_length:0]. *)
-val values_available : _ Reader.t -> [ `Eof | `Ok ] Deferred.t
+val values_available : _ Reader.t -> [`Eof | `Ok] Deferred.t
 
 (** [read_choice reader] is:
 
@@ -468,15 +469,17 @@ val values_available : _ Reader.t -> [ `Eof | `Ok ] Deferred.t
     [read_choice_single_consumer_exn reader [%here]] is like [read_choice reader], but it
     raises in the case of [`Nothing_available].  It is intended to be used when [reader]
     has no other consumers. *)
-val read_choice : 'a Reader.t -> [ `Eof | `Ok of 'a | `Nothing_available ] Deferred.choice
+val read_choice : 'a Reader.t -> [`Eof | `Ok of 'a | `Nothing_available] Deferred.choice
+
 val read_choice_single_consumer_exn
-  : 'a Reader.t
+  :  'a Reader.t
   -> Source_code_position.t
-  -> [ `Eof | `Ok of 'a ] Deferred.choice
+  -> [`Eof | `Ok of 'a] Deferred.choice
 
 (** {2 Sequence functions} *)
 
 module Flushed : sig
+
   type t =
     | Consumer of Consumer.t
     | When_value_processed
@@ -515,28 +518,29 @@ end
     waits for [f] to finish, and then repeats.  [fold'] finishes when the call to [f] on
     the final batch of elements from [reader] finishes. *)
 val fold'
-  :  ?flushed          : Flushed.t (** default is [When_value_read] *)
-  -> ?max_queue_length : int  (** default is [Int.max_value] *)
+  :  ?flushed:Flushed.t (** default is [When_value_read] *)
+  -> ?max_queue_length:int (** default is [Int.max_value] *)
   -> 'a Reader.t
-  -> init              : 'accum
-  -> f                 : ('accum -> 'a Queue.t -> 'accum Deferred.t)
+  -> init:'accum
+  -> f:('accum -> 'a Queue.t -> 'accum Deferred.t)
   -> 'accum Deferred.t
+
 
 (** [fold reader ~init ~f] folds over the elements of [reader], consuming them as they
     come in.  [fold] finishes when the final call to [f] returns. *)
 
 val fold
-  :  ?flushed : Flushed.t  (** default is [When_value_read] *)
+  :  ?flushed:Flushed.t (** default is [When_value_read] *)
   -> 'a Reader.t
-  -> init      : 'accum
-  -> f         : ('accum -> 'a -> 'accum Deferred.t)
+  -> init:'accum
+  -> f:('accum -> 'a -> 'accum Deferred.t)
   -> 'accum Deferred.t
 
 val fold_without_pushback
-  :  ?consumer : Consumer.t
+  :  ?consumer:Consumer.t
   -> 'a Reader.t
-  -> init      : 'accum
-  -> f         : ('accum -> 'a -> 'accum)
+  -> init:'accum
+  -> f:('accum -> 'a -> 'accum)
   -> 'accum Deferred.t
 
 (** [iter' reader ~f ] repeatedly applies [f] to batches of elements of [reader], waiting
@@ -547,9 +551,9 @@ val fold_without_pushback
     [~flushed:When_value_processed] means values in batch [b] are flushed only after [f
     b] is filled. *)
 val iter'
-  :  ?continue_on_error : bool      (** default is [false]           *)
-  -> ?flushed           : Flushed.t (** default is [When_value_read] *)
-  -> ?max_queue_length  : int       (** default is [Int.max_value]   *)
+  :  ?continue_on_error:bool (** default is [false]           *)
+  -> ?flushed:Flushed.t (** default is [When_value_read] *)
+  -> ?max_queue_length:int (** default is [Int.max_value]   *)
   -> 'a Reader.t
   -> f:('a Queue.t -> unit Deferred.t)
   -> unit Deferred.t
@@ -557,10 +561,10 @@ val iter'
 (** [iter t f] is a specialization of [iter'] that applies the [f] to each element in the
     batch, waiting for one call to [f] to finish before making the next call to [f]. *)
 val iter
-  :  ?continue_on_error : bool      (** default is [false]           *)
-  -> ?flushed           : Flushed.t (** default is [When_value_read] *)
+  :  ?continue_on_error:bool (** default is [false]           *)
+  -> ?flushed:Flushed.t (** default is [When_value_read] *)
   -> 'a Reader.t
-  -> f                  : ('a -> unit Deferred.t)
+  -> f:('a -> unit Deferred.t)
   -> unit Deferred.t
 
 (** [iter_without_pushback t ~f] applies [f] to each element in [t], without giving [f] a
@@ -569,11 +573,11 @@ val iter
     [iter_without_pushback] will not make more than [max_iterations_per_job] calls to [f]
     in a single Async_job; this can be used to increase Async-scheduling fairness. *)
 val iter_without_pushback
-  :  ?consumer               : Consumer.t
-  -> ?continue_on_error      : bool  (** default is [false] *)
-  -> ?max_iterations_per_job : int   (** default is [Int.max_value] *)
+  :  ?consumer:Consumer.t
+  -> ?continue_on_error:bool (** default is [false] *)
+  -> ?max_iterations_per_job:int (** default is [Int.max_value] *)
   -> 'a Reader.t
-  -> f : ('a -> unit)
+  -> f:('a -> unit)
   -> unit Deferred.t
 
 (** [transfer' input output ~f] repeatedly reads a batch of elements from [input], applies
@@ -581,18 +585,18 @@ val iter_without_pushback
     [pushback] in [output] before continuing.  [transfer'] finishes if [input] is closed
     or [output] is closed.  If [output] is closed, then [transfer'] closes [input]. *)
 val transfer'
-  :  ?max_queue_length : int  (** default is [Int.max_value] *)
+  :  ?max_queue_length:int (** default is [Int.max_value] *)
   -> 'a Reader.t
   -> 'b Writer.t
-  -> f : ('a Queue.t -> 'b Queue.t Deferred.t)
+  -> f:('a Queue.t -> 'b Queue.t Deferred.t)
   -> unit Deferred.t
 
 (** [transfer] is like [transfer'], except that it processes one element at a time. *)
-val transfer : 'a Reader.t -> 'b Writer.t -> f:('a -> 'b ) -> unit Deferred.t
+val transfer : 'a Reader.t -> 'b Writer.t -> f:('a -> 'b) -> unit Deferred.t
 
 (** [transfer_id] is a specialization of [transfer'] with [f = Fn.id]. *)
 val transfer_id
-  :  ?max_queue_length : int  (** default is [Int.max_value] *)
+  :  ?max_queue_length:int (** default is [Int.max_value] *)
   -> 'a Reader.t
   -> 'a Writer.t
   -> unit Deferred.t
@@ -602,7 +606,7 @@ val transfer_id
     being consumed from [output], [map'] will pushback and stop consuming values from
     [input]. If [output] is closed, then [map'] will close [input]. *)
 val map'
-  :  ?max_queue_length : int  (** default is [Int.max_value] *)
+  :  ?max_queue_length:int (** default is [Int.max_value] *)
   -> 'a Reader.t
   -> f:('a Queue.t -> 'b Queue.t Deferred.t)
   -> 'b Reader.t
@@ -613,17 +617,17 @@ val map : 'a Reader.t -> f:('a -> 'b) -> 'b Reader.t
 (** [folding_map] is a version of [map] that threads an accumulator through calls to [f].
 *)
 val folding_map
-  :  ?max_queue_length : int  (** default is [Int.max_value] *)
+  :  ?max_queue_length:int (** default is [Int.max_value] *)
   -> 'a Reader.t
-  -> init              : 'accum
-  -> f                 : ('accum -> 'a -> 'accum * 'b)
+  -> init:'accum
+  -> f:('accum -> 'a -> 'accum * 'b)
   -> 'b Reader.t
 
 val fold_map
-  :  ?max_queue_length : int  (** default is [Int.max_value] *)
+  :  ?max_queue_length:int (** default is [Int.max_value] *)
   -> 'a Reader.t
-  -> init              : 'accum
-  -> f                 : ('accum -> 'a -> 'accum * 'b)
+  -> init:'accum
+  -> f:('accum -> 'a -> 'accum * 'b)
   -> 'b Reader.t
 [@@deprecated "[since 2017-03] Use folding_map instead"]
 
@@ -633,14 +637,14 @@ val fold_map
     consuming values from [input].  If [output] is closed, then [filter_map'] will close
     [input]. *)
 val filter_map'
-  :  ?max_queue_length : int  (** default is [Int.max_value] *)
+  :  ?max_queue_length:int (** default is [Int.max_value] *)
   -> 'a Reader.t
   -> f:('a -> 'b option Deferred.t)
   -> 'b Reader.t
 
 (** [filter_map] is a specialized version of [filter_map']. *)
 val filter_map
-  :  ?max_queue_length : int  (** default is [Int.max_value] *)
+  :  ?max_queue_length:int (** default is [Int.max_value] *)
   -> 'a Reader.t
   -> f:('a -> 'b option)
   -> 'b Reader.t
@@ -648,17 +652,17 @@ val filter_map
 (** [folding_filter_map] is a version [filter_map] that threads an accumulator through
     calls to [f]. *)
 val folding_filter_map
-  :  ?max_queue_length : int  (** default is [Int.max_value] *)
+  :  ?max_queue_length:int (** default is [Int.max_value] *)
   -> 'a Reader.t
-  -> init              : 'accum
-  -> f                 : ('accum -> 'a -> 'accum * 'b option)
+  -> init:'accum
+  -> f:('accum -> 'a -> 'accum * 'b option)
   -> 'b Reader.t
 
 val fold_filter_map
-  :  ?max_queue_length : int  (** default is [Int.max_value] *)
+  :  ?max_queue_length:int (** default is [Int.max_value] *)
   -> 'a Reader.t
-  -> init              : 'accum
-  -> f                 : ('accum -> 'a -> 'accum * 'b option)
+  -> init:'accum
+  -> f:('accum -> 'a -> 'accum * 'b option)
   -> 'b Reader.t
 [@@deprecated "[since 2017-03] Use folding_filter_map instead"]
 
@@ -674,7 +678,8 @@ val filter : 'a Reader.t -> f:('a -> bool) -> 'a Reader.t
     input.  The operation is complete when either all the [inputs] produce EOF, or when
     [output] is closed by the downstream consumer (in which case [interleave] closes all
     the [inputs]). *)
-val interleave      : 'a Reader.t list     -> 'a Reader.t
+val interleave : 'a Reader.t list -> 'a Reader.t
+
 val interleave_pipe : 'a Reader.t Reader.t -> 'a Reader.t
 
 (** [merge inputs ~compare] returns a reader, [output], that merges all the inputs.
@@ -704,8 +709,8 @@ val concat : 'a Reader.t list -> 'a Reader.t
 
     Note that {!upstream_flushed} will not work with the pipes returned by [fork]. *)
 val fork
-  : 'a Reader.t
-  -> pushback_uses:[ `Both_consumers | `Fast_consumer_only ]
+  :  'a Reader.t
+  -> pushback_uses:[`Both_consumers | `Fast_consumer_only]
   -> 'a Reader.t * 'a Reader.t
 
 (** [to_stream_deprecated reader] returns a stream that reads everything from the pipe.
@@ -722,8 +727,9 @@ val of_stream_deprecated : 'a Async_stream.t -> 'a Reader.t
 
     [drain_and_count] is like [drain], except it also counts the number of values it
     has read. *)
-val drain           : 'a Reader.t -> unit Deferred.t
-val drain_and_count : 'a Reader.t -> int  Deferred.t
+val drain : 'a Reader.t -> unit Deferred.t
+
+val drain_and_count : 'a Reader.t -> int Deferred.t
 
 (** [to_list input] reads everything from [input]; on EOF, it produces the accumulated
     list of these values. *)
@@ -749,11 +755,11 @@ val compare : (_, _) t -> (_, _) t -> int
     to continue.
 
     Every pipe's initial size budget is zero. *)
-val size_budget: (_, _) t -> int
+val size_budget : (_, _) t -> int
 
 (** [set_size_budget t i] changes the size budget of [t] to [i].  Any nonnegative value is
     allowed. *)
-val set_size_budget: (_, _) t -> int -> unit
+val set_size_budget : (_, _) t -> int -> unit
 
 (** {2 Debugging} *)
 

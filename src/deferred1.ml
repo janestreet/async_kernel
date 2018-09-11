@@ -1,7 +1,5 @@
 open Core_kernel
-
 module Scheduler = Scheduler1
-
 include Deferred0
 
 (* To avoid a space leak, it is necessary that [never] allocates a new ivar whenever it is
@@ -9,8 +7,7 @@ include Deferred0
    accumulate handlers. *)
 let never () = Ivar.read (Ivar.create ())
 
-module M =
-  Monad.Make (struct
+module M = Monad.Make (struct
     include Deferred0
 
     let map t ~f =
@@ -24,8 +21,12 @@ module M =
     let map = `Custom map
   end)
 
-include (M : (module type of struct include M end
-               with module Let_syntax := M.Let_syntax))
+include (
+  M :
+    module type of struct
+    include M
+  end
+  with module Let_syntax := M.Let_syntax)
 
 (* We rebind all the various [return]s because the use of the [Monad.Make] functor
    causes the compiler to not inline [return], and hence makes it impossible to
@@ -42,11 +43,18 @@ include (M : (module type of struct include M end
 let return = Deferred0.return
 
 module Let_syntax = struct
-  include (M.Let_syntax : (module type of struct include M.Let_syntax end
-                            with module Let_syntax := M.Let_syntax.Let_syntax))
+  include (
+    M.Let_syntax :
+      module type of struct
+      include M.Let_syntax
+    end
+    with module Let_syntax := M.Let_syntax.Let_syntax)
+
   let return = Deferred0.return
+
   module Let_syntax = struct
     include M.Let_syntax.Let_syntax
+
     let return = Deferred0.return
   end
 end
@@ -57,20 +65,17 @@ open Let_syntax
    binds as long as the list. *)
 let all = `Make_sure_to_define_all_elsewhere
 let _ = all
-
 let unit = return ()
-
 let ignore = ignore_m
 
 let both t1 t2 =
-  create (fun result ->
-    upon t1 (fun a1 -> upon t2 (fun a2 -> Ivar.fill result (a1, a2))))
+  create (fun result -> upon t1 (fun a1 -> upon t2 (fun a2 -> Ivar.fill result (a1, a2))))
 ;;
 
 module Infix = struct
   include Monad_infix
 
-  let (>>>) = upon
+  let ( >>> ) = upon
   let ppx_both = both
 end
 
@@ -114,14 +119,12 @@ let enabled choices =
           (List.fold choices ~init:[] ~f:(fun ac (Choice.T (t, f)) ->
              match peek t with
              | None -> ac
-             | Some v -> f v :: ac))));
+             | Some v -> f v :: ac))))
   in
   let execution_context = Scheduler.(current_execution_context (t ())) in
   unregisters :=
     List.fold choices ~init:Unregister.Nil ~f:(fun acc (Choice.T (t, _)) ->
-      Cons (t,
-            Deferred0.add_handler t ready execution_context,
-            acc));
+      Cons (t, Deferred0.add_handler t ready execution_context, acc));
   Ivar.read result
 ;;
 
@@ -129,9 +132,9 @@ let rec choose_result choices =
   match choices with
   | [] -> assert false
   | Choice.T (t, f) :: choices ->
-    match peek t with
-    | None -> choose_result choices
-    | Some v -> f v
+    (match peek t with
+     | None -> choose_result choices
+     | Some v -> f v)
 ;;
 
 let choose choices =
@@ -141,25 +144,23 @@ let choose choices =
     if Ivar.is_empty result
     then (
       Unregister.process !unregisters;
-      Ivar.fill result (choose_result choices));
+      Ivar.fill result (choose_result choices))
   in
   let execution_context = Scheduler.(current_execution_context (t ())) in
   unregisters :=
     List.fold choices ~init:Unregister.Nil ~f:(fun acc (Choice.T (t, _)) ->
-      Cons (t,
-            Deferred0.add_handler t ready execution_context,
-            acc));
+      Cons (t, Deferred0.add_handler t ready execution_context, acc));
   Ivar.read result
 ;;
 
 let any_f ts f = choose (List.map ts ~f:(fun t -> choice t f))
-let any      ts = any_f ts Fn.id
+let any ts = any_f ts Fn.id
 let any_unit ts = any_f ts Fn.ignore
 
 let for_ start ~to_ ~do_ =
   let rec loop i =
     if i > to_
-    then (return ())
+    then return ()
     else (
       let%bind () = do_ i in
       loop (i + 1))
@@ -179,35 +180,29 @@ let repeat_until_finished state f =
 ;;
 
 let forever state f =
-  repeat_until_finished state (fun state -> let%map state = f state in `Repeat state)
+  repeat_until_finished state (fun state ->
+    let%map state = f state in
+    `Repeat state)
   >>> never_returns
 ;;
 
 type how = Monad_sequence.how [@@deriving sexp_of]
 
-module type Monad_sequence = Monad_sequence.S
-  with type 'a monad := 'a t
+module type Monad_sequence = Monad_sequence.S with type 'a monad := 'a t
 
 
 let fold t ~init ~f =
-  create
-    (fun result ->
-       let rec loop t b =
-         match t with
-         | [] -> Ivar.fill result b
-         | x :: xs -> f b x >>> fun b -> loop xs b
-       in
-       loop t init)
+  create (fun result ->
+    let rec loop t b =
+      match t with
+      | [] -> Ivar.fill result b
+      | x :: xs -> f b x >>> fun b -> loop xs b
+    in
+    loop t init)
 ;;
 
-let seqmap t ~f =
-  fold t ~init:[] ~f:(fun bs a -> f a >>| fun b -> b :: bs)
-  >>| List.rev
-;;
-
+let seqmap t ~f = fold t ~init:[] ~f:(fun bs a -> f a >>| fun b -> b :: bs) >>| List.rev
 let all ds = seqmap ds ~f:Fn.id
-
 let all_unit ds = fold ds ~init:() ~f:(fun () d -> d)
 let all_ignore = all_unit
-
 let ok x = x >>| fun x -> Ok x

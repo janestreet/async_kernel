@@ -71,7 +71,9 @@ include Monad with type 'a t := 'a t
 
 module Infix : sig
   include Monad.Infix with type 'a t := 'a t
-  val (>>>) : 'a t -> ('a -> unit) -> unit
+
+
+  val ( >>> ) : 'a t -> ('a -> unit) -> unit
 end
 
 (** [unit] is a deferred that is always determined with value [()] *)
@@ -114,6 +116,7 @@ module Choice : sig
 
   val map : 'a t -> f:('a -> 'b) -> 'b t
 end
+
 
 type 'a choice = 'a Choice.t
 
@@ -162,28 +165,19 @@ val choose : 'b Choice.t list -> 'b t
       for i = start to stop do
         f i;
       done ]} *)
-val for_
-  :  int
-  -> to_ : int
-  -> do_ : (int -> unit t)
-  -> unit t
+val for_ : int -> to_:int -> do_:(int -> unit t) -> unit t
 
 (** [repeat_until_finished initial_state f] repeatedly runs [f] until [f] returns
     [`Finished].  The first call to [f] happens immediately when [repeat_until_finished]
     is called. *)
 val repeat_until_finished
   :  'state
-  ->  ('state -> [ `Repeat of 'state
-                 | `Finished of 'result
-                 ] t)
+  -> ('state -> [`Repeat of 'state | `Finished of 'result] t)
   -> 'result t
 
 (** [forever initial_state f] repeatedly runs [f], supplying the state returned to the
     next call to [f]. *)
-val forever
-  :  'state
-  -> ('state -> 'state t)
-  -> unit
+val forever : 'state -> ('state -> 'state t) -> unit
 
 (** Useful for lifting values from the [Deferred.t] monad to the [Result.t Deferred.t]
     monad. *)
@@ -194,11 +188,11 @@ val ok : 'a t -> ('a, _) Core_kernel.Result.t t
     These contain operations for iterating in a deferred manner over different
     collection types. *)
 
-module Array    = Deferred_array
-module List     = Deferred_list
-module Map      = Deferred_map
-module Memo     = Deferred_memo
-module Queue    = Deferred_queue
+module Array = Deferred_array
+module List = Deferred_list
+module Map = Deferred_map
+module Memo = Deferred_memo
+module Queue = Deferred_queue
 module Sequence = Deferred_sequence
 
 (** {2 Error-carrying deferreds}
@@ -207,6 +201,6 @@ module Sequence = Deferred_sequence
     like ['a Option.t Deferred.t], or ['a Or_error.t Deferred.t].  These all include
     support for monadic programming. *)
 
-module Option   = Deferred_option
+module Option = Deferred_option
 module Or_error = Deferred_or_error
-module Result   = Deferred_result
+module Result = Deferred_result

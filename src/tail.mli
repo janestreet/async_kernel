@@ -1,7 +1,6 @@
 (** A pointer to the end of an {!Async_stream} that can be used to extend the stream. *)
 
 open! Import
-
 module Deferred = Deferred1
 
 type 'a t = 'a Types.Tail.t [@@deriving sexp_of]
@@ -26,7 +25,10 @@ val is_closed : _ t -> bool
 
 module Stream : sig
   type 'a t [@@deriving sexp_of]
-  type 'a next = Nil | Cons of 'a * 'a t
+
+  type 'a next =
+    | Nil
+    | Cons of 'a * 'a t
 
   val next : 'a t -> 'a next Deferred.t
 end

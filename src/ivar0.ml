@@ -1,14 +1,16 @@
 open! Core_kernel
 open! Import
-
 module Scheduler = Scheduler1
-
 module Cell = Types.Cell
 
-type any = [ `Empty | `Empty_one_handler | `Empty_one_or_more_handlers | `Full | `Indir ]
+type any =
+  [ `Empty
+  | `Empty_one_handler
+  | `Empty_one_or_more_handlers
+  | `Full
+  | `Indir ]
 
-type 'a t = 'a Types.Ivar.t =
-  { mutable cell : ('a, any) cell }
+type 'a t = 'a Types.Ivar.t = { mutable cell : ('a, any) cell }
 
 (* The ['b] is used to encode the constructor.  This allows us to write functions that
    take only one of the constructors, with no runtime test.
@@ -18,32 +20,33 @@ type 'a t = 'a Types.Ivar.t =
    [connect], and for those, the target of the [Indir] is always a non-[Indir].  Thus, the
    newly added edges are never part of a cycle. *)
 and ('a, 'b) cell = ('a, 'b) Types.Cell.t =
-  | Empty_one_or_more_handlers
-    : {
-      (* [run] is mutable so we can set it to [ignore] when the handler is removed.  This
-         is used when we install a handler on a full ivar since it is immediately added to
-         the scheduler. *)
-      mutable run       : 'a -> unit
-    ; execution_context : Execution_context.t
-    (* [prev] and [next] circularly doubly link all handlers of the same ivar. *)
-    ; mutable prev      : ('a, [ `Empty_one_or_more_handlers ]) cell
-    ; mutable next      : ('a, [ `Empty_one_or_more_handlers ]) cell
-    }                                     -> ('a, [> `Empty_one_or_more_handlers ]) cell
-  | Empty_one_handler
-    :  ('a -> unit) * Execution_context.t -> ('a, [> `Empty_one_handler          ]) cell
-  | Empty                                  : ('a, [> `Empty                      ]) cell
-  | Full                             : 'a -> ('a, [> `Full                       ]) cell
-  | Indir                          : 'a t -> ('a, [> `Indir                      ]) cell
+  | Empty_one_or_more_handlers :
+      { (* [run] is mutable so we can set it to [ignore] when the handler is removed.
+           This is used when we install a handler on a full ivar since it is immediately
+           added to the scheduler. *)
+        mutable run : 'a -> unit
+      ; execution_context :
+          Execution_context.t
+      (* [prev] and [next] circularly doubly link all handlers of the same ivar. *)
+      ; mutable prev : ('a, [`Empty_one_or_more_handlers]) cell
+      ; mutable next : ('a, [`Empty_one_or_more_handlers]) cell
+      }
+    -> ('a, [> `Empty_one_or_more_handlers]) cell
+  | Empty_one_handler :
+      ('a -> unit) * Execution_context.t
+    -> ('a, [> `Empty_one_handler]) cell
+  | Empty : ('a, [> `Empty]) cell
+  | Full : 'a -> ('a, [> `Full]) cell
+  | Indir : 'a t -> ('a, [> `Indir]) cell
 
 module Handler = struct
-  type 'a t = ('a, [ `Empty_one_or_more_handlers ]) cell
+  type 'a t = ('a, [`Empty_one_or_more_handlers]) cell
 
-  let run               (Empty_one_or_more_handlers t : _ t) = t.run
+  let run (Empty_one_or_more_handlers t : _ t) = t.run
   let execution_context (Empty_one_or_more_handlers t : _ t) = t.execution_context
-  let prev              (Empty_one_or_more_handlers t : _ t) = t.prev
-  let next              (Empty_one_or_more_handlers t : _ t) = t.next
-
-  let set_run  (Empty_one_or_more_handlers t : _ t) x = t.run  <- x
+  let prev (Empty_one_or_more_handlers t : _ t) = t.prev
+  let next (Empty_one_or_more_handlers t : _ t) = t.next
+  let set_run (Empty_one_or_more_handlers t : _ t) x = t.run <- x
   let set_prev (Empty_one_or_more_handlers t : _ t) x = t.prev <- x
   let set_next (Empty_one_or_more_handlers t : _ t) x = t.next <- x
 
@@ -67,10 +70,7 @@ module Handler = struct
        Instead we allocate the value with dummy fields and update them after. *)
     let t =
       Empty_one_or_more_handlers
-        { run
-        ; execution_context
-        ; prev              = Obj.magic None
-        ; next              = Obj.magic None }
+        { run; execution_context; prev = Obj.magic None; next = Obj.magic None }
     in
     set_prev t t;
     set_next t t;
@@ -95,17 +95,15 @@ module Handler = struct
          t1 ]} *)
     let t1 =
       Empty_one_or_more_handlers
-        { run               = run1
+        { run = run1
         ; execution_context = execution_context1
-        ; prev              = Obj.magic None
-        ; next              = Obj.magic None }
+        ; prev = Obj.magic None
+        ; next = Obj.magic None
+        }
     in
     let t2 =
       Empty_one_or_more_handlers
-        { run               = run2
-        ; execution_context = execution_context2
-        ; prev              = t1
-        ; next              = t1 }
+        { run = run2; execution_context = execution_context2; prev = t1; next = t1 }
     in
     set_prev t1 t2;
     set_next t1 t2;
@@ -119,8 +117,8 @@ module Handler = struct
       let t1 = !r in
       assert (phys_equal (prev (next t1)) t1);
       Execution_context.invariant (execution_context t1);
-      r := next !r;
-    done;
+      r := next !r
+    done
   ;;
 
   let is_singleton t = phys_equal t (next t)
@@ -132,7 +130,7 @@ module Handler = struct
       incr n;
       r := next !r
     done;
-    !n;
+    !n
   ;;
 
   let enqueue t scheduler v = Scheduler.enqueue scheduler (execution_context t) (run t) v
@@ -143,24 +141,20 @@ module Handler = struct
     let r = ref (next t) in
     while not (phys_equal !r t) do
       enqueue !r scheduler v;
-      r := next !r;
-    done;
+      r := next !r
+    done
   ;;
 
   let unlink t =
     set_prev (next t) (prev t);
     set_next (prev t) (next t);
     set_prev t t;
-    set_next t t;
+    set_next t t
   ;;
 
   let add t run execution_context =
     let result =
-      Empty_one_or_more_handlers
-        { run
-        ; execution_context
-        ; prev              = prev t
-        ; next              = t }
+      Empty_one_or_more_handlers { run; execution_context; prev = prev t; next = t }
     in
     set_next (prev t) result;
     set_prev t result;
@@ -180,7 +174,7 @@ module Handler = struct
     set_next last1 t2;
     set_next last2 t1;
     set_prev t1 last2;
-    set_prev t2 last1;
+    set_prev t2 last1
   ;;
 
   let of_list l =
@@ -193,11 +187,7 @@ module Handler = struct
         | [] -> set_prev first prev
         | (run, execution_context) :: l ->
           let t =
-            Empty_one_or_more_handlers
-              { run
-              ; execution_context
-              ; prev
-              ; next              = first }
+            Empty_one_or_more_handlers { run; execution_context; prev; next = first }
           in
           set_next prev t;
           loop t l
@@ -209,15 +199,15 @@ module Handler = struct
   let to_list first =
     let rec loop t acc =
       let acc = (run t, execution_context t) :: acc in
-      if phys_equal t first
-      then acc
-      else (loop (prev t) acc)
+      if phys_equal t first then acc else loop (prev t) acc
     in
     loop (prev first) []
   ;;
 
   let sexp_of_t _ (t : _ t) =
-    let Empty_one_or_more_handlers { run = _; execution_context; next = _; prev = _; } = t in
+    let (Empty_one_or_more_handlers { run = _; execution_context; next = _; prev = _ }) =
+      t
+    in
     [%message (execution_context : Execution_context.t)]
   ;;
 end
@@ -230,7 +220,6 @@ let cell_of_handler : _ Handler.t -> _ = function
 ;;
 
 let equal (t : _ t) t' = phys_equal t t'
-
 let indir t = { cell = Indir t }
 
 include Scheduler.Ivar
@@ -247,18 +236,21 @@ let squash =
   in
   let rec update t indir =
     match t.cell with
-    | Indir t' -> t.cell <- indir; update t' indir
+    | Indir t' ->
+      t.cell <- indir;
+      update t' indir
     | _ -> t
   in
   fun t ->
     match t.cell with
     | Indir t' ->
-      begin match t'.cell with
-      | Indir t'' as indir -> update t (follow indir t'')
-      | _ -> t' (* nothing to do, since [t] is a chain with a single [Indir] *)
-      end
-    | _ -> t (* nothing to do, since [t] isn't an [Indir]. *)
+      (match t'.cell with
+       | Indir t'' as indir -> update t (follow indir t'')
+       | _ -> t' (* nothing to do, since [t] is a chain with a single [Indir] *))
+    | _ -> t
 ;;
+
+(* nothing to do, since [t] isn't an [Indir]. *)
 
 let invariant a_invariant t =
   let t = squash t in
@@ -268,8 +260,7 @@ let invariant a_invariant t =
   | Empty -> ()
   | Empty_one_handler (_, execution_context) ->
     Execution_context.invariant execution_context
-  | Empty_one_or_more_handlers _ as handler ->
-    Handler.invariant handler;
+  | Empty_one_or_more_handlers _ as handler -> Handler.invariant handler
 ;;
 
 let sexp_of_t sexp_of_a t : Sexp.t =
@@ -297,9 +288,7 @@ let value t ~if_empty_then_failwith =
     failwith if_empty_then_failwith
 ;;
 
-let value_exn t =
-  value t ~if_empty_then_failwith:"Ivar.value_exn called on empty ivar"
-;;
+let value_exn t = value t ~if_empty_then_failwith:"Ivar.value_exn called on empty ivar"
 
 let is_empty t =
   let t = squash t in
@@ -316,13 +305,13 @@ let fill t v =
   match t.cell with
   | Indir _ -> assert false (* fulfilled by [squash] *)
   | Full _ -> raise_s [%message "Ivar.fill of full ivar" (t : _ t)]
-  | Empty -> t.cell <- Full v;
+  | Empty -> t.cell <- Full v
   | Empty_one_handler (run, execution_context) ->
     t.cell <- Full v;
-    Scheduler.(enqueue (t ())) execution_context run v;
+    Scheduler.(enqueue (t ())) execution_context run v
   | Empty_one_or_more_handlers _ as handler ->
     t.cell <- Full v;
-    Handler.schedule_jobs handler v;
+    Handler.schedule_jobs handler v
 ;;
 
 let remove_handler t (handler : _ Handler.t) =
@@ -339,32 +328,25 @@ let remove_handler t (handler : _ Handler.t) =
     ()
   | Empty_one_or_more_handlers _ as cell ->
     if Handler.is_singleton handler
-    then (t.cell <- Empty)
+    then t.cell <- Empty
     else (
-      if phys_equal handler cell
-      then (t.cell <- cell_of_handler (Handler.next handler));
-      Handler.unlink handler);
+      if phys_equal handler cell then t.cell <- cell_of_handler (Handler.next handler);
+      Handler.unlink handler)
 ;;
 
 let add_handler t run execution_context =
   let t = squash t in
   match t.cell with
-  | Indir _ ->
-    assert false (* fulfilled by [squash] *)
+  | Indir _ -> assert false (* fulfilled by [squash] *)
   | Empty ->
     let handler = Handler.create run execution_context in
     t.cell <- cell_of_handler handler;
     handler
   | Empty_one_handler (run', execution_context') ->
-    let handler =
-      Handler.create2
-        run  execution_context
-        run' execution_context'
-    in
+    let handler = Handler.create2 run execution_context run' execution_context' in
     t.cell <- cell_of_handler handler;
     handler
-  | Empty_one_or_more_handlers _ as handler ->
-    Handler.add handler run execution_context;
+  | Empty_one_or_more_handlers _ as handler -> Handler.add handler run execution_context
   | Full v ->
     let handler = Handler.create run execution_context in
     (* [run] calls [handler.run], which, if [handler] has been removed, has been changed
@@ -377,14 +359,10 @@ let add_handler t run execution_context =
 let has_handlers t =
   let t = squash t in
   match t.cell with
-  | Indir _ ->
-    assert false (* fulfilled by [squash] *)
-  | Empty_one_handler _
-  | Empty_one_or_more_handlers _ ->
-    true
-  | Empty
-  | Full _ ->
-    false
+  | Indir _ -> assert false (* fulfilled by [squash] *)
+  | Empty_one_handler _ | Empty_one_or_more_handlers _ -> true
+  | Empty | Full _ -> false
+;;
 
 let upon' t run = add_handler t run Scheduler.(current_execution_context (t ()))
 
@@ -397,23 +375,19 @@ let upon' t run = add_handler t run Scheduler.(current_execution_context (t ()))
    is very widely used and is so much more common than [upon'].  The below implementation
    avoids the use of the bag of handlers in the extremely common case of one handler for
    the deferred. *)
-let upon =
-  fun t run ->
-    let scheduler = Scheduler.t () in
-    let execution_context = Scheduler.current_execution_context scheduler in
-    let t = squash t in
-    match t.cell with
-    | Indir _ ->
-      assert false (* fulfilled by [squash] *)
-    | Full v -> Scheduler.enqueue scheduler execution_context run v;
-    | Empty -> t.cell <- Empty_one_handler (run, execution_context);
-    | Empty_one_handler (run', execution_context') ->
-      t.cell <- cell_of_handler
-                  (Handler.create2
-                     run  execution_context
-                     run' execution_context');
-    | Empty_one_or_more_handlers _ as handler ->
-      ignore (Handler.add handler run execution_context : _ Handler.t);
+let upon t run =
+  let scheduler = Scheduler.t () in
+  let execution_context = Scheduler.current_execution_context scheduler in
+  let t = squash t in
+  match t.cell with
+  | Indir _ -> assert false (* fulfilled by [squash] *)
+  | Full v -> Scheduler.enqueue scheduler execution_context run v
+  | Empty -> t.cell <- Empty_one_handler (run, execution_context)
+  | Empty_one_handler (run', execution_context') ->
+    t.cell
+    <- cell_of_handler (Handler.create2 run execution_context run' execution_context')
+  | Empty_one_or_more_handlers _ as handler ->
+    ignore (Handler.add handler run execution_context : _ Handler.t)
 ;;
 
 (* [connect] takes ivars [bind_result] and [bind_rhs], and makes [bind_rhs]
@@ -449,13 +423,15 @@ let connect =
   let rec repoint_indirs ~ivar ~indir ~bind_result =
     let cell = ivar.cell in
     match cell with
-    | Indir ivar' -> ivar.cell <- indir; repoint_indirs ~ivar:ivar' ~indir ~bind_result
+    | Indir ivar' ->
+      ivar.cell <- indir;
+      repoint_indirs ~ivar:ivar' ~indir ~bind_result
     | Full _ -> cell
     | Empty | Empty_one_handler _ | Empty_one_or_more_handlers _ ->
       (* It is possible that [bind_result] and [bind_rhs] are not equal, but their chains
          of indirs lead to the same non-[Indir] cell, in which case we cannot set that
          cell to point to itself, because that would introduce a cycle. *)
-      if not (phys_equal ivar bind_result) then (ivar.cell <- indir);
+      if not (phys_equal ivar bind_result) then ivar.cell <- indir;
       cell
   in
   fun ~bind_result ~bind_rhs ->
@@ -467,35 +443,32 @@ let connect =
       (* update [bind_result] with the union of handlers in [bind_result] and
          [bind_rhs] *)
       match bind_result.cell, bind_rhs_contents with
-      | Indir _, _ | _, Indir _
-        -> assert false (* fulfilled by [squash] and [repoint_indirs] *)
+      | Indir _, _
+      | _, Indir _ -> assert false
+      (* fulfilled by [squash] and [repoint_indirs] *)
       (* [connect] is only used in bind, whose ivar is only ever exported as a read-only
          deferred.  Thus, [bind_result] must be empty. *)
       | Full _, _ -> assert false
       | _, Empty -> ()
-      | Empty, _ -> bind_result.cell <- bind_rhs_contents;
+      | Empty, _ -> bind_result.cell <- bind_rhs_contents
       | Empty_one_handler (run, execution_context), Full v ->
         bind_result.cell <- bind_rhs_contents;
-        Scheduler.(enqueue (t ())) execution_context run v;
-      | Empty_one_or_more_handlers _ as handler, Full v ->
+        Scheduler.(enqueue (t ())) execution_context run v
+      | (Empty_one_or_more_handlers _ as handler), Full v ->
         bind_result.cell <- bind_rhs_contents;
-        Handler.schedule_jobs handler v;
-      | Empty_one_handler (run1, execution_context1),
-        Empty_one_handler (run2, execution_context2) ->
-        let handler1 =
-          Handler.create2
-            run1 execution_context1
-            run2 execution_context2
-        in
-        bind_result.cell <- cell_of_handler handler1;
-      | (Empty_one_or_more_handlers _ as handler1),
-        Empty_one_handler (run2, execution_context2) ->
-        ignore (Handler.add handler1 run2 execution_context2 : _ Handler.t);
-      | Empty_one_handler (run1, execution_context1),
-        (Empty_one_or_more_handlers _ as handler2) ->
+        Handler.schedule_jobs handler v
+      | ( Empty_one_handler (run1, execution_context1)
+        , Empty_one_handler (run2, execution_context2) ) ->
+        let handler1 = Handler.create2 run1 execution_context1 run2 execution_context2 in
+        bind_result.cell <- cell_of_handler handler1
+      | ( (Empty_one_or_more_handlers _ as handler1)
+        , Empty_one_handler (run2, execution_context2) ) ->
+        ignore (Handler.add handler1 run2 execution_context2 : _ Handler.t)
+      | ( Empty_one_handler (run1, execution_context1)
+        , (Empty_one_or_more_handlers _ as handler2) ) ->
         let handler1 = Handler.add handler2 run1 execution_context1 in
-        bind_result.cell <- cell_of_handler handler1;
-      | (Empty_one_or_more_handlers _ as handler1),
-        (Empty_one_or_more_handlers _ as handler2) ->
-        Handler.splice handler1 handler2);
+        bind_result.cell <- cell_of_handler handler1
+      | ( (Empty_one_or_more_handlers _ as handler1)
+        , (Empty_one_or_more_handlers _ as handler2) ) ->
+        Handler.splice handler1 handler2)
 ;;

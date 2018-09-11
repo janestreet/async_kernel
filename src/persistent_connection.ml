@@ -1,6 +1,5 @@
 open Core_kernel
 open Deferred_std
-
 include Persistent_connection_intf
 
 module Make (Conn : T) = struct
@@ -10,9 +9,9 @@ module Make (Conn : T) = struct
   module Event = struct
     type t =
       | Attempting_to_connect
-      | Obtained_address      of address
-      | Failed_to_connect     of Error.t
-      | Connected             of conn sexp_opaque
+      | Obtained_address of address
+      | Failed_to_connect of Error.t
+      | Connected of conn sexp_opaque
       | Disconnected
     [@@deriving sexp_of]
 
@@ -20,26 +19,26 @@ module Make (Conn : T) = struct
 
     module Handler = struct
       type t =
-        { server_name     : string
-        ; on_event        : event -> unit Deferred.t
+        { server_name : string
+        ; on_event : event -> unit Deferred.t
         }
     end
 
     let log_level = function
       | Attempting_to_connect | Connected _ | Disconnected | Obtained_address _ -> `Info
       | Failed_to_connect _ -> `Error
+    ;;
 
-    let handle t { Handler. server_name=_; on_event } =
-      on_event t
+    let handle t { Handler.server_name = _; on_event } = on_event t
   end
 
   type t =
-    { get_address    : unit -> address Or_error.t Deferred.t
-    ; connect        : address -> Conn.t Or_error.t Deferred.t
-    ; retry_delay    : unit -> unit Deferred.t
-    ; mutable conn   : [`Ok of Conn.t | `Close_started] Ivar.t
-    ; event_handler  : Event.Handler.t
-    ; close_started  : unit Ivar.t
+    { get_address : unit -> address Or_error.t Deferred.t
+    ; connect : address -> Conn.t Or_error.t Deferred.t
+    ; retry_delay : unit -> unit Deferred.t
+    ; mutable conn : [`Ok of Conn.t | `Close_started] Ivar.t
+    ; event_handler : Event.Handler.t
+    ; close_started : unit Ivar.t
     ; close_finished : unit Ivar.t
     }
   [@@deriving fields]
@@ -54,12 +53,13 @@ module Make (Conn : T) = struct
   let same_error e1 e2 =
     let to_sexp e = Exn.sexp_of_t (Monitor.extract_exn (Error.to_exn e)) in
     Sexp.equal (to_sexp e1) (to_sexp e2)
+  ;;
 
   let try_connecting_until_successful t =
     (* We take care not to spam logs with the same message over and over by comparing
        each log message the the previous one of the same type. *)
     let previous_address = ref None in
-    let previous_error   = ref None in
+    let previous_error = ref None in
     let connect () =
       t.get_address ()
       >>= function
@@ -73,16 +73,13 @@ module Make (Conn : T) = struct
         previous_address := Some addr;
         (if same_as_previous_address
          then Deferred.unit
-         else (handle_event t (Obtained_address addr)))
-        >>= fun () ->
-        t.connect addr
+         else handle_event t (Obtained_address addr))
+        >>= fun () -> t.connect addr
     in
     let rec loop () =
       if Ivar.is_full t.close_started
-      then begin
-        return `Close_started
-      end
-      else begin
+      then return `Close_started
+      else
         connect ()
         >>= function
         | Ok conn -> return (`Ok conn)
@@ -95,31 +92,26 @@ module Make (Conn : T) = struct
           previous_error := Some err;
           (if same_as_previous_error
            then Deferred.unit
-           else (handle_event t (Failed_to_connect err)))
+           else handle_event t (Failed_to_connect err))
           >>= fun () ->
-          Deferred.any [t.retry_delay (); Ivar.read t.close_started]
-          >>= fun () ->
-          loop ()
-      end
+          Deferred.any [ t.retry_delay (); Ivar.read t.close_started ]
+          >>= fun () -> loop ()
     in
     loop ()
+  ;;
 
-  let create ~server_name ?(on_event = fun _ -> Deferred.unit)
-        ?(retry_delay = const (Time_ns.Span.of_sec 10.)) ~connect get_address
+  let create
+        ~server_name
+        ?(on_event = fun _ -> Deferred.unit)
+        ?(retry_delay = const (Time_ns.Span.of_sec 10.))
+        ~connect
+        get_address
     =
-    let event_handler = { Event.Handler. server_name; on_event } in
+    let event_handler = { Event.Handler.server_name; on_event } in
     let retry_delay () =
       let span = Time_ns.Span.to_sec (retry_delay ()) in
       let distance = Random.float (span *. 0.3) in
-      let wait =
-        if Random.bool ()
-        then begin
-          span +. distance
-        end
-        else begin
-          span -. distance
-        end
-      in
+      let wait = if Random.bool () then span +. distance else span -. distance in
       Clock_ns.after (Time_ns.Span.of_sec wait)
     in
     let t =
@@ -127,14 +119,15 @@ module Make (Conn : T) = struct
       ; get_address
       ; connect
       ; retry_delay
-      ; conn           = Ivar.create ()
-      ; close_started  = Ivar.create ()
+      ; conn = Ivar.create ()
+      ; close_started = Ivar.create ()
       ; close_finished = Ivar.create ()
       }
     in
     (* this loop finishes once [close t] has been called, in which case it makes sure to
        leave [t.conn] filled with [`Close_started]. *)
-    don't_wait_for @@ Deferred.repeat_until_finished () (fun () ->
+    don't_wait_for
+    @@ Deferred.repeat_until_finished () (fun () ->
       handle_event t Attempting_to_connect
       >>= fun () ->
       let ready_to_retry_connecting = t.retry_delay () in
@@ -154,14 +147,14 @@ module Make (Conn : T) = struct
         (* waits until [retry_delay ()] time has passed since the time just before we last
            tried to connect rather than the time we noticed being disconnected, so that if
            a long-lived connection dies, we will attempt to reconnect immediately. *)
-        Deferred.choose [
-          Deferred.choice ready_to_retry_connecting (fun () -> `Repeat ());
-          Deferred.choice (Ivar.read t.close_started) (fun () ->
-            Ivar.fill t.conn `Close_started;
-            `Finished ());
-        ]
-    );
+        Deferred.choose
+          [ Deferred.choice ready_to_retry_connecting (fun () -> `Repeat ())
+          ; Deferred.choice (Ivar.read t.close_started) (fun () ->
+              Ivar.fill t.conn `Close_started;
+              `Finished ())
+          ]);
     t
+  ;;
 
   let connected t =
     (* Take care not to return a connection that is known to be closed at the time
@@ -186,51 +179,43 @@ module Make (Conn : T) = struct
       let d = Ivar.read t.conn in
       match Deferred.peek d with
       | None ->
-        begin
-          d >>= function
-          | `Close_started ->
-            Deferred.never ()
-          | `Ok conn ->
-            return conn
-        end
-      | Some `Close_started ->
-        Deferred.never ()
+        d
+        >>= (function
+          | `Close_started -> Deferred.never ()
+          | `Ok conn -> return conn)
+      | Some `Close_started -> Deferred.never ()
       | Some (`Ok conn) ->
         if Conn.is_closed conn
-        then begin
+        then
           (* give the reconnection loop a chance to overwrite the ivar *)
           Conn.close_finished conn >>= loop
-        end
-        else begin
-          return conn
-        end
+        else return conn
     in
     loop ()
+  ;;
 
   let current_connection t =
     match Deferred.peek (Ivar.read t.conn) with
-    | None | Some `Close_started -> None
+    | None
+    | Some `Close_started -> None
     | Some (`Ok conn) -> Some conn
+  ;;
 
   let close_finished t = Ivar.read t.close_finished
-  let is_closed t      = Ivar.is_full t.close_started
+  let is_closed t = Ivar.is_full t.close_started
 
   let close t =
     if Ivar.is_full t.close_started
-    then begin
+    then
       (* Another call to close is already in progress.  Wait for it to finish. *)
       close_finished t
-    end
-    else begin
+    else (
       Ivar.fill t.close_started ();
       Ivar.read t.conn
       >>= fun conn_opt ->
-      begin
-        match conn_opt with
-        | `Close_started -> Deferred.unit
-        | `Ok conn -> Conn.close conn
-      end
-      >>| fun () ->
-      Ivar.fill t.close_finished ()
-    end
+      (match conn_opt with
+       | `Close_started -> Deferred.unit
+       | `Ok conn -> Conn.close conn)
+      >>| fun () -> Ivar.fill t.close_finished ())
+  ;;
 end

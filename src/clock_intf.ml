@@ -5,7 +5,6 @@
     to run the jobs. *)
 
 open Core_kernel
-
 module Deferred = Deferred1
 
 module type Clock = sig
@@ -13,6 +12,7 @@ module type Clock = sig
     module Span : sig
       type t
     end
+
     type t
   end
 
@@ -43,14 +43,12 @@ module type Clock = sig
   val with_timeout
     :  Time.Span.t
     -> 'a Deferred.t
-    -> [ `Timeout
-       | `Result of 'a
-       ] Deferred.t
+    -> [`Timeout | `Result of 'a] Deferred.t
 
   (** Events provide variants of [run_at] and [run_after] with the ability to abort or
       reschedule an event that hasn't yet happened.  Once an event happens or is aborted,
       Async doesn't use any space for tracking it. *)
-  module Event: sig
+  module Event : sig
     type ('a, 'h) t [@@deriving sexp_of]
     type t_unit = (unit, unit) t [@@deriving sexp_of]
 
@@ -60,8 +58,8 @@ module type Clock = sig
 
     module Status : sig
       type ('a, 'h) t =
-        | Aborted      of 'a
-        | Happened     of 'h
+        | Aborted of 'a
+        | Happened of 'h
         | Scheduled_at of Time.t
       [@@deriving sexp_of]
     end
@@ -83,7 +81,8 @@ module type Clock = sig
         If [f z] raises, then [status t] does not transition and remains [Scheduled_at
         time], and the exception is sent to the monitor in effect when [run_at] was
         called. *)
-    val run_at    : Time.     t -> ('z -> 'h) -> 'z -> (_, 'h) t
+    val run_at : Time.t -> ('z -> 'h) -> 'z -> (_, 'h) t
+
     val run_after : Time.Span.t -> ('z -> 'h) -> 'z -> (_, 'h) t
 
     module Abort_result = Time_source.Event.Abort_result
@@ -108,7 +107,8 @@ module type Clock = sig
         possible, and if not, give a reason why.  Like [run_at], if the requested time is
         in the past, the event will be scheduled to run immediately.  If [reschedule_at t
         time = Ok], then subsequently [scheduled_at t = time].  *)
-    val reschedule_at    : ('a, 'h) t -> Time.t      -> ('a, 'h) Reschedule_result.t
+    val reschedule_at : ('a, 'h) t -> Time.t -> ('a, 'h) Reschedule_result.t
+
     val reschedule_after : ('a, 'h) t -> Time.Span.t -> ('a, 'h) Reschedule_result.t
 
     (** [at time]    is [run_at    time ignore ()].
@@ -157,7 +157,8 @@ module type Clock = sig
         In both snippets, if [Event.abort] returns [Ok], "Timer fired" is never printed.
         However, the first snippet might print "Event occurred after timer fired" and then
         "Timer fired".  This confused ordering cannot happen with [Event.run_after]. *)
-    val at    : Time.t      -> (_, unit) t
+    val at : Time.t -> (_, unit) t
+
     val after : Time.Span.t -> (_, unit) t
   end
 
@@ -166,7 +167,9 @@ module type Clock = sig
       to determine subsequent elements.  The stream will end after [stop] becomes
       determined. *)
   val at_varying_intervals
-    : ?stop:unit Deferred.t -> (unit -> Time.Span.t) -> unit Async_stream.t
+    :  ?stop:unit Deferred.t
+    -> (unit -> Time.Span.t)
+    -> unit Async_stream.t
 
   (** [at_intervals interval ?start ?stop] returns a stream whose elements will become
       determined at nonnegative integer multiples of [interval] after the [start] time,
@@ -212,21 +215,23 @@ module type Clock = sig
       If [finished] is supplied, [every'] will fill it once all of the following become
       determined: [start], [stop], and the result of the final call to [f]. *)
   val every'
-    :  ?start : unit Deferred.t   (** default is [return ()] *)
-    -> ?stop : unit Deferred.t    (** default is [Deferred.never ()] *)
-    -> ?continue_on_error : bool  (** default is [true] *)
-    -> ?finished : unit Ivar.t
+    :  ?start:unit Deferred.t (** default is [return ()] *)
+    -> ?stop:unit Deferred.t (** default is [Deferred.never ()] *)
+    -> ?continue_on_error:bool (** default is [true] *)
+    -> ?finished:unit Ivar.t
     -> Time.Span.t
-    -> (unit -> unit Deferred.t) -> unit
+    -> (unit -> unit Deferred.t)
+    -> unit
 
   (** [every ?start ?stop span f] is
       [every' ?start ?stop span (fun () -> f (); return ())]. *)
   val every
-    :  ?start : unit Deferred.t   (** default is [return ()] *)
-    -> ?stop : unit Deferred.t    (** default is [Deferred.never ()] *)
-    -> ?continue_on_error : bool  (** default is [true] *)
+    :  ?start:unit Deferred.t (** default is [return ()] *)
+    -> ?stop:unit Deferred.t (** default is [Deferred.never ()] *)
+    -> ?continue_on_error:bool (** default is [true] *)
     -> Time.Span.t
-    -> (unit -> unit) -> unit
+    -> (unit -> unit)
+    -> unit
 
   (** [run_at_intervals' ?start ?stop span f] runs [f()] at increments of [start + i *
       span] for nonnegative integers [i], until [stop] becomes determined.
@@ -236,9 +241,9 @@ module type Clock = sig
       Exceptions raised by [f] are always sent to monitor in effect when
       [run_at_intervals'] was called, even with [~continue_on_error:true]. *)
   val run_at_intervals'
-    :  ?start : Time.t            (** default is [Time.now ()] *)
-    -> ?stop : unit Deferred.t    (** default is [Deferred.never ()] *)
-    -> ?continue_on_error : bool  (** default is [true] *)
+    :  ?start:Time.t (** default is [Time.now ()] *)
+    -> ?stop:unit Deferred.t (** default is [Deferred.never ()] *)
+    -> ?continue_on_error:bool (** default is [true] *)
     -> Time.Span.t
     -> (unit -> unit Deferred.t)
     -> unit
@@ -249,9 +254,9 @@ module type Clock = sig
         run_at_intervals' ?start ?stop ?continue_on_error span
           (fun () -> f (); return ()) ]} *)
   val run_at_intervals
-    :  ?start : Time.t            (** default is [Time.now ()] *)
-    -> ?stop : unit Deferred.t    (** default is [Deferred.never ()] *)
-    -> ?continue_on_error : bool  (** default is [true] *)
+    :  ?start:Time.t (** default is [Time.now ()] *)
+    -> ?stop:unit Deferred.t (** default is [Deferred.never ()] *)
+    -> ?continue_on_error:bool (** default is [true] *)
     -> Time.Span.t
     -> (unit -> unit)
     -> unit
@@ -264,17 +269,17 @@ module type Clock_deprecated = sig
     module Span : sig
       type t
     end
+
     type t
   end
 
-  val run_at    : Time.t      -> ('a -> unit) -> 'a -> unit
+  val run_at : Time.t -> ('a -> unit) -> 'a -> unit
   [@@deprecated "[since 2016-02] Use [Time_source]"]
 
   val run_after : Time.Span.t -> ('a -> unit) -> 'a -> unit
   [@@deprecated "[since 2016-02] Use [Time_source]"]
 
-  val at    : Time.t      -> unit Deferred.t
-  [@@deprecated "[since 2016-02] Use [Time_source]"]
+  val at : Time.t -> unit Deferred.t [@@deprecated "[since 2016-02] Use [Time_source]"]
 
   val after : Time.Span.t -> unit Deferred.t
   [@@deprecated "[since 2016-02] Use [Time_source]"]
@@ -282,25 +287,24 @@ module type Clock_deprecated = sig
   val with_timeout
     :  Time.Span.t
     -> 'a Deferred.t
-    -> [ `Timeout
-       | `Result of 'a
-       ] Deferred.t
+    -> [`Timeout | `Result of 'a] Deferred.t
   [@@deprecated "[since 2016-02] Use [Time_source]"]
 
-  module Event: sig
+  module Event : sig
     type ('a, 'h) t [@@deriving sexp_of]
     type t_unit = (unit, unit) t [@@deriving sexp_of]
 
-    include Invariant.S2 with type ('a, 'b) t := ('a, 'b) t
-      [@@deprecated "[since 2016-02] Use [Time_source]"]
+    include Invariant.S2 with type ('a, 'b) t := ('a, 'b) t[@@deprecated
+      "[since 2016-02] Use \
+       [Time_source]"]
 
     val scheduled_at : (_, _) t -> Time.t
     [@@deprecated "[since 2016-02] Use [Time_source]"]
 
     module Status : sig
       type ('a, 'h) t =
-        | Aborted      of 'a
-        | Happened     of 'h
+        | Aborted of 'a
+        | Happened of 'h
         | Scheduled_at of Time.t
       [@@deriving sexp_of]
     end
@@ -308,7 +312,7 @@ module type Clock_deprecated = sig
     val status : ('a, 'h) t -> ('a, 'h) Status.t
     [@@deprecated "[since 2016-02] Use [Time_source]"]
 
-    val run_at    : Time.     t -> ('z -> 'h) -> 'z -> (_, 'h) t
+    val run_at : Time.t -> ('z -> 'h) -> 'z -> (_, 'h) t
     [@@deprecated "[since 2016-02] Use [Time_source]"]
 
     val run_after : Time.Span.t -> ('z -> 'h) -> 'z -> (_, 'h) t
@@ -332,23 +336,22 @@ module type Clock_deprecated = sig
 
     module Reschedule_result = Time_source.Event.Reschedule_result
 
-    val reschedule_at
-      : ('a, 'h) t -> Time.t      -> ('a, 'h) Reschedule_result.t
+    val reschedule_at : ('a, 'h) t -> Time.t -> ('a, 'h) Reschedule_result.t
     [@@deprecated "[since 2016-02] Use [Time_source]"]
 
-    val reschedule_after
-      : ('a, 'h) t -> Time.Span.t -> ('a, 'h) Reschedule_result.t
+    val reschedule_after : ('a, 'h) t -> Time.Span.t -> ('a, 'h) Reschedule_result.t
     [@@deprecated "[since 2016-02] Use [Time_source]"]
 
-    val at    : Time.t      -> (_, unit) t
-    [@@deprecated "[since 2016-02] Use [Time_source]"]
+    val at : Time.t -> (_, unit) t [@@deprecated "[since 2016-02] Use [Time_source]"]
 
     val after : Time.Span.t -> (_, unit) t
     [@@deprecated "[since 2016-02] Use [Time_source]"]
   end
 
   val at_varying_intervals
-    : ?stop:unit Deferred.t -> (unit -> Time.Span.t) -> unit Async_stream.t
+    :  ?stop:unit Deferred.t
+    -> (unit -> Time.Span.t)
+    -> unit Async_stream.t
   [@@deprecated "[since 2016-02] Use [Time_source]"]
 
   val at_intervals
@@ -359,43 +362,48 @@ module type Clock_deprecated = sig
   [@@deprecated "[since 2016-02] Use [Time_source]"]
 
   val every'
-    :  ?start : unit Deferred.t   (** default is [return ()] *)
-    -> ?stop : unit Deferred.t    (** default is [Deferred.never ()] *)
-    -> ?continue_on_error : bool  (** default is [true] *)
-    -> ?finished : unit Ivar.t
+    :  ?start:unit Deferred.t (** default is [return ()] *)
+    -> ?stop:unit Deferred.t (** default is [Deferred.never ()] *)
+    -> ?continue_on_error:bool (** default is [true] *)
+    -> ?finished:unit Ivar.t
     -> Time.Span.t
-    -> (unit -> unit Deferred.t) -> unit
+    -> (unit -> unit Deferred.t)
+    -> unit
   [@@deprecated "[since 2016-02] Use [Time_source]"]
 
   val every
-    :  ?start : unit Deferred.t   (** default is [return ()] *)
-    -> ?stop : unit Deferred.t    (** default is [Deferred.never ()] *)
-    -> ?continue_on_error : bool  (** default is [true] *)
+    :  ?start:unit Deferred.t (** default is [return ()] *)
+    -> ?stop:unit Deferred.t (** default is [Deferred.never ()] *)
+    -> ?continue_on_error:bool (** default is [true] *)
     -> Time.Span.t
-    -> (unit -> unit) -> unit
+    -> (unit -> unit)
+    -> unit
   [@@deprecated "[since 2016-02] Use [Time_source]"]
 
   val run_at_intervals'
-    :  ?start : Time.t            (** default is [Time.now ()] *)
-    -> ?stop : unit Deferred.t    (** default is [Deferred.never ()] *)
-    -> ?continue_on_error : bool  (** default is [true] *)
+    :  ?start:Time.t (** default is [Time.now ()] *)
+    -> ?stop:unit Deferred.t (** default is [Deferred.never ()] *)
+    -> ?continue_on_error:bool (** default is [true] *)
     -> Time.Span.t
     -> (unit -> unit Deferred.t)
     -> unit
   [@@deprecated "[since 2016-02] Use [Time_source]"]
 
   val run_at_intervals
-    :  ?start : Time.t            (** default is [Time.now ()] *)
-    -> ?stop : unit Deferred.t    (** default is [Deferred.never ()] *)
-    -> ?continue_on_error : bool  (** default is [true] *)
+    :  ?start:Time.t (** default is [Time.now ()] *)
+    -> ?stop:unit Deferred.t (** default is [Deferred.never ()] *)
+    -> ?continue_on_error:bool (** default is [true] *)
     -> Time.Span.t
     -> (unit -> unit)
     -> unit
   [@@deprecated "[since 2016-02] Use [Time_source]"]
 end
 
-include (struct
+include (
+struct
   [@@@warning "-3"]
-  module F1 (C : Clock) = (C : Clock_deprecated)
-  module F2 (C : Clock_deprecated) = (C : Clock)
-end : sig end) (** @inline *)
+
+  module F1 (C : Clock) : Clock_deprecated = C
+  module F2 (C : Clock_deprecated) : Clock = C
+end :
+sig end)  (** @inline *)

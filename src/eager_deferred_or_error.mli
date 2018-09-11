@@ -18,7 +18,6 @@ val errorf : ('a, unit, string, _ t) format4 -> 'a
 val tag : 'a t -> tag:string -> 'a t
 val tag_arg : 'a t -> string -> 'b -> ('b -> Sexp.t) -> 'a t
 val unimplemented : string -> _ t
-
 val find_map_ok : 'a list -> f:('a -> 'b t) -> 'b t
 
 (** Note that [try_with f] is eager only in the [Ok] case. *)
@@ -31,15 +30,13 @@ val try_with
 
 (** Note that [try_with_join f] is eager only when no exception is raised by [f]. *)
 val try_with_join
-  : ?extract_exn:bool
+  :  ?extract_exn:bool
   -> ?here:Lexing.position
   -> ?name:string
   -> (unit -> 'a t)
   -> 'a t
 
-val combine_errors      : 'a   t list -> 'a list t
-val combine_errors_unit : unit t list -> unit    t
+val combine_errors : 'a t list -> 'a list t
+val combine_errors_unit : unit t list -> unit t
 
-module List : Monad_sequence.S
-  with type 'a monad := 'a t
-  with type 'a t := 'a list
+module List : Monad_sequence.S with type 'a monad := 'a t with type 'a t := 'a list

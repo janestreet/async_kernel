@@ -10,7 +10,5 @@ type 'a t [@@deriving sexp_of]
 include Invariant.S1 with type 'a t := 'a t
 
 val create : unit -> 'a t * 'a Deferred0.t
-
 val is_empty : 'a t -> bool
-
 val fill : 'a t -> 'a -> unit

@@ -4,7 +4,6 @@
 
 open! Core_kernel
 
-
 module type Closable = sig
   (** a connection type *)
   type t
@@ -41,13 +40,13 @@ module type S = sig
   module Event : sig
     type t =
       | Attempting_to_connect
-      | Obtained_address      of address
-      | Failed_to_connect     of Error.t
-      | Connected             of conn sexp_opaque
+      | Obtained_address of address
+      | Failed_to_connect of Error.t
+      | Connected of conn sexp_opaque
       | Disconnected
     [@@deriving sexp_of]
 
-    val log_level : t -> [ `Info | `Debug | `Error ]
+    val log_level : t -> [`Info | `Debug | `Error]
   end
 
   (** [create ~server_name ~on_event ~retry_delay get_address] returns a persistent
@@ -74,10 +73,10 @@ module type S = sig
       attempts, so when a long-lived connection dies, connection is usually immediately
       retried, and if that failed, wait for another retry delay and retry. *)
   val create
-    :  server_name  : string
-    -> ?on_event    : (Event.t -> unit Deferred.t)
-    -> ?retry_delay : (unit -> Time_ns.Span.t)
-    -> connect      : (address -> conn Or_error.t Deferred.t)
+    :  server_name:string
+    -> ?on_event:(Event.t -> unit Deferred.t)
+    -> ?retry_delay:(unit -> Time_ns.Span.t)
+    -> connect:(address -> conn Or_error.t Deferred.t)
     -> (unit -> address Or_error.t Deferred.t)
     -> t
 
@@ -102,10 +101,12 @@ end
 module type T = sig
   module Address : sig
     type t [@@deriving sexp_of]
+
     val equal : t -> t -> bool
   end
 
   type t
+
   include Closable with type t := t
 end
 
@@ -113,7 +114,5 @@ module type Persistent_connection = sig
   module type S = S
   module type T = T
 
-  module Make (Conn : T) : S
-    with type conn    = Conn.t
-     and type address = Conn.Address.t
+  module Make (Conn : T) : S with type conn = Conn.t and type address = Conn.Address.t
 end

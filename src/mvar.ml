@@ -3,13 +3,13 @@ open! Import
 open! Deferred_std
 
 type ('a, 'phantom) t =
-  { current_value           : 'a Moption.t
-  ; taken                   : (unit, read_write) Bvar.t
-  ; mutable value_available : unit Ivar.t }
+  { current_value : 'a Moption.t
+  ; taken : (unit, read_write) Bvar.t
+  ; mutable value_available : unit Ivar.t
+  }
 [@@deriving fields, sexp_of]
 
 let value_available t = Ivar.read t.value_available
-
 let is_empty t = Moption.is_none t.current_value
 
 let invariant invariant_a _ (t : _ t) =
@@ -18,15 +18,17 @@ let invariant invariant_a _ (t : _ t) =
     Fields.iter
       ~current_value:(check (Moption.invariant invariant_a))
       ~taken:(check (Bvar.invariant Unit.invariant ignore))
-      ~value_available:(check (fun value_available ->
-        [%test_result: bool] (Ivar.is_full value_available)
-          ~expect:(Moption.is_some t.current_value))))
+      ~value_available:
+        (check (fun value_available ->
+           [%test_result: bool]
+             (Ivar.is_full value_available)
+             ~expect:(Moption.is_some t.current_value))))
 ;;
 
 let peek t = Moption.get t.current_value
 
 let peek_exn t =
-  if is_empty t then (raise_s [%message "Mvar.peek_exn called on empty mvar"]);
+  if is_empty t then raise_s [%message "Mvar.peek_exn called on empty mvar"];
   Moption.get_some_exn t.current_value
 ;;
 
@@ -44,13 +46,14 @@ module Read_only = struct
   let invariant invariant_a t = invariant invariant_a ignore t
 end
 
-let read_only  (t : ('a, [> read] ) t) = (t :> ('a, read)  t)
+let read_only (t : ('a, [> read]) t) = (t :> ('a, read) t)
 let write_only (t : ('a, [> write]) t) = (t :> ('a, write) t)
 
 let create () =
-  { current_value   = Moption.create ()
-  ; taken           = Bvar.create ()
-  ; value_available = Ivar.create () }
+  { current_value = Moption.create ()
+  ; taken = Bvar.create ()
+  ; value_available = Ivar.create ()
+  }
 ;;
 
 let take_nonempty t =
@@ -63,19 +66,15 @@ let take_nonempty t =
 ;;
 
 let take_now_exn t =
-  if is_empty t then (raise_s [%message "Mvar.take_exn called on empty mvar"]);
-  take_nonempty t;
+  if is_empty t then raise_s [%message "Mvar.take_exn called on empty mvar"];
+  take_nonempty t
 ;;
 
-let take_now t =
-  if not (is_empty t)
-  then (Some (take_nonempty t))
-  else None
-;;
+let take_now t = if not (is_empty t) then Some (take_nonempty t) else None
 
 let rec take t =
   if not (is_empty t)
-  then (return (take_nonempty t))
+  then return (take_nonempty t)
   else (
     let%bind () = value_available t in
     take t)
@@ -83,12 +82,11 @@ let rec take t =
 
 let set t v =
   Moption.set_some t.current_value v;
-  Ivar.fill_if_empty t.value_available ();
+  Ivar.fill_if_empty t.value_available ()
 ;;
 
-let update     t ~f = set t (f (peek     t))
+let update t ~f = set t (f (peek t))
 let update_exn t ~f = set t (f (peek_exn t))
-
 let taken t = Bvar.wait t.taken
 
 let rec put t v =
@@ -102,7 +100,7 @@ let rec put t v =
 ;;
 
 let pipe_when_ready t =
-  let (r, w) = Pipe.create () in
+  let r, w = Pipe.create () in
   let rec loop () =
     let%bind () = value_available t in
     if not (Pipe.is_closed w)
@@ -112,8 +110,8 @@ let pipe_when_ready t =
       | Some x ->
         let%bind () = Pipe.write w x in
         loop ())
-    else (return ())
+    else return ()
   in
-  don't_wait_for(loop ());
+  don't_wait_for (loop ());
   r
 ;;

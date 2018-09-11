@@ -10,6 +10,7 @@ end
 
 module Read_write : sig
   type t = read_write T1.t [@@deriving sexp_of]
+
   include Invariant.S with type t := t
 end
 
@@ -24,8 +25,8 @@ type callback = unit -> unit
 (** [create ~now ()] creates a new time source.  The default [timing_wheel_config] has 100
     microsecond precision, with levels of >1s, >1m, >1h, >1d. *)
 val create
-  :  ?timing_wheel_config : Timing_wheel_ns.Config.t
-  -> now : Time_ns.t
+  :  ?timing_wheel_config:Timing_wheel_ns.Config.t
+  -> now:Time_ns.t
   -> unit
   -> read_write T1.t
 
@@ -77,8 +78,9 @@ module Event : sig
 
   (** These are like the corresponding [run_*] functions, except they return an event that
       one can later [abort]. *)
-  val at           : [> read] T1.t -> Time_ns.t      -> callback -> t
-  val after        : [> read] T1.t -> Time_ns.Span.t -> callback -> t
+  val at : [> read] T1.t -> Time_ns.t -> callback -> t
+
+  val after : [> read] T1.t -> Time_ns.Span.t -> callback -> t
   val at_intervals : [> read] T1.t -> Time_ns.Span.t -> callback -> t
 
   module Abort_result : sig
@@ -93,8 +95,9 @@ module Event : sig
       aborted, or the reason it could not be aborted.  [abort] returns
       [Currently_happening] iff it is called on an event while running that event's
       callback. *)
-  val abort             : [> read] T1.t -> t -> Abort_result.t
-  val abort_exn         : [> read] T1.t -> t -> unit
+  val abort : [> read] T1.t -> t -> Abort_result.t
+
+  val abort_exn : [> read] T1.t -> t -> unit
   val abort_if_possible : [> read] T1.t -> t -> unit
 
   (** [create timesource callback] creates an event that is not scheduled in
@@ -104,8 +107,9 @@ module Event : sig
 
   (** [schedule_at timesource t time] schedules [t] to fire at [time].  [schedule_at]
       returns [Error] if [t] is currently scheduled to run. *)
-  val schedule_at           : [> read] T1.t -> t -> Time_ns.t      -> unit Or_error.t
-  val schedule_after        : [> read] T1.t -> t -> Time_ns.Span.t -> unit Or_error.t
+  val schedule_at : [> read] T1.t -> t -> Time_ns.t -> unit Or_error.t
+
+  val schedule_after : [> read] T1.t -> t -> Time_ns.Span.t -> unit Or_error.t
   val schedule_at_intervals : [> read] T1.t -> t -> Time_ns.Span.t -> unit Or_error.t
 end
 

@@ -23,7 +23,6 @@
 
 open! Core_kernel
 open! Import
-
 module Deferred = Deferred1
 
 type 'a t = 'a Or_error.t Deferred.t
@@ -43,6 +42,7 @@ val ignore : _ t -> unit t
 
 (** These functions are direct analogs of the corresponding [Core.Or_error] functions. *)
 val ok_exn : 'a t -> 'a Deferred.t
+
 val of_exn : exn -> _ t
 val of_exn_result : ('a, exn) Result.t Deferred.t -> 'a t
 val error : string -> 'a -> ('a -> Sexp.t) -> _ t
@@ -52,6 +52,8 @@ val errorf : ('a, unit, string, _ t) format4 -> 'a
 val tag : 'a t -> tag:string -> 'a t
 val tag_arg : 'a t -> string -> 'b -> ('b -> Sexp.t) -> 'a t
 val unimplemented : string -> _ t
+
+
 val combine_errors : 'a t list -> 'a list t
 val combine_errors_unit : unit t list -> unit t
 
@@ -76,8 +78,9 @@ val try_with
   -> ?name:string
   -> (unit -> 'a Deferred.t)
   -> 'a t
+
 val try_with_join
-  : ?extract_exn:bool (** default is [false] *)
+  :  ?extract_exn:bool (** default is [false] *)
   -> ?here:Lexing.position
   -> ?name:string
   -> (unit -> 'a t)
@@ -96,6 +99,4 @@ val try_with_join
 
     [`Max_concurrent_jobs n] acts like [`Parallel] in the way it combines the results, but
     only evaluates [n] of the deferreds at a time. *)
-module List : Monad_sequence.S
-  with type 'a monad := 'a t
-  with type 'a t := 'a list
+module List : Monad_sequence.S with type 'a monad := 'a t with type 'a t := 'a list

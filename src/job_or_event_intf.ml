@@ -10,17 +10,15 @@
 
 open! Core_kernel
 open! Import
-
 module Event = Types.Event
 
 module type Job_or_event = sig
   type t = Types.Job_or_event.t
 
   val of_event : Event.t -> t
-  val of_job   : Job.t   -> t
-
+  val of_job : Job.t -> t
   val is_event : t -> bool
-  val is_job   : t -> bool
+  val is_job : t -> bool
 
   (** Idiomatic usage of [Match] is:
 
@@ -35,7 +33,7 @@ module type Job_or_event = sig
   module Match : sig
     type _ kind =
       | Event : Event.t kind
-      | Job   : Job.t   kind
+      | Job : Job.t kind
 
     type packed = K : _ kind -> packed
 

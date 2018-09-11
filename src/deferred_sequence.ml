@@ -1,6 +1,5 @@
 open Core_kernel
 open Deferred_std
-
 module Deferred = Deferred1
 
 (* [fold_mapi ?how t ~init ~mapi_f ~fold_f] is a more efficient version of:
@@ -13,14 +12,13 @@ module Deferred = Deferred1
    the result as soon as possible, possibly avoiding creating an intermediate structure
    (e.g. [iteri] and [filter_map] uses [fold_mapi] to do this). *)
 let fold_mapi
-      (type a) (type b) (type c)
+      (type a b c)
       ?(how = `Sequential)
       (t : a Sequence.t)
       ~(init : c)
       ~(mapi_f : int -> a -> b Deferred.t)
       ~(fold_f : c -> b -> c)
-  : c Deferred.t
-  =
+  : c Deferred.t =
   match how with
   | `Sequential ->
     let rec loop i t (c : c) =
@@ -36,9 +34,12 @@ let fold_mapi
       match Sequence.next t with
       | None -> c
       | Some (a, t) ->
-        loop (i + 1) t (let%bind b = mapi_f i a in
-                        let%map c = c in
-                        fold_f c b)
+        loop
+          (i + 1)
+          t
+          (let%bind b = mapi_f i a in
+           let%map c = c in
+           fold_f c b)
     in
     loop 0 t (return init)
   | `Max_concurrent_jobs max_concurrent_jobs ->
@@ -50,29 +51,38 @@ let fold_mapi
       match Sequence.next t with
       | None -> c
       | Some (a, t) ->
-        loop (i + 1) t (let%bind b = Throttle.enqueue throttle (fun () -> mapi_f i a) in
-                        let%map c = c in
-                        fold_f c b)
+        loop
+          (i + 1)
+          t
+          (let%bind b = Throttle.enqueue throttle (fun () -> mapi_f i a) in
+           let%map c = c in
+           fold_f c b)
     in
     loop 0 t (return init)
 ;;
 
 let foldi t ~init ~f =
-  Sequence.delayed_fold t ~init:(0, init)
-    ~f:(fun (i, b) a ~k -> let%bind b = f i b a in k (i + 1, b))
+  Sequence.delayed_fold
+    t
+    ~init:(0, init)
+    ~f:(fun (i, b) a ~k ->
+      let%bind b = f i b a in
+      k (i + 1, b))
     ~finish:(fun (_, b) -> return b)
 ;;
 
 (* [fold] is not implemented in terms of [foldi] to save the intermediate closure
    allocation. *)
 let fold t ~init ~f =
-  Sequence.delayed_fold t ~init
-    ~f:(fun b a ~k -> f b a >>= k)
-    ~finish:return
+  Sequence.delayed_fold t ~init ~f:(fun b a ~k -> f b a >>= k) ~finish:return
 ;;
 
 let all t =
-  let%map res = fold t ~init:[] ~f:(fun accum d -> let%map a = d in a :: accum) in
+  let%map res =
+    fold t ~init:[] ~f:(fun accum d ->
+      let%map a = d in
+      a :: accum)
+  in
   Sequence.of_list (List.rev res)
 ;;
 
@@ -81,37 +91,50 @@ let all_unit t = fold t ~init:() ~f:(fun () v -> v)
 let find_mapi t ~f =
   let rec find_mapi t ~f i =
     match Sequence.next t with
-    | None           -> return None
+    | None -> return None
     | Some (v, rest) ->
-      match%bind f i v with
-      | None           -> find_mapi rest ~f (i+1)
-      | Some _ as some -> return some
+      (match%bind f i v with
+       | None -> find_mapi rest ~f (i + 1)
+       | Some _ as some -> return some)
   in
   find_mapi t ~f 0
 ;;
 
 let findi t ~f =
-  find_mapi t ~f:(fun i elt -> let%map b = f i elt in if b then (Some (i,elt)) else None)
+  find_mapi t ~f:(fun i elt ->
+    let%map b = f i elt in
+    if b then Some (i, elt) else None)
 ;;
+
 let find t ~f =
-  find_mapi t ~f:(fun _ elt -> let%map b = f elt in if b then (Some elt) else None)
+  find_mapi t ~f:(fun _ elt ->
+    let%map b = f elt in
+    if b then Some elt else None)
 ;;
 
 let existsi t ~f =
-  match%map find_mapi t ~f:(fun i elt -> let%map b = f i elt in if b then (Some ()) else None) with
+  match%map
+    find_mapi t ~f:(fun i elt ->
+      let%map b = f i elt in
+      if b then Some () else None)
+  with
   | Some () -> true
   | None -> false
+;;
 
 let for_alli t ~f =
-  match%map find_mapi t ~f:(fun i elt -> let%map b = f i elt in if not b then (Some ()) else None) with
+  match%map
+    find_mapi t ~f:(fun i elt ->
+      let%map b = f i elt in
+      if not b then Some () else None)
+  with
   | Some () -> false
   | None -> true
-
+;;
 
 let iteri ?how t ~f : unit Deferred.t =
   fold_mapi ?how t ~mapi_f:f ~init:() ~fold_f:(fun () () -> ())
 ;;
-
 
 let mapi ?how t ~f =
   let%map bs =
@@ -125,10 +148,15 @@ let mapi ?how t ~f =
    filter them all out. *)
 let filter_mapi ?how t ~f =
   let%map bs =
-    fold_mapi t ?how ~mapi_f:(fun i a -> f i a) ~init:[] ~fold_f:(fun bs maybe_v ->
-      match maybe_v with
-      | None   -> bs
-      | Some b -> b :: bs)
+    fold_mapi
+      t
+      ?how
+      ~mapi_f:(fun i a -> f i a)
+      ~init:[]
+      ~fold_f:(fun bs maybe_v ->
+        match maybe_v with
+        | None -> bs
+        | Some b -> b :: bs)
   in
   Sequence.of_list (List.rev bs)
 ;;
@@ -142,13 +170,12 @@ let filteri ?how t ~f =
     | false -> None)
 ;;
 
-let iter       ?how t ~f = iteri       ?how t ~f:(fun _ a -> f a)
-let map        ?how t ~f = mapi        ?how t ~f:(fun _ a -> f a)
-let filter     ?how t ~f = filteri     ?how t ~f:(fun _ a -> f a)
+let iter ?how t ~f = iteri ?how t ~f:(fun _ a -> f a)
+let map ?how t ~f = mapi ?how t ~f:(fun _ a -> f a)
+let filter ?how t ~f = filteri ?how t ~f:(fun _ a -> f a)
 let filter_map ?how t ~f = filter_mapi ?how t ~f:(fun _ a -> f a)
 let concat_map ?how t ~f = concat_mapi ?how t ~f:(fun _ a -> f a)
 let find_map t ~f = find_mapi t ~f:(fun _ a -> f a)
-let exists   t ~f = existsi   t ~f:(fun _ a -> f a)
-let for_all  t ~f = for_alli  t ~f:(fun _ a -> f a)
-
+let exists t ~f = existsi t ~f:(fun _ a -> f a)
+let for_all t ~f = for_alli t ~f:(fun _ a -> f a)
 let init ?how n ~f = map ?how (Sequence.init n ~f:Fn.id) ~f

@@ -11,12 +11,11 @@
 
 open! Core_kernel
 open! Import
-
 module Deferred = Deferred1
 
-type 'a t = 'a Tail.Stream.t [@@deriving sexp_of]
 (** [sexp_of_t t f] returns a sexp of all of the elements currently available in the
     stream.  It is just for display purposes.  There is no [t_of_sexp]. *)
+type 'a t = 'a Tail.Stream.t [@@deriving sexp_of]
 
 (** [create f] returns a stream [t] and calls [f tail], where the elements of the stream
     are determined as the tail is extended, and the end of the stream is reached when the
@@ -26,7 +25,9 @@ val create : ('a Tail.t -> unit) -> 'a t
 (** [next t] returns a deferred that will become determined when the next part of the
     stream is determined.  This is [Cons (v, t')], where v is the next element of the
     stream and t' is the rest of the stream, or with Nil at the end of the stream. *)
-type 'a next = Nil | Cons of 'a * 'a t
+type 'a next =
+  | Nil
+  | Cons of 'a * 'a t
 
 val next : 'a t -> 'a next Deferred.t
 
@@ -129,9 +130,10 @@ val take_until : 'a t -> unit Deferred.t -> 'a t
 
     [iter_durably_report_end t ~f] is equivalent to [iter_durably' t ~f:(fun x -> return
     (f x))] but it is more efficient *)
-val iter_durably'           : 'a t -> f:('a -> unit Deferred.t) -> unit Deferred.t
-val iter_durably            : 'a t -> f:('a -> unit           ) -> unit
-val iter_durably_report_end : 'a t -> f:('a -> unit           ) -> unit Deferred.t
+val iter_durably' : 'a t -> f:('a -> unit Deferred.t) -> unit Deferred.t
+
+val iter_durably : 'a t -> f:('a -> unit) -> unit
+val iter_durably_report_end : 'a t -> f:('a -> unit) -> unit Deferred.t
 
 (** [length s] returns a deferred that is determined when the end of s is reached, taking
     the value of the number of elements in s *)
@@ -149,10 +151,8 @@ val map : 'a t -> f:('a -> 'b) -> 'b t
     elements, or it returns t. *)
 val first_n : 'a t -> int -> 'a t
 
-
 (** Stream generation
     ---------------------------------------------------------------------- *)
-
 
 (** [unfold b f] returns a stream [a1; a2; ...; an] whose elements are
     determined by the equations:
@@ -164,7 +164,6 @@ val first_n : 'a t -> int -> 'a t
       None = f bn
     v} *)
 val unfold : 'b -> f:('b -> ('a * 'b) option Deferred.t) -> 'a t
-
 
 (** Miscellaneous operations
     ---------------------------------------------------------------------- *)
@@ -180,21 +179,13 @@ val unfold : 'b -> f:('b -> ('a * 'b) option Deferred.t) -> 'a t
     stream in case (2) or (3). *)
 val split
   :  ?stop:unit Deferred.t
-  -> ?f:('a -> [ `Continue | `Found of 'b ])
+  -> ?f:('a -> [`Continue | `Found of 'b])
   -> 'a t
-  -> 'a t * [ `End_of_stream
-            | `Stopped of 'a t
-            | `Found of 'b * 'a t
-            ] Deferred.t
+  -> 'a t * [`End_of_stream | `Stopped of 'a t | `Found of 'b * 'a t] Deferred.t
 
 (** [find ~f t] returns a deferred that becomes determined when [f x] is true for some
     element of [t], or if the end of the stream is reached *)
-val find
-  :  'a t
-  -> f:('a -> bool)
-  -> [ `End_of_stream
-     | `Found of 'a * 'a t
-     ] Deferred.t
+val find : 'a t -> f:('a -> bool) -> [`End_of_stream | `Found of 'a * 'a t] Deferred.t
 
 (** [ungroup t] takes a stream of lists and unpacks the items from each list into a single
     stream *)

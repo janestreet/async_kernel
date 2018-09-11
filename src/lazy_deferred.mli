@@ -35,12 +35,14 @@ val create : (unit -> 'a Deferred.t) -> 'a t
 
 (** [force t] forces evaluation of [t] and returns a deferred that becomes determined
     when the deferred computation becomes determined or raises. *)
-val force     : 'a t -> 'a Or_error.t Deferred.t
+val force : 'a t -> 'a Or_error.t Deferred.t
+
 val force_exn : 'a t -> 'a Deferred.t
 
 (** [wait t] and [wait_exn t] waits for [t] to be forced.  If no one ever calls
     [force t], they will wait forever. *)
-val wait     : 'a t -> 'a Or_error.t Deferred.t
+val wait : 'a t -> 'a Or_error.t Deferred.t
+
 val wait_exn : 'a t -> 'a Deferred.t
 
 (** [bind t f] in the lazy-deferred monad creates a computation that, when forced, will
@@ -54,9 +56,8 @@ val bind' : 'a t -> ('a -> 'b Deferred.t) -> 'b t
 (** Read-only operations. *)
 
 (** [peek t = Deferred.peek (wait t)] *)
-val peek     : 'a t -> 'a Or_error.t option
+val peek : 'a t -> 'a Or_error.t option
+
 val peek_exn : 'a t -> 'a option
-
 val is_determined : _ t -> bool
-
 val is_forced : _ t -> bool

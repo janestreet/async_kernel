@@ -6,32 +6,34 @@ open! Import
 
 module Async = struct
   type 'a t = 'a -> unit Deferred.t
-
   type 'a inv = 'a t
 
   module type S = sig
     type t
+
     val invariant : t inv
   end
 
   module type S1 = sig
     type 'a t
+
     val invariant : 'a inv -> 'a t inv
   end
 
   module type S2 = sig
     type ('a, 'b) t
+
     val invariant : 'a inv -> 'b inv -> ('a, 'b) t inv
   end
 
   module type S3 = sig
     type ('a, 'b, 'c) t
+
     val invariant : 'a inv -> 'b inv -> 'c inv -> ('a, 'b, 'c) t inv
   end
 end
 
 module type Async_invariant = sig
-
   include module type of Core_kernel.Invariant
 
   module Async : sig
@@ -39,7 +41,7 @@ module type Async_invariant = sig
 
     type nonrec 'a t = 'a Async.t
 
-    module type S  = S
+    module type S = S
     module type S1 = S1
     module type S2 = S2
     module type S3 = S3
@@ -80,6 +82,11 @@ module type Async_invariant = sig
                 ~foo:  (check' Foo.invariant)
                 ~bar:  (check  Bar.invariant)
                 ~quux: (check  ignore) ]} *)
-    val check_field : 'a -> 'b t -> unit Deferred.t -> ('a, 'b) Field.t -> unit Deferred.t
+    val check_field
+      :  'a
+      -> 'b t
+      -> unit Deferred.t
+      -> ('a, 'b) Field.t
+      -> unit Deferred.t
   end
 end
