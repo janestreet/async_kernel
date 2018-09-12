@@ -136,7 +136,7 @@ and Job_queue : sig
   type t =
     { mutable num_jobs_run : int
     ; mutable jobs_left_this_cycle : int
-    ; mutable jobs : Core_kernel.Obj_array.t
+    ; mutable jobs : Obj.t Uniform_array.t
     ; mutable mask : int
     ; mutable front : int
     ; mutable length : int

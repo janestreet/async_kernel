@@ -5,10 +5,9 @@ module Scheduler = Scheduler0
 let dummy_e = Execution_context.main
 let dummy_f : Obj.t -> unit = ignore
 let dummy_a : Obj.t = Obj.repr ()
-
-module A = Core_kernel.Obj_array
-
 let slots_per_elt = 3
+
+module A = Uniform_array
 
 (* This is essentially a specialized [Flat_queue], done for reasons of speed. *)
 type t = Types.Job_queue.t =
@@ -18,9 +17,10 @@ type t = Types.Job_queue.t =
   (* [jobs] is an array of length [capacity t * slots_per_elt], where each elt has the
      three components of a job ([execution_context], [f], [a]) in consecutive spots in
      [jobs].  [enqueue] doubles the length of [jobs] if [jobs] is full.  [jobs] never
-     shrinks. *)
+     shrinks.  [jobs] is somewhat like a [Core_kernel.Pool] specialized to 3-tuples; we
+     don't use [Pool] because that implements a set, where [jobs] is a queue. *)
   ; mutable jobs :
-      A.t
+      Obj.t A.t sexp_opaque
   (* [mask] is [capacity t - 1], and is used for quickly computing [i mod (capacity
      t)] *)
   ; mutable mask :
@@ -63,7 +63,7 @@ let invariant t : unit =
            assert (length <= capacity t))))
 ;;
 
-let create_array ~capacity = A.create_zero ~len:(capacity * slots_per_elt)
+let create_array ~capacity = A.create_obj_array ~len:(capacity * slots_per_elt)
 
 let create () =
   let capacity = 1 in
