@@ -7,16 +7,16 @@ let reraise = function
   | Error exn -> Exn.reraise exn "caught exception in memoized function"
 ;;
 
-let general (type a) (hashable : (module Hashable with type t = a)) f =
+let general (type a) (hashable : (module Hashable.S_plain with type t = a)) f =
   let module Hashable = (val hashable) in
   let f =
     Memo.general ~hashable:Hashable.hashable (fun a ->
       Monitor.try_with ~run:`Now (fun () -> f a))
   in
-  fun a -> f a >>| reraise
+  Staged.stage (fun a -> f a >>| reraise)
 ;;
 
 let unit f =
   let f = Memo.unit (fun () -> Monitor.try_with ~run:`Now f) in
-  fun () -> f () >>| reraise
+  Staged.stage (fun () -> f () >>| reraise)
 ;;

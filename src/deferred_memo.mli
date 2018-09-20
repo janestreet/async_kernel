@@ -1,6 +1,7 @@
-
 (** Memoization functions like in [Core_kernel.Memo], with re-raising of exceptions
-    thrown asynchronously. *)
+    thrown asynchronously.
+
+    Also see [Lazy_deferred], of which [Deferred.Memo.unit] is a special case. *)
 
 open! Core_kernel
 open! Import
@@ -18,9 +19,8 @@ module Deferred = Deferred1
     Unlike [Core_kernel.Memo.general], this [general] takes a required [Hashable]
     module argument, to avoid unintentional use of polymorphic comparison. *)
 val general
-  :  (module Hashable with type t = 'a)
+  :  (module Hashable.S_plain with type t = 'a)
   -> ('a -> 'b Deferred.t)
-  -> 'a
-  -> 'b Deferred.t
+  -> ('a -> 'b Deferred.t) Staged.t
 
-val unit : (unit -> 'a Deferred.t) -> unit -> 'a Deferred.t
+val unit : (unit -> 'a Deferred.t) -> (unit -> 'a Deferred.t) Staged.t

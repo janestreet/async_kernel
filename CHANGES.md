@@ -1,5 +1,7 @@
 ## git version
 
+- `Deferred.Memo` no longer requires the key to be `of_sexp`'able.
+
 - rename paramater of `Pipe.merge` from `cmp` to `compare`.
 
 - Added `Pipe.fork` function, to transfer the read values into two
@@ -14,6 +16,8 @@
   + `Require_explicit_time_source`
     (as `Async_kernel_require_explicit_time_source`)
 
+- Changed the return types in `Deferred_memo` to emphasis the correct
+  staging, using the type `'a Staged.t`.
 
 ## v0.10
 
