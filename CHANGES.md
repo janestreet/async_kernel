@@ -7,6 +7,9 @@
 - Added `Pipe.fork` function, to transfer the read values into two
   freshly-created readers
 
+- Deprecate `Synchronous_time_source.alarm_upper_bound` in favor of
+  `Synchronous_time_source.max_allowed_alarm_time`.
+
 ## v0.11
 
 - Removed a number of modules from `Async_kernel.Async_kernel_private`.

@@ -288,7 +288,8 @@ module Read_write = struct
 end
 
 let is_wall_clock t = t.is_wall_clock
-let alarm_upper_bound t = Timing_wheel_ns.alarm_upper_bound t.events
+let alarm_upper_bound t = (Timing_wheel_ns.alarm_upper_bound t.events [@warning "-3"])
+let max_allowed_alarm_time t = Timing_wheel_ns.max_allowed_alarm_time t.events
 let read_only (t : [> read] T1.t) = (t :> t)
 
 (* [fire t event] sets [event.status = Fired] and inserts [event] into [t.fired_events] in
