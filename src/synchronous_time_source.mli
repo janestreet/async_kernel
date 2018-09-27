@@ -1,5 +1,10 @@
 (** A synchronous version of [Async_kernel.Time_source].  [advance_by_alarms] runs
-    alarms immediately, rather than enqueueing Async jobs. *)
+    alarms immediately, rather than enqueueing Async jobs.
+
+    [Synchronous_time_source] is a wrapper around [Timing_wheel_ns].  One difference is
+    that [Synchronous_time_source] alarms fire in non-decreasing time order, whereas in
+    [Timing_wheel_ns] that is only true for alarms in different time intervals as
+    determined by [alarm_precision]. *)
 
 open! Core_kernel
 open! Import
@@ -23,7 +28,9 @@ val read_only : [> read] T1.t -> t
 type callback = unit -> unit
 
 (** [create ~now ()] creates a new time source.  The default [timing_wheel_config] has 100
-    microsecond precision, with levels of >1s, >1m, >1h, >1d. *)
+    microsecond precision, with levels of >1s, >1m, >1h, >1d.  The [timing_wheel_config]
+    is used to tune performance; configuration does not affect the fact that alarms fire
+    in non-decreasing time order. *)
 val create
   :  ?timing_wheel_config:Timing_wheel_ns.Config.t
   -> now:Time_ns.t
