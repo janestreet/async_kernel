@@ -196,3 +196,9 @@ module List = struct
   let for_all t ~f = for_alli t ~f:(fun _ a -> f a)
   let init ?how n ~f = map ?how (List.init n ~f:Fn.id) ~f
 end
+
+let rec repeat_until_finished state f =
+  match%bind f state with
+  | `Repeat state -> repeat_until_finished state f
+  | `Finished state -> return state
+;;

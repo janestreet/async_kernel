@@ -100,3 +100,11 @@ val try_with_join
     [`Max_concurrent_jobs n] acts like [`Parallel] in the way it combines the results, but
     only evaluates [n] of the deferreds at a time. *)
 module List : Monad_sequence.S with type 'a monad := 'a t with type 'a t := 'a list
+
+(** [repeat_until_finished initial_state f] works the just like
+    {!Deferred.repeat_until_finished} but with the [Deferred.Or_error] monad.
+    If [f] returns an [Or_error.Error] the loop terminates and returns. *)
+val repeat_until_finished
+  :  'state
+  -> ('state -> [`Repeat of 'state | `Finished of 'result] t)
+  -> 'result t

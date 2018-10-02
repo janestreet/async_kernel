@@ -40,3 +40,8 @@ val combine_errors : 'a t list -> 'a list t
 val combine_errors_unit : unit t list -> unit t
 
 module List : Monad_sequence.S with type 'a monad := 'a t with type 'a t := 'a list
+
+val repeat_until_finished
+  :  'state
+  -> ('state -> [`Repeat of 'state | `Finished of 'result] t)
+  -> 'result t
