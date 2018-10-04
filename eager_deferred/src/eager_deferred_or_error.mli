@@ -1,4 +1,5 @@
 open! Core_kernel
+open! Async_kernel
 open! Import
 
 type 'a t = 'a Or_error.t Deferred.t

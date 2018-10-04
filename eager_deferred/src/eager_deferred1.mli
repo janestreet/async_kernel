@@ -6,7 +6,7 @@
     The goal with that approach is that one can locally write the following to switch to
     such a world.
 
-    {[ open Use_eager_deferred ]}
+    {[ open Eager_deferred.Use ]}
 
     We do not intend at first for this to implement the entire [Deferred] interface,
     because some of this will require more experimentation and discussions.  We can
@@ -17,6 +17,7 @@
     {{!Async_kernel.Deferred}[Deferred]}. *)
 
 open! Core_kernel
+open! Async_kernel
 open! Import
 
 include
@@ -51,9 +52,9 @@ sig
     -> ('state -> [`Repeat of 'state | `Finished of 'result] t)
     -> 'result t
 
-  module List : Deferred1.Monad_sequence with type 'a t := 'a list
+  module List : Monad_sequence.S with type 'a monad := 'a t with type 'a t := 'a list
   module Or_error : module type of Eager_deferred_or_error
 end
 (*_ We do not expose [Eager_deferred.t] so that type-error messages refer to
   [Deferred.t], not [Eager_deferred.t]. *)
-with type 'a t := 'a Deferred1.t
+with type 'a t := 'a Deferred.t

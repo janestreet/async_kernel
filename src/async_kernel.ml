@@ -14,7 +14,6 @@ module Bvar = Bvar
 module Clock_ns = Clock_ns
 module Condition = Async_condition
 module Deferred = Deferred
-module Eager_deferred = Eager_deferred
 module Execution_context = Execution_context
 module Gc = Async_gc
 module Invariant = Async_invariant
@@ -32,22 +31,6 @@ module Synchronous_time_source = Synchronous_time_source
 module Tail = Tail
 module Throttle = Throttle
 module Time_source = Time_source
-
-(** Intended usage is to [open Use_eager_deferred] to shadow operations from the non-eager
-    world and rebind them to their eager counterparts. *)
-module Use_eager_deferred = struct
-  module Deferred = struct
-    type 'a t = 'a Deferred.t
-
-    include Eager_deferred
-  end
-
-  include (Eager_deferred : Monad.Infix with type 'a t := 'a Deferred1.t)
-  include Eager_deferred.Let_syntax
-
-  let upon = Eager_deferred.upon
-  let ( >>> ) = Eager_deferred.Infix.( >>> )
-end
 
 
 (** {2 Toplevel functions }

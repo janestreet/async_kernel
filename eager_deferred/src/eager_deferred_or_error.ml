@@ -1,4 +1,5 @@
 open! Core_kernel
+open! Async_kernel
 open! Import
 module Deferred = Eager_deferred0
 module Deferred_result = Eager_deferred_result
