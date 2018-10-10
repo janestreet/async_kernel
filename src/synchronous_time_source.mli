@@ -17,9 +17,13 @@ module Read_write : sig
   type t = read_write T1.t [@@deriving sexp_of]
 
   include Invariant.S with type t := t
+
+  val invariant_with_jobs : job:Job.t Invariant.t -> t Invariant.t
 end
 
 type t = read T1.t [@@deriving sexp_of]
+
+val invariant_with_jobs : job:Job.t Invariant.t -> t Invariant.t
 
 include Invariant.S with type t := t
 

@@ -1,6 +1,5 @@
 open! Core_kernel
 open! Import
-
 include Weak_hashtbl
 
 let create ?growth_allowed ?size hashable =
@@ -14,18 +13,21 @@ let create ?growth_allowed ?size hashable =
   let reclaim_will_happen = ref false in
   let reclaim () =
     reclaim_will_happen := false;
-    reclaim_space_for_keys_with_unused_data t;
+    reclaim_space_for_keys_with_unused_data t
   in
   set_run_when_unused_data t ~thread_safe_f:(fun () ->
-    if not !reclaim_will_happen then begin
+    if not !reclaim_will_happen
+    then (
       reclaim_will_happen := true;
       let module Scheduler = Async_kernel.Async_kernel_scheduler in
       let scheduler = Scheduler.t () in
-      Scheduler.thread_safe_enqueue_external_job scheduler
-        Scheduler.main_execution_context reclaim ();
-    end);
+      Scheduler.thread_safe_enqueue_external_job
+        scheduler
+        Scheduler.main_execution_context
+        reclaim
+        ()));
   t
 ;;
 
 let reclaim_space_for_keys_with_unused_data `Do_not_use = assert false
-let set_run_when_unused_data                `Do_not_use = assert false
+let set_run_when_unused_data `Do_not_use = assert false

@@ -155,7 +155,10 @@ let invariant t : unit =
       ~last_cycle_time:ignore
       ~last_cycle_num_jobs:
         (check (fun last_cycle_num_jobs -> assert (last_cycle_num_jobs >= 0)))
-      ~time_source:(check Synchronous_time_source.Read_write.invariant)
+      ~time_source:
+        (check
+           (Synchronous_time_source.Read_write.invariant_with_jobs ~job:(fun job ->
+              assert (Pool.pointer_is_valid t.job_pool job))))
       ~external_jobs:ignore
       ~thread_safe_external_job_hook:ignore
       ~job_queued_hook:ignore

@@ -45,11 +45,13 @@ module Read_write = struct
   type t = read_write T1.t [@@deriving sexp_of]
 
   let invariant = invariant
+  let invariant_with_jobs = invariant_with_jobs
 end
 
 type t = read T1.t [@@deriving sexp_of]
 
 let invariant = invariant
+let invariant_with_jobs = invariant_with_jobs
 let read_only (t : [> read] T1.t) = (t :> t)
 let create = Scheduler.create_time_source
 let wall_clock = Scheduler.wall_clock

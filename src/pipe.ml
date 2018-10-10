@@ -615,9 +615,16 @@ let values_available t =
   then return `Ok
   else if is_closed t
   then return `Eof
-  else
-    Deferred.create (fun ivar ->
-      Q.enqueue t.blocked_reads (Blocked_read.(create (Zero ivar)) None))
+  else (
+    match Queue.last t.blocked_reads with
+    | Some { consumer = None; wants = Zero ivar } ->
+      (* This case is an optimization for multiple calls to [values_available] in
+         sequence.  It causes them to all share the same ivar, rather than allocate
+         an ivar per call. *)
+      Ivar.read ivar
+    | _ ->
+      Deferred.create (fun ivar ->
+        Q.enqueue t.blocked_reads (Blocked_read.(create (Zero ivar)) None)))
 ;;
 
 let read_choice t = choice (values_available t) (fun (_ : [`Ok | `Eof]) -> read_now t)

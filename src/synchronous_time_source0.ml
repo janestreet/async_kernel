@@ -237,7 +237,7 @@ module T1 = struct
       false)
   ;;
 
-  let invariant (type rw) (t : rw t) =
+  let invariant_with_jobs (type rw) ~job:(job_invariant : Job.t -> unit) (t : rw t) =
     Invariant.invariant [%here] t [%sexp_of: _ t] (fun () ->
       let check f = Invariant.check_field t f in
       Fields.iter
@@ -251,7 +251,7 @@ module T1 = struct
                let open Job_or_event.Match in
                let (K k) = kind job_or_event in
                match k, project k job_or_event with
-               | Job, job -> Job.invariant job
+               | Job, job -> job_invariant job
                | Event, event ->
                  assert (phys_equal alarm event.alarm);
                  [%test_result: Time_ns.t] event.at ~expect:(Alarm.at events alarm);
@@ -273,6 +273,8 @@ module T1 = struct
              then assert (is_in_fired_events t most_recently_fired)))
         ~scheduler:ignore)
   ;;
+
+  let invariant t = invariant_with_jobs ~job:(fun _ -> ()) t
 end
 
 open T1
@@ -280,11 +282,13 @@ open T1
 type t = read T1.t [@@deriving sexp_of]
 
 let invariant = invariant
+let invariant_with_jobs = invariant_with_jobs
 
 module Read_write = struct
   type t = read_write T1.t [@@deriving sexp_of]
 
   let invariant = invariant
+  let invariant_with_jobs = invariant_with_jobs
 end
 
 let is_wall_clock t = t.is_wall_clock

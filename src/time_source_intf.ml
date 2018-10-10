@@ -22,12 +22,15 @@ module type Time_source = sig
     type t = read_write T1.t [@@deriving sexp_of]
 
     include Invariant.S with type t := t
+
+    val invariant_with_jobs : job:Job.t Invariant.t -> t Invariant.t
   end
 
   type t = read T1.t [@@deriving sexp_of]
 
   include Invariant.S with type t := t
 
+  val invariant_with_jobs : job:Job.t Invariant.t -> t Invariant.t
   val read_only : [> read] T1.t -> t
 
   val create
