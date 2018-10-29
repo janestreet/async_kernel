@@ -79,13 +79,16 @@ let advance_by t by = advance t ~to_:(Time_ns.after (now t) by)
 let fire_past_alarms t = Synchronous_time_source0.fire_past_alarms t ~send_exn
 let yield t = Bvar.wait (Scheduler.yield t.scheduler)
 
-let advance_by_alarms t ~to_ =
+let advance_by_alarms ?wait_for t ~to_ =
   let run_queued_alarms () =
-    (* All of the alarm thunks that we 'fired past' are queued as deferreds in the
-       [Async.Scheduler]. The simplest way to run those is to [yield].  [yield] enqueues
-       another [Deferred] at the end of this queue, so binding here means the alarm
-       deferreds have had an opportunity to run. *)
-    yield t
+    (* Every time we want to run queued alarms we need to yield control back to the
+       [Async.Scheduler] and [wait_for] any logic that is supposed to finish at this time
+       before advancing.  If no [wait_for] logic is specified we can simply yield control
+       by invoking [yield t], which enqueues another job at the end of the scheduler job
+       queue so alarm jobs have the opportunity to run before we advance. *)
+    match wait_for with
+    | None -> yield t
+    | Some f -> f ()
   in
   let finish () =
     advance t ~to_;
@@ -104,11 +107,11 @@ let advance_by_alarms t ~to_ =
         let%bind () = run_queued_alarms () in
         walk_alarms ())
   in
-  (* This first [yield] call allows [Clock_ns.every] the opportunity to run its
-     continuation deferreds so that they can reschedule alarms.  This is particularly
+  (* This first [run_queued_alarms] call allows [Clock_ns.every] the opportunity to run
+     its continuation deferreds so that they can reschedule alarms.  This is particularly
      useful in our "advance hits intermediate alarms" unit test below, but likely useful
      in other cases where [every] is synchronously followed by [advance]. *)
-  let%bind () = yield t in
+  let%bind () = run_queued_alarms () in
   walk_alarms ()
 ;;
 

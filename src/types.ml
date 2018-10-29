@@ -170,6 +170,7 @@ end =
   Monitor
 
 and Scheduler : sig
+
   type t =
     { mutable check_access : (unit -> unit) option
     ; mutable job_pool : Job_pool.t
@@ -181,9 +182,11 @@ and Scheduler : sig
     ; mutable uncaught_exn : (Exn.t * Sexp.t) option
     ; mutable cycle_count : int
     ; mutable cycle_start : Time_ns.t
+    ; mutable in_cycle : bool
     ; mutable run_every_cycle_start : (unit -> unit) list
     ; mutable last_cycle_time : Time_ns.Span.t
     ; mutable last_cycle_num_jobs : int
+    ; mutable total_cycle_time : Time_ns.Span.t
     ; mutable time_source : read_write Time_source.t1
     ; external_jobs : External_job.t Thread_safe_queue.t
     ; mutable thread_safe_external_job_hook : unit -> unit

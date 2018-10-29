@@ -73,9 +73,11 @@ type t = Scheduler0.t =
   ; mutable uncaught_exn : (Exn.t * Sexp.t) option
   ; mutable cycle_count : int
   ; mutable cycle_start : Time_ns.t
+  ; mutable in_cycle : bool
   ; mutable run_every_cycle_start : (unit -> unit) list
   ; mutable last_cycle_time : Time_ns.Span.t
   ; mutable last_cycle_num_jobs : int
+  ; mutable total_cycle_time : Time_ns.Span.t
   ; mutable time_source :
       read_write Synchronous_time_source.T1.t
   (* [external_jobs] is a queue of actions sent from outside of async.  This is for the
@@ -151,8 +153,10 @@ let invariant t : unit =
            if is_some uncaught_exn then assert (num_pending_jobs t = 0)))
       ~cycle_count:(check (fun cycle_count -> assert (cycle_count >= 0)))
       ~cycle_start:ignore
+      ~in_cycle:ignore
       ~run_every_cycle_start:ignore
       ~last_cycle_time:ignore
+      ~total_cycle_time:ignore
       ~last_cycle_num_jobs:
         (check (fun last_cycle_num_jobs -> assert (last_cycle_num_jobs >= 0)))
       ~time_source:
@@ -224,9 +228,11 @@ let create () =
     ; uncaught_exn = None
     ; cycle_start = now
     ; cycle_count = 0
+    ; in_cycle = false
     ; run_every_cycle_start = []
     ; last_cycle_time = sec 0.
     ; last_cycle_num_jobs = 0
+    ; total_cycle_time = sec 0.
     ; time_source
     ; external_jobs = Thread_safe_queue.create ()
     ; thread_safe_external_job_hook = ignore

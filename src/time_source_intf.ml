@@ -67,16 +67,20 @@ module type Time_source = sig
   val fire_past_alarms : [> write] T1.t -> unit
 
   (** [advance_by_alarms t] repeatedly calls [advance t] to drive the time forward in
-      steps, where each step is the minimum of [to_] and the next alarm time.  After each
-      step, [advance_by_alarms] waits on [Scheduler.yield ()] to allow a chance for the
-      triggered alarms to run before moving forward, which also allows triggered timers to
-      execute and potentially rearm for subsequent steps.  The returned deferred is filled
-      when [to_] is reached.
+      steps, where each step is the minimum of [to_] and the next alarm time. After each
+      step, [advance_by_alarms] waits for the result of [wait_for] to become determined
+      before advancing. By default, [wait_for] will be [Scheduler.yield ()] to allow the
+      triggered timers to execute and potentially rearm for subsequent steps. The returned
+      deferred is filled when [to_] is reached.
 
       [advance_by_alarms] is useful in simulation when one wants to efficiently advance to
       a time in the future while giving periodic timers (e.g., resulting from [every]) a
       chance to fire with approximately the same timing as they would live. *)
-  val advance_by_alarms : [> write] T1.t -> to_:Time_ns.t -> unit Deferred.t
+  val advance_by_alarms
+    :  ?wait_for:(unit -> unit Deferred.t)
+    -> [> write] T1.t
+    -> to_:Time_ns.t
+    -> unit Deferred.t
 
   module Continue : sig
     type t

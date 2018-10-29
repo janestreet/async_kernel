@@ -32,6 +32,7 @@ val num_jobs_run : t -> int
 val map_cycle_times : t -> f:(Time_ns.Span.t -> 'a) -> 'a Async_stream.t
 val cycle_num_jobs : t -> int Async_stream.t
 val cycle_count : t -> int
+val total_cycle_time : t -> Time_ns.Span.t
 val max_num_jobs_per_priority_per_cycle : t -> int
 val set_max_num_jobs_per_priority_per_cycle : t -> int -> unit
 val set_check_access : t -> (unit -> unit) option -> unit

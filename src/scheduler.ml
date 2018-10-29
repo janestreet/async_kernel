@@ -155,6 +155,7 @@ let run_cycle t =
   let now = Time_ns.now () in
   t.cycle_count <- t.cycle_count + 1;
   t.cycle_start <- now;
+  t.in_cycle <- true;
   Bvar.broadcast t.yield ();
   let num_jobs_run_at_start_of_cycle = num_jobs_run t in
   List.iter t.run_every_cycle_start ~f:(fun f -> f ());
@@ -170,12 +171,15 @@ let run_cycle t =
       run_jobs t
   in
   run_jobs t;
-  t.last_cycle_time <- Time_ns.diff (Time_ns.now ()) t.cycle_start;
+  let cycle_time = Time_ns.diff (Time_ns.now ()) t.cycle_start in
+  t.last_cycle_time <- cycle_time;
   t.last_cycle_num_jobs <- num_jobs_run t - num_jobs_run_at_start_of_cycle;
+  t.total_cycle_time <- Time_ns.Span.(t.total_cycle_time + cycle_time);
   if Bvar.has_any_waiters t.yield_until_no_jobs_remain
   && Job_queue.length t.normal_priority_jobs + Job_queue.length t.low_priority_jobs
      = 0
   then Bvar.broadcast t.yield_until_no_jobs_remain ();
+  t.in_cycle <- false;
   t.on_end_of_cycle ();
   if debug
   then
@@ -243,6 +247,15 @@ let yield_every ~n =
       else (
         count_until_yield := n;
         yield t)))
+;;
+
+let total_cycle_time t =
+  (* Adjust for the fact the caller's probably an Async job. *)
+  if t.in_cycle
+  then (
+    let this_cycle_time = Time_ns.(diff (now ()) t.cycle_start) in
+    Time_ns.Span.(t.total_cycle_time + this_cycle_time))
+  else t.total_cycle_time
 ;;
 
 module Very_low_priority_work = struct
