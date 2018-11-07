@@ -244,3 +244,8 @@ and Very_low_priority_worker : sig
     }
 end =
   Very_low_priority_worker
+
+and Tracing : sig
+  type tracing_fns = 
+  { trace_thread_switch : Execution_context.t -> unit }
+end = Tracing

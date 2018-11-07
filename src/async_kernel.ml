@@ -31,7 +31,6 @@ module Tail = Tail
 module Throttle = Throttle
 module Time_source = Time_source
 
-
 (** {2 Toplevel functions }
 
     The functions below are broadly useful when writing Async programs, and so are made
