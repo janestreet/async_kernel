@@ -92,6 +92,7 @@ and Execution_context : sig
     { monitor : Monitor.t
     ; priority : Priority.t
     ; local_storage : Univ_map.t
+    ; tid : int
     ; backtrace_history : Backtrace.t list
     }
 end =

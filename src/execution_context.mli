@@ -7,6 +7,7 @@ type t = Types.Execution_context.t =
   { monitor : Monitor0.t
   ; priority : Priority.t
   ; local_storage : Univ_map.t
+  ; tid : int
   ; backtrace_history : Backtrace.t list
   }
 [@@deriving fields, sexp_of]
@@ -24,4 +25,5 @@ val create_like
 
 val find_local : t -> 'a Univ_map.Key.t -> 'a option
 val with_local : t -> 'a Univ_map.Key.t -> 'a option -> t
+val with_tid : t -> int -> t
 val record_backtrace : t -> t
