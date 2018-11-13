@@ -10,6 +10,10 @@
 - Deprecate `Synchronous_time_source.alarm_upper_bound` in favor of
   `Synchronous_time_source.max_allowed_alarm_time`.
 
+- Add `get_bind_to_interface` function to read current status of SO_BINDTODEVICE socket
+  option. Make both `bind_to_interface` and `get_bind_to_interface` use new type
+  `Bound_interface_name.t` for its argument/return value.
+
 ## v0.11
 
 - Removed a number of modules from `Async_kernel.Async_kernel_private`.
