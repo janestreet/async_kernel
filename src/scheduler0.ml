@@ -10,6 +10,6 @@ let set_execution_context t execution_context =
   if not (phys_equal t.current_execution_context execution_context)
   then (
     if t.current_execution_context.tid <> execution_context.tid then (!Tracing.fns).trace_thread_switch execution_context 
-    else if t.cycle_started then ((!Tracing.fns).trace_thread_switch execution_context; t.cycle_started <- false) ;
+    else if t.cycle_started && t.current_execution_context.tid <> 0 then ((!Tracing.fns).trace_thread_switch execution_context; t.cycle_started <- false) ;
     t.current_execution_context <- execution_context )
 ;;
