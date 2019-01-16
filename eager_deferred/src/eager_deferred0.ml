@@ -46,7 +46,11 @@ let any ts =
   | None -> Deferred.any ts
 ;;
 
-let any_unit ts = if List.exists ts ~f:is_determined then unit else Deferred.any_unit ts
+let any_unit ts =
+  if List.exists ts ~f:(is_determined : unit t -> bool)
+  then unit
+  else Deferred.any_unit ts
+;;
 
 module Infix = struct
   include Monad_infix

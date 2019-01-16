@@ -34,7 +34,7 @@ sig
   end
 
   val any : 'a t list -> 'a t
-  val any_unit : 'a t list -> unit t
+  val any_unit : unit t list -> unit t
   val both : 'a t -> 'b t -> ('a * 'b) t
   val create : ('a Ivar.t -> unit) -> 'a t
   val don't_wait_for : unit t -> unit

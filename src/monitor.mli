@@ -181,6 +181,7 @@ val catch_error : ((unit -> unit) -> Error.t Deferred.t) with_optional_monitor_n
     running in.  This name will appear when printing the errors. *)
 val protect :
   (?extract_exn:bool (** default is [false] *)
+   -> ?run:[`Now | `Schedule] (** default is [`Schedule] *)
    -> (unit -> 'a Deferred.t)
    -> finally:(unit -> unit Deferred.t)
    -> 'a Deferred.t)

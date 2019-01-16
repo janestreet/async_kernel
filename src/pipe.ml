@@ -265,7 +265,10 @@ let invariant t : unit =
       ~size_budget:(check (fun size_budget -> assert (size_budget >= 0)))
       ~pushback:
         (check (fun pushback ->
-           assert (Ivar.is_full pushback = (length t <= t.size_budget || is_closed t))))
+           assert (
+             Bool.equal
+               (Ivar.is_full pushback)
+               (length t <= t.size_budget || is_closed t))))
       ~num_values_read:ignore
       ~blocked_flushes:
         (check (fun blocked_flushes ->

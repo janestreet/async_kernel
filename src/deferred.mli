@@ -99,7 +99,7 @@ val all_unit : unit t list -> unit t
 val any : 'a t list -> 'a t
 
 (** [any_unit] is like [any], but ignores results of the component deferreds. *)
-val any_unit : 'a t list -> unit t
+val any_unit : unit t list -> unit t
 
 (** [don't_wait_for t] ignores [t].  It is like [Fn.ignore], but is more constrained
     because it requires a [unit Deferred.t].

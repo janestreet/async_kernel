@@ -1,6 +1,7 @@
 module Debug_in_this_directory = Debug
 module Time_ns_in_this_directory = Time_ns
 open! Core_kernel
+include Int.Replace_polymorphic_compare
 module Debug = Debug_in_this_directory
 module Time_ns = Time_ns_in_this_directory
 module Epoll_max_ready_events = Async_kernel_config.Epoll_max_ready_events

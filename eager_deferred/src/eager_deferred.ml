@@ -17,4 +17,18 @@ module Use = struct
 
   let upon = Eager_deferred1.upon
   let ( >>> ) = Eager_deferred1.Infix.( >>> )
+
+  let ( >>=? ) x f =
+    x
+    >>= function
+    | Error _ as error -> return error
+    | Ok v -> f v
+  ;;
+
+  let ( >>|? ) x f =
+    x
+    >>| function
+    | Error _ as error -> error
+    | Ok v -> Ok (f v)
+  ;;
 end

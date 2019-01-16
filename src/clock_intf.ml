@@ -235,8 +235,9 @@ module type Clock = sig
 
   (** [run_at_intervals' ?start ?stop span f] runs [f()] at increments of [start + i *
       span] for nonnegative integers [i], until [stop] becomes determined.
-      [run_at_intervals'] waits for the result of [f] to become determined before waiting
-      for the next interval.
+      If the result of [f] is not determined fast enough then the next interval(s)
+      are skipped so that there are never multiple concurrent invocations of [f] in
+      flight.
 
       Exceptions raised by [f] are always sent to monitor in effect when
       [run_at_intervals'] was called, even with [~continue_on_error:true]. *)

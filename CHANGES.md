@@ -151,7 +151,7 @@
   to reliably go in the direction you don't want:
 
     $ cat pipes.ml
-    #!/j/office/app/jane-script/prod/113.34/jane-script run
+    #!/some/path/jane-script run
     open Core.Std
     open Async.Std
 

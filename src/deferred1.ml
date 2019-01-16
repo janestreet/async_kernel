@@ -155,7 +155,7 @@ let choose choices =
 
 let any_f ts f = choose (List.map ts ~f:(fun t -> choice t f))
 let any ts = any_f ts Fn.id
-let any_unit ts = any_f ts Fn.ignore
+let any_unit ts = any_f ts (Fn.ignore : unit -> unit)
 
 let for_ start ~to_ ~do_ =
   let rec loop i =
