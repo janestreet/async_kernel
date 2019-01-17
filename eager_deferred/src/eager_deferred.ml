@@ -1,7 +1,8 @@
 open! Core_kernel
 open! Async_kernel
 open! Import
-include Eager_deferred1
+
+include Eager_deferred1  (** @open *)
 
 (** Intended usage is to [open Eager_deferred.Use] to shadow operations from the non-eager
     world and rebind them to their eager counterparts. *)
