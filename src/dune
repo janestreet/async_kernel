@@ -1,3 +1,3 @@
 (library (name async_kernel) (public_name async_kernel)
- (libraries core_kernel)
+ (libraries core_kernel core_kernel.thread_pool_cpu_affinity)
  (preprocess (pps ppx_jane -annotated-ignores -check-doc-comments)))

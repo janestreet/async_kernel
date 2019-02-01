@@ -24,18 +24,6 @@ module Max_num_open_file_descrs : sig
   val default : t
 end
 
-module Thread_pool_cpu_affinity : sig
-  module Cpuset : sig
-    include Validated.S with type raw := Int.Set.t
-    include Equal.S with type t := t
-  end
-
-  type t =
-    | Inherit
-    | Cpuset of Cpuset.t
-  [@@deriving sexp_of]
-end
-
 module Dump_core_on_job_delay : sig
   module How_to_dump : sig
     type t =
