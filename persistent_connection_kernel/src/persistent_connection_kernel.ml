@@ -1,6 +1,6 @@
-open Core_kernel
-open Deferred_std
-include Persistent_connection_intf
+open! Core_kernel
+open! Async_kernel
+include Persistent_connection_kernel_intf
 
 module Make (Conn : T) = struct
   type address = Conn.Address.t [@@deriving sexp_of]

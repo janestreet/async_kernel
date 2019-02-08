@@ -7,7 +7,6 @@
 open! Core_kernel
 open! Import
 module Async_kernel_config = Async_kernel_config
-module Async_kernel_persistent_connection = Persistent_connection
 module Async_kernel_require_explicit_time_source = Require_explicit_time_source
 module Async_kernel_scheduler = Scheduler
 module Bvar = Bvar

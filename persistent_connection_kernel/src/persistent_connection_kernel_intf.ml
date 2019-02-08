@@ -3,6 +3,7 @@
     established. *)
 
 open! Core_kernel
+open! Async_kernel
 
 module type Closable = sig
   (** a connection type *)
@@ -110,7 +111,7 @@ module type T = sig
   include Closable with type t := t
 end
 
-module type Persistent_connection = sig
+module type Persistent_connection_kernel = sig
   module type S = S
   module type T = T
 
