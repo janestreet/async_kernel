@@ -77,6 +77,7 @@ module Async_kernel_private = struct
   module Ivar0 = Ivar0
   module Ivar_filler = Ivar_filler
   module Job = Job
+  module Stack_or_counter = Stack_or_counter
 end
 
 (**/**)

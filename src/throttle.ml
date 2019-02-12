@@ -62,7 +62,7 @@ type 'a t =
   (* [job_resources_not_in_use] holds resources that are not currently in use by a
      running job. *)
   ; job_resources_not_in_use :
-      'a Stack.t
+      'a Stack_or_counter.t
   (* [jobs_waiting_to_start] is the queue of jobs that haven't yet started. *)
   ; jobs_waiting_to_start :
       'a Internal_job.t Queue.t
@@ -104,9 +104,9 @@ let invariant invariant_a t : unit =
         (check (fun max_concurrent_jobs -> assert (max_concurrent_jobs > 0)))
       ~job_resources_not_in_use:
         (check (fun job_resources_not_in_use ->
-           Stack.iter job_resources_not_in_use ~f:invariant_a;
+           Stack_or_counter.iter job_resources_not_in_use ~f:invariant_a;
            assert (
-             Stack.length job_resources_not_in_use
+             Stack_or_counter.length job_resources_not_in_use
              = if t.is_dead then 0 else t.max_concurrent_jobs - t.num_jobs_running)))
       ~jobs_waiting_to_start:
         (check (function jobs_waiting_to_start ->
@@ -156,8 +156,8 @@ let kill t =
     t.is_dead <- true;
     Queue.iter t.jobs_waiting_to_start ~f:Internal_job.abort;
     Queue.clear t.jobs_waiting_to_start;
-    Stack.iter t.job_resources_not_in_use ~f:(fun a -> clean_resource t a);
-    Stack.clear t.job_resources_not_in_use)
+    Stack_or_counter.iter t.job_resources_not_in_use ~f:(fun a -> clean_resource t a);
+    Stack_or_counter.clear t.job_resources_not_in_use)
 ;;
 
 let at_kill t f =
@@ -175,7 +175,7 @@ let rec start_job t =
   assert (not (Queue.is_empty t.jobs_waiting_to_start));
   let job = Queue.dequeue_exn t.jobs_waiting_to_start in
   t.num_jobs_running <- t.num_jobs_running + 1;
-  let job_resource = Stack.pop_exn t.job_resources_not_in_use in
+  let job_resource = Stack_or_counter.pop_exn t.job_resources_not_in_use in
   Internal_job.run job job_resource
   >>> fun res ->
   t.num_jobs_running <- t.num_jobs_running - 1;
@@ -185,7 +185,7 @@ let rec start_job t =
   if t.is_dead
   then clean_resource t job_resource
   else (
-    Stack.push t.job_resources_not_in_use job_resource;
+    Stack_or_counter.push t.job_resources_not_in_use job_resource;
     if not (Queue.is_empty t.jobs_waiting_to_start)
     then start_job t
     else (
@@ -196,11 +196,11 @@ let rec start_job t =
         t.capacity_available <- None))
 ;;
 
-let create_with ~continue_on_error job_resources =
-  let max_concurrent_jobs = List.length job_resources in
+let create_internal ~continue_on_error job_resources =
+  let max_concurrent_jobs = Stack_or_counter.length job_resources in
   { continue_on_error
   ; max_concurrent_jobs
-  ; job_resources_not_in_use = Stack.of_list job_resources
+  ; job_resources_not_in_use = job_resources
   ; jobs_waiting_to_start = Queue.create ()
   ; num_jobs_running = 0
   ; capacity_available = None
@@ -209,6 +209,10 @@ let create_with ~continue_on_error job_resources =
   ; num_resources_not_cleaned = max_concurrent_jobs
   ; cleaned = Ivar.create ()
   }
+;;
+
+let create_with ~continue_on_error job_resources =
+  create_internal ~continue_on_error (Stack_or_counter.of_list job_resources)
 ;;
 
 module Sequencer = struct
@@ -224,7 +228,9 @@ let create ~continue_on_error ~max_concurrent_jobs =
       [%message
         "Throttle.create requires positive max_concurrent_jobs, but got"
           (max_concurrent_jobs : int)];
-  create_with ~continue_on_error (List.init max_concurrent_jobs ~f:ignore)
+  create_internal
+    ~continue_on_error
+    (Stack_or_counter.create_counter ~length:max_concurrent_jobs)
 ;;
 
 module Job = struct
