@@ -34,7 +34,7 @@ module type Time_source = sig
   val read_only : [> read] T1.t -> t
 
   val create
-    :  ?timing_wheel_config:Timing_wheel_ns.Config.t
+    :  ?timing_wheel_config:Timing_wheel.Config.t
     -> now:Time_ns.t
     -> unit
     -> read_write T1.t
@@ -59,8 +59,8 @@ module type Time_source = sig
 
   (** Unlike in [Synchronous_time_source], the [advance] function here only approximately
       determines the set of events to fire. You should also call [fire_past_alarms] if you
-      want precision (see docs for [Timing_wheel_ns.advance_clock] vs.
-      [Timing_wheel_ns.fire_past_alarms]). *)
+      want precision (see docs for [Timing_wheel.advance_clock] vs.
+      [Timing_wheel.fire_past_alarms]). *)
   val advance : [> write] T1.t -> to_:Time_ns.t -> unit
 
   val advance_by : [> write] T1.t -> Time_ns.Span.t -> unit

@@ -76,7 +76,7 @@ and Event : sig
   end
 
   type t =
-    { mutable alarm : Job_or_event.t Timing_wheel_ns.Alarm.t
+    { mutable alarm : Job_or_event.t Timing_wheel.Alarm.t
     ; mutable at : Time_ns.t
     ; callback : unit -> unit
     ; execution_context : Execution_context.t
@@ -221,10 +221,10 @@ and Time_source : sig
   type -'rw t1 =
     { mutable advance_errors : Error.t list
     ; mutable am_advancing : bool
-    ; events : Job_or_event.t Timing_wheel_ns.t
+    ; events : Job_or_event.t Timing_wheel.t
     ; mutable fired_events : Event.t
     ; mutable most_recently_fired : Event.t
-    ; handle_fired : Job_or_event.t Timing_wheel_ns.Alarm.t -> unit
+    ; handle_fired : Job_or_event.t Timing_wheel.Alarm.t -> unit
     ; is_wall_clock : bool
     ; scheduler : Scheduler.t
     }

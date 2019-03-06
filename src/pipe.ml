@@ -1150,6 +1150,7 @@ let interleave inputs =
 ;;
 
 let merge inputs ~compare =
+  let module Heap = Pairing_heap in
   let r, w = create () in
   upon (closed w) (fun () -> List.iter inputs ~f:close_read);
   let heap = Heap.create ~cmp:(fun (a1, _) (a2, _) -> compare a1 a2) () in

@@ -7,5 +7,5 @@ include Core_kernel.Core_kernel_private.Time_ns_alternate_sexp
    negative time and a negative span. *)
 let after t span =
   let result = add t span in
-  if Span.( > ) span Span.zero && result < t then max_value else result
+  if Span.( > ) span Span.zero && result < t then max_value_for_1us_rounding else result
 ;;

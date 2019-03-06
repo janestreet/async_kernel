@@ -12,7 +12,7 @@ module Event_is_block : sig end = struct
 
   type _t = t =
     { (* must never be immediate *)
-      mutable alarm : Job_or_event.t Timing_wheel_ns.Alarm.t
+      mutable alarm : Job_or_event.t Timing_wheel.Alarm.t
     ; mutable at : Time_ns.t
     ; callback : unit -> unit
     ; execution_context : Execution_context.t

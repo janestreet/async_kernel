@@ -152,7 +152,7 @@ type t =
   ; record_backtraces : bool sexp_option
   ; report_thread_pool_stuck_for : Time_ns.Span.t sexp_option
   ; thread_pool_cpu_affinity : Thread_pool_cpu_affinity.t sexp_option
-  ; timing_wheel_config : Timing_wheel_ns.Config.t sexp_option
+  ; timing_wheel_config : Timing_wheel.Config.t sexp_option
   }
 [@@deriving fields, sexp]
 
@@ -177,15 +177,15 @@ let empty =
 ;;
 
 let default_timing_wheel_config_for_word_size (word_size : Word_size.t) =
-  let module Alarm_precision = Timing_wheel_ns.Alarm_precision in
+  let module Alarm_precision = Timing_wheel.Alarm_precision in
   let alarm_precision, level_bits =
     match word_size with
     | W32 -> Alarm_precision.about_one_millisecond, [ 10; 10; 9 ]
     | W64 -> Alarm_precision.(div about_one_millisecond ~pow2:3), [ 14; 15; 9; 6 ]
   in
-  Timing_wheel_ns.Config.create
+  Timing_wheel.Config.create
     ~alarm_precision
-    ~level_bits:(Timing_wheel_ns.Level_bits.create_exn level_bits)
+    ~level_bits:(Timing_wheel.Level_bits.create_exn level_bits)
     ()
 ;;
 
@@ -413,7 +413,7 @@ let field_descriptions () : string =
            ])
       ~timing_wheel_config:
         (field
-           [%sexp_of: Timing_wheel_ns.Config.t]
+           [%sexp_of: Timing_wheel.Config.t]
            [ {|
   This is used to adjust the time/space tradeoff in the timing wheel
   used to implement Async's clock.  Time is split into intervals of

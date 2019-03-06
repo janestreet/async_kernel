@@ -4,7 +4,7 @@ open! Deferred_std
 
 let debug = Debug.clock
 
-module Alarm = Timing_wheel_ns.Alarm
+module Alarm = Timing_wheel.Alarm
 module Deferred = Deferred1
 module Scheduler = Scheduler1
 
@@ -35,7 +35,7 @@ module T1 = struct
         (is_wall_clock : bool)
           (* We don't display the [Job.t]s in [events] because those are
              pool pointers, which are uninformative. *)
-          (events : _ Timing_wheel_ns.t)]
+          (events : _ Timing_wheel.t)]
   ;;
 end
 
@@ -55,15 +55,15 @@ let invariant_with_jobs = invariant_with_jobs
 let read_only (t : [> read] T1.t) = (t :> t)
 let create = Scheduler.create_time_source
 let wall_clock = Scheduler.wall_clock
-let alarm_precision t = Timing_wheel_ns.alarm_precision t.events
-let next_alarm_fires_at t = Timing_wheel_ns.next_alarm_fires_at t.events
-let timing_wheel_now t = Timing_wheel_ns.now t.events
+let alarm_precision t = Timing_wheel.alarm_precision t.events
+let next_alarm_fires_at t = Timing_wheel.next_alarm_fires_at t.events
+let timing_wheel_now t = Timing_wheel.now t.events
 
 let now t =
   if t.is_wall_clock
   then
     (* For the wall-clock time-source, we use [Time_ns.now ()] rather than
-       [Timing_wheel_ns.now t.events].  The latter is only updated at the start of each
+       [Timing_wheel.now t.events].  The latter is only updated at the start of each
        cycle.  There can be substantial difference between the two when people do long
        running computations or mix blocking code with async.  And humans expect that
        wall-clock time is based on [Time.now], not some artifact of async
@@ -119,7 +119,7 @@ let span_to_time t span = Time_ns.after (now t) span
 
 let schedule_job t ~at execution_context f a =
   let alarm =
-    Timing_wheel_ns.add
+    Timing_wheel.add
       t.events
       ~at
       (Job_or_event.of_job (Scheduler.create_job t.scheduler execution_context f a))
@@ -132,7 +132,7 @@ let schedule_job t ~at execution_context f a =
 
 let run_at_internal t time f a =
   let execution_context = Scheduler.current_execution_context t.scheduler in
-  if Time_ns.( > ) time (Timing_wheel_ns.now t.events)
+  if Time_ns.( > ) time (Timing_wheel.now t.events)
   then schedule_job t ~at:time execution_context f a
   else (
     Scheduler.enqueue t.scheduler execution_context f a;
@@ -145,7 +145,7 @@ let run_after t span f a = run_at t (span_to_time t span) f a
 let at =
   let fill result = Ivar.fill result () in
   fun t time ->
-    if Time_ns.( <= ) time (Timing_wheel_ns.now t.events)
+    if Time_ns.( <= ) time (Timing_wheel.now t.events)
     then return ()
     else (
       let result = Ivar.create () in
@@ -165,11 +165,11 @@ let remove_alarm t alarm : unit =
      (* This is unreachable because [alarm] only ever comes from [Event.alarm] which only
         ever gets populated by a call to [schedule_job]. *)
      assert false);
-  Timing_wheel_ns.remove t.events alarm
+  Timing_wheel.remove t.events alarm
 ;;
 
 let remove_alarm_if_scheduled t alarm =
-  if Timing_wheel_ns.mem t.events alarm then remove_alarm t alarm
+  if Timing_wheel.mem t.events alarm then remove_alarm t alarm
 ;;
 
 module Event = struct
@@ -217,8 +217,8 @@ module Event = struct
         ~alarm:
           (check (fun alarm ->
              if Ivar.is_full t.fired
-             then assert (not (Timing_wheel_ns.mem events alarm))
-             else if Timing_wheel_ns.mem events alarm
+             then assert (not (Timing_wheel.mem events alarm))
+             else if Timing_wheel.mem events alarm
              then assert (Job_or_event.is_job (Alarm.value events alarm))))
         ~fire:ignore
         ~fired:
@@ -231,7 +231,7 @@ module Event = struct
           (check (fun num_fires_to_skip -> assert (num_fires_to_skip >= 0)))
         ~scheduled_at:
           (check (fun scheduled_at ->
-             if Timing_wheel_ns.mem events t.alarm
+             if Timing_wheel.mem events t.alarm
              then
                [%test_result: Time_ns.t]
                  scheduled_at
@@ -307,20 +307,20 @@ module Event = struct
     | Some (Happened h) -> Previously_happened h
     | None ->
       let events = t.time_source.events in
-      let is_in_timing_wheel = Timing_wheel_ns.mem events t.alarm in
+      let is_in_timing_wheel = Timing_wheel.mem events t.alarm in
       let am_trying_to_reschedule_in_the_future =
-        Time_ns.( > ) at (Timing_wheel_ns.now events)
+        Time_ns.( > ) at (Timing_wheel.now events)
       in
       t.scheduled_at <- at;
       (match am_trying_to_reschedule_in_the_future, is_in_timing_wheel with
        | false, false -> ()
        | false, true ->
          t.time_source.handle_fired t.alarm;
-         Timing_wheel_ns.remove events t.alarm
+         Timing_wheel.remove events t.alarm
        | true, false ->
          t.num_fires_to_skip <- t.num_fires_to_skip + 1;
          schedule t
-       | true, true -> Timing_wheel_ns.reschedule events t.alarm ~at);
+       | true, true -> Timing_wheel.reschedule events t.alarm ~at);
       Ok
   ;;
 
@@ -402,7 +402,7 @@ module Continue = struct
 
   let at t time_source =
     match t with
-    | Immediately -> Timing_wheel_ns.now time_source.events
+    | Immediately -> Timing_wheel.now time_source.events
     | After span -> span_to_time time_source span
     | Next_multiple (base, interval) ->
       Time_ns.next_multiple ~base ~after:(now time_source) ~interval ()
@@ -426,7 +426,7 @@ let run_repeatedly
     | None -> Deferred.never ()
     | Some stop ->
       upon stop (fun () ->
-        if Timing_wheel_ns.mem t.events !alarm
+        if Timing_wheel.mem t.events !alarm
         then (
           remove_alarm t !alarm;
           Ivar.fill_if_empty finished ()));

@@ -1,9 +1,9 @@
 (** A synchronous version of [Async_kernel.Time_source].  [advance_by_alarms] runs
     alarms immediately, rather than enqueueing Async jobs.
 
-    [Synchronous_time_source] is a wrapper around [Timing_wheel_ns].  One difference is
+    [Synchronous_time_source] is a wrapper around [Timing_wheel].  One difference is
     that [Synchronous_time_source] alarms fire in non-decreasing time order, whereas in
-    [Timing_wheel_ns] that is only true for alarms in different time intervals as
+    [Timing_wheel] that is only true for alarms in different time intervals as
     determined by [alarm_precision]. *)
 
 open! Core_kernel
@@ -36,7 +36,7 @@ type callback = unit -> unit
     is used to tune performance; configuration does not affect the fact that alarms fire
     in non-decreasing time order. *)
 val create
-  :  ?timing_wheel_config:Timing_wheel_ns.Config.t
+  :  ?timing_wheel_config:Timing_wheel.Config.t
   -> now:Time_ns.t
   -> unit
   -> read_write T1.t
@@ -129,7 +129,7 @@ module Event : sig
   val schedule_at_intervals : [> read] T1.t -> t -> Time_ns.Span.t -> unit Or_error.t
 end
 
-val default_timing_wheel_config : Timing_wheel_ns.Config.t
+val default_timing_wheel_config : Timing_wheel.Config.t
 
 (** A time source with [now t] given by wall-clock time (i.e. [Time_ns.now]), and
     automatically advanced at the start of each Async cycle.  The wall clock uses the same

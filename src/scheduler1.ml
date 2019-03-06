@@ -3,7 +3,7 @@ open Import
 include (Scheduler0 : module type of Scheduler0 with type t := Scheduler0.t)
 module Synchronous_time_source = Synchronous_time_source0
 module Event = Synchronous_time_source.Event
-module Alarm = Timing_wheel_ns.Alarm
+module Alarm = Timing_wheel.Alarm
 module Job_or_event = Synchronous_time_source.T1.Job_or_event
 
 let debug = Debug.scheduler
@@ -248,7 +248,7 @@ let create () =
     ; on_end_of_cycle = Fn.id
     }
   and events =
-    Timing_wheel_ns.create ~config:Async_kernel_config.timing_wheel_config ~start:now
+    Timing_wheel.create ~config:Async_kernel_config.timing_wheel_config ~start:now
   and time_source =
     { Synchronous_time_source.T1.advance_errors = []
     ; am_advancing = false
@@ -353,7 +353,7 @@ let create_time_source
       ()
   =
   let t = t () in
-  let events = Timing_wheel_ns.create ~config:timing_wheel_config ~start:now in
+  let events = Timing_wheel.create ~config:timing_wheel_config ~start:now in
   let rec time_source : _ Synchronous_time_source.T1.t =
     { advance_errors = []
     ; am_advancing = false

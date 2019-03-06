@@ -92,8 +92,8 @@ val max_num_threads : Max_num_threads.t
 val min_inter_cycle_timeout : Min_inter_cycle_timeout.t
 val record_backtraces : bool
 val report_thread_pool_stuck_for : Time_ns.Span.t
-val timing_wheel_config : Timing_wheel_ns.Config.t
-val default_timing_wheel_config_for_word_size : Word_size.t -> Timing_wheel_ns.Config.t
+val timing_wheel_config : Timing_wheel.Config.t
+val default_timing_wheel_config_for_word_size : Word_size.t -> Timing_wheel.Config.t
 
 (** [!task_id] is used in debug messages.  It is is set in [Async_unix] to include
     the thread and pid. *)

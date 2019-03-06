@@ -37,10 +37,8 @@ type 'a t = ('a, [`throttle]) T2.t [@@deriving sexp_of]
 include Invariant.S1 with type 'a t := 'a t
 
 (** [create ~continue_on_error ~max_concurrent_jobs] returns a throttle that will run up
-    to [max_concurrent_jobs] concurrently.
-
-    If some job raises an exception, then the throttle will be killed, unless
-    [continue_on_error] is true. *)
+    to [max_concurrent_jobs] concurrently.  If some job raises an exception, then the
+    throttle will be killed, unless [continue_on_error] is true. *)
 val create : continue_on_error:bool -> max_concurrent_jobs:int -> unit t
 
 (** [create_with ~continue_on_error job_resources] returns a throttle that will run up to
