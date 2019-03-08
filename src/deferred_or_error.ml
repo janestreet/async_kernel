@@ -69,6 +69,10 @@ let unimplemented msg = Deferred.return (Or_error.unimplemented msg)
 let combine_errors l = Deferred.map (Deferred.all l) ~f:Or_error.combine_errors
 let combine_errors_unit l = Deferred.map (Deferred.all l) ~f:Or_error.combine_errors_unit
 
+let filter_ok_at_least_one l =
+  Deferred.map (Deferred.all l) ~f:Or_error.filter_ok_at_least_one
+;;
+
 let find_map_ok l ~f =
   Deferred.repeat_until_finished (l, []) (fun (l, errors) ->
     match l with

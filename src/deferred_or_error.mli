@@ -11,7 +11,7 @@
     that property in mind, [Deferred.Or_error.List.iter], for example, does not wrap the
     execution of the given iter function [f] inside a monitor.  If one of these
     application raises, the whole function [Deferred.Or_error.List.iter] will raise as a
-    way to try to alert the developer that one the function is broken and needs attention
+    way to try to alert the developer that the function is broken and needs attention
     and fixing, rather than silently catching the error and converting it to
     [Or_error.Error].
 
@@ -56,6 +56,7 @@ val unimplemented : string -> _ t
 
 val combine_errors : 'a t list -> 'a list t
 val combine_errors_unit : unit t list -> unit t
+val filter_ok_at_least_one : 'a t list -> 'a list t
 
 (** [find_map_ok l ~f] returns the first value in [l] for which [f] returns [Ok],
     otherwise it returns the same error as [combine_errors (Deferred.List.map l ~f)]. *)
