@@ -17,7 +17,6 @@ module Execution_context = Execution_context
 module Gc = Async_gc
 module Invariant = Async_invariant
 module Ivar = Ivar
-module Quickcheck = Async_quickcheck
 module Lazy_deferred = Lazy_deferred
 module Monad_sequence = Monad_sequence
 module Monitor = Monitor
