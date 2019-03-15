@@ -75,6 +75,7 @@ val ok_unit : unit t
     or kept ([extract_exn:false]). *)
 val try_with
   :  ?extract_exn:bool (** default is [false] *)
+  -> ?run:[`Now | `Schedule] (** default is [`Schedule] *)
   -> ?here:Lexing.position
   -> ?name:string
   -> (unit -> 'a Deferred.t)
@@ -82,6 +83,7 @@ val try_with
 
 val try_with_join
   :  ?extract_exn:bool (** default is [false] *)
+  -> ?run:[`Now | `Schedule] (** default is [`Schedule] *)
   -> ?here:Lexing.position
   -> ?name:string
   -> (unit -> 'a t)

@@ -24,6 +24,7 @@ val find_map_ok : 'a list -> f:('a -> 'b t) -> 'b t
 (** Note that [try_with f] is eager only in the [Ok] case. *)
 val try_with
   :  ?extract_exn:bool
+  -> ?run:[`Now | `Schedule]
   -> ?here:Lexing.position
   -> ?name:string
   -> (unit -> 'a Deferred.t)
@@ -32,6 +33,7 @@ val try_with
 (** Note that [try_with_join f] is eager only when no exception is raised by [f]. *)
 val try_with_join
   :  ?extract_exn:bool
+  -> ?run:[`Now | `Schedule]
   -> ?here:Lexing.position
   -> ?name:string
   -> (unit -> 'a t)
