@@ -43,7 +43,7 @@ module type S = sig
       | Attempting_to_connect
       | Obtained_address of address
       | Failed_to_connect of Error.t
-      | Connected of conn sexp_opaque
+      | Connected of conn
       | Disconnected
     [@@deriving sexp_of]
 

@@ -11,7 +11,7 @@ module Make (Conn : T) = struct
       | Attempting_to_connect
       | Obtained_address of address
       | Failed_to_connect of Error.t
-      | Connected of conn sexp_opaque
+      | Connected of (conn[@sexp.opaque])
       | Disconnected
     [@@deriving sexp_of]
 

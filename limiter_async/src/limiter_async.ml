@@ -27,7 +27,7 @@ module Expert = struct
     (* Ivar that is filled the next time return_to_hopper is called. *)
     ; mutable hopper_filled : unit Ivar.t option
     ; limiter               : Limiter.t
-    ; throttle_queue        : (int * Job.t) Queue.t sexp_opaque }
+    ; throttle_queue        : ((int * Job.t) Queue.t [@sexp.opaque]) }
   [@@deriving sexp_of]
 
   let to_jane_limiter t = t.limiter

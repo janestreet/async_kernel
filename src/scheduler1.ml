@@ -106,10 +106,9 @@ type t = Scheduler0.t =
      and we want to avoid extra function calls. *)
   ; mutable job_queued_hook : (Priority.t -> unit) option
   ; mutable event_added_hook : (Time_ns.t -> unit) option
-  ; mutable yield : (unit, read_write) Types.Bvar.t sexp_opaque
+  ; mutable yield : ((unit, read_write) Types.Bvar.t[@sexp.opaque])
   ; mutable yield_until_no_jobs_remain :
-      (unit, read_write) Types.Bvar.t sexp_opaque
-  (* configuration*)
+      ((unit, read_write) Types.Bvar.t[@sexp.opaque] (* configuration*))
   ; mutable check_invariants : bool
   ; mutable max_num_jobs_per_priority_per_cycle : Max_num_jobs_per_priority_per_cycle.t
   ; mutable record_backtraces : bool

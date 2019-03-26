@@ -8,7 +8,7 @@ let dummy_e = Execution_context.main
 let dummy_f : Obj.t -> unit = ignore
 let dummy_a : Obj.t = Obj.repr ()
 
-type slots = (Execution_context.t, Obj.t -> unit, Obj.t sexp_opaque) Slots.t3
+type slots = (Execution_context.t, Obj.t -> unit, (Obj.t[@sexp.opaque])) Slots.t3
 [@@deriving sexp_of]
 
 type t = slots Pool.t [@@deriving sexp_of]

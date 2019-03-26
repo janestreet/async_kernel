@@ -181,9 +181,9 @@ module Exn_for_monitor = struct
     in
     [%sexp
       (exn : exn)
-    , (list_if_not_empty backtrace : string list sexp_option)
+    , (list_if_not_empty backtrace : (string list option[@sexp.option]))
     , `backtrace_history
-        (list_if_not_empty backtrace_history : Backtrace.t list sexp_option)]
+        (list_if_not_empty backtrace_history : (Backtrace.t list option[@sexp.option]))]
   ;;
 end
 

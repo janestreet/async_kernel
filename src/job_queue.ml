@@ -20,9 +20,9 @@ type t = Types.Job_queue.t =
      shrinks.  [jobs] is somewhat like a [Core_kernel.Pool] specialized to 3-tuples; we
      don't use [Pool] because that implements a set, where [jobs] is a queue. *)
   ; mutable jobs :
-      Obj.t A.t sexp_opaque
-  (* [mask] is [capacity t - 1], and is used for quickly computing [i mod (capacity
-     t)] *)
+      (Obj.t A.t[@sexp.opaque]
+      (* [mask] is [capacity t - 1], and is used for quickly computing [i mod (capacity
+         t)] *))
   ; mutable mask :
       int
   (* [front] is the index of the first job in the queue.  The array index of that job's

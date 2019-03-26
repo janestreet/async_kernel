@@ -136,23 +136,23 @@ module File_descr_watcher = struct
 end
 
 type t =
-  { abort_after_thread_pool_stuck_for : Time_ns.Span.t sexp_option
-  ; check_invariants : bool sexp_option
-  ; detect_invalid_access_from_thread : bool sexp_option
-  ; dump_core_on_job_delay : Dump_core_on_job_delay.t sexp_option
-  ; epoll_max_ready_events : Epoll_max_ready_events.t sexp_option
-  ; file_descr_watcher : File_descr_watcher.t sexp_option
-  ; max_inter_cycle_timeout : Max_inter_cycle_timeout.t sexp_option
-  ; max_num_open_file_descrs : Max_num_open_file_descrs.t sexp_option
-  ; max_num_threads : Max_num_threads.t sexp_option
-  ; max_num_jobs_per_priority_per_cycle :
-      Max_num_jobs_per_priority_per_cycle.t sexp_option
-  ; min_inter_cycle_timeout : Min_inter_cycle_timeout.t sexp_option
-  ; print_debug_messages_for : Debug_tag.t list sexp_option
-  ; record_backtraces : bool sexp_option
-  ; report_thread_pool_stuck_for : Time_ns.Span.t sexp_option
-  ; thread_pool_cpu_affinity : Thread_pool_cpu_affinity.t sexp_option
-  ; timing_wheel_config : Timing_wheel.Config.t sexp_option
+  { abort_after_thread_pool_stuck_for : Time_ns.Span.t option [@sexp.option]
+  ; check_invariants : bool option [@sexp.option]
+  ; detect_invalid_access_from_thread : bool option [@sexp.option]
+  ; dump_core_on_job_delay : Dump_core_on_job_delay.t option [@sexp.option]
+  ; epoll_max_ready_events : Epoll_max_ready_events.t option [@sexp.option]
+  ; file_descr_watcher : File_descr_watcher.t option [@sexp.option]
+  ; max_inter_cycle_timeout : Max_inter_cycle_timeout.t option [@sexp.option]
+  ; max_num_open_file_descrs : Max_num_open_file_descrs.t option [@sexp.option]
+  ; max_num_threads : Max_num_threads.t option [@sexp.option]
+  ; max_num_jobs_per_priority_per_cycle : Max_num_jobs_per_priority_per_cycle.t option
+                                            [@sexp.option]
+  ; min_inter_cycle_timeout : Min_inter_cycle_timeout.t option [@sexp.option]
+  ; print_debug_messages_for : Debug_tag.t list option [@sexp.option]
+  ; record_backtraces : bool option [@sexp.option]
+  ; report_thread_pool_stuck_for : Time_ns.Span.t option [@sexp.option]
+  ; thread_pool_cpu_affinity : Thread_pool_cpu_affinity.t option [@sexp.option]
+  ; timing_wheel_config : Timing_wheel.Config.t option [@sexp.option]
   }
 [@@deriving fields, sexp]
 
