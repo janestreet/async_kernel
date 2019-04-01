@@ -177,23 +177,20 @@ module T1 = struct
     ; (* [am_advancing] is true only during [advance_by_alarms], and is used to cause
          callbacks to raise if they call [advance_by_alarms]. *)
       mutable am_advancing : bool
-    ; events :
-        Job_or_event.t Timing_wheel.t
-    (* [fired_events] is the front of the singly linked list of fired events, which is
-       stored in increasing order of [Event.at]. *)
-    ; mutable fired_events :
-        Event.t
-    (* [most_recently_fired] is the event that was most recently inserted into
-       [fired_events].  It is used as an optimization to allow insertion of subsequent
-       events to start later in the list rather than at the beginning.  It specifically
-       avoids quadratic behavior when inserting multiple events that have exactly the same
-       time -- the time source fires such events in the order they were added, and we want
-       them to be in that same order in [fired_events]. *)
-    ; mutable most_recently_fired :
-        Event.t
-    (* We store [handle_fired] in [t] to avoid allocating it every time we call
-       [advance_clock]. *)
-    ; handle_fired : Job_or_event.t Alarm.t -> unit
+    ; events : Job_or_event.t Timing_wheel.t
+    ; (* [fired_events] is the front of the singly linked list of fired events, which is
+         stored in increasing order of [Event.at]. *)
+      mutable fired_events : Event.t
+    ; (* [most_recently_fired] is the event that was most recently inserted into
+         [fired_events].  It is used as an optimization to allow insertion of subsequent
+         events to start later in the list rather than at the beginning.  It specifically
+         avoids quadratic behavior when inserting multiple events that have exactly the
+         same time -- the time source fires such events in the order they were added, and
+         we want them to be in that same order in [fired_events]. *)
+      mutable most_recently_fired : Event.t
+    ; (* We store [handle_fired] in [t] to avoid allocating it every time we call
+         [advance_clock]. *)
+      handle_fired : Job_or_event.t Alarm.t -> unit
     ; is_wall_clock : bool
     ; scheduler : Scheduler0.t
     }

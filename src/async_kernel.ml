@@ -8,7 +8,7 @@ open! Core_kernel
 open! Import
 module Async_kernel_config = Async_kernel_config
 module Async_kernel_require_explicit_time_source = Require_explicit_time_source
-module Async_kernel_scheduler = Scheduler
+module Async_kernel_scheduler = Async_kernel_scheduler
 module Bvar = Bvar
 module Clock_ns = Clock_ns
 module Condition = Async_condition

@@ -23,12 +23,15 @@ end
   val now : unit -> t [@@deprecated "[since 2016-02] Use [Time_source]"]
 end
 
-module Scheduler : sig
+module Async_kernel_scheduler : sig
   include module type of struct
-  include Scheduler
+  include Async_kernel_scheduler
 end
 
-  val cycle_start : t -> Time_ns.t [@@deprecated "[since 2016-02] Use [Time_source]"]
+  val cycle_start : unit -> Time.t [@@deprecated "[since 2016-02] Use [Time_source]"]
+
+  val cycle_start_ns : unit -> Time_ns.t
+  [@@deprecated "[since 2016-02] Use [Time_source]"]
 end
 
 val at : Time_ns.t -> unit Deferred.t [@@deprecated "[since 2016-02] Use [Time_source]"]

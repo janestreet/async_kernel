@@ -57,41 +57,34 @@ end
 
 type 'a t =
   { continue_on_error : bool
-  ; max_concurrent_jobs :
-      int
-  (* [job_resources_not_in_use] holds resources that are not currently in use by a
-     running job. *)
-  ; job_resources_not_in_use :
-      'a Stack_or_counter.t
-  (* [jobs_waiting_to_start] is the queue of jobs that haven't yet started. *)
-  ; jobs_waiting_to_start :
-      'a Internal_job.t Queue.t
-  (* [0 <= num_jobs_running <= max_concurrent_jobs]. *)
-  ; mutable num_jobs_running :
-      int
-  (* [capacity_available] is [Some ivar] if user code has called [capacity_available t] and
-     is waiting to be notified when capacity is available in the throttle.
-     [maybe_start_job] will fill [ivar] when capacity becomes available, i.e. when
-     [jobs_waiting_to_start] is empty and [num_jobs_running < max_concurrent_jobs]. *)
-  ; mutable capacity_available :
-      unit Ivar.t option
-  (* [is_dead] is true if [t] was killed due to a job raising an exception or [kill t]
-     being called. *)
-  ; mutable is_dead :
-      bool
-  (* [cleans] holds functions that will be called to clean each resource when [t] is
-     killed. *)
-  ; mutable cleans :
-      ('a -> unit Deferred.t) list
-  (* [num_resources_not_cleaned] is the number of resources whose clean functions have not
-     yet completed.  While [t] is alive, [num_resources_not_cleaned =
-     max_concurrent_jobs].  Once [t] is killed, [num_resources_not_cleaned] decreases to
-     zero over time as the clean functions complete. *)
-  ; mutable num_resources_not_cleaned :
-      int
-  (* [cleaned] becomes determined when [num_resources_not_cleaned] reaches zero,
-     i.e. after [t] is killed and all its clean functions complete. *)
-  ; cleaned : unit Ivar.t
+  ; max_concurrent_jobs : int
+  ; (* [job_resources_not_in_use] holds resources that are not currently in use by a
+       running job. *)
+    job_resources_not_in_use : 'a Stack_or_counter.t
+  ;
+    (* [jobs_waiting_to_start] is the queue of jobs that haven't yet started. *)
+    jobs_waiting_to_start : 'a Internal_job.t Queue.t
+  ; (* [0 <= num_jobs_running <= max_concurrent_jobs]. *)
+    mutable num_jobs_running : int
+  ; (* [capacity_available] is [Some ivar] if user code has called [capacity_available t]
+       and is waiting to be notified when capacity is available in the throttle.
+       [maybe_start_job] will fill [ivar] when capacity becomes available, i.e. when
+       [jobs_waiting_to_start] is empty and [num_jobs_running < max_concurrent_jobs]. *)
+    mutable capacity_available : unit Ivar.t option
+  ; (* [is_dead] is true if [t] was killed due to a job raising an exception or [kill t]
+       being called. *)
+    mutable is_dead : bool
+  ; (* [cleans] holds functions that will be called to clean each resource when [t] is
+       killed. *)
+    mutable cleans : ('a -> unit Deferred.t) list
+  ; (* [num_resources_not_cleaned] is the number of resources whose clean functions have
+       not yet completed.  While [t] is alive, [num_resources_not_cleaned =
+       max_concurrent_jobs].  Once [t] is killed, [num_resources_not_cleaned] decreases to
+       zero over time as the clean functions complete. *)
+    mutable num_resources_not_cleaned : int
+  ; (* [cleaned] becomes determined when [num_resources_not_cleaned] reaches zero,
+       i.e. after [t] is killed and all its clean functions complete. *)
+    cleaned : unit Ivar.t
   }
 [@@deriving fields, sexp_of]
 

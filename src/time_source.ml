@@ -182,25 +182,22 @@ module Event = struct
 
   type ('a, 'h) t =
     { mutable alarm : Job_or_event.t Alarm.t
-    ; mutable fire :
-        unit
-        -> unit
-    (* As long as [Ivar.is_empty fired], we have not yet committed to whether the event
-       will happen or be aborted.  When [Ivar.is_empty fired], the alarm may or may not be
-       in the timing wheel -- if it isn't, then there's a job in Async's job queue that
-       will fire the event, unless it is aborted before that job can run. *)
-    ; fired :
-        ('a, 'h) Fired.t Ivar.t
-    (* [num_fires_to_skip] is used to reschedule events that have fired and entered the
-       Async job queue, but have not yet run.  Those jobs only run if [num_fires_to_skip =
-       0], and otherwise just decrement it.  So, to reschedule an event in such a state,
-       we increment [num_fires_to_skip] and add a new alarm to the timing wheel. *)
-    ; mutable num_fires_to_skip :
-        int
-    (* [scheduled_at] is the time at which [t] has most recently been scheduled to fire.
-       While [t.alarm] is still in the timing wheel, this is the same as [Alarm.at
-       t.alarm]. *)
-    ; mutable scheduled_at : Time_ns.t
+    ; mutable fire : unit -> unit
+    ; (* As long as [Ivar.is_empty fired], we have not yet committed to whether the event
+         will happen or be aborted.  When [Ivar.is_empty fired], the alarm may or may not
+         be in the timing wheel -- if it isn't, then there's a job in Async's job queue
+         that will fire the event, unless it is aborted before that job can run. *)
+      fired : ('a, 'h) Fired.t Ivar.t
+    ; (* [num_fires_to_skip] is used to reschedule events that have fired and entered the
+         Async job queue, but have not yet run.  Those jobs only run if [num_fires_to_skip
+         = 0], and otherwise just decrement it.  So, to reschedule an event in such a
+         state, we increment [num_fires_to_skip] and add a new alarm to the timing
+         wheel. *)
+      mutable num_fires_to_skip : int
+    ; (* [scheduled_at] is the time at which [t] has most recently been scheduled to fire.
+         While [t.alarm] is still in the timing wheel, this is the same as [Alarm.at
+         t.alarm]. *)
+      mutable scheduled_at : Time_ns.t
     ; time_source : Synchronous_time_source.t
     }
   [@@deriving fields, sexp_of]

@@ -8,13 +8,11 @@ type t = Types.Monitor.t =
   ; here : Source_code_position.t option
   ; id : int
   ; parent : t option
-  ; mutable next_error :
-      exn Types.Ivar.t
-  (* [Monitor.send_exn] schedules a job for each element of [handlers_for_all_errors]. *)
-  ; mutable handlers_for_all_errors :
-      (Types.Execution_context.t * (exn -> unit)) Bag.t
-  (* [Monitor.send_exn] extends each tail in [tails_for_all_errors]. *)
-  ; mutable tails_for_all_errors : exn Types.Tail.t list
+  ; mutable next_error : exn Types.Ivar.t
+  ; (* [Monitor.send_exn] schedules a job for each element of [handlers_for_all_errors]. *)
+    mutable handlers_for_all_errors : (Types.Execution_context.t * (exn -> unit)) Bag.t
+  ; (* [Monitor.send_exn] extends each tail in [tails_for_all_errors]. *)
+    mutable tails_for_all_errors : exn Types.Tail.t list
   ; mutable has_seen_error : bool
   ; mutable is_detached : bool
   }

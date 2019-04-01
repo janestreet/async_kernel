@@ -2,8 +2,6 @@ open Core_kernel
 open Async_kernel
 open Limiter.Infinite_or_finite
 
-module Scheduler = Async_kernel_scheduler
-
 module Outcome = struct
   type 'a t =
     | Ok of 'a
@@ -32,7 +30,7 @@ module Expert = struct
 
   let to_jane_limiter t = t.limiter
 
-  let cycle_start () = Scheduler.cycle_start (Scheduler.t ())
+  let cycle_start () = Async_kernel_scheduler.cycle_start_ns ()
 
   let create_exn
         ~hopper_to_bucket_rate_per_sec
@@ -165,7 +163,7 @@ module Expert = struct
           run_throttled_jobs_until_empty t
         | At expected_fill_time ->
           let min_fill_time =
-            Time_ns.add (cycle_start ()) (Scheduler.event_precision (Scheduler.t ()))
+            Time_ns.add (cycle_start ()) (Async_kernel_scheduler.event_precision_ns ())
           in
           Clock_ns.at (Time_ns.max expected_fill_time min_fill_time)
           >>> fun () ->
@@ -206,9 +204,8 @@ module Expert = struct
           *)
           if allow_immediate_run
           then (run_job_now t job ~return_after:amount)
-          else (Scheduler.enqueue
-                  (Scheduler.t ())
-                  Scheduler.main_execution_context
+          else (Async_kernel_scheduler.enqueue_job
+                  Execution_context.main
                   (fun t ->
                      run_job_now t job ~return_after:amount) t)
         | Unable ->
@@ -348,7 +345,7 @@ module Throttle = struct
   let num_jobs_waiting_to_start t = Queue.length t.throttle_queue
 
   let num_jobs_running t =
-    Limiter.in_flight (jlimiter t) ~now:(Scheduler.cycle_start (Scheduler.t ()))
+    Limiter.in_flight (jlimiter t) ~now:(Async_kernel_scheduler.cycle_start_ns ())
   ;;
 
   include Common

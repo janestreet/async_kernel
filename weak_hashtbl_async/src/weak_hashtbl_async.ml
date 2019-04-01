@@ -1,4 +1,5 @@
 open! Core_kernel
+open! Async_kernel
 open! Import
 include Weak_hashtbl
 
@@ -19,13 +20,7 @@ let create ?growth_allowed ?size hashable =
     if not !reclaim_will_happen
     then (
       reclaim_will_happen := true;
-      let module Scheduler = Async_kernel.Async_kernel_scheduler in
-      let scheduler = Scheduler.t () in
-      Scheduler.thread_safe_enqueue_external_job
-        scheduler
-        Scheduler.main_execution_context
-        reclaim
-        ()));
+      Async_kernel_scheduler.thread_safe_enqueue_job Execution_context.main reclaim ()));
   t
 ;;
 

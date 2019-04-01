@@ -25,10 +25,9 @@ and ('a, 'b) cell = ('a, 'b) Types.Cell.t =
            This is used when we install a handler on a full ivar since it is immediately
            added to the scheduler. *)
         mutable run : 'a -> unit
-      ; execution_context :
-          Execution_context.t
-      (* [prev] and [next] circularly doubly link all handlers of the same ivar. *)
-      ; mutable prev : ('a, [`Empty_one_or_more_handlers]) cell
+      ; execution_context : Execution_context.t
+      ; (* [prev] and [next] circularly doubly link all handlers of the same ivar. *)
+        mutable prev : ('a, [`Empty_one_or_more_handlers]) cell
       ; mutable next : ('a, [`Empty_one_or_more_handlers]) cell
       }
     -> ('a, [> `Empty_one_or_more_handlers]) cell
