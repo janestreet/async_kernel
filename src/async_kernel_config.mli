@@ -45,7 +45,53 @@ module Dump_core_on_job_delay : sig
   [@@deriving sexp]
 end
 
-type t [@@deriving sexp_of]
+module Debug_tag : sig
+  type t =
+    | All
+    | Clock
+    | Fd
+    | File_descr_watcher
+    | Finalizers
+    | Interruptor
+    | Monitor
+    | Monitor_send_exn
+    | Parallel
+    | Reader
+    | Scheduler
+    | Shutdown
+    | Thread_pool
+    | Thread_safe
+    | Writer
+  [@@deriving sexp_of]
+end
+
+module File_descr_watcher : sig
+  type t =
+    | Epoll_if_timerfd
+    | Epoll
+    | Select
+  [@@deriving sexp_of]
+end
+
+type t =
+  { abort_after_thread_pool_stuck_for : Time_ns.Span.t option
+  ; check_invariants : bool option
+  ; detect_invalid_access_from_thread : bool option
+  ; dump_core_on_job_delay : Dump_core_on_job_delay.t option
+  ; epoll_max_ready_events : Epoll_max_ready_events.t option
+  ; file_descr_watcher : File_descr_watcher.t option
+  ; max_inter_cycle_timeout : Max_inter_cycle_timeout.t option
+  ; max_num_open_file_descrs : Max_num_open_file_descrs.t option
+  ; max_num_threads : Max_num_threads.t option
+  ; max_num_jobs_per_priority_per_cycle : Max_num_jobs_per_priority_per_cycle.t option
+  ; min_inter_cycle_timeout : Min_inter_cycle_timeout.t option
+  ; print_debug_messages_for : Debug_tag.t list option
+  ; record_backtraces : bool option
+  ; report_thread_pool_stuck_for : Time_ns.Span.t option
+  ; thread_pool_cpu_affinity : Thread_pool_cpu_affinity.t option
+  ; timing_wheel_config : Timing_wheel.Config.t option
+  }
+[@@deriving sexp_of]
 
 val t : t
 val environment_variable : string
@@ -65,14 +111,6 @@ module Print_debug_messages_for : sig
   val thread_pool : bool
   val thread_safe : bool
   val writer : bool
-end
-
-module File_descr_watcher : sig
-  type t =
-    | Epoll_if_timerfd
-    | Epoll
-    | Select
-  [@@deriving sexp_of]
 end
 
 (** Documentation on these is in strings in config.ml, so it can be output in the
