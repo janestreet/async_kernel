@@ -248,8 +248,9 @@ let create () =
     }
   and events =
     Timing_wheel.create ~config:Async_kernel_config.timing_wheel_config ~start:now
-  and time_source =
-    { Synchronous_time_source.T1.advance_errors = []
+  and time_source : _ Synchronous_time_source.T1.t =
+    { id = Types.Time_source_id.create ()
+    ; advance_errors = []
     ; am_advancing = false
     ; events
     ; handle_fired = (fun alarm -> handle_fired time_source (Alarm.value events alarm))
@@ -354,7 +355,8 @@ let create_time_source
   let t = t () in
   let events = Timing_wheel.create ~config:timing_wheel_config ~start:now in
   let rec time_source : _ Synchronous_time_source.T1.t =
-    { advance_errors = []
+    { id = Types.Time_source_id.create ()
+    ; advance_errors = []
     ; am_advancing = false
     ; events
     ; handle_fired = (fun alarm -> handle_fired time_source (Alarm.value events alarm))

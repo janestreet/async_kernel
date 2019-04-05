@@ -26,7 +26,13 @@ module type Time_source = sig
     val invariant_with_jobs : job:Job.t Invariant.t -> t Invariant.t
   end
 
+  module Id : Unique_id.Id
+
   type t = read T1.t [@@deriving sexp_of]
+
+  (** [id t] returns a unique, consistent identifier which can be used e.g. as a map or
+      hash table key. *)
+  val id : _ T1.t -> Id.t
 
   include Invariant.S with type t := t
 

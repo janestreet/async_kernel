@@ -16,9 +16,12 @@ let ( >>> ) = upon
 module T1 = struct
   include Synchronous_time_source0.T1
 
+  (* We don't include the [id] in the sexp because the user (rightly) can't control it, so
+     it's hard to make it deterministic in tests. *)
   let sexp_of_t
         _
-        { advance_errors = _
+        { id = _
+        ; advance_errors = _
         ; am_advancing = _
         ; events
         ; fired_events = _
@@ -58,6 +61,9 @@ let wall_clock = Scheduler.wall_clock
 let alarm_precision t = Timing_wheel.alarm_precision t.events
 let next_alarm_fires_at t = Timing_wheel.next_alarm_fires_at t.events
 let timing_wheel_now t = Timing_wheel.now t.events
+let id t = t.id
+
+module Id = Synchronous_time_source0.Id
 
 let now t =
   if t.is_wall_clock

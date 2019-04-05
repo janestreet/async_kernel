@@ -35,6 +35,8 @@ let default_timing_wheel_config =
 
 type callback = unit -> unit
 
+module Id = Types.Time_source_id
+
 module T1 = struct
   module Event = struct
     module Status = struct
@@ -171,7 +173,8 @@ module T1 = struct
   end
 
   type -'rw t = 'rw Types.Time_source.t1 =
-    { (* [advance_errors] accumulates errors raised by alarms run by
+    { id : Id.t
+    ; (* [advance_errors] accumulates errors raised by alarms run by
          [advance_by_alarms]. *)
       mutable advance_errors : Error.t list
     ; (* [am_advancing] is true only during [advance_by_alarms], and is used to cause
@@ -196,9 +199,12 @@ module T1 = struct
     }
   [@@deriving fields]
 
+  (* We don't include the [id] in the sexp because the user (rightly) can't control it, so
+     it's hard to make it deterministic in tests. *)
   let sexp_of_t
         _
-        { advance_errors = _
+        { id = _
+        ; advance_errors = _
         ; am_advancing = _
         ; events
         ; fired_events = _
@@ -238,6 +244,7 @@ module T1 = struct
     Invariant.invariant [%here] t [%sexp_of: _ t] (fun () ->
       let check f = Invariant.check_field t f in
       Fields.iter
+        ~id:ignore
         ~advance_errors:ignore
         ~am_advancing:ignore
         ~events:
@@ -288,6 +295,7 @@ module Read_write = struct
   let invariant_with_jobs = invariant_with_jobs
 end
 
+let id t = t.id
 let is_wall_clock t = t.is_wall_clock
 let alarm_upper_bound t = (Timing_wheel.alarm_upper_bound t.events [@warning "-3"])
 let max_allowed_alarm_time t = Timing_wheel.max_allowed_alarm_time t.events

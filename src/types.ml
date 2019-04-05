@@ -217,9 +217,12 @@ and Tail : sig
 end =
   Tail
 
+and Time_source_id : Unique_id.Id = Unique_id.Int63 ()
+
 and Time_source : sig
   type -'rw t1 =
-    { mutable advance_errors : Error.t list
+    { id : Time_source_id.t
+    ; mutable advance_errors : Error.t list
     ; mutable am_advancing : bool
     ; events : Job_or_event.t Timing_wheel.t
     ; mutable fired_events : Event.t

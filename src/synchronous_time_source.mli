@@ -21,11 +21,17 @@ module Read_write : sig
   val invariant_with_jobs : job:Job.t Invariant.t -> t Invariant.t
 end
 
+module Id : Unique_id.Id
+
 type t = read T1.t [@@deriving sexp_of]
 
 val invariant_with_jobs : job:Job.t Invariant.t -> t Invariant.t
 
 include Invariant.S with type t := t
+
+(** [id t] returns a unique, consistent identifier which can be used e.g. as a map or hash
+    table key. *)
+val id : _ T1.t -> Id.t
 
 val read_only : [> read] T1.t -> t
 
