@@ -1,6 +1,7 @@
 module Inria_sys = Sys
 module Time_ns_in_this_directory = Time_ns
 open Core_kernel
+open Poly
 module Time_ns = Time_ns_in_this_directory
 
 let sec = Time_ns.Span.of_sec
