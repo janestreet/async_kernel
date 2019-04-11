@@ -21,40 +21,7 @@ open! Async_kernel
 open! Import
 
 include
-sig
-  type +'a t
-
-  include Invariant.S1 with type 'a t := 'a t
-  include Monad with type 'a t := 'a t
-
-  module Infix : sig
-    include Monad.Infix with type 'a t := 'a t
-
-    val ( >>> ) : 'a t -> ('a -> unit) -> unit
-  end
-
-  val any : 'a t list -> 'a t
-  val any_unit : unit t list -> unit t
-  val both : 'a t -> 'b t -> ('a * 'b) t
-  val create : ('a Ivar.t -> unit) -> 'a t
-  val don't_wait_for : unit t -> unit
-  val ignore : _ t -> unit t
-  val is_determined : 'a t -> bool
-  val never : unit -> _ t
-  val ok : 'a t -> ('a, _) Core_kernel.Result.t t
-  val peek : 'a t -> 'a option
-  val unit : unit t
-  val upon : 'a t -> ('a -> unit) -> unit
-  val value_exn : 'a t -> 'a
-
-  val repeat_until_finished
-    :  'state
-    -> ('state -> [`Repeat of 'state | `Finished of 'result] t)
-    -> 'result t
-
-  module List : Monad_sequence.S with type 'a monad := 'a t with type 'a t := 'a list
-  module Or_error : module type of Eager_deferred_or_error
-end
-(*_ We do not expose [Eager_deferred.t] so that type-error messages refer to
-  [Deferred.t], not [Eager_deferred.t]. *)
-with type 'a t := 'a Deferred.t
+  Eager_deferred_intf.Eager_deferred1
+  (*_ We do not expose [Eager_deferred.t] so that type-error messages refer to
+    [Deferred.t], not [Eager_deferred.t]. *)
+  with type 'a t := 'a Deferred.t

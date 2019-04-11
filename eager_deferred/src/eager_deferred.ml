@@ -1,6 +1,9 @@
 open! Core_kernel
 open! Async_kernel
 open! Import
+
+module type S = Eager_deferred_intf.S
+
 include Eager_deferred1
 
 module Use = struct
