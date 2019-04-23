@@ -62,6 +62,7 @@ let error_s sexp = Deferred.return (Or_error.error_s sexp)
 let error_string msg = Deferred.return (Or_error.error_string msg)
 let errorf format = ksprintf error_string format
 let tag t ~tag = Deferred.map t ~f:(Or_error.tag ~tag)
+let tag_s t ~tag = Deferred.map t ~f:(Or_error.tag_s ~tag)
 
 let tag_arg t message a sexp_of_a =
   Deferred.map t ~f:(fun t -> Or_error.tag_arg t message a sexp_of_a)
