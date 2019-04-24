@@ -30,10 +30,10 @@ and ('a, 'b) cell = ('a, 'b) Types.Cell.t =
         mutable prev : ('a, [`Empty_one_or_more_handlers]) cell
       ; mutable next : ('a, [`Empty_one_or_more_handlers]) cell
       }
-    -> ('a, [> `Empty_one_or_more_handlers]) cell
+      -> ('a, [> `Empty_one_or_more_handlers]) cell
   | Empty_one_handler :
       ('a -> unit) * Execution_context.t
-    -> ('a, [> `Empty_one_handler]) cell
+      -> ('a, [> `Empty_one_handler]) cell
   | Empty : ('a, [> `Empty]) cell
   | Full : 'a -> ('a, [> `Full]) cell
   | Indir : 'a t -> ('a, [> `Indir]) cell

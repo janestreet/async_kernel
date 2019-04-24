@@ -17,16 +17,16 @@ module Clock_ns : Clock_intf.Clock_deprecated with module Time := Time_ns
 
 module Time_ns : sig
   include module type of struct
-  include Time_ns
-end
+    include Time_ns
+  end
 
   val now : unit -> t [@@deprecated "[since 2016-02] Use [Time_source]"]
 end
 
 module Async_kernel_scheduler : sig
   include module type of struct
-  include Async_kernel_scheduler
-end
+    include Async_kernel_scheduler
+  end
 
   val cycle_start : unit -> Time.t [@@deprecated "[since 2016-02] Use [Time_source]"]
 

@@ -147,7 +147,7 @@ type t =
   ; max_num_open_file_descrs : Max_num_open_file_descrs.t option [@sexp.option]
   ; max_num_threads : Max_num_threads.t option [@sexp.option]
   ; max_num_jobs_per_priority_per_cycle : Max_num_jobs_per_priority_per_cycle.t option
-                                            [@sexp.option]
+                                          [@sexp.option]
   ; min_inter_cycle_timeout : Min_inter_cycle_timeout.t option [@sexp.option]
   ; print_debug_messages_for : Debug_tag.t list option [@sexp.option]
   ; record_backtraces : bool option [@sexp.option]

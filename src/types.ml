@@ -50,10 +50,10 @@ and Cell : sig
         ; mutable prev : 'a Handler.t
         ; mutable next : 'a Handler.t
         }
-      -> ('a, [> `Empty_one_or_more_handlers]) t
+        -> ('a, [> `Empty_one_or_more_handlers]) t
     | Empty_one_handler :
         ('a -> unit) * Execution_context.t
-      -> ('a, [> `Empty_one_handler]) t
+        -> ('a, [> `Empty_one_handler]) t
     | Empty : ('a, [> `Empty]) t
     | Full : 'a -> ('a, [> `Full]) t
     | Indir : 'a Ivar.t -> ('a, [> `Indir]) t
