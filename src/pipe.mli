@@ -399,11 +399,11 @@ val read_exactly
      | `Exactly of 'a Queue.t  (** [Q.length q = num_values] *) ]
        Deferred.t
 
-(** [read_now' reader] reads values from [reader] that are immediately available.  The
-    resulting queue will satisfy [0 <= Q.length q <= max_queue_length].  If [reader] is
-    closed, [read_now'] returns [`Eof].  If [reader] is empty, [read_now'] returns
-    [`Nothing_available].  The [consumer] is used to extend the meaning of values being
-    flushed (see the [Consumer] module above). *)
+(** [read_now' reader] reads values from [reader] that are immediately available.  If
+    [reader] is closed, [read_now'] returns [`Eof].  If [reader] is empty, [read_now']
+    returns [`Nothing_available].  Otherwise, [`Ok q] is returned, and the resulting queue
+    will satisfy [0 < Q.length q <= max_queue_length].  The [consumer] is used to extend
+    the meaning of values being flushed (see the [Consumer] module above). *)
 val read_now'
   :  ?consumer:Consumer.t
   -> ?max_queue_length:int (** default is [Int.max_value] *)

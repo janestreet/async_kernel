@@ -72,11 +72,18 @@ module type S = sig
       (retry_delay ())]. The default for [retry_delay] is [const (sec 10.)]. Note that
       what this retry delay actually throttles is the delay between two connection
       attempts, so when a long-lived connection dies, connection is usually immediately
-      retried, and if that failed, wait for another retry delay and retry. *)
+      retried, and if that failed, wait for another retry delay and retry.
+
+      The [random_state] and [time_source] arguments are there to make persistent
+      connection code more deterministically testable.  They default to
+      [Random.State.default] and [Time_source.wall_clock ()], respectively.
+  *)
   val create
     :  server_name:string
     -> ?on_event:(Event.t -> unit Deferred.t)
     -> ?retry_delay:(unit -> Time_ns.Span.t)
+    -> ?random_state:Random.State.t
+    -> ?time_source:Time_source.t
     -> connect:(address -> conn Or_error.t Deferred.t)
     -> (unit -> address Or_error.t Deferred.t)
     -> t

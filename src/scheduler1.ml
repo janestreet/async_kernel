@@ -334,7 +334,7 @@ let rec run_jobs t =
        if Job_queue.can_run_a_job t.normal_priority_jobs
        || Job_queue.can_run_a_job t.low_priority_jobs
        then run_jobs t
-       else Result.ok_unit)
+       else Ok ())
 ;;
 
 let stabilize t =

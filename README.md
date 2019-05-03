@@ -1,4 +1,5 @@
-# Async_kernel
+"Async_kernel"
+==============
 
 `Async_kernel` contains `Async`'s core data structures, like `Deferred`.
 `Async_kernel` is portable, and so can be used in JavaScript using Async_js. In

@@ -1,5 +1,6 @@
 open! Core_kernel
 open! Async_kernel
+open! Async_kernel_require_explicit_time_source
 include Persistent_connection_kernel_intf
 
 module Make (Conn : T) = struct
@@ -104,15 +105,19 @@ module Make (Conn : T) = struct
         ~server_name
         ?(on_event = fun _ -> Deferred.unit)
         ?(retry_delay = const (Time_ns.Span.of_sec 10.))
+        ?(random_state = Random.State.default)
+        ?(time_source = Time_source.wall_clock ())
         ~connect
         get_address
     =
     let event_handler = { Event.Handler.server_name; on_event } in
     let retry_delay () =
       let span = Time_ns.Span.to_sec (retry_delay ()) in
-      let distance = Random.float (span *. 0.3) in
-      let wait = if Random.bool () then span +. distance else span -. distance in
-      Clock_ns.after (Time_ns.Span.of_sec wait)
+      let distance = Random.State.float random_state (span *. 0.3) in
+      let wait =
+        if Random.State.bool random_state then span +. distance else span -. distance
+      in
+      Time_source.after time_source (Time_ns.Span.of_sec wait)
     in
     let t =
       { event_handler

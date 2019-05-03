@@ -168,7 +168,7 @@ let run_jobs (type a) t scheduler =
       (* [run_external_jobs] at each iteration of the [while] loop, for fairness. *)
       run_external_jobs t scheduler
     done;
-    Result.ok_unit
+    Ok ()
   with
   | exn ->
     (* We call [Exn.backtrace] immediately after catching an unhandled exception, to
