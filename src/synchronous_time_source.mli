@@ -83,12 +83,6 @@ val run_after : [> read] T1.t -> Time_ns.Span.t -> callback -> unit
     k = 0, 1, 2, etc.  [run_at_intervals] raises if [span < alarm_precision t]. *)
 val run_at_intervals : [> read] T1.t -> Time_ns.Span.t -> callback -> unit
 
-(** [alarm_upper_bound t] returns the upper bound on a [Time_ns.t] that can be
-    supplied to [run_at].  [alarm_upper_bound t] is not constant; its value
-    increases as [now t] increases. *)
-val alarm_upper_bound : [> read] T1.t -> Time_ns.t
-[@@deprecated "[since 2018-09] Use max_allowed_alarm_time instead] instead"]
-
 (** [max_allowed_alarm_time t] returns the greatest [at] that can be supplied to [add].
     [max_allowed_alarm_time] is not constant; its value increases as [now t] increases. *)
 val max_allowed_alarm_time : [> read] T1.t -> Time_ns.t
