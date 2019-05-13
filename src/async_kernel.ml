@@ -30,6 +30,7 @@ module Synchronous_time_source = Synchronous_time_source
 module Tail = Tail
 module Throttle = Throttle
 module Time_source = Time_source
+module Tracing = Tracing
 
 (** {2 Toplevel functions }
 
