@@ -23,6 +23,14 @@ module Time_ns : sig
   val now : unit -> t [@@deprecated "[since 2016-02] Use [Time_source]"]
 end
 
+module Time : sig
+  include module type of struct
+    include Time
+  end
+
+  val now : unit -> t [@@deprecated "[since 2019-05] Use [Time_source]"]
+end
+
 module Async_kernel_scheduler : sig
   include module type of struct
     include Async_kernel_scheduler
@@ -32,6 +40,14 @@ module Async_kernel_scheduler : sig
 
   val cycle_start_ns : unit -> Time_ns.t
   [@@deprecated "[since 2016-02] Use [Time_source]"]
+end
+
+module Date : sig
+  include module type of struct
+    include Date
+  end
+
+  val today : zone:Time.Zone.t -> t [@@deprecated "[since 2019-05] Use [Time_source]"]
 end
 
 val at : Time_ns.t -> unit Deferred.t [@@deprecated "[since 2016-02] Use [Time_source]"]
