@@ -297,6 +297,7 @@ end
 
 let id t = t.id
 let is_wall_clock t = t.is_wall_clock
+let length t = Timing_wheel.length t.events
 let max_allowed_alarm_time t = Timing_wheel.max_allowed_alarm_time t.events
 let read_only (t : [> read] T1.t) = (t :> t)
 

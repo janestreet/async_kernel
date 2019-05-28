@@ -33,6 +33,9 @@ include Invariant.S with type t := t
     table key. *)
 val id : _ T1.t -> Id.t
 
+(** [length t] returns the number of alarms in the underlying [Timing_wheel]. *)
+val length : _ T1.t -> int
+
 val read_only : [> read] T1.t -> t
 
 type callback = unit -> unit
