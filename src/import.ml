@@ -8,6 +8,7 @@ module Epoll_max_ready_events = Async_kernel_config.Epoll_max_ready_events
 module Max_inter_cycle_timeout = Async_kernel_config.Max_inter_cycle_timeout
 module Max_num_open_file_descrs = Async_kernel_config.Max_num_open_file_descrs
 module Max_num_threads = Async_kernel_config.Max_num_threads
+module Pool = Tuple_pool
 
 module Max_num_jobs_per_priority_per_cycle =
   Async_kernel_config.Max_num_jobs_per_priority_per_cycle
