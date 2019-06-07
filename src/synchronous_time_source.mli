@@ -130,6 +130,27 @@ module Event : sig
 
   val schedule_after : [> read] T1.t -> t -> Time_ns.Span.t -> unit Or_error.t
   val schedule_at_intervals : [> read] T1.t -> t -> Time_ns.Span.t -> unit Or_error.t
+
+  module Reschedule_result : sig
+    (** [Recently_aborted] and [Recently_fired] can happen if the time was not advanced
+        between the corresponding thing happening and the call to [reschedule*]. *)
+    type t =
+      | Ok
+      | Currently_happening
+      | Recently_aborted
+      | Recently_fired
+    [@@deriving sexp_of]
+  end
+
+  (** [reschedule_at timesource t time] attempts to update [t] to next fire at [time].
+      This returns [Ok] for events that are unscheduled, or scheduled but not yet fired.
+      If the event is in the process of firing or being aborted, [reschedule_at] does not
+      succeed.  For periodic events, [reschedule] updates the next time to fire, and leave
+      the interval unchanged.  Events rescheduled to a past time will fire at the next
+      advance of [timesource]. *)
+  val reschedule_at : [> read] T1.t -> t -> Time_ns.t -> Reschedule_result.t
+
+  val reschedule_after : [> read] T1.t -> t -> Time_ns.Span.t -> Reschedule_result.t
 end
 
 val default_timing_wheel_config : Timing_wheel.Config.t

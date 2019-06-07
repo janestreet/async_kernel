@@ -74,13 +74,13 @@ module T1 = struct
       ; mutable at : Time_ns.t
       ; callback : unit -> unit
       ; execution_context : Execution_context.t
-      ; mutable interval :
-          Time_ns.Span.t option
-      (* [next_fired] is a singly-linked list of fired events, linked via [next_fired].
-         An event is added to the list when it fires, either because it is added with
-         a time in the past, or because time advances.  [advance_by_alarms] iterates
-         over the events in [next_fired] and runs them, emptying the list. *)
-      ; mutable next_fired : t
+      ; (* [interval] is the period for the periodic events *)
+        mutable interval : Time_ns.Span.t option
+      ; (* [next_fired] is a singly-linked list of fired events, linked via [next_fired].
+           An event is added to the list when it fires, either because it is added with a
+           time in the past, or because time advances.  [advance_by_alarms] iterates over
+           the events in [next_fired] and runs them, emptying the list. *)
+        mutable next_fired : t
       ; mutable status : Status.t
       }
     [@@deriving fields]
@@ -452,6 +452,37 @@ module Event = struct
     require_span_at_least_alarm_precision t span;
     schedule_at_internal t event (now t) ~interval:(Some span)
   ;;
+
+  module Reschedule_result = struct
+    type t =
+      | Ok
+      | Currently_happening
+      | Recently_aborted
+      | Recently_fired
+    [@@deriving sexp_of]
+  end
+
+  let reschedule_at t event at : Reschedule_result.t =
+    match event.status with
+    | Aborted -> Recently_aborted
+    | Fired -> Recently_fired
+    | Happening -> Currently_happening
+    | Scheduled ->
+      event.at <- at;
+      if Time_ns.( > ) at (timing_wheel_now t)
+      then Timing_wheel.reschedule t.events event.alarm ~at
+      else (
+        Timing_wheel.remove t.events event.alarm;
+        fire t event);
+      Ok
+    | Unscheduled ->
+      event.at <- at;
+      event.interval <- None;
+      add t event;
+      Ok
+  ;;
+
+  let reschedule_after t event span = reschedule_at t event (Time_ns.after (now t) span)
 
 end
 
