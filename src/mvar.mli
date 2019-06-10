@@ -90,5 +90,14 @@ val peek_exn : ('a, [> read]) t -> 'a
 (** [pipe_when_ready t] returns a pipe, then repeatedly takes a value from [t] and writes
     it to the pipe.  After each write, [pipe_when_ready] waits for the pipe to be ready to
     accept another value before taking the next value.  Once the pipe is closed,
-    [pipe_when_ready] will no longer take values from [t]. *)
+    [pipe_when_ready] will no longer take values from [t].
+
+    Notice that this implementation effectively creates an extra buffer of size 1, so when
+    you read from the pipe you can read a stale value (even though a fresh one should come
+    immediately afterwards), and a value will be taken from the MVar even if it's never
+    read from the pipe.
+
+    There is no protection against creating multiple pipes or otherwise multiple things
+    trying to [take] concurrently.  If that happens, it's not specified which of the pipes
+    will get the value. *)
 val pipe_when_ready : ('a, [> read]) t -> 'a Pipe.Reader.t
