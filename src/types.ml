@@ -1,6 +1,6 @@
 (* This file defines the mutually recursive types at the heart of Async.  The functions
    associated with the types are defined in the corresponding file(s) for each module.
-   This file should define onlye types, not functions, since functions defined inside the
+   This file should define only types, not functions, since functions defined inside the
    recursive modules are not inlined.
 
    If you need to add functionality to a module but doing so would create a dependency
@@ -10,32 +10,7 @@
 open! Core_kernel
 open! Import
 
-module rec Bvar : sig
-  type ('a, -'permission) t
-
-  (** [repr] exists so that we may hide the implementation of a [Bvar.t], and then add a
-      phantom type to it upstream.  Without this, the phantom type variable would allow
-      for anything to be coerced in and out, since it is unused. *)
-  type 'a repr =
-    { mutable has_any_waiters : bool
-    ; mutable ivar : 'a Ivar.t
-    }
-
-  val of_repr : 'a repr -> ('a, 'permission) t
-  val to_repr : ('a, 'permission) t -> 'a repr
-end = struct
-  type 'a repr =
-    { mutable has_any_waiters : bool
-    ; mutable ivar : 'a Ivar.t
-    }
-
-  type ('a, 'permission) t = 'a repr
-
-  let to_repr t = t
-  let of_repr t = t
-end
-
-and Cell : sig
+module rec Cell : sig
   type any =
     [ `Empty
     | `Empty_one_handler
@@ -60,12 +35,92 @@ and Cell : sig
 end =
   Cell
 
+and Handler : sig
+  type 'a t = ('a, [`Empty_one_or_more_handlers]) Cell.t
+end =
+  Handler
+
+and Ivar : sig
+  type 'a t = { mutable cell : ('a, Cell.any) Cell.t }
+
+  module Immutable : sig
+    type 'a t = { cell : ('a, Cell.any) Cell.t }
+  end
+end =
+  Ivar
+
 and Deferred : sig
   type +'a t
 end =
   Deferred
 
-and Event : sig
+and Execution_context : sig
+  type t =
+    { monitor : Monitor.t
+    ; priority : Priority.t
+    ; local_storage : Univ_map.t
+    ; backtrace_history : Backtrace.t list
+    }
+end =
+  Execution_context
+
+and Monitor : sig
+  type t =
+    { name : Info.t
+    ; here : Source_code_position.t option
+    ; id : int
+    ; parent : t option
+    ; mutable next_error : exn Ivar.t
+    ; mutable handlers_for_all_errors : (Execution_context.t * (exn -> unit)) Bag.t
+    ; mutable tails_for_all_errors : exn Tail.t list
+    ; mutable has_seen_error : bool
+    ; mutable is_detached : bool
+    }
+end =
+  Monitor
+
+and Tail : sig
+  type 'a t = { mutable next : 'a Stream.next Ivar.t }
+end =
+  Tail
+
+and Stream : sig
+  type 'a t = 'a next Deferred.t
+
+  and 'a next =
+    | Nil
+    | Cons of 'a * 'a t
+end =
+  Stream
+
+(* We avoid using [module rec] to define [Bvar], so that [to_repr] and [of_repr] are
+   inlined. *)
+module Bvar : sig
+  type ('a, -'permission) t
+
+  (** [repr] exists so that we may hide the implementation of a [Bvar.t], and then add a
+      phantom type to it upstream.  Without this, the phantom type variable would allow
+      for anything to be coerced in and out, since it is unused. *)
+  type 'a repr =
+    { mutable has_any_waiters : bool
+    ; mutable ivar : 'a Ivar.t
+    }
+
+  val of_repr : 'a repr -> ('a, 'permission) t
+  val to_repr : ('a, 'permission) t -> 'a repr
+end = struct
+  type 'a repr =
+    { mutable has_any_waiters : bool
+    ; mutable ivar : 'a Ivar.t
+    }
+
+  type ('a, 'permission) t = 'a repr
+
+  let to_repr t = t
+  let of_repr t = t
+end
+
+module rec Event : sig
   module Status : sig
     type t =
       | Aborted
@@ -87,34 +142,10 @@ and Event : sig
 end =
   Event
 
-and Execution_context : sig
-  type t =
-    { monitor : Monitor.t
-    ; priority : Priority.t
-    ; local_storage : Univ_map.t
-    ; backtrace_history : Backtrace.t list
-    }
-end =
-  Execution_context
-
 and External_job : sig
   type t = T : Execution_context.t * ('a -> unit) * 'a -> t
 end =
   External_job
-
-and Handler : sig
-  type 'a t = ('a, [`Empty_one_or_more_handlers]) Cell.t
-end =
-  Handler
-
-and Ivar : sig
-  type 'a t = { mutable cell : ('a, Cell.any) Cell.t }
-
-  module Immutable : sig
-    type 'a t = { cell : ('a, Cell.any) Cell.t }
-  end
-end =
-  Ivar
 
 and Job : sig
   type slots = (Execution_context.t, Obj.t -> unit, Obj.t) Pool.Slots.t3
@@ -154,21 +185,6 @@ and Jobs : sig
 end =
   Jobs
 
-and Monitor : sig
-  type t =
-    { name : Info.t
-    ; here : Source_code_position.t option
-    ; id : int
-    ; parent : t option
-    ; mutable next_error : exn Ivar.t
-    ; mutable handlers_for_all_errors : (Execution_context.t * (exn -> unit)) Bag.t
-    ; mutable tails_for_all_errors : exn Tail.t list
-    ; mutable has_seen_error : bool
-    ; mutable is_detached : bool
-    }
-end =
-  Monitor
-
 and Scheduler : sig
 
   type t =
@@ -202,20 +218,6 @@ and Scheduler : sig
     }
 end =
   Scheduler
-
-and Stream : sig
-  type 'a t = 'a next Deferred.t
-
-  and 'a next =
-    | Nil
-    | Cons of 'a * 'a t
-end =
-  Stream
-
-and Tail : sig
-  type 'a t = { mutable next : 'a Stream.next Ivar.t }
-end =
-  Tail
 
 and Time_source_id : Unique_id.Id = Unique_id.Int63 ()
 
