@@ -67,7 +67,8 @@ val is_determined : 'a t -> bool
     In general, for deferreds that are allocated by [let%bind] to be garbage collected
     quickly, it is sufficient that the allocating bind be executed in tail-call position
     of the right-hand side of an outer bind. *)
-include Monad with type 'a t := 'a t
+include
+  Monad with type 'a t := 'a t
 
 module Infix : sig
   include Monad.Infix with type 'a t := 'a t
@@ -172,7 +173,7 @@ val for_ : int -> to_:int -> do_:(int -> unit t) -> unit t
     is called. *)
 val repeat_until_finished
   :  'state
-  -> ('state -> [`Repeat of 'state | `Finished of 'result] t)
+  -> ('state -> [ `Repeat of 'state | `Finished of 'result ] t)
   -> 'result t
 
 (** [forever initial_state f] repeatedly runs [f], supplying the state returned to the

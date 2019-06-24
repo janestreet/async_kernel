@@ -16,7 +16,8 @@ module rec Cell : sig
     | `Empty_one_handler
     | `Empty_one_or_more_handlers
     | `Full
-    | `Indir ]
+    | `Indir
+    ]
 
   type ('a, 'b) t =
     | Empty_one_or_more_handlers :
@@ -25,18 +26,18 @@ module rec Cell : sig
         ; mutable prev : 'a Handler.t
         ; mutable next : 'a Handler.t
         }
-        -> ('a, [> `Empty_one_or_more_handlers]) t
+        -> ('a, [> `Empty_one_or_more_handlers ]) t
     | Empty_one_handler :
         ('a -> unit) * Execution_context.t
-        -> ('a, [> `Empty_one_handler]) t
-    | Empty : ('a, [> `Empty]) t
-    | Full : 'a -> ('a, [> `Full]) t
-    | Indir : 'a Ivar.t -> ('a, [> `Indir]) t
+        -> ('a, [> `Empty_one_handler ]) t
+    | Empty : ('a, [> `Empty ]) t
+    | Full : 'a -> ('a, [> `Full ]) t
+    | Indir : 'a Ivar.t -> ('a, [> `Indir ]) t
 end =
   Cell
 
 and Handler : sig
-  type 'a t = ('a, [`Empty_one_or_more_handlers]) Cell.t
+  type 'a t = ('a, [ `Empty_one_or_more_handlers ]) Cell.t
 end =
   Handler
 

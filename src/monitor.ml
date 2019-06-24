@@ -65,8 +65,8 @@ let detach_and_iter_errors t ~f =
             [detach_and_iter_errors] was called. *)
          raise inner_exn)
   in
-  handler_state_ref :=
-    Running (Bag.add t.handlers_for_all_errors (execution_context, run_f))
+  handler_state_ref
+  := Running (Bag.add t.handlers_for_all_errors (execution_context, run_f))
 ;;
 
 let detach_and_get_error_stream t =
@@ -107,24 +107,19 @@ module Exn_for_monitor = struct
       (* ../test/test_try_with_error_display.ml makes sure this stays up-to-date. *)
       let traces =
         match traces with
-        | t1 :: rest
-          when String.is_prefix t1 ~prefix:import0 ->
+        | t1 :: rest when String.is_prefix t1 ~prefix:import0 ->
           (match rest with
-           | t2 :: rest
-             when String.is_prefix t2 ~prefix:error ->
+           | t2 :: rest when String.is_prefix t2 ~prefix:error ->
              (match rest with
-              | t3 :: rest
-                when String.is_prefix t3 ~prefix:error -> rest
+              | t3 :: rest when String.is_prefix t3 ~prefix:error -> rest
               | _ -> rest)
            | _ -> rest)
         | _ -> traces
       in
       match List.rev traces with
-      | t1 :: rest
-        when String.is_prefix t1 ~prefix:job_queue ->
+      | t1 :: rest when String.is_prefix t1 ~prefix:job_queue ->
         (match rest with
-         | t2 :: rest
-           when String.is_prefix t2 ~prefix:job_queue ->
+         | t2 :: rest when String.is_prefix t2 ~prefix:job_queue ->
            (match rest with
             | t2 :: rest
               when String.is_prefix t2 ~prefix:deferred0
@@ -132,8 +127,7 @@ module Exn_for_monitor = struct
                 || String.is_prefix t2 ~prefix:deferred1
                 (* map *)
                 || String.is_prefix t2 ~prefix:monitor
-              (* try_with *) ->
-              List.rev rest
+              (* try_with *) -> List.rev rest
             | _ -> List.rev rest)
          | _ -> List.rev rest)
       | _ -> traces
@@ -192,7 +186,8 @@ exception Error_ of Exn_for_monitor.t
 let () =
   Sexplib.Conv.Exn_converter.add [%extension_constructor Error_] (function
     | Error_ t -> [%sexp "monitor.ml.Error" :: (t : Exn_for_monitor.t)]
-    | _ -> (* Reaching this branch indicates a bug in sexplib. *)
+    | _ ->
+      (* Reaching this branch indicates a bug in sexplib. *)
       assert false)
 ;;
 
@@ -447,8 +442,7 @@ let protect ?here ?info ?(name = "Monitor.protect") ?extract_exn ?run f ~finally
   match r, fr with
   | Error exn, Error finally_exn ->
     raise_s [%message "Async finally" (exn : exn) (finally_exn : exn)]
-  | Error e, Ok ()
-  | Ok _, Error e -> raise e
+  | Error e, Ok () | Ok _, Error e -> raise e
   | Ok r, Ok () -> r
 ;;
 

@@ -67,5 +67,5 @@ val every
 val with_timeout
   :  Time_ns.Span.t
   -> 'a Deferred.t
-  -> [`Timeout | `Result of 'a] Deferred.t
+  -> [ `Timeout | `Result of 'a ] Deferred.t
 [@@deprecated "[since 2016-02] Use [Time_source]"]

@@ -17,20 +17,25 @@ let update t k ~f =
 
 let iter_keys ?how t ~f = List.iter ?how (Map.keys t) ~f
 let iter ?how t ~f = List.iter ?how (Map.data t) ~f
-let iteri ?how t ~f = List.iter ?how (Map.to_alist t) ~f:(fun (key, data) -> f ~key ~data)
+
+let iteri ?how t ~f =
+  List.iter ?how (Map.to_alist t) ~f:(fun (key, data) -> f ~key ~data)
+;;
 
 let fold t ~init ~f =
   let alist_in_increasing_key_order =
     Map.fold_right t ~init:[] ~f:(fun ~key ~data alist -> (key, data) :: alist)
   in
-  List.fold alist_in_increasing_key_order ~init ~f:(fun ac (key, data) -> f ~key ~data ac)
+  List.fold alist_in_increasing_key_order ~init ~f:(fun ac (key, data) ->
+    f ~key ~data ac)
 ;;
 
 let fold_right t ~init ~f =
   let alist_in_decreasing_key_order =
     Map.fold t ~init:[] ~f:(fun ~key ~data alist -> (key, data) :: alist)
   in
-  List.fold alist_in_decreasing_key_order ~init ~f:(fun ac (key, data) -> f ~key ~data ac)
+  List.fold alist_in_decreasing_key_order ~init ~f:(fun ac (key, data) ->
+    f ~key ~data ac)
 ;;
 
 module Job = struct

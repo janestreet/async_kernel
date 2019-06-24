@@ -179,13 +179,13 @@ val unfold : 'b -> f:('b -> ('a * 'b) option Deferred.t) -> 'a t
     stream in case (2) or (3). *)
 val split
   :  ?stop:unit Deferred.t
-  -> ?f:('a -> [`Continue | `Found of 'b])
+  -> ?f:('a -> [ `Continue | `Found of 'b ])
   -> 'a t
-  -> 'a t * [`End_of_stream | `Stopped of 'a t | `Found of 'b * 'a t] Deferred.t
+  -> 'a t * [ `End_of_stream | `Stopped of 'a t | `Found of 'b * 'a t ] Deferred.t
 
 (** [find ~f t] returns a deferred that becomes determined when [f x] is true for some
     element of [t], or if the end of the stream is reached *)
-val find : 'a t -> f:('a -> bool) -> [`End_of_stream | `Found of 'a * 'a t] Deferred.t
+val find : 'a t -> f:('a -> bool) -> [ `End_of_stream | `Found of 'a * 'a t ] Deferred.t
 
 (** [ungroup t] takes a stream of lists and unpacks the items from each list into a single
     stream *)

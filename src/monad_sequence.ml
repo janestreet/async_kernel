@@ -8,9 +8,10 @@ open! Core_kernel
 open! Import
 
 type how =
-  [ `Parallel  (** like [`Max_concurrent_jobs Int.max_value] *)
-  | `Sequential  (** like [`Max_concurrent_jobs 1] *)
-  | `Max_concurrent_jobs of int ]
+  [ `Parallel (** like [`Max_concurrent_jobs Int.max_value] *)
+  | `Sequential (** like [`Max_concurrent_jobs 1] *)
+  | `Max_concurrent_jobs of int
+  ]
 [@@deriving sexp_of]
 
 module type S = sig

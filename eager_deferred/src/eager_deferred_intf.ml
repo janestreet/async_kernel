@@ -27,7 +27,7 @@ module type Eager_deferred_or_error = sig
   (** Note that [try_with f] is eager only in the [Ok] case. *)
   val try_with
     :  ?extract_exn:bool
-    -> ?run:[`Now | `Schedule]
+    -> ?run:[ `Now | `Schedule ]
     -> ?here:Lexing.position
     -> ?name:string
     -> (unit -> 'a deferred)
@@ -36,7 +36,7 @@ module type Eager_deferred_or_error = sig
   (** Note that [try_with_join f] is eager only when no exception is raised by [f]. *)
   val try_with_join
     :  ?extract_exn:bool
-    -> ?run:[`Now | `Schedule]
+    -> ?run:[ `Now | `Schedule ]
     -> ?here:Lexing.position
     -> ?name:string
     -> (unit -> 'a t)
@@ -50,7 +50,7 @@ module type Eager_deferred_or_error = sig
 
   val repeat_until_finished
     :  'state
-    -> ('state -> [`Repeat of 'state | `Finished of 'result] t)
+    -> ('state -> [ `Repeat of 'state | `Finished of 'result ] t)
     -> 'result t
 end
 
@@ -82,7 +82,7 @@ module type Eager_deferred1 = sig
 
   val repeat_until_finished
     :  'state
-    -> ('state -> [`Repeat of 'state | `Finished of 'result] t)
+    -> ('state -> [ `Repeat of 'state | `Finished of 'result ] t)
     -> 'result t
 
   module List : Monad_sequence.S with type 'a monad := 'a t with type 'a t := 'a list
@@ -92,8 +92,7 @@ end
 module type S = sig
   type +'a t
 
-  (** @open *)
-  include Eager_deferred1 with type 'a t := 'a t
+  include Eager_deferred1 with type 'a t := 'a t (** @open *)
 
   (** Intended usage is to [open Eager_deferred.Use] to shadow operations from the non-eager
       world and rebind them to their eager counterparts. *)

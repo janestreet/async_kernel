@@ -6,7 +6,8 @@ module Deferred = Deferred1
 type 'a outcome =
   [ `Ok of 'a
   | `Aborted
-  | `Raised of exn ]
+  | `Raised of exn
+  ]
 [@@deriving sexp_of]
 
 module Internal_job : sig
@@ -16,12 +17,12 @@ module Internal_job : sig
 
   (* Every internal job will eventually be either [run] or [abort]ed, but not both. *)
 
-  val run : 'a t -> 'a -> [`Ok | `Raised] Deferred.t
+  val run : 'a t -> 'a -> [ `Ok | `Raised ] Deferred.t
   val abort : _ t -> unit
 end = struct
   type 'a t =
-    { start : [`Abort | `Start of 'a] Ivar.t
-    ; outcome : [`Ok | `Aborted | `Raised] Deferred.t
+    { start : [ `Abort | `Start of 'a ] Ivar.t
+    ; outcome : [ `Ok | `Aborted | `Raised ] Deferred.t
     }
   [@@deriving sexp_of]
 
@@ -229,7 +230,7 @@ let create ~continue_on_error ~max_concurrent_jobs =
 module Job = struct
   type ('a, 'b) t =
     { internal_job : 'a Internal_job.t
-    ; result : [`Ok of 'b | `Aborted | `Raised of exn] Deferred.t
+    ; result : [ `Ok of 'b | `Aborted | `Raised of exn ] Deferred.t
     }
 
   let result t = t.result

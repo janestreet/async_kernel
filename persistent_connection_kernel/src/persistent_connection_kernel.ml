@@ -37,7 +37,7 @@ module Make (Conn : T) = struct
     { get_address : unit -> address Or_error.t Deferred.t
     ; connect : address -> Conn.t Or_error.t Deferred.t
     ; retry_delay : unit -> unit Deferred.t
-    ; mutable conn : [`Ok of Conn.t | `Close_started] Ivar.t
+    ; mutable conn : [ `Ok of Conn.t | `Close_started ] Ivar.t
     ; event_handler : Event.Handler.t
     ; close_started : unit Ivar.t
     ; close_finished : unit Ivar.t
@@ -201,8 +201,7 @@ module Make (Conn : T) = struct
 
   let current_connection t =
     match Deferred.peek (Ivar.read t.conn) with
-    | None
-    | Some `Close_started -> None
+    | None | Some `Close_started -> None
     | Some (`Ok conn) -> Some conn
   ;;
 

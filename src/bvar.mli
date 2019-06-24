@@ -21,9 +21,9 @@ include Invariant.S2 with type ('a, 'permissions) t := ('a, 'permissions) t
 val create : unit -> ('a, read_write) t
 
 (** [wait t] becomes determined by the next call to [broadcast t a]. *)
-val wait : ('a, [> read]) t -> 'a Deferred0.t
+val wait : ('a, [> read ]) t -> 'a Deferred0.t
 
-val broadcast : ('a, [> write]) t -> 'a -> unit
+val broadcast : ('a, [> write ]) t -> 'a -> unit
 
 (** [has_any_waiters t] returns [true] iff there has been a call to [wait t] since the
     most recent call to [broadcast t]. *)

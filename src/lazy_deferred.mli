@@ -47,7 +47,8 @@ val wait_exn : 'a t -> 'a Deferred.t
 
 (** [bind t f] in the lazy-deferred monad creates a computation that, when forced, will
     force [t], apply [f] to the result, and then force the result of that. *)
-include Monad with type 'a t := 'a t
+include
+  Monad with type 'a t := 'a t
 
 (** [bind'] differs from [bind] in that the supplied function produces an ['a Deferred.t]
     rather than an ['a t]. *)

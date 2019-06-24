@@ -46,8 +46,8 @@ module Read_only = struct
   let invariant invariant_a t = invariant invariant_a ignore t
 end
 
-let read_only (t : ('a, [> read]) t) = (t :> ('a, read) t)
-let write_only (t : ('a, [> write]) t) = (t :> ('a, write) t)
+let read_only (t : ('a, [> read ]) t) = (t :> ('a, read) t)
+let write_only (t : ('a, [> write ]) t) = (t :> ('a, write) t)
 
 let create () =
   { current_value = Moption.create ()

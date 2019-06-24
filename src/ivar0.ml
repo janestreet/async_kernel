@@ -8,7 +8,8 @@ type any =
   | `Empty_one_handler
   | `Empty_one_or_more_handlers
   | `Full
-  | `Indir ]
+  | `Indir
+  ]
 
 type 'a t = 'a Types.Ivar.t = { mutable cell : ('a, any) cell }
 
@@ -27,19 +28,19 @@ and ('a, 'b) cell = ('a, 'b) Types.Cell.t =
         mutable run : 'a -> unit
       ; execution_context : Execution_context.t
       ; (* [prev] and [next] circularly doubly link all handlers of the same ivar. *)
-        mutable prev : ('a, [`Empty_one_or_more_handlers]) cell
-      ; mutable next : ('a, [`Empty_one_or_more_handlers]) cell
+        mutable prev : ('a, [ `Empty_one_or_more_handlers ]) cell
+      ; mutable next : ('a, [ `Empty_one_or_more_handlers ]) cell
       }
-      -> ('a, [> `Empty_one_or_more_handlers]) cell
+      -> ('a, [> `Empty_one_or_more_handlers ]) cell
   | Empty_one_handler :
       ('a -> unit) * Execution_context.t
-      -> ('a, [> `Empty_one_handler]) cell
-  | Empty : ('a, [> `Empty]) cell
-  | Full : 'a -> ('a, [> `Full]) cell
-  | Indir : 'a t -> ('a, [> `Indir]) cell
+      -> ('a, [> `Empty_one_handler ]) cell
+  | Empty : ('a, [> `Empty ]) cell
+  | Full : 'a -> ('a, [> `Full ]) cell
+  | Indir : 'a t -> ('a, [> `Indir ]) cell
 
 module Handler = struct
-  type 'a t = ('a, [`Empty_one_or_more_handlers]) cell
+  type 'a t = ('a, [ `Empty_one_or_more_handlers ]) cell
 
   let run (Empty_one_or_more_handlers t : _ t) = t.run
   let execution_context (Empty_one_or_more_handlers t : _ t) = t.execution_context
@@ -442,8 +443,7 @@ let connect =
       (* update [bind_result] with the union of handlers in [bind_result] and
          [bind_rhs] *)
       match bind_result.cell, bind_rhs_contents with
-      | Indir _, _
-      | _, Indir _ -> assert false
+      | Indir _, _ | _, Indir _ -> assert false
       (* fulfilled by [squash] and [repoint_indirs] *)
       (* [connect] is only used in bind, whose ivar is only ever exported as a read-only
          deferred.  Thus, [bind_result] must be empty. *)

@@ -311,12 +311,12 @@ let field_descriptions () : string =
               [%message
                 ""
                   ~_:
-                    ( concat
-                        [ "min "
-                        ; default |> Max_num_open_file_descrs.raw |> Int.to_string_hum
-                        ; " [ulimit -n -H]"
-                        ]
-                      : string )])
+                    (concat
+                       [ "min "
+                       ; default |> Max_num_open_file_descrs.raw |> Int.to_string_hum
+                       ; " [ulimit -n -H]"
+                       ]
+                     : string)])
            [ {|
   The maximum number of open file descriptors allowed at any one time.|} ])
       ~max_num_threads:

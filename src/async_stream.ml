@@ -142,8 +142,7 @@ let first_n s n =
 let available_now t =
   let rec loop t ac =
     match Deferred.peek (next t) with
-    | None
-    | Some Nil -> List.rev ac, t
+    | None | Some Nil -> List.rev ac, t
     | Some (Cons (x, t)) -> loop t (x :: ac)
   in
   loop t []
@@ -217,8 +216,7 @@ let take_until t d =
       upon
         (choose [ choice d (fun () -> `Stop); choice (next t) (fun z -> `Next z) ])
         (function
-          | `Stop
-          | `Next Nil -> Tail.close_exn tail
+          | `Stop | `Next Nil -> Tail.close_exn tail
           | `Next (Cons (x, t)) ->
             Tail.extend tail x;
             loop t)

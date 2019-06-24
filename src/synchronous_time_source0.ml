@@ -49,8 +49,7 @@ module T1 = struct
         (* currently running the callback *)
         | Scheduled
         (* in the timing wheel *)
-        | Unscheduled
-        (* not in timing wheel or [fired_events] *)
+        | Unscheduled (* not in timing wheel or [fired_events] *)
       [@@deriving compare, sexp_of]
 
       let transition_is_allowed ~from ~to_ =
@@ -299,7 +298,7 @@ let id t = t.id
 let is_wall_clock t = t.is_wall_clock
 let length t = Timing_wheel.length t.events
 let max_allowed_alarm_time t = Timing_wheel.max_allowed_alarm_time t.events
-let read_only (t : [> read] T1.t) = (t :> t)
+let read_only (t : [> read ] T1.t) = (t :> t)
 
 (* [fire t event] sets [event.status = Fired] and inserts [event] into [t.fired_events] in
    sorted time order. *)
@@ -493,7 +492,7 @@ let run_at_intervals t span callback =
   ignore (Event.at_intervals t span callback : Event.t)
 ;;
 
-type send_exn = Monitor0.t -> ?backtrace:[`Get | `This of Backtrace.t] -> exn -> unit
+type send_exn = Monitor0.t -> ?backtrace:[ `Get | `This of Backtrace.t ] -> exn -> unit
 
 let run_fired_events t ~(send_exn : send_exn option) =
   let current_execution_context = t.scheduler.current_execution_context in

@@ -141,9 +141,9 @@ let run_external_jobs t (scheduler : Scheduler.t) =
 let run_jobs (type a) t scheduler =
   (* We do the [try-with] outside of the [while] because it is cheaper than doing a
      [try-with] for each job. *)
+  (* [run_external_jobs] before entering the loop, since it might enqueue a job,
+     changing [t.length]. *)
   try
-    (* [run_external_jobs] before entering the loop, since it might enqueue a job,
-       changing [t.length]. *)
     run_external_jobs t scheduler;
     while can_run_a_job t do
       let this_job = offset t 0 in

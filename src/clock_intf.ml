@@ -43,7 +43,7 @@ module type Clock = sig
   val with_timeout
     :  Time.Span.t
     -> 'a Deferred.t
-    -> [`Timeout | `Result of 'a] Deferred.t
+    -> [ `Timeout | `Result of 'a ] Deferred.t
 
   (** Events provide variants of [run_at] and [run_after] with the ability to abort or
       reschedule an event that hasn't yet happened.  Once an event happens or is aborted,
@@ -288,16 +288,16 @@ module type Clock_deprecated = sig
   val with_timeout
     :  Time.Span.t
     -> 'a Deferred.t
-    -> [`Timeout | `Result of 'a] Deferred.t
+    -> [ `Timeout | `Result of 'a ] Deferred.t
   [@@deprecated "[since 2016-02] Use [Time_source]"]
 
   module Event : sig
     type ('a, 'h) t [@@deriving sexp_of]
     type t_unit = (unit, unit) t [@@deriving sexp_of]
 
-    include Invariant.S2 with type ('a, 'b) t := ('a, 'b) t[@@deprecated
-      "[since 2016-02] Use \
-       [Time_source]"]
+    include
+      Invariant.S2 with type ('a, 'b) t := ('a, 'b) t
+      [@@deprecated "[since 2016-02] Use [Time_source]"]
 
     val scheduled_at : (_, _) t -> Time.t
     [@@deprecated "[since 2016-02] Use [Time_source]"]
@@ -400,6 +400,7 @@ module type Clock_deprecated = sig
   [@@deprecated "[since 2016-02] Use [Time_source]"]
 end
 
+(** @inline *)
 include (
 struct
   [@@@warning "-3"]
@@ -407,4 +408,4 @@ struct
   module F1 (C : Clock) : Clock_deprecated = C
   module F2 (C : Clock_deprecated) : Clock = C
 end :
-sig end)  (** @inline *)
+sig end)

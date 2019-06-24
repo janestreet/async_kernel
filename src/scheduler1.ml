@@ -64,8 +64,7 @@ type t = Scheduler0.t =
   ; low_priority_jobs : Job_queue.t
   ; very_low_priority_workers : Very_low_priority_worker.t Deque.t
   ; mutable main_execution_context : Execution_context.t
-  ; mutable current_execution_context :
-      Execution_context.t
+  ; mutable current_execution_context : Execution_context.t
   (* The scheduler calls [got_uncaught_exn] when an exception bubbles to the top of the
      monitor tree without being handled.  This function guarantees to never run another
      job after this by calling [clear] and because [enqueue_job] will never add another
@@ -78,8 +77,7 @@ type t = Scheduler0.t =
   ; mutable last_cycle_time : Time_ns.Span.t
   ; mutable last_cycle_num_jobs : int
   ; mutable total_cycle_time : Time_ns.Span.t
-  ; mutable time_source :
-      read_write Synchronous_time_source.T1.t
+  ; mutable time_source : read_write Synchronous_time_source.T1.t
   (* [external_jobs] is a queue of actions sent from outside of async.  This is for the
      case where we want to schedule a job or fill an ivar from a context where it is not
      safe to run async code, because the async lock isn't held.  For instance: - in an
@@ -98,8 +96,7 @@ type t = Scheduler0.t =
      When running a cycle, we pull external actions at every job and perform them
      immediately. *)
   ; external_jobs : External_job.t Thread_safe_queue.t
-  ; mutable thread_safe_external_job_hook :
-      unit
+  ; mutable thread_safe_external_job_hook : unit
       -> unit
   (* [job_queued_hook] and [event_added_hook] aim to be used by js_of_ocaml. *)
   (* We use [_ option] here because those hooks will not be set in the common case

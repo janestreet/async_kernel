@@ -18,7 +18,8 @@ let fold_mapi
       ~(init : c)
       ~(mapi_f : int -> a -> b Deferred.t)
       ~(fold_f : c -> b -> c)
-  : c Deferred.t =
+  : c Deferred.t
+  =
   match how with
   | `Sequential ->
     let rec loop i t (c : c) =

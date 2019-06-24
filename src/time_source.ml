@@ -55,7 +55,7 @@ type t = read T1.t [@@deriving sexp_of]
 
 let invariant = invariant
 let invariant_with_jobs = invariant_with_jobs
-let read_only (t : [> read] T1.t) = (t :> t)
+let read_only (t : [> read ] T1.t) = (t :> t)
 let create = Scheduler.create_time_source
 let wall_clock = Scheduler.wall_clock
 let alarm_precision t = Timing_wheel.alarm_precision t.events
@@ -516,8 +516,7 @@ let with_timeout t span d =
         (match Event.abort timeout () with
          (* [Previously_happened] can occur if both [d] and [wait] become determined at
             the same time, e.g. [with_timeout (sec 0.) (return ())]. *)
-         | Ok
-         | Previously_happened () -> ()
+         | Ok | Previously_happened () -> ()
          | Previously_aborted () ->
            raise_s [%message "Time_source.with_timeout bug: should only abort once"]);
         `Result v)

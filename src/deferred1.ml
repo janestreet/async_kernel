@@ -69,7 +69,8 @@ let unit = return ()
 let ignore = ignore_m
 
 let both t1 t2 =
-  create (fun result -> upon t1 (fun a1 -> upon t2 (fun a2 -> Ivar.fill result (a1, a2))))
+  create (fun result ->
+    upon t1 (fun a1 -> upon t2 (fun a2 -> Ivar.fill result (a1, a2))))
 ;;
 
 module Infix = struct
@@ -122,9 +123,9 @@ let enabled choices =
              | Some v -> f v :: ac))))
   in
   let execution_context = Scheduler.(current_execution_context (t ())) in
-  unregisters :=
-    List.fold choices ~init:Unregister.Nil ~f:(fun acc (Choice.T (t, _)) ->
-      Cons (t, Deferred0.add_handler t ready execution_context, acc));
+  unregisters
+  := List.fold choices ~init:Unregister.Nil ~f:(fun acc (Choice.T (t, _)) ->
+    Cons (t, Deferred0.add_handler t ready execution_context, acc));
   Ivar.read result
 ;;
 
@@ -147,9 +148,9 @@ let choose choices =
       Ivar.fill result (choose_result choices))
   in
   let execution_context = Scheduler.(current_execution_context (t ())) in
-  unregisters :=
-    List.fold choices ~init:Unregister.Nil ~f:(fun acc (Choice.T (t, _)) ->
-      Cons (t, Deferred0.add_handler t ready execution_context, acc));
+  unregisters
+  := List.fold choices ~init:Unregister.Nil ~f:(fun acc (Choice.T (t, _)) ->
+    Cons (t, Deferred0.add_handler t ready execution_context, acc));
   Ivar.read result
 ;;
 

@@ -26,8 +26,6 @@ type +'a t = 'a Types.Deferred.t
 
 (* the abstract covariant type, equivalent to ivar *)
 
-type 'a deferred = 'a t
-
 let of_ivar (type a) (ivar : a Ivar.t) : a t = Obj.magic ivar
 let to_ivar (type a) t : a Ivar.t = Obj.magic (t : a t)
 let invariant invariant_a t = Ivar.invariant invariant_a (to_ivar t)

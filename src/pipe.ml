@@ -10,7 +10,8 @@ let check_invariant = ref false
 module Flushed_result = struct
   type t =
     [ `Ok
-    | `Reader_closed ]
+    | `Reader_closed
+    ]
   [@@deriving compare, sexp_of]
 
   let equal = [%compare.equal: t]
@@ -61,7 +62,7 @@ end = struct
     ; (* [values_read] reflects whether values the consumer has read from the pipe have been
          sent downstream or if not, holds an ivar that is to be filled when they are. *)
       mutable values_read :
-        [`Have_been_sent_downstream | `Have_not_been_sent_downstream of unit Ivar.t]
+        [ `Have_been_sent_downstream | `Have_not_been_sent_downstream of unit Ivar.t ]
     ; (* [downstream_flushed ()] returns when all prior values that the consumer has
          passed downstream have been flushed all the way down the chain of pipes. *)
       downstream_flushed : unit -> Flushed_result.t Deferred.t
@@ -120,9 +121,9 @@ module Blocked_read = struct
 
      If a pipe is closed, then all blocked reads will be filled with [`Eof]. *)
   type 'a wants =
-    | Zero of [`Eof | `Ok] Ivar.t
-    | One of [`Eof | `Ok of 'a] Ivar.t
-    | At_most of int * [`Eof | `Ok of 'a Q.t] Ivar.t
+    | Zero of [ `Eof | `Ok ] Ivar.t
+    | One of [ `Eof | `Ok of 'a ] Ivar.t
+    | At_most of int * [ `Eof | `Ok of 'a Q.t ] Ivar.t
   [@@deriving sexp_of]
 
   type 'a t =
@@ -178,7 +179,7 @@ module Blocked_flush = struct
      preceding the flush will never be read. *)
   type t =
     { fill_when_num_values_read : int
-    ; ready : [`Ok | `Reader_closed] Ivar.t
+    ; ready : [ `Ok | `Reader_closed ] Ivar.t
     }
   [@@deriving fields, sexp_of]
 
@@ -452,7 +453,7 @@ let set_size_budget t size_budget =
 ;;
 
 let fill_blocked_reads t =
-  while not (Q.is_empty t.blocked_reads) && not (is_empty t) do
+  while (not (Q.is_empty t.blocked_reads)) && not (is_empty t) do
     let blocked_read = Q.dequeue_exn t.blocked_reads in
     let consumer = blocked_read.consumer in
     match blocked_read.wants with
@@ -620,7 +621,7 @@ let values_available t =
         Q.enqueue t.blocked_reads (Blocked_read.(create (Zero ivar)) None)))
 ;;
 
-let read_choice t = choice (values_available t) (fun (_ : [`Ok | `Eof]) -> read_now t)
+let read_choice t = choice (values_available t) (fun (_ : [ `Ok | `Eof ]) -> read_now t)
 
 let read_choice_single_consumer_exn t here =
   Deferred.Choice.map (read_choice t) ~f:(function
@@ -989,7 +990,8 @@ let transfer_gen
 ;;
 
 let transfer' ?max_queue_length input output ~f =
-  transfer_gen (read_now' ?max_queue_length) write' input output ~f:(fun q k -> f q >>> k)
+  transfer_gen (read_now' ?max_queue_length) write' input output ~f:(fun q k ->
+    f q >>> k)
 ;;
 
 let transfer input output ~f =

@@ -152,7 +152,8 @@ val closed : (_, _) t -> unit Deferred.t
 module Flushed_result : sig
   type t =
     [ `Ok
-    | `Reader_closed ]
+    | `Reader_closed
+    ]
   [@@deriving sexp_of]
 end
 
@@ -319,7 +320,7 @@ val transfer_in_without_pushback : 'a Writer.t -> from:'a Queue.t -> unit
 val write_when_ready
   :  'a Writer.t
   -> f:(('a -> unit) -> 'b)
-  -> [`Closed | `Ok of 'b] Deferred.t
+  -> [ `Closed | `Ok of 'b ] Deferred.t
 
 (** [write_if_open w e] is equivalent to:
 
@@ -369,19 +370,20 @@ val read'
   :  ?consumer:Consumer.t
   -> ?max_queue_length:int (** default is [Int.max_value] *)
   -> 'a Reader.t
-  -> [`Eof | `Ok of 'a Queue.t] Deferred.t
+  -> [ `Eof | `Ok of 'a Queue.t ] Deferred.t
 
 (** [read pipe] reads a single value from the pipe.  The [consumer] is used to extend the
     meaning of values being flushed (see the [Consumer] module above). *)
-val read : ?consumer:Consumer.t -> 'a Reader.t -> [`Eof | `Ok of 'a] Deferred.t
+val read : ?consumer:Consumer.t -> 'a Reader.t -> [ `Eof | `Ok of 'a ] Deferred.t
 
 (** [read_at_most t ~num_values] is [read' t ~max_queue_length:num_values]. *)
 val read_at_most
   :  ?consumer:Consumer.t
   -> 'a Reader.t
   -> num_values:int
-  -> [`Eof | `Ok of 'a Queue.t] Deferred.t
+  -> [ `Eof | `Ok of 'a Queue.t ] Deferred.t
 [@@deprecated "[since 2015-12] Use [read' ~max_queue_length]"]
+
 
 (** [read_exactly r ~num_values] reads exactly [num_values] items, unless EOF is
     encountered.  [read_exactly] performs a sequence of [read_at_most] operations, so
@@ -395,8 +397,9 @@ val read_exactly
   -> 'a Reader.t
   -> num_values:int
   -> [ `Eof
-     | `Fewer of 'a Queue.t  (** [0 < Q.length q < num_values] *)
-     | `Exactly of 'a Queue.t  (** [Q.length q = num_values] *) ]
+     | `Fewer of 'a Queue.t (** [0 < Q.length q < num_values] *)
+     | `Exactly of 'a Queue.t (** [Q.length q = num_values] *)
+     ]
        Deferred.t
 
 (** [read_now' reader] reads values from [reader] that are immediately available.  If
@@ -408,21 +411,21 @@ val read_now'
   :  ?consumer:Consumer.t
   -> ?max_queue_length:int (** default is [Int.max_value] *)
   -> 'a Reader.t
-  -> [`Eof | `Nothing_available | `Ok of 'a Queue.t]
+  -> [ `Eof | `Nothing_available | `Ok of 'a Queue.t ]
 
 (** [read_now] is like [read_now'], except that it reads a single value rather than
     everything that is available. *)
 val read_now
   :  ?consumer:Consumer.t
   -> 'a Reader.t
-  -> [`Eof | `Nothing_available | `Ok of 'a]
+  -> [ `Eof | `Nothing_available | `Ok of 'a ]
 
 (** [read_now_at_most t ~num_values] is [read_now' t ~max_queue_length:num_values] *)
 val read_now_at_most
   :  ?consumer:Consumer.t
   -> 'a Reader.t
   -> num_values:int
-  -> [`Eof | `Nothing_available | `Ok of 'a Queue.t]
+  -> [ `Eof | `Nothing_available | `Ok of 'a Queue.t ]
 [@@deprecated "[since 2015-12] Use [read_now' ~max_queue_length"]
 
 
@@ -436,6 +439,7 @@ val clear : 'a Reader.t -> unit
     alternative name might be [Reader.to_queue]. *)
 val read_all : 'a Reader.t -> 'a Queue.t Deferred.t
 
+
 (** [values_available reader] returns a deferred that becomes determined when there are
     values in the pipe.  If there are multiple readers (a rare situation), there is no
     guarantee that some other reader hasn't become active because of ordinary Async
@@ -447,7 +451,7 @@ val read_all : 'a Reader.t -> 'a Queue.t Deferred.t
     pipe, so that one can be sure and not remove values and drop them on the floor.
 
     [values_available] is roughly equivalent to [read' ~max_queue_length:0]. *)
-val values_available : _ Reader.t -> [`Eof | `Ok] Deferred.t
+val values_available : _ Reader.t -> [ `Eof | `Ok ] Deferred.t
 
 (** [read_choice reader] is:
 
@@ -469,12 +473,14 @@ val values_available : _ Reader.t -> [`Eof | `Ok] Deferred.t
     [read_choice_single_consumer_exn reader [%here]] is like [read_choice reader], but it
     raises in the case of [`Nothing_available].  It is intended to be used when [reader]
     has no other consumers. *)
-val read_choice : 'a Reader.t -> [`Eof | `Ok of 'a | `Nothing_available] Deferred.choice
+val read_choice
+  :  'a Reader.t
+  -> [ `Eof | `Ok of 'a | `Nothing_available ] Deferred.choice
 
 val read_choice_single_consumer_exn
   :  'a Reader.t
   -> Source_code_position.t
-  -> [`Eof | `Ok of 'a] Deferred.choice
+  -> [ `Eof | `Ok of 'a ] Deferred.choice
 
 (** {2 Sequence functions} *)
 
@@ -579,6 +585,7 @@ val iter_without_pushback
   -> 'a Reader.t
   -> f:('a -> unit)
   -> unit Deferred.t
+
 
 (** [transfer' input output ~f] repeatedly reads a batch of elements from [input], applies
     [f] to the batch, writes the result as a batch to [output], and then waits on
@@ -710,7 +717,7 @@ val concat : 'a Reader.t list -> 'a Reader.t
     Note that {!upstream_flushed} will not work with the pipes returned by [fork]. *)
 val fork
   :  'a Reader.t
-  -> pushback_uses:[`Both_consumers | `Fast_consumer_only]
+  -> pushback_uses:[ `Both_consumers | `Fast_consumer_only ]
   -> 'a Reader.t * 'a Reader.t
 
 (** [to_stream_deprecated reader] returns a stream that reads everything from the pipe.

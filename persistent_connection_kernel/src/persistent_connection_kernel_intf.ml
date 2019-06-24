@@ -47,7 +47,7 @@ module type S = sig
       | Disconnected
     [@@deriving sexp_of]
 
-    val log_level : t -> [`Info | `Debug | `Error]
+    val log_level : t -> [ `Info | `Debug | `Error ]
   end
 
   (** [create ~server_name ~on_event ~retry_delay get_address] returns a persistent
@@ -103,7 +103,8 @@ module type S = sig
       Note: no [close] calls are ever generated internally in response to the connection
       being closed by the other side.
   *)
-  include Closable with type t := t
+  include
+    Closable with type t := t
 end
 
 module type T = sig

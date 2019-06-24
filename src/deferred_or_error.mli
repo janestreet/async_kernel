@@ -30,7 +30,8 @@ type 'a t = 'a Or_error.t Deferred.t
 (** The applicative operations match the behavior of the applicative operations in
     [Or_error].  This means that [all] and [all_unit] are equivalent to [combine_errors]
     and [combine_errors_unit] respectively. *)
-include Applicative.S with type 'a t := 'a t
+include
+  Applicative.S with type 'a t := 'a t
 
 (** [return x = Deferred.return (Ok x)] **)
 include Monad.S with type 'a t := 'a t
@@ -76,7 +77,7 @@ val ok_unit : unit t
     or kept ([extract_exn:false]). *)
 val try_with
   :  ?extract_exn:bool (** default is [false] *)
-  -> ?run:[`Now | `Schedule] (** default is [`Schedule] *)
+  -> ?run:[ `Now | `Schedule ] (** default is [`Schedule] *)
   -> ?here:Lexing.position
   -> ?name:string
   -> (unit -> 'a Deferred.t)
@@ -84,7 +85,7 @@ val try_with
 
 val try_with_join
   :  ?extract_exn:bool (** default is [false] *)
-  -> ?run:[`Now | `Schedule] (** default is [`Schedule] *)
+  -> ?run:[ `Now | `Schedule ] (** default is [`Schedule] *)
   -> ?here:Lexing.position
   -> ?name:string
   -> (unit -> 'a t)
@@ -110,5 +111,5 @@ module List : Monad_sequence.S with type 'a monad := 'a t with type 'a t := 'a l
     If [f] returns an [Or_error.Error] the loop terminates and returns. *)
 val repeat_until_finished
   :  'state
-  -> ('state -> [`Repeat of 'state | `Finished of 'result] t)
+  -> ('state -> [ `Repeat of 'state | `Finished of 'result ] t)
   -> 'result t
