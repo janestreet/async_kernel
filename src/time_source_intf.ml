@@ -89,6 +89,14 @@ module type Time_source = sig
     -> to_:Time_ns.t
     -> unit Deferred.t
 
+  (** [advance_by_alarms_by ?wait_for t by] is equivalent to:
+      [advance_by_alarms ?wait_for t ~to_:(Time_ns.add (now t) by)] *)
+  val advance_by_alarms_by
+    :  ?wait_for:(unit -> unit Deferred.t)
+    -> [> write ] T1.t
+    -> Time_ns.Span.t
+    -> unit Deferred.t
+
   module Continue : sig
     type t
 

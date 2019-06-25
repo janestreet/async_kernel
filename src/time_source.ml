@@ -121,6 +121,10 @@ let advance_by_alarms ?wait_for t ~to_ =
   walk_alarms ()
 ;;
 
+let advance_by_alarms_by ?wait_for t by =
+  advance_by_alarms ?wait_for t ~to_:(Time_ns.after (now t) by)
+;;
+
 let span_to_time t span = Time_ns.after (now t) span
 
 let schedule_job t ~at execution_context f a =
