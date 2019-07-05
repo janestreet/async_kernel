@@ -80,7 +80,7 @@ end
 (** [unit] is a deferred that is always determined with value [()] *)
 val unit : unit t
 
-val ignore : _ t -> unit t
+val ignore : _ t -> unit t [@@deprecated "[since 2019-06] Use [ignore_m] instead"]
 
 (** [never ()] returns a deferred that never becomes determined. *)
 val never : unit -> _ t

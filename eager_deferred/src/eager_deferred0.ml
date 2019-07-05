@@ -39,7 +39,8 @@ let both t1 t2 =
 ;;
 
 let ok t = if is_determined t then return (Ok (value_exn t)) else Deferred.ok t
-let ignore t = if is_determined t then unit else Deferred.ignore t
+let ignore_m t = if is_determined t then unit else Deferred.ignore_m t
+let ignore = ignore_m
 
 let any ts =
   match List.find ts ~f:is_determined with

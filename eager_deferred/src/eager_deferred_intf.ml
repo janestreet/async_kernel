@@ -10,7 +10,7 @@ module type Eager_deferred_or_error = sig
 
   val fail : Error.t -> _ t
   val ok_unit : unit t
-  val ignore : _ t -> unit t
+  val ignore : _ t -> unit t [@@deprecated "[since 2019-06] Use [ignore_m] instead"]
   val ok_exn : 'a t -> 'a deferred
   val of_exn : exn -> _ t
   val of_exn_result : ('a, exn) Result.t deferred -> 'a t
@@ -71,7 +71,7 @@ module type Eager_deferred1 = sig
   val both : 'a t -> 'b t -> ('a * 'b) t
   val create : ('a Ivar.t -> unit) -> 'a t
   val don't_wait_for : unit t -> unit
-  val ignore : _ t -> unit t
+  val ignore : _ t -> unit t [@@deprecated "[since 2019-06] Use [ignore_m] instead."]
   val is_determined : 'a t -> bool
   val never : unit -> _ t
   val ok : 'a t -> ('a, _) Core_kernel.Result.t t
@@ -94,8 +94,8 @@ module type S = sig
 
   include Eager_deferred1 with type 'a t := 'a t (** @open *)
 
-  (** Intended usage is to [open Eager_deferred.Use] to shadow operations from the non-eager
-      world and rebind them to their eager counterparts. *)
+  (** Intended usage is to [open Eager_deferred.Use] to shadow operations from the
+      non-eager world and rebind them to their eager counterparts. *)
   module Use : sig
     module Deferred : sig
       type nonrec 'a t = 'a t
