@@ -96,8 +96,7 @@ type t = Scheduler0.t =
      When running a cycle, we pull external actions at every job and perform them
      immediately. *)
   ; external_jobs : External_job.t Thread_safe_queue.t
-  ; mutable thread_safe_external_job_hook : unit
-      -> unit
+  ; mutable thread_safe_external_job_hook : unit -> unit
   (* [job_queued_hook] and [event_added_hook] aim to be used by js_of_ocaml. *)
   (* We use [_ option] here because those hooks will not be set in the common case
      and we want to avoid extra function calls. *)
