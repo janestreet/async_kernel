@@ -146,7 +146,7 @@ let force_current_cycle_to_end t =
 let send_exn = Some Monitor.send_exn
 
 let advance_clock t ~now =
-  Synchronous_time_source0.advance t.time_source ~to_:now ~send_exn
+  Synchronous_time_source0.advance_directly t.time_source ~to_:now ~send_exn
 ;;
 
 let run_cycle t =

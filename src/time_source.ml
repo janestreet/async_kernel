@@ -80,8 +80,10 @@ let now t =
 
 (* We preallocate [send_exn] to avoid allocating it on each call to [advance_clock]. *)
 let send_exn = Some Monitor.send_exn
-let advance t ~to_ = Synchronous_time_source0.advance_clock t ~to_ ~send_exn
-let advance_by t by = advance t ~to_:(Time_ns.after (now t) by)
+let advance_directly t ~to_ = Synchronous_time_source0.advance_clock t ~to_ ~send_exn
+let advance_directly_by t by = advance_directly t ~to_:(Time_ns.after (now t) by)
+let advance = advance_directly
+let advance_by = advance_directly_by
 let fire_past_alarms t = Synchronous_time_source0.fire_past_alarms t ~send_exn
 let yield t = Bvar.wait (Scheduler.yield t.scheduler)
 
@@ -97,7 +99,7 @@ let advance_by_alarms ?wait_for t ~to_ =
     | Some f -> f ()
   in
   let finish () =
-    advance t ~to_;
+    advance_directly t ~to_;
     fire_past_alarms t;
     (* so that alarms scheduled at or before [to_] fire *)
     run_queued_alarms ()
@@ -109,7 +111,7 @@ let advance_by_alarms ?wait_for t ~to_ =
       if Time_ns.( >= ) next_alarm_fires_at to_
       then finish ()
       else (
-        advance t ~to_:next_alarm_fires_at;
+        advance_directly t ~to_:next_alarm_fires_at;
         let%bind () = run_queued_alarms () in
         walk_alarms ())
   in

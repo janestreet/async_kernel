@@ -542,7 +542,7 @@ let fire_past_alarms t ~send_exn =
   run_fired_events t ~send_exn
 ;;
 
-let advance t ~to_ ~send_exn =
+let advance_directly t ~to_ ~send_exn =
   advance_clock t ~to_ ~send_exn;
   fire_past_alarms t ~send_exn
 ;;
@@ -568,12 +568,12 @@ let advance_by_alarms t ~to_ =
         (* We use the actual alarm time, rather than [next_alarm_fires_at], so as not to
            expose (or accumulate errors associated with) the precision of
            [Timing_wheel]. *)
-        advance
+        advance_directly
           t
           ~to_:(Timing_wheel.max_alarm_time_in_min_interval_exn t.events)
           ~send_exn)
   done;
-  advance t ~to_ ~send_exn;
+  advance_directly t ~to_ ~send_exn;
   t.am_advancing <- false;
   match t.advance_errors with
   | [] -> Ok ()

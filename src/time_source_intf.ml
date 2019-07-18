@@ -64,13 +64,28 @@ module type Time_source = sig
   val timing_wheel_now : [> read ] T1.t -> Time_ns.t
 
 
-  (** Unlike in [Synchronous_time_source], the [advance] function here only approximately
-      determines the set of events to fire. You should also call [fire_past_alarms] if you
-      want precision (see docs for [Timing_wheel.advance_clock] vs.
+  (** Instead of [advance_directly], you probably should use [advance_by_alarms].
+      [advance_directly t ~to_] advances the clock directly to [to_], whereas
+      [advance_by_alarms] advances the clock in steps, to each intervening alarm.
+      [advance_directly] approximately determines the set of events to fire, up to
+      timing-wheel alarm precision, whereas [advance_by_alarms] fires all alarms whose
+      time is [<= to_].  With [advance_directly], you must call [fire_past_alarms] if you
+      want that behavior (see docs for [Timing_wheel.advance_clock] vs.
       [Timing_wheel.fire_past_alarms]). *)
+  val advance_directly : [> write ] T1.t -> to_:Time_ns.t -> unit
+
   val advance : [> write ] T1.t -> to_:Time_ns.t -> unit
+  [@@deprecated
+    "[since 2019-06] Use [advance_directly] (to preserve behavior) or \
+     [advance_by_alarms]"]
+
+  val advance_directly_by : [> write ] T1.t -> Time_ns.Span.t -> unit
 
   val advance_by : [> write ] T1.t -> Time_ns.Span.t -> unit
+  [@@deprecated
+    "[since 2019-06] Use [advance_directly_by] (to preserve behavior) or \
+     [advance_by_alarms_by]"]
+
   val fire_past_alarms : [> write ] T1.t -> unit
 
   (** [advance_by_alarms t] repeatedly calls [advance t] to drive the time forward in
