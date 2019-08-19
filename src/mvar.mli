@@ -2,7 +2,7 @@
     [put] or [set] the value, and wait on [value_available] for the location to be filled
     in either way.
 
-    Having an [Mvar.Writer.t] gives the capability to mutate the mvar.
+    Having an [Mvar.Read_write.t] gives the capability to mutate the mvar.
 
     The key difference between an [Mvar] and an {{!Async_kernel.Ivar}[Ivar]} is that an
     [Mvar] may be filled multiple times.

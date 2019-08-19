@@ -590,7 +590,9 @@ val iter_without_pushback
 (** [transfer' input output ~f] repeatedly reads a batch of elements from [input], applies
     [f] to the batch, writes the result as a batch to [output], and then waits on
     [pushback] in [output] before continuing.  [transfer'] finishes if [input] is closed
-    or [output] is closed.  If [output] is closed, then [transfer'] closes [input]. *)
+    or [output] is closed.  If [output] is closed, then [transfer'] closes [input].  Use
+    [~max_queue_length:1] to cause elements to appear on the output pipe as soon as they
+    are processed, without having to wait for the entire queue. *)
 val transfer'
   :  ?max_queue_length:int (** default is [Int.max_value] *)
   -> 'a Reader.t
@@ -611,7 +613,9 @@ val transfer_id
 (** [map' input ~f] returns a reader, [output], and repeatedly applies [f] to batches of
     elements from [input], with the results appearing in [output].  If values are not
     being consumed from [output], [map'] will pushback and stop consuming values from
-    [input]. If [output] is closed, then [map'] will close [input]. *)
+    [input]. If [output] is closed, then [map'] will close [input].  Use
+    [~max_queue_length:1] to cause elements to appear on the output pipe as soon as they
+    are processed, without having to wait for the entire queue. *)
 val map'
   :  ?max_queue_length:int (** default is [Int.max_value] *)
   -> 'a Reader.t
@@ -642,7 +646,9 @@ val fold_map
     elements from [input], with the results that aren't [None] appearing in [output].  If
     values are not being consumed from [output], [filter_map'] will pushback and stop
     consuming values from [input].  If [output] is closed, then [filter_map'] will close
-    [input]. *)
+    [input].  [filter_map'] processes elements in batches as per [max_queue_length]; in a
+    single batch, all outputs will propagate to the result only when all inputs have been
+    processed. *)
 val filter_map'
   :  ?max_queue_length:int (** default is [Int.max_value] *)
   -> 'a Reader.t
