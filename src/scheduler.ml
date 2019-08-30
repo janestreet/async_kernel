@@ -4,13 +4,7 @@ open! Deferred_std
 module Deferred = Deferred1
 module Scheduler = Scheduler1
 module Stream = Async_stream
-
-include (
-  Scheduler :
-    module type of Scheduler
-  with module Bvar := Scheduler.Bvar
-  with module Ivar := Scheduler.Ivar
-  with module Synchronous_time_source := Scheduler.Synchronous_time_source)
+include (Scheduler : module type of Scheduler with module Bvar := Scheduler.Bvar)
 
 let t = Scheduler.t
 
@@ -146,7 +140,7 @@ let force_current_cycle_to_end t =
 let send_exn = Some Monitor.send_exn
 
 let advance_clock t ~now =
-  Synchronous_time_source0.advance_directly t.time_source ~to_:now ~send_exn
+  Synchronous_time_source0.advance_internal t.time_source ~to_:now ~send_exn
 ;;
 
 let run_cycle t =

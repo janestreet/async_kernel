@@ -71,6 +71,12 @@ val timing_wheel_now : [> read ] T1.t -> Time_ns.t
     but alarms with [at <= to_] may still may fire. *)
 val advance_by_alarms : [> write ] T1.t -> to_:Time_ns.t -> unit Or_error.t
 
+(** Instead of [advance_directly], you probably should use [advance_by_alarms].
+    [advance_directly t ~to_] advances the clock directly to [to_], whereas
+    [advance_by_alarms] advances the clock in steps, to each intervening alarm.  In
+    particular periodic/rearming timers will fire at most twice. *)
+val advance_directly : [> write ] T1.t -> to_:Time_ns.t -> unit Or_error.t
+
 (** [run_at t at f] schedules an alarm that will run [f] during the next subsequent
     [advance_by_alarms t ~to_] that causes [now t >= at].  If [at <= now t], then [f] will
     to run at the next call to [advance_by_alarms].  [f] is allowed to do all

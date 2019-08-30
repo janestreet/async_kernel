@@ -21,12 +21,7 @@ module M = Monad.Make (struct
     let map = `Custom map
   end)
 
-include (
-  M :
-    module type of struct
-    include M
-  end
-  with module Let_syntax := M.Let_syntax)
+include M
 
 (* We rebind all the various [return]s because the use of the [Monad.Make] functor
    causes the compiler to not inline [return], and hence makes it impossible to
@@ -43,12 +38,7 @@ include (
 let return = Deferred0.return
 
 module Let_syntax = struct
-  include (
-    M.Let_syntax :
-      module type of struct
-      include M.Let_syntax
-    end
-    with module Let_syntax := M.Let_syntax.Let_syntax)
+  include M.Let_syntax
 
   let return = Deferred0.return
 

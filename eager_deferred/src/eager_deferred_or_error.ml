@@ -10,11 +10,7 @@ end
 
 (* Copied from [deferred_or_error.ml].  There should be no diffs below this line. *)
 
-include (
-  Deferred_result :
-    Monad.S2
-  with type ('a, 'b) t := ('a, 'b) Deferred_result.t
-  with module Let_syntax := Deferred_result.Let_syntax)
+include (Deferred_result : Monad.S2 with type ('a, 'b) t := ('a, 'b) Deferred_result.t)
 
 type 'a t = 'a Or_error.t Deferred.t
 

@@ -542,20 +542,33 @@ let fire_past_alarms t ~send_exn =
   run_fired_events t ~send_exn
 ;;
 
-let advance_directly t ~to_ ~send_exn =
+let advance_internal t ~to_ ~send_exn =
   advance_clock t ~to_ ~send_exn;
   fire_past_alarms t ~send_exn
 ;;
 
-let advance_by_alarms t ~to_ =
-  let send_exn = None in
+let prepare_to_advance t ~send_exn =
   if t.am_advancing
   then raise_s [%message "cannot call [advance_by_alarms] from callback"];
   t.am_advancing <- true;
   (match t.advance_errors with
    | [] -> ()
    | _ -> t.advance_errors <- []);
-  run_fired_events t ~send_exn;
+  run_fired_events t ~send_exn
+;;
+
+let finish_advancing t =
+  t.am_advancing <- false;
+  match t.advance_errors with
+  | [] -> Ok ()
+  | errors ->
+    t.advance_errors <- [];
+    Error (Error.of_list errors)
+;;
+
+let advance_by_alarms t ~to_ =
+  let send_exn = None in
+  prepare_to_advance t ~send_exn;
   let continue = ref true in
   while !continue do
     if Timing_wheel.is_empty t.events
@@ -568,16 +581,18 @@ let advance_by_alarms t ~to_ =
         (* We use the actual alarm time, rather than [next_alarm_fires_at], so as not to
            expose (or accumulate errors associated with) the precision of
            [Timing_wheel]. *)
-        advance_directly
+        advance_internal
           t
           ~to_:(Timing_wheel.max_alarm_time_in_min_interval_exn t.events)
           ~send_exn)
   done;
-  advance_directly t ~to_ ~send_exn;
-  t.am_advancing <- false;
-  match t.advance_errors with
-  | [] -> Ok ()
-  | errors ->
-    t.advance_errors <- [];
-    Error (Error.of_list errors)
+  advance_internal t ~to_ ~send_exn;
+  finish_advancing t
+;;
+
+let advance_directly t ~to_ =
+  let send_exn = None in
+  prepare_to_advance t ~send_exn;
+  advance_internal t ~to_ ~send_exn;
+  finish_advancing t
 ;;
