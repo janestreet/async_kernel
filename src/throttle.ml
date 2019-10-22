@@ -252,11 +252,32 @@ let enqueue' t f =
   Job.result job
 ;;
 
-let enqueue t f =
-  match%map enqueue' t f with
+let handle_enqueue_result result =
+  match result with
   | `Ok a -> a
   | `Aborted -> raise_s [%message "throttle aborted job"]
   | `Raised exn -> raise exn
+;;
+
+let enqueue t f = enqueue' t f >>| handle_enqueue_result
+
+let enqueue_exclusive t f =
+  let n = t.max_concurrent_jobs in
+  if Int.( >= ) n 1_000_000
+  then
+    raise_s
+      [%sexp
+        "[enqueue_exclusive] was called with a very large value of \
+         [max_concurrent_jobs]. This doesn't work."];
+  let done_ = Ivar.create () in
+  assert (n > 0);
+  let f_placeholder _slot = Ivar.read done_ in
+  for _ = 1 to n - 1 do
+    don't_wait_for (enqueue t f_placeholder)
+  done;
+  let%map result = enqueue' t (fun _slot -> f ()) in
+  Ivar.fill done_ ();
+  handle_enqueue_result result
 ;;
 
 let monad_sequence_how ?(how = `Sequential) ~f =

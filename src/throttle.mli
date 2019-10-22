@@ -62,6 +62,13 @@ val enqueue' : ('a, _) T2.t -> ('a -> 'b Deferred.t) -> 'b outcome Deferred.t
 
 val enqueue : ('a, _) T2.t -> ('a -> 'b Deferred.t) -> 'b Deferred.t
 
+(** [enqueue_exclusive] schedules a job that occupies all slots of the throttle, so it
+    won't run concurrently with any other job.  The job counts as being enqueued normally,
+    so it runs after the jobs enqueued previously and before the jobs enqueued later.
+    [enqueue_exclusive] takes O(max_concurrent_jobs) time, so you should not use it when
+    [max_concurrent_jobs = Int.max_value]. *)
+val enqueue_exclusive : ('a, _) T2.t -> (unit -> 'b Deferred.t) -> 'b Deferred.t
+
 (** [monad_sequence_how ~how ~f] returns a function that behaves like [f], except that it
     uses a throttle to limit the number of concurrent invocations that can be running
     simultaneously.  The throttle has [continue_on_error = false]. *)
