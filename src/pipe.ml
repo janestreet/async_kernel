@@ -310,7 +310,7 @@ end
 
 let id_ref = ref 0
 
-let create () =
+let create_internal ~initial_buffer =
   incr id_ref;
   let t =
     { id = !id_ref
@@ -319,7 +319,7 @@ let create () =
     ;
       size_budget = 0
     ; pushback = Ivar.create ()
-    ; buffer = Q.create ()
+    ; buffer = initial_buffer
     ; num_values_read = 0
     ; blocked_flushes = Q.create ()
     ; blocked_reads = Q.create ()
@@ -327,8 +327,13 @@ let create () =
     ; upstream_flusheds = Bag.create ()
     }
   in
-  Ivar.fill t.pushback ();
+  t
+;;
+
+let create () =
+  let t = create_internal ~initial_buffer:(Q.create ()) in
   (* initially, the pipe does not pushback *)
+  Ivar.fill t.pushback ();
   if !check_invariant then invariant t;
   t, t
 ;;
@@ -1043,10 +1048,10 @@ let fold_map = folding_map
 let filter input ~f = filter_map input ~f:(fun x -> if f x then Some x else None)
 
 let of_list l =
-  let reader, writer = create () in
-  don't_wait_for (write' writer (Q.of_list l));
-  close writer;
-  reader
+  let t = create_internal ~initial_buffer:(Q.of_list l) in
+  Ivar.fill t.closed ();
+  update_pushback t;
+  t
 ;;
 
 let singleton x =
