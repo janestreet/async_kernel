@@ -51,6 +51,7 @@ val create
   -> read_write T1.t
 
 val alarm_precision : [> read ] T1.t -> Time_ns.Span.t
+val next_alarm_fires_at : [> read ] T1.t -> Time_ns.t option
 
 (** [is_wall_clock] reports whether this time source represents 'wall clock' time, or some
     alternate source of time. *)
@@ -88,7 +89,7 @@ val run_at : [> read ] T1.t -> Time_ns.t -> callback -> unit
 (** [run_after t span f] is [run_at t (now t + span) f]. *)
 val run_after : [> read ] T1.t -> Time_ns.Span.t -> callback -> unit
 
-(** [run_at_intervals t span f] causes [f] to run at intervals [now t + k * span], for
+(** [run_at_intervals t span f] schedules [f] to run at intervals [now t + k * span], for
     k = 0, 1, 2, etc.  [run_at_intervals] raises if [span < alarm_precision t]. *)
 val run_at_intervals : [> read ] T1.t -> Time_ns.Span.t -> callback -> unit
 

@@ -331,6 +331,7 @@ let fire t (event : Event.t) =
 ;;
 
 let alarm_precision t = Timing_wheel.alarm_precision t.events
+let next_alarm_fires_at t = Timing_wheel.next_alarm_fires_at t.events
 let now t = if t.is_wall_clock then Time_ns.now () else timing_wheel_now t
 let timing_wheel_now = timing_wheel_now
 

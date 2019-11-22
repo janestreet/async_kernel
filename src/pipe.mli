@@ -18,7 +18,10 @@
     been consumed by a reader.
 
     There are distinct [Reader] and [Writer] modules and types, but all of the operations
-    on readers and writers are available directly from the [Pipe] module. *)
+    on readers and writers are available directly from the [Pipe] module.
+
+    For debugging your pipe usage you can use [show_debug_messages], and also use
+    [set_info] to attach some data to a pipe for identification purposes. *)
 
 open! Core_kernel
 
@@ -80,8 +83,12 @@ you might want to consider changing the argument [close_on_exception] to the rec
 
 (** [create ()] creates a new pipe.  It is preferable to use [create_reader] or
     [create_writer] instead of [create], since they provide exception handling and
-    automatic closing of the pipe. *)
-val create : unit -> 'a Reader.t * 'a Writer.t
+    automatic closing of the pipe.  [info] is an arbitrary sexp displayed by [sexp_of_t],
+    for debugging purposes; see also [set_info]. *)
+val create : ?info:Sexp.t -> unit -> 'a Reader.t * 'a Writer.t
+
+(** [empty ()] returns a closed pipe reader with no contents. *)
+val empty : unit -> _ Reader.t
 
 (** [of_list l] returns a closed pipe reader filled with the contents of [l]. *)
 val of_list : 'a list -> 'a Reader.t
@@ -662,8 +669,18 @@ val filter_map
   -> f:('a -> 'b option)
   -> 'b Reader.t
 
-(** [folding_filter_map] is a version [filter_map] that threads an accumulator through
-    calls to [f]. *)
+(** [folding_filter_map'] is a version of [filter_map'] that threads an accumulator
+    through calls to [f].  Like [filter_map'], [folding_filter_map'] processes elements in
+    batches as per [max_queue_length]; in a single batch, all outputs will propagate to
+    the result only when all inputs have been processed. *)
+val folding_filter_map'
+  :  ?max_queue_length:int (** default is [Int.max_value] *)
+  -> 'a Reader.t
+  -> init:'accum
+  -> f:('accum -> 'a -> ('accum * 'b option) Deferred.t)
+  -> 'b Reader.t
+
+(** [folding_filter_map] is a specialized version of [folding_filter_map']. *)
 val folding_filter_map
   :  ?max_queue_length:int (** default is [Int.max_value] *)
   -> 'a Reader.t
@@ -783,3 +800,7 @@ val show_debug_messages : bool ref
 (** [check_invariant], if true, will cause pipes' invariants to be checked at the start of
     each operation. *)
 val check_invariant : bool ref
+
+(** [set_info] updates [t]'s [info] field, which is displayed by [sexp_of_t], and thus in
+    debugging messages. *)
+val set_info : (_, _) t -> Sexp.t -> unit
