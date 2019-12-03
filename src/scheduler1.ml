@@ -1,6 +1,6 @@
 open Core_kernel
 open Import
-include (Scheduler0 : module type of Scheduler0 with type t := Scheduler0.t)
+include Scheduler0
 module Synchronous_time_source = Synchronous_time_source0
 module Event = Synchronous_time_source.Event
 module Alarm = Timing_wheel.Alarm
