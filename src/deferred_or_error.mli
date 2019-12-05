@@ -39,8 +39,6 @@ include Monad.S with type 'a t := 'a t
 (** [fail error = Deferred.return (Error error)] **)
 val fail : Error.t -> _ t
 
-val ignore : _ t -> unit t [@@deprecated "[since 2019-06] Use [ignore_m] instead"]
-
 (** These functions are direct analogs of the corresponding [Core.Or_error] functions. *)
 val ok_exn : 'a t -> 'a Deferred.t
 
