@@ -102,6 +102,14 @@ module Event : sig
 
   include Invariant.S with type t := t
 
+  module Option : sig
+    type value = t
+    type t [@@deriving sexp_of]
+
+    include
+      Immediate_option.S_without_immediate_plain with type t := t and type value := value
+  end
+
   (** These are like the corresponding [run_*] functions, except they return an event that
       one can later [abort]. *)
   val at : [> read ] T1.t -> Time_ns.t -> callback -> t

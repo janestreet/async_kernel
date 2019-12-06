@@ -484,6 +484,55 @@ module Event = struct
 
   let reschedule_after t event span = reschedule_at t event (Time_ns.after (now t) span)
 
+  module Option = struct
+    type value = t
+    type nonrec t = t
+
+    let is_none = is_none
+    let is_some = is_some
+
+    let some value =
+      (* This assert shouldn't fail because [t] is a [value] and so should never
+         be [none]. *)
+      assert (is_some value);
+      value
+    ;;
+
+    (* It should be impossible for [some_is_representable] to return [false]
+       because its input is a [value], but since it's only loosely enforced we
+       handle the general case. *)
+    let some_is_representable value =
+      assert (is_some value);
+      true
+    ;;
+
+    let none = none
+    let unchecked_value = Fn.id
+    let value t ~default = if is_none t then default else unchecked_value t
+
+    let value_exn t =
+      if is_none t
+      then raise_s [%message "[Synchronous_time_source.Event.Option.value_exn None]"];
+      t
+    ;;
+
+    let to_option t = if is_none t then None else Some t
+
+    let of_option = function
+      | None -> none
+      | Some t -> some t
+    ;;
+
+    let sexp_of_t t = to_option t |> [%sexp_of: t option]
+
+    module Optional_syntax = struct
+      module Optional_syntax = struct
+        let is_none = is_none
+        let unsafe_value = Fn.id
+      end
+    end
+  end
+
 end
 
 let run_after t span callback = ignore (Event.after t span callback : Event.t)
