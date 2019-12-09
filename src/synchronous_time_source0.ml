@@ -100,17 +100,20 @@ module T1 = struct
     let is_some t = not (is_none t)
 
     let sexp_of_t
-          { alarm = _
-          ; at
-          ; callback = _
-          ; execution_context = _
-          ; interval
-          ; next_fired = _
-          ; status
-          }
+          ({ alarm = _
+           ; at
+           ; callback = _
+           ; execution_context = _
+           ; interval
+           ; next_fired = _
+           ; status
+           } as t)
       =
-      [%message
-        "" (status : Status.t) (at : Time_ns.t) (interval : Time_ns.Span.t option)]
+      if is_none t
+      then [%sexp "none"]
+      else
+        [%message
+          "" (status : Status.t) (at : Time_ns.t) (interval : Time_ns.Span.t option)]
     ;;
 
     let invariant t =
