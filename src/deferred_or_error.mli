@@ -91,8 +91,10 @@ val try_with_join
 
 (** All of the [List] functions that take a [how] argument treat it the following way:
 
-    [`Sequential] indicates both sequential evaluation of the deferreds, and sequential
-    combination of the results.
+    [`Sequential] indicates both sequential evaluation of the deferreds, and
+    sequential combination of the results.  This means that if [f] returns an
+    [Error] on an element, that [Error] will be returned and [f] won't be
+    called on the remaining elements of the [List].
 
     [`Parallel] indicates parallel evaluation of the deferreds (in the sense that they are
     all in the scheduler at the same time), and parallel combination of the results. For
