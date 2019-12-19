@@ -383,14 +383,6 @@ val read'
     meaning of values being flushed (see the [Consumer] module above). *)
 val read : ?consumer:Consumer.t -> 'a Reader.t -> [ `Eof | `Ok of 'a ] Deferred.t
 
-(** [read_at_most t ~num_values] is [read' t ~max_queue_length:num_values]. *)
-val read_at_most
-  :  ?consumer:Consumer.t
-  -> 'a Reader.t
-  -> num_values:int
-  -> [ `Eof | `Ok of 'a Queue.t ] Deferred.t
-[@@deprecated "[since 2015-12] Use [read' ~max_queue_length]"]
-
 
 (** [read_exactly r ~num_values] reads exactly [num_values] items, unless EOF is
     encountered.  [read_exactly] performs a sequence of [read_at_most] operations, so
@@ -426,14 +418,6 @@ val read_now
   :  ?consumer:Consumer.t
   -> 'a Reader.t
   -> [ `Eof | `Nothing_available | `Ok of 'a ]
-
-(** [read_now_at_most t ~num_values] is [read_now' t ~max_queue_length:num_values] *)
-val read_now_at_most
-  :  ?consumer:Consumer.t
-  -> 'a Reader.t
-  -> num_values:int
-  -> [ `Eof | `Nothing_available | `Ok of 'a Queue.t ]
-[@@deprecated "[since 2015-12] Use [read_now' ~max_queue_length"]
 
 
 val peek : 'a Reader.t -> 'a option
@@ -722,6 +706,10 @@ val merge : 'a Reader.t list -> compare:('a -> 'a -> int) -> 'a Reader.t
     in sequence.  [concat] closes [output] once it reaches EOF on the final input.
     If [output] is closed, then [concat] closes all its inputs. *)
 val concat : 'a Reader.t list -> 'a Reader.t
+
+(** [concat_pipe] is like [concat], but it takes a pipe of inputs instead of
+    a list, and closes the input pipe when the output pipe is closed. *)
+val concat_pipe : 'a Reader.t Reader.t -> 'a Reader.t
 
 (** [fork input] returns a pair of readers and transfers each of the values in [input]
     into both of the returned readers.  It closes [input] early if both of the readers are

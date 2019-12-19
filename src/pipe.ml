@@ -376,18 +376,24 @@ let close_read t =
     close t)
 ;;
 
-let create_reader ~close_on_exception f =
+let create_reader_not_close_on_exception f =
   let r, w = create () in
+  upon (f w) (fun () -> close w);
+  r
+;;
+
+let create_reader ~close_on_exception f =
   if not close_on_exception
-  then upon (f w) (fun () -> close w)
-  else
+  then create_reader_not_close_on_exception f
+  else (
+    let r, w = create () in
     don't_wait_for
       (Monitor.protect
          (fun () -> f w)
          ~finally:(fun () ->
            close w;
            return ()));
-  r
+    r)
 ;;
 
 let init f = create_reader ~close_on_exception:true f
@@ -572,11 +578,6 @@ let read_now' ?consumer ?max_queue_length t =
 ;;
 
 let read_now ?consumer t = gen_read_now t ?consumer consume_one
-
-let read_now_at_most ?consumer t ~num_values =
-  read_now' t ?consumer ~max_queue_length:num_values
-;;
-
 let peek t = Queue.peek t.buffer
 
 let clear t =
@@ -609,8 +610,6 @@ let read ?consumer t =
     assert (Queue.is_empty t.blocked_reads);
     return (`Ok (consume_one t consumer)))
 ;;
-
-let read_at_most ?consumer t ~num_values = read' t ?consumer ~max_queue_length:num_values
 
 let values_available t =
   start_read t "values_available";
@@ -1215,12 +1214,20 @@ let merge inputs ~compare =
     r
 ;;
 
-let concat inputs =
-  let r, w = create () in
-  upon
-    (Deferred.List.iter inputs ~f:(fun input -> transfer_id input w))
-    (fun () -> close w);
+let concat_pipe inputs =
+  let r =
+    create_reader_not_close_on_exception (fun w ->
+      let link = Link.create ~upstream:inputs ~downstream:w in
+      let consumer = Link.consumer link in
+      iter ~flushed:(Consumer consumer) inputs ~f:(fun input -> transfer_id input w))
+  in
+  upon (closed r) (fun () -> close inputs);
   r
+;;
+
+let concat inputs =
+  create_reader_not_close_on_exception (fun w ->
+    Deferred.List.iter inputs ~f:(fun input -> transfer_id input w))
 ;;
 
 let fork t ~pushback_uses =
