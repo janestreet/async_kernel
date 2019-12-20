@@ -625,14 +625,6 @@ val folding_map
   -> f:('accum -> 'a -> 'accum * 'b)
   -> 'b Reader.t
 
-val fold_map
-  :  ?max_queue_length:int (** default is [Int.max_value] *)
-  -> 'a Reader.t
-  -> init:'accum
-  -> f:('accum -> 'a -> 'accum * 'b)
-  -> 'b Reader.t
-[@@deprecated "[since 2017-03] Use folding_map instead"]
-
 (** [filter_map' input ~f] returns a reader, [output], and repeatedly applies [f] to
     elements from [input], with the results that aren't [None] appearing in [output].  If
     values are not being consumed from [output], [filter_map'] will pushback and stop
@@ -671,14 +663,6 @@ val folding_filter_map
   -> init:'accum
   -> f:('accum -> 'a -> 'accum * 'b option)
   -> 'b Reader.t
-
-val fold_filter_map
-  :  ?max_queue_length:int (** default is [Int.max_value] *)
-  -> 'a Reader.t
-  -> init:'accum
-  -> f:('accum -> 'a -> 'accum * 'b option)
-  -> 'b Reader.t
-[@@deprecated "[since 2017-03] Use folding_filter_map instead"]
 
 (** [filter input ~f] returns a reader, [output], and copies to [output] each element from
     [input] that satisfies the predicate [f].  If [output] is closed, then [filter] closes

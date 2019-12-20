@@ -1048,15 +1048,12 @@ let folding_filter_map ?max_queue_length input ~init ~f =
     x)
 ;;
 
-let fold_filter_map = folding_filter_map
-
 let folding_map ?max_queue_length input ~init ~f =
-  fold_filter_map ?max_queue_length input ~init ~f:(fun accum a ->
+  folding_filter_map ?max_queue_length input ~init ~f:(fun accum a ->
     let accum, b = f accum a in
     accum, Some b)
 ;;
 
-let fold_map = folding_map
 let filter input ~f = filter_map input ~f:(fun x -> if f x then Some x else None)
 
 let of_list l =
