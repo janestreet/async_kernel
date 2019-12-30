@@ -28,6 +28,7 @@ let next_upcoming_event_exn t = Timing_wheel.next_alarm_fires_at_exn (events t)
 let event_precision t = Timing_wheel.alarm_precision (events t)
 let cycle_start t = t.cycle_start
 let run_every_cycle_start t ~f = t.run_every_cycle_start <- f :: t.run_every_cycle_start
+let run_every_cycle_end t ~f = t.run_every_cycle_end <- f :: t.run_every_cycle_end
 
 let map_cycle_times t ~f =
   Stream.create (fun tail ->
@@ -173,6 +174,7 @@ let run_cycle t =
   && Job_queue.length t.normal_priority_jobs + Job_queue.length t.low_priority_jobs
      = 0
   then Bvar.broadcast t.yield_until_no_jobs_remain ();
+  List.iter t.run_every_cycle_end ~f:(fun f -> f ());
   t.in_cycle <- false;
   t.on_end_of_cycle ();
   if debug
