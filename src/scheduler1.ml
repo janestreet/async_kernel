@@ -132,6 +132,8 @@ let num_jobs_run t =
   + Job_queue.num_jobs_run t.low_priority_jobs
 ;;
 
+let last_cycle_num_jobs t = t.last_cycle_num_jobs
+
 let invariant t : unit =
   try
     let check f field = f (Field.get field t) in

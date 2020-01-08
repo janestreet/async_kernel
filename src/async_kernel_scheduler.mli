@@ -143,6 +143,7 @@ module Expert : sig
   val run_cycles_until_no_jobs_remain : unit -> unit
   val set_on_start_of_cycle : (unit -> unit) -> unit
   val set_on_end_of_cycle : (unit -> unit) -> unit
+  val last_cycle_num_jobs : unit -> int
 end
 
 module Private = Scheduler

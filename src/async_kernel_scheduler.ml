@@ -42,6 +42,7 @@ module Expert = struct
   let run_cycles_until_no_jobs_remain = run_cycles_until_no_jobs_remain
   let set_on_start_of_cycle f = set_on_start_of_cycle (t ()) f
   let set_on_end_of_cycle f = set_on_end_of_cycle (t ()) f
+  let last_cycle_num_jobs () = last_cycle_num_jobs (t ())
 end
 
 module Private = Scheduler

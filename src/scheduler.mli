@@ -29,6 +29,7 @@ val uncaught_exn : t -> Error.t option
 val uncaught_exn_unwrapped : t -> (Exn.t * Sexp.t) option
 val num_pending_jobs : t -> int
 val num_jobs_run : t -> int
+val last_cycle_num_jobs : t -> int
 val map_cycle_times : t -> f:(Time_ns.Span.t -> 'a) -> 'a Async_stream.t
 val cycle_num_jobs : t -> int Async_stream.t
 val cycle_count : t -> int
