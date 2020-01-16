@@ -15,6 +15,7 @@ let cycle_start () = Time_ns.to_time_float_round_nearest (cycle_start_ns ())
 let cycle_times_ns () = map_cycle_times (t ()) ~f:Fn.id
 let cycle_times () = map_cycle_times (t ()) ~f:Time_ns.Span.to_span_float_round_nearest
 let total_cycle_time () = total_cycle_time (t ())
+let last_cycle_time () = last_cycle_time (t ())
 let long_cycles ~at_least = long_cycles (t ()) ~at_least
 let event_precision_ns () = event_precision (t ())
 let event_precision () = Time_ns.Span.to_span_float_round_nearest (event_precision_ns ())
@@ -43,6 +44,8 @@ module Expert = struct
   let set_on_start_of_cycle f = set_on_start_of_cycle (t ()) f
   let set_on_end_of_cycle f = set_on_end_of_cycle (t ()) f
   let last_cycle_num_jobs () = last_cycle_num_jobs (t ())
+  let run_every_cycle_start f = run_every_cycle_start (t ()) ~f
+  let run_every_cycle_end f = run_every_cycle_end (t ()) ~f
 end
 
 module Private = Scheduler

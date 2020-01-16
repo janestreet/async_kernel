@@ -43,6 +43,7 @@ val set_check_invariants : t -> bool -> unit
 val set_record_backtraces : t -> bool -> unit
 val run_every_cycle_start : t -> f:(unit -> unit) -> unit
 val run_every_cycle_end : t -> f:(unit -> unit) -> unit
+val last_cycle_time : t -> Time_ns.Span.t
 val long_cycles : t -> at_least:Time_ns.Span.t -> Time_ns.Span.t Async_stream.t
 val can_run_a_job : t -> bool
 val create_alarm : t -> (unit -> unit) -> Gc.Expert.Alarm.t

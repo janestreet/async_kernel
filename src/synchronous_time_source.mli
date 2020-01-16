@@ -51,6 +51,12 @@ val create
   -> read_write T1.t
 
 val alarm_precision : [> read ] T1.t -> Time_ns.Span.t
+
+(** [next_alarm_fires_at t] returns a time to which the clock can be advanced
+    such that an alarm will fire, or [None] if [t] has no alarms that can ever fire.
+
+    Note that this is not necessarily the minimum such time, but it's within
+    [alarm_precision] of that. *)
 val next_alarm_fires_at : [> read ] T1.t -> Time_ns.t option
 
 (** [is_wall_clock] reports whether this time source represents 'wall clock' time, or some
@@ -128,7 +134,7 @@ module Event : sig
   (** [abort t] aborts the event [t], if possible, and returns [Ok] if the event was
       aborted, or the reason it could not be aborted.  [abort] returns
       [Currently_happening] iff it is called on an event while running that event's
-      callback. *)
+      callback and the event is not scheduled at intervals. *)
   val abort : [> read ] T1.t -> t -> Abort_result.t
 
   val abort_exn : [> read ] T1.t -> t -> unit
@@ -175,3 +181,13 @@ val default_timing_wheel_config : Timing_wheel.Config.t
     timing wheel as that used by the Async scheduler, and is hence similarly affected by
     the [ASYNC_CONFIG] environment variable. *)
 val wall_clock : unit -> t
+
+module Expert : sig
+
+  (** This value is close to [next_alarm_fires_at] but differs from it by at most
+      [alarm_precision]. Requires a more expensive iteration of alarms.
+
+      This is a closer approximation of the minimum time at which an alarm will fire,
+      but it's still not there (you need min_alarm_time_... for that). *)
+  val max_alarm_time_in_min_timing_wheel_interval : [> read ] T1.t -> Time_ns.t option
+end

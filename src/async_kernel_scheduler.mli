@@ -73,6 +73,9 @@ val cycle_times : unit -> Time.Span.t Async_stream.t
 
 val cycle_times_ns : unit -> Time_ns.Span.t Async_stream.t
 
+(** [last_cycle_time] returns the time spent in the most recently completed cycle. *)
+val last_cycle_time : unit -> Time_ns.Span.t
+
 (** [long_cycles ~at_least] returns a stream of cycles whose duration is at least
     [at_least].  [long_cycles] is more efficient than [cycle_times] because it only
     allocates a stream entry when there is a long cycle, rather than on every cycle. *)
@@ -141,9 +144,16 @@ val num_pending_jobs : unit -> int
 
 module Expert : sig
   val run_cycles_until_no_jobs_remain : unit -> unit
+
   val set_on_start_of_cycle : (unit -> unit) -> unit
+  [@@deprecated "[since 2020-01] Use [run_every_cycle_start]"]
+
   val set_on_end_of_cycle : (unit -> unit) -> unit
+  [@@deprecated "[since 2020-01] Use [run_every_cycle_end]"]
+
   val last_cycle_num_jobs : unit -> int
+  val run_every_cycle_start : (unit -> unit) -> unit
+  val run_every_cycle_end : (unit -> unit) -> unit
 end
 
 module Private = Scheduler

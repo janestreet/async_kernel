@@ -649,3 +649,9 @@ let advance_directly t ~to_ =
   advance_internal t ~to_ ~send_exn;
   finish_advancing t
 ;;
+
+module Expert = struct
+  let max_alarm_time_in_min_timing_wheel_interval t =
+    Timing_wheel.max_alarm_time_in_min_interval t.events
+  ;;
+end
