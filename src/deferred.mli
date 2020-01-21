@@ -116,8 +116,7 @@ module Choice : sig
   val map : 'a t -> f:('a -> 'b) -> 'b t
 end
 
-
-type 'a choice = 'a Choice.t
+type 'a choice = 'a Choice.t [@@deprecated "[since 2020-01] Use [Choice.t] instead."]
 
 val choice : 'a t -> ('a -> 'b) -> 'b Choice.t
 

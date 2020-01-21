@@ -466,12 +466,12 @@ val values_available : _ Reader.t -> [ `Eof | `Ok ] Deferred.t
     has no other consumers. *)
 val read_choice
   :  'a Reader.t
-  -> [ `Eof | `Ok of 'a | `Nothing_available ] Deferred.choice
+  -> [ `Eof | `Ok of 'a | `Nothing_available ] Deferred.Choice.t
 
 val read_choice_single_consumer_exn
   :  'a Reader.t
   -> Source_code_position.t
-  -> [ `Eof | `Ok of 'a ] Deferred.choice
+  -> [ `Eof | `Ok of 'a ] Deferred.Choice.t
 
 (** {2 Sequence functions} *)
 
