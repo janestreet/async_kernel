@@ -38,6 +38,7 @@ module Make (Conn : T) = struct
     ; connect : address -> Conn.t Or_error.t Deferred.t
     ; retry_delay : unit -> unit Deferred.t
     ; mutable conn : [ `Ok of Conn.t | `Close_started ] Ivar.t
+    ; mutable next_connect_result : Conn.t Or_error.t Ivar.t
     ; event_handler : Event.Handler.t
     ; close_started : unit Ivar.t
     ; close_finished : unit Ivar.t
@@ -80,9 +81,11 @@ module Make (Conn : T) = struct
     let rec loop () =
       if Ivar.is_full t.close_started
       then return `Close_started
-      else
-        connect ()
-        >>= function
+      else (
+        let%bind connect_result = connect () in
+        Ivar.fill t.next_connect_result connect_result;
+        t.next_connect_result <- Ivar.create ();
+        match connect_result with
         | Ok conn -> return (`Ok conn)
         | Error err ->
           let same_as_previous_error =
@@ -96,7 +99,7 @@ module Make (Conn : T) = struct
            else handle_event t (Failed_to_connect err))
           >>= fun () ->
           Deferred.any [ t.retry_delay (); Ivar.read t.close_started ]
-          >>= fun () -> loop ()
+          >>= fun () -> loop ())
     in
     loop ()
   ;;
@@ -123,6 +126,7 @@ module Make (Conn : T) = struct
       { event_handler
       ; get_address
       ; connect
+      ; next_connect_result = Ivar.create ()
       ; retry_delay
       ; conn = Ivar.create ()
       ; close_started = Ivar.create ()
@@ -221,5 +225,23 @@ module Make (Conn : T) = struct
        | `Close_started -> Deferred.unit
        | `Ok conn -> Conn.close conn)
       >>| fun () -> Ivar.fill t.close_finished ())
+  ;;
+
+  let connected_or_failed_to_connect_connection_closed =
+    Or_error.error_s [%message "Persistent connection closed"]
+  ;;
+
+  let connected_or_failed_to_connect t =
+    if is_closed t
+    then return connected_or_failed_to_connect_connection_closed
+    else (
+      match Deferred.peek (connected t) with
+      | Some x -> return (Ok x)
+      | None ->
+        Deferred.choose
+          [ choice (Ivar.read t.close_started) (fun () ->
+              connected_or_failed_to_connect_connection_closed)
+          ; choice (Ivar.read t.next_connect_result) Fn.id
+          ])
   ;;
 end
