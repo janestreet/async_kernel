@@ -28,7 +28,10 @@ let max_num_jobs_per_priority_per_cycle () = max_num_jobs_per_priority_per_cycle
 let set_record_backtraces bool = set_record_backtraces (t ()) bool
 let force_current_cycle_to_end () = force_current_cycle_to_end (t ())
 let yield () = yield (t ())
-let yield_until_no_jobs_remain () = yield_until_no_jobs_remain (t ())
+
+let yield_until_no_jobs_remain ?may_return_immediately () =
+  yield_until_no_jobs_remain ?may_return_immediately (t ())
+;;
 
 let yield_every ~n =
   let yield_every = Staged.unstage (yield_every ~n) in

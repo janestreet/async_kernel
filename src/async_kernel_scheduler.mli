@@ -121,8 +121,18 @@ val yield : unit -> unit Deferred.t
 (** [yield_until_no_jobs_remain ()] returns a deferred that becomes determined the next
     time Async's job queue is empty.  This is useful in tests when one needs to wait for
     the completion of all the jobs based on what's in the queue, when those jobs might
-    create other jobs -- without depending on I/O or the passage of wall-clock time. *)
-val yield_until_no_jobs_remain : unit -> unit Deferred.t
+    create other jobs -- without depending on I/O or the passage of wall-clock time.
+
+    [may_return_immediately] determines how [yield_until_no_jobs_remain] behaves if the
+    job queue is currently empty.  If [may_return_immediately = true], then
+    [yield_until_no_jobs_remain] will [return ()].  If [may_return_immediately = false],
+    then [yield_until_no_jobs_remain]'s result will become determined after the next Async
+    cycle.  We hope to someday change the default [may_return_immediately] from [false] to
+    [true]. *)
+val yield_until_no_jobs_remain
+  :  ?may_return_immediately:bool (** default is [false] *)
+  -> unit
+  -> unit Deferred.t
 
 (** [yield_every ~n] returns a function that will act as [yield] every [n] calls and as
     [return ()] the rest of the time.  This is useful for improving fairness in

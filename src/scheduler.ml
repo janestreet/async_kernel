@@ -170,9 +170,7 @@ let run_cycle t =
   t.last_cycle_time <- cycle_time;
   t.last_cycle_num_jobs <- num_jobs_run t - num_jobs_run_at_start_of_cycle;
   t.total_cycle_time <- Time_ns.Span.(t.total_cycle_time + cycle_time);
-  if Bvar.has_any_waiters t.yield_until_no_jobs_remain
-  && Job_queue.length t.normal_priority_jobs + Job_queue.length t.low_priority_jobs
-     = 0
+  if Bvar.has_any_waiters t.yield_until_no_jobs_remain && num_pending_jobs t = 0
   then Bvar.broadcast t.yield_until_no_jobs_remain ();
   List.iter t.run_every_cycle_end ~f:(fun f -> f ());
   t.in_cycle <- false;
@@ -227,7 +225,12 @@ let set_record_backtraces t b = t.record_backtraces <- b
 let set_on_start_of_cycle t f = t.on_start_of_cycle <- f
 let set_on_end_of_cycle t f = t.on_end_of_cycle <- f
 let yield t = Bvar.wait t.yield
-let yield_until_no_jobs_remain t = Bvar.wait t.yield_until_no_jobs_remain
+
+let yield_until_no_jobs_remain ?(may_return_immediately = false) t =
+  if may_return_immediately && num_pending_jobs t = 0
+  then return ()
+  else Bvar.wait t.yield_until_no_jobs_remain
+;;
 
 let yield_every ~n =
   if n <= 0
