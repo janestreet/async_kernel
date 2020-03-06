@@ -957,44 +957,41 @@ let transfer_gen
     invariant output);
   let link = Link.create ~upstream:input ~downstream:output in
   let consumer = Link.consumer link in
-  Monitor.protect
-    (* When result is filled, we're done with [input].  We unlink to remove pointers from
-       [output] to [input], which would cause a space leak if we had single long-lived
-       output into which we transfer lots of short-lived inputs. *)
-    ~finally:(fun () ->
-      Link.unlink_upstream link;
-      return ())
-    (fun () ->
-       Deferred.create (fun result ->
-         (* We do [return () >>>] to ensure that [f] is only called asynchronously. *)
-         return ()
-         >>> fun () ->
-         let output_closed () =
-           close_read input;
-           Ivar.fill result ()
-         in
-         let rec loop () =
-           if is_closed output
-           then output_closed ()
-           else (
-             match read_now input ~consumer with
-             | `Eof -> Ivar.fill result ()
-             | `Ok x -> f x continue
-             | `Nothing_available ->
-               choose
-                 [ choice (values_available input) ignore
-                 ; choice (closed output) ignore
-                 ]
-               >>> fun () -> loop ())
-         and continue y =
-           if is_closed output
-           then output_closed ()
-           else (
-             let pushback = write output y in
-             Consumer.values_sent_downstream consumer;
-             pushback >>> fun () -> loop ())
-         in
-         loop ()))
+  (* When we're done with [input], we unlink to remove pointers from
+     [output] to [input], which would cause a space leak if we had single long-lived
+     output into which we transfer lots of short-lived inputs. *)
+  let unlink () = Link.unlink_upstream link in
+  Deferred.create (fun result ->
+    (* We do [return () >>>] to ensure that [f] is only called asynchronously. *)
+    return ()
+    >>> fun () ->
+    let output_closed () =
+      close_read input;
+      unlink ();
+      Ivar.fill result ()
+    in
+    let rec loop () =
+      if is_closed output
+      then output_closed ()
+      else (
+        match read_now input ~consumer with
+        | `Eof ->
+          unlink ();
+          Ivar.fill result ()
+        | `Ok x -> f x continue
+        | `Nothing_available ->
+          choose
+            [ choice (values_available input) ignore; choice (closed output) ignore ]
+          >>> fun () -> loop ())
+    and continue y =
+      if is_closed output
+      then output_closed ()
+      else (
+        let pushback = write output y in
+        Consumer.values_sent_downstream consumer;
+        pushback >>> fun () -> loop ())
+    in
+    loop ())
 ;;
 
 let transfer' ?max_queue_length input output ~f =
