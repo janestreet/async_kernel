@@ -75,12 +75,6 @@ val create_reader
     failed. *)
 val create_writer : ('a Reader.t -> unit Deferred.t) -> 'a Writer.t
 
-val init : ('a Writer.t -> unit Deferred.t) -> 'a Reader.t
-[@@deprecated
-  {|[since 2016-03] Use [create_reader ~close_on_exception:true] to preserve behavior, though
-you might want to consider changing the argument [close_on_exception] to the recommended
-[false].|}]
-
 (** [create ()] creates a new pipe.  It is preferable to use [create_reader] or
     [create_writer] instead of [create], since they provide exception handling and
     automatic closing of the pipe.  [info] is an arbitrary sexp displayed by [sexp_of_t],

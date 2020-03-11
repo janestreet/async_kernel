@@ -396,8 +396,6 @@ let create_reader ~close_on_exception f =
     r)
 ;;
 
-let init f = create_reader ~close_on_exception:true f
-
 let create_writer f =
   let r, w = create () in
   don't_wait_for
