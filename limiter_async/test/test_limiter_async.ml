@@ -1,6 +1,6 @@
-open! Core_kernel
+open! Core
+open! Async
 open Poly
-open! Async_kernel
 open! Expect_test_helpers_core
 open! Expect_test_helpers_async
 module Limiter = Limiter_async
