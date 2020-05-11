@@ -190,4 +190,8 @@ module Expert : sig
       This is a closer approximation of the minimum time at which an alarm will fire,
       but it's still not there (you need min_alarm_time_... for that). *)
   val max_alarm_time_in_min_timing_wheel_interval : [> read ] T1.t -> Time_ns.t option
+
+  (** Returns true iff there is work to do without advancing time further. (This can be
+      caused by scheduling events in the past, or starting a recurring event.) *)
+  val has_events_to_run : t -> bool
 end

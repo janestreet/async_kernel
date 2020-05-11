@@ -654,4 +654,6 @@ module Expert = struct
   let max_alarm_time_in_min_timing_wheel_interval t =
     Timing_wheel.max_alarm_time_in_min_interval t.events
   ;;
+
+  let has_events_to_run t = Event.is_some t.fired_events
 end
