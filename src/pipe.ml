@@ -187,19 +187,20 @@ end
 
 type ('a, 'phantom) t =
   { (* [id] is an integer used to distinguish pipes when debugging. *)
-    id : int (* [buffer] holds values written to the pipe that have not yet been read. *)
+    id : int Sexp_hidden_in_test.t
   ; (* [info] is user-provided arbitrary sexp, for debugging purposes. *)
     mutable info : Sexp.t option [@sexp.option]
-  ; mutable buffer : 'a Queue.t
+  ; (* [buffer] holds values written to the pipe that have not yet been read. *)
+    mutable buffer : 'a Queue.t
   ; (* [size_budget] governs pushback on writers to the pipe.
 
-       There is *no* invariant that [Queue.length buffer <= size_budget].  There is no hard
-       upper bound on the number of elements that can be stuffed into the [buffer].  This
-       is due to the way we handle writes.  When we do a write, all of the values written
-       are immediately enqueued into [buffer].  After the write, if [Queue.length buffer <=
-       t.size_budget], then the writer will be notified to continue writing.  After the
-       write, if [length t > t.size_budget], then the write will block until the pipe is
-       under budget. *)
+       There is *no* invariant that [Queue.length buffer <= size_budget].  There is no
+       hard upper bound on the number of elements that can be stuffed into the [buffer].
+       This is due to the way we handle writes.  When we do a write, all of the values
+       written are immediately enqueued into [buffer].  After the write, if [Queue.length
+       buffer <= t.size_budget], then the writer will be notified to continue writing.
+       After the write, if [length t > t.size_budget], then the write will block until the
+       pipe is under budget. *)
     mutable size_budget : int
   ; (* [pushback] is used to give feedback to writers about whether they should write to
        the pipe.  [pushback] is full iff [length t <= t.size_budget || is_closed t]. *)
