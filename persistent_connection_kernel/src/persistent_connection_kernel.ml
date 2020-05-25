@@ -107,7 +107,7 @@ module Make (Conn : T) = struct
   let create
         ~server_name
         ?(on_event = fun _ -> Deferred.unit)
-        ?(retry_delay = const (Time_ns.Span.of_sec 10.))
+        ?retry_delay
         ?(random_state = Random.State.default)
         ?(time_source = Time_source.wall_clock ())
         ~connect
@@ -115,6 +115,10 @@ module Make (Conn : T) = struct
     =
     let event_handler = { Event.Handler.server_name; on_event } in
     let retry_delay () =
+      let default_retry_delay () =
+        if am_running_test then Time_ns.Span.of_sec 0.1 else Time_ns.Span.of_sec 10.
+      in
+      let retry_delay = Option.value retry_delay ~default:default_retry_delay in
       let span = Time_ns.Span.to_sec (retry_delay ()) in
       let distance = Random.State.float random_state (span *. 0.3) in
       let wait =
