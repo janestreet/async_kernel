@@ -1,5 +1,5 @@
 open! Core_kernel
-module Deferred = Deferred1
+module Deferred := Deferred1
 
 type ('a, 'b, 'c) t = ('a, 'b, 'c) Map.t
 
