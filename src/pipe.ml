@@ -313,7 +313,7 @@ end
 
 let id_ref = ref 0
 
-let create_internal ~info ~initial_buffer =
+let create_internal ~size_budget ~info ~initial_buffer =
   incr id_ref;
   let t =
     { id = !id_ref
@@ -321,7 +321,7 @@ let create_internal ~info ~initial_buffer =
     ; closed = Ivar.create ()
     ; read_closed = Ivar.create ()
     ;
-      size_budget = 0
+      size_budget
     ; pushback = Ivar.create ()
     ; buffer = initial_buffer
     ; num_values_read = 0
@@ -334,8 +334,19 @@ let create_internal ~info ~initial_buffer =
   t
 ;;
 
-let create ?info () =
-  let t = create_internal ~info ~initial_buffer:(Queue.create ()) in
+let validate_size_budget size_budget =
+  if size_budget < 0
+  then raise_s [%message "negative size_budget" (size_budget : int)]
+  else size_budget
+;;
+
+let create ?size_budget ?info () =
+  let size_budget =
+    match size_budget with
+    | Some v -> validate_size_budget v
+    | None -> 0
+  in
+  let t = create_internal ~size_budget ~info ~initial_buffer:(Queue.create ()) in
   (* initially, the pipe does not pushback *)
   Ivar.fill t.pushback ();
   if !check_invariant then invariant t;
@@ -377,17 +388,17 @@ let close_read t =
     close t)
 ;;
 
-let create_reader_not_close_on_exception f =
-  let r, w = create () in
+let create_reader_not_close_on_exception ?size_budget f =
+  let r, w = create ?size_budget () in
   upon (f w) (fun () -> close w);
   r
 ;;
 
-let create_reader ~close_on_exception f =
+let create_reader ?size_budget ~close_on_exception f =
   if not close_on_exception
-  then create_reader_not_close_on_exception f
+  then create_reader_not_close_on_exception ?size_budget f
   else (
-    let r, w = create () in
+    let r, w = create ?size_budget () in
     don't_wait_for
       (Monitor.protect
          (fun () -> f w)
@@ -397,8 +408,8 @@ let create_reader ~close_on_exception f =
     r)
 ;;
 
-let create_writer f =
-  let r, w = create () in
+let create_writer ?size_budget f =
+  let r, w = create ?size_budget () in
   don't_wait_for
     (Monitor.protect
        (fun () -> f r)
@@ -461,7 +472,7 @@ let consume t ~max_queue_length consumer =
 ;;
 
 let set_size_budget t size_budget =
-  if size_budget < 0 then raise_s [%message "negative size_budget" (size_budget : int)];
+  let size_budget = validate_size_budget size_budget in
   t.size_budget <- size_budget;
   update_pushback t
 ;;
@@ -1053,7 +1064,7 @@ let folding_map ?max_queue_length input ~init ~f =
 let filter input ~f = filter_map input ~f:(fun x -> if f x then Some x else None)
 
 let of_list l =
-  let t = create_internal ~info:None ~initial_buffer:(Queue.of_list l) in
+  let t = create_internal ~size_budget:0 ~info:None ~initial_buffer:(Queue.of_list l) in
   Ivar.fill t.closed ();
   update_pushback t;
   t

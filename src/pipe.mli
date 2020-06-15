@@ -62,7 +62,8 @@ end
     will be raised to the monitor in effect when [create_reader] was called.  There is a
     race between those two actions, which can easily lead to confusion or bugs. *)
 val create_reader
-  :  close_on_exception:bool
+  :  ?size_budget:int
+  -> close_on_exception:bool
   -> ('a Writer.t -> unit Deferred.t)
   -> 'a Reader.t
 
@@ -73,13 +74,16 @@ val create_reader
     [create_writer].  [create_writer] closes on exception, unlike [create_reader], because
     closing closing the read end of a pipe is a signal to the writer that the consumer has
     failed. *)
-val create_writer : ('a Reader.t -> unit Deferred.t) -> 'a Writer.t
+val create_writer : ?size_budget:int -> ('a Reader.t -> unit Deferred.t) -> 'a Writer.t
 
 (** [create ()] creates a new pipe.  It is preferable to use [create_reader] or
     [create_writer] instead of [create], since they provide exception handling and
     automatic closing of the pipe.  [info] is an arbitrary sexp displayed by [sexp_of_t],
-    for debugging purposes; see also [set_info]. *)
-val create : ?info:Sexp.t -> unit -> 'a Reader.t * 'a Writer.t
+    for debugging purposes; see also [set_info].
+
+    [size_budget] defaults to 0. See [set_size_budget] for documentation.
+*)
+val create : ?size_budget:int -> ?info:Sexp.t -> unit -> 'a Reader.t * 'a Writer.t
 
 (** [empty ()] returns a closed pipe reader with no contents. *)
 val empty : unit -> _ Reader.t
