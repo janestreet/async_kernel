@@ -215,8 +215,6 @@ and Scheduler : sig
     ; mutable check_invariants : bool
     ; mutable max_num_jobs_per_priority_per_cycle : Max_num_jobs_per_priority_per_cycle.t
     ; mutable record_backtraces : bool
-    ; mutable on_start_of_cycle : unit -> unit
-    ; mutable on_end_of_cycle : unit -> unit
     }
 end =
   Scheduler

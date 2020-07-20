@@ -154,13 +154,6 @@ val num_pending_jobs : unit -> int
 
 module Expert : sig
   val run_cycles_until_no_jobs_remain : unit -> unit
-
-  val set_on_start_of_cycle : (unit -> unit) -> unit
-  [@@deprecated "[since 2020-01] Use [run_every_cycle_start]"]
-
-  val set_on_end_of_cycle : (unit -> unit) -> unit
-  [@@deprecated "[since 2020-01] Use [run_every_cycle_end]"]
-
   val last_cycle_num_jobs : unit -> int
   val run_every_cycle_start : (unit -> unit) -> unit
   val run_every_cycle_end : (unit -> unit) -> unit
