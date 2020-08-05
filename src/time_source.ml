@@ -538,5 +538,12 @@ let with_timeout t span d =
     ]
 ;;
 
+let duration_of t f =
+  let start = now t in
+  let%map result = f () in
+  let duration = Time_ns.diff (now t) start in
+  result, duration
+;;
+
 let of_synchronous t = t
 let to_synchronous t = t

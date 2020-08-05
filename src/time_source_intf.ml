@@ -146,6 +146,11 @@ module type Time_source = sig
     -> 'a Deferred.t
     -> [ `Timeout | `Result of 'a ] Deferred.t
 
+  val duration_of
+    :  [> read ] T1.t
+    -> (unit -> 'a Deferred.t)
+    -> ('a * Time_ns.Span.t) Deferred.t
+
   module Event : sig
     type ('a, 'h) t [@@deriving sexp_of]
     type t_unit = (unit, unit) t [@@deriving sexp_of]

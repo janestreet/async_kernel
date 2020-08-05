@@ -50,6 +50,7 @@ let run_at_intervals' ?start ?stop ?continue_on_error interval f =
 ;;
 
 let with_timeout span d = Time_source.with_timeout (time_source ()) span d
+let duration_of f = Time_source.duration_of (time_source ()) f
 
 module Event = struct
   include Time_source.Event

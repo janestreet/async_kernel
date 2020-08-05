@@ -261,6 +261,14 @@ module type Clock = sig
     -> Time.Span.t
     -> (unit -> unit)
     -> unit
+
+  (** [duration_of f] invokes [f ()] and measures how long it takes from the invocation
+      to after the deferred is determined.
+
+      Note that the measurement is not exact; because it involves an additional map on the
+      deferred, the timing also includes the duration of jobs in the job queue when [f ()]
+      is determined. *)
+  val duration_of : (unit -> 'a Deferred.t) -> ('a * Time.Span.t) Deferred.t
 end
 
 (** [Clock_deprecated] is used in [Require_explicit_time_source] to create a clock
@@ -397,6 +405,9 @@ module type Clock_deprecated = sig
     -> Time.Span.t
     -> (unit -> unit)
     -> unit
+  [@@deprecated "[since 2016-02] Use [Time_source]"]
+
+  val duration_of : (unit -> 'a Deferred.t) -> ('a * Time.Span.t) Deferred.t
   [@@deprecated "[since 2016-02] Use [Time_source]"]
 end
 

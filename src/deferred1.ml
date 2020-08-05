@@ -79,8 +79,6 @@ module Choice = struct
   let map (T (t, f1)) ~f:f2 = T (t, fun x -> f2 (f1 x))
 end
 
-type 'a choice = 'a Choice.t
-
 module Unregister = struct
   (* This representation saves 2n words for a list of n choices. *)
   type t =

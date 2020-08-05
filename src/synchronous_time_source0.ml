@@ -650,6 +650,13 @@ let advance_directly t ~to_ =
   finish_advancing t
 ;;
 
+let duration_of t f =
+  let start = now t in
+  let result = f () in
+  let duration = Time_ns.diff (now t) start in
+  result, duration
+;;
+
 module Expert = struct
   let max_alarm_time_in_min_timing_wheel_interval t =
     Timing_wheel.max_alarm_time_in_min_interval t.events

@@ -103,6 +103,9 @@ val run_at_intervals : [> read ] T1.t -> Time_ns.Span.t -> callback -> unit
     [max_allowed_alarm_time] is not constant; its value increases as [now t] increases. *)
 val max_allowed_alarm_time : [> read ] T1.t -> Time_ns.t
 
+(** [duration_of t f] invokes [f] and measures how long it takes for the call to finish. *)
+val duration_of : [> read ] T1.t -> (unit -> 'a) -> 'a * Time_ns.Span.t
+
 module Event : sig
   type t [@@deriving sexp_of]
 

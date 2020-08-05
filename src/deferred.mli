@@ -111,12 +111,10 @@ val don't_wait_for : unit t -> unit
 
 (** A [Choice.t] is used to produce an argument to [enabled] or [choose].  See below. *)
 module Choice : sig
-  type +'a t = 'a Deferred1.choice
+  type +'a t = 'a Deferred1.Choice.t
 
   val map : 'a t -> f:('a -> 'b) -> 'b t
 end
-
-type 'a choice = 'a Choice.t [@@deprecated "[since 2020-01] Use [Choice.t] instead."]
 
 val choice : 'a t -> ('a -> 'b) -> 'b Choice.t
 
