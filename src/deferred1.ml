@@ -58,8 +58,7 @@ let _ = all
 let unit = return ()
 
 let both t1 t2 =
-  create (fun result ->
-    upon t1 (fun a1 -> upon t2 (fun a2 -> Ivar.fill result (a1, a2))))
+  create (fun result -> upon t1 (fun a1 -> upon t2 (fun a2 -> Ivar.fill result (a1, a2))))
 ;;
 
 module Infix = struct

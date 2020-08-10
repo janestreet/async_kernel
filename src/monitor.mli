@@ -162,8 +162,7 @@ val try_with_join_or_error
     Errors that are raised after [f ()] becomes determined will still be sent to
     [handler], i.e., the new monitor lives as long as jobs created by [f] live. *)
 val handle_errors
-  : ((unit -> 'a Deferred.t) -> (exn -> unit) -> 'a Deferred.t)
-      with_optional_monitor_name
+  : ((unit -> 'a Deferred.t) -> (exn -> unit) -> 'a Deferred.t) with_optional_monitor_name
 
 (** [catch_stream ?name f] runs [f ()] inside a new monitor [m] and returns the stream of
     errors raised to [m]. *)

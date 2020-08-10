@@ -104,7 +104,8 @@ val merge
   :  ?how:Monad_sequence.how
   -> ('k, 'v1, 'comparator) t
   -> ('k, 'v2, 'comparator) t
-  -> f:(key:'k
+  -> f:
+       (key:'k
         -> [ `Left of 'v1 | `Right of 'v2 | `Both of 'v1 * 'v2 ]
         -> 'v3 option Deferred.t)
   -> ('k, 'v3, 'comparator) t Deferred.t

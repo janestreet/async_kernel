@@ -67,8 +67,7 @@ val is_determined : 'a t -> bool
     In general, for deferreds that are allocated by [let%bind] to be garbage collected
     quickly, it is sufficient that the allocating bind be executed in tail-call position
     of the right-hand side of an outer bind. *)
-include
-  Monad with type 'a t := 'a t
+include Monad with type 'a t := 'a t
 
 module Infix : sig
   include Monad.Infix with type 'a t := 'a t

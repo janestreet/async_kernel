@@ -82,11 +82,6 @@ module type Async_invariant = sig
                 ~foo:  (check' Foo.invariant)
                 ~bar:  (check  Bar.invariant)
                 ~quux: (check  ignore) ]} *)
-    val check_field
-      :  'a
-      -> 'b t
-      -> unit Deferred.t
-      -> ('a, 'b) Field.t
-      -> unit Deferred.t
+    val check_field : 'a -> 'b t -> unit Deferred.t -> ('a, 'b) Field.t -> unit Deferred.t
   end
 end

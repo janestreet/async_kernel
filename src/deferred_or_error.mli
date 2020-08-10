@@ -30,8 +30,7 @@ type 'a t = 'a Or_error.t Deferred.t
 (** The applicative operations match the behavior of the applicative operations in
     [Or_error].  This means that [all] and [all_unit] are equivalent to [combine_errors]
     and [combine_errors_unit] respectively. *)
-include
-  Applicative.S with type 'a t := 'a t
+include Applicative.S with type 'a t := 'a t
 
 (** [return x = Deferred.return (Ok x)] **)
 include Monad.S with type 'a t := 'a t

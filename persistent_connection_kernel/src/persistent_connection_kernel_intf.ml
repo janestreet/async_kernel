@@ -108,8 +108,7 @@ module type S = sig
       Note: no [close] calls are ever generated internally in response to the connection
       being closed by the other side.
   *)
-  include
-    Closable with type t := t
+  include Closable with type t := t
 end
 
 module type T = sig

@@ -30,13 +30,7 @@ let run_after span f a = Time_source.run_after (time_source ()) span f a
 let run_at time f a = Time_source.run_at (time_source ()) time f a
 
 let run_at_intervals ?start ?stop ?continue_on_error interval f =
-  Time_source.run_at_intervals
-    ?start
-    ?stop
-    ?continue_on_error
-    (time_source ())
-    interval
-    f
+  Time_source.run_at_intervals ?start ?stop ?continue_on_error (time_source ()) interval f
 ;;
 
 let run_at_intervals' ?start ?stop ?continue_on_error interval f =

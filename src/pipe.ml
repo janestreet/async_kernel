@@ -79,8 +79,7 @@ end = struct
              | `Have_not_been_sent_downstream ivar -> assert (Ivar.is_empty ivar)))
         ~downstream_flushed:ignore
     with
-    | exn ->
-      raise_s [%message "Pipe.Consumer.invariant failed" (exn : exn) ~pipe:(t : t)]
+    | exn -> raise_s [%message "Pipe.Consumer.invariant failed" (exn : exn) ~pipe:(t : t)]
   ;;
 
   let create ~pipe_id ~downstream_flushed =
@@ -379,8 +378,7 @@ let close_read t =
   if not (is_read_closed t)
   then (
     Ivar.fill t.read_closed ();
-    Queue.iter t.blocked_flushes ~f:(fun flush ->
-      Blocked_flush.fill flush `Reader_closed);
+    Queue.iter t.blocked_flushes ~f:(fun flush -> Blocked_flush.fill flush `Reader_closed);
     Queue.clear t.blocked_flushes;
     Queue.clear t.buffer;
     update_pushback t;
@@ -431,9 +429,8 @@ let values_were_read t consumer =
         (match consumer with
          | None -> Blocked_flush.fill flush `Ok
          | Some consumer ->
-           upon
-             (Consumer.values_sent_downstream_and_flushed consumer)
-             (fun flush_result -> Blocked_flush.fill flush flush_result));
+           upon (Consumer.values_sent_downstream_and_flushed consumer) (fun flush_result ->
+             Blocked_flush.fill flush flush_result));
         loop ())
   in
   loop ()
@@ -647,9 +644,8 @@ let read_choice_single_consumer_exn t here =
     | `Nothing_available ->
       raise_s
         [%message
-          "Pipe.read_choice_single_consumer_exn: choice was enabled but pipe is \
-           empty; this is likely due to a race condition with one or more other \
-           consumers"
+          "Pipe.read_choice_single_consumer_exn: choice was enabled but pipe is empty; \
+           this is likely due to a race condition with one or more other consumers"
             (here : Source_code_position.t)])
 ;;
 
@@ -707,9 +703,7 @@ let upstream_flushed t =
     |> Flushed_result.combine
 ;;
 
-let add_upstream_flushed t upstream_flushed =
-  Bag.add t.upstream_flusheds upstream_flushed
-;;
+let add_upstream_flushed t upstream_flushed = Bag.add t.upstream_flusheds upstream_flushed
 
 let add_consumer t ~downstream_flushed =
   let consumer = Consumer.create ~pipe_id:t.id ~downstream_flushed in
@@ -1005,8 +999,7 @@ let transfer_gen
 ;;
 
 let transfer' ?max_queue_length input output ~f =
-  transfer_gen (read_now' ?max_queue_length) write' input output ~f:(fun q k ->
-    f q >>> k)
+  transfer_gen (read_now' ?max_queue_length) write' input output ~f:(fun q k -> f q >>> k)
 ;;
 
 let transfer input output ~f =

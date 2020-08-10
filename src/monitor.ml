@@ -211,8 +211,7 @@ let send_exn t ?backtrace exn =
       let backtrace_history = (current_execution_context ()).backtrace_history in
       Error_ { Exn_for_monitor.exn; backtrace; backtrace_history; monitor = t }
   in
-  if Debug.monitor_send_exn
-  then Debug.log "Monitor.send_exn" (t, exn) [%sexp_of: t * exn];
+  if Debug.monitor_send_exn then Debug.log "Monitor.send_exn" (t, exn) [%sexp_of: t * exn];
   t.has_seen_error <- true;
   let scheduler = Scheduler.t () in
   let rec loop t =
@@ -368,8 +367,7 @@ let fill_result_and_handle_background_errors
 module Expert = struct
   let try_with_log_exn : (exn -> unit) ref =
     ref (fun exn ->
-      raise_s
-        [%message "failed to set [Monitor.Expert.try_with_log_exn]" (exn : Exn.t)])
+      raise_s [%message "failed to set [Monitor.Expert.try_with_log_exn]" (exn : Exn.t)])
   ;;
 end
 

@@ -111,7 +111,8 @@ let advance_by_alarms ?wait_for t ~to_ =
       if Time_ns.( >= ) next_alarm_fires_at to_
       then finish ()
       else (
-        advance_directly t ~to_:next_alarm_fires_at;
+        advance_directly t ~to_:(Timing_wheel.max_alarm_time_in_min_interval_exn t.events);
+        fire_past_alarms t;
         let queued_alarms_ran = run_queued_alarms () in
         if Deferred.is_determined queued_alarms_ran
         then walk_alarms ()
@@ -119,6 +120,7 @@ let advance_by_alarms ?wait_for t ~to_ =
           let%bind () = queued_alarms_ran in
           walk_alarms ()))
   in
+  fire_past_alarms t;
   (* This first [run_queued_alarms] call allows [Clock_ns.every] the opportunity to run
      its continuation deferreds so that they can reschedule alarms.  This is particularly
      useful in our "advance hits intermediate alarms" unit test below, but likely useful
@@ -311,10 +313,7 @@ module Event = struct
   let reschedule_at t at : _ Reschedule_result.t =
     if debug
     then
-      Debug.log
-        "Time_source.Event.reschedule_at"
-        (t, at)
-        [%sexp_of: (_, _) t * Time_ns.t];
+      Debug.log "Time_source.Event.reschedule_at" (t, at) [%sexp_of: (_, _) t * Time_ns.t];
     match Deferred.peek (fired t) with
     | Some (Aborted a) -> Previously_aborted a
     | Some (Happened h) -> Previously_happened h
@@ -471,8 +470,7 @@ let run_repeatedly
 
 let every' ?start ?stop ?continue_on_error ?finished t span f =
   if Time_ns.Span.( <= ) span Time_ns.Span.zero
-  then
-    raise_s [%message "Time_source.every got nonpositive span" (span : Time_ns.Span.t)];
+  then raise_s [%message "Time_source.every got nonpositive span" (span : Time_ns.Span.t)];
   run_repeatedly t ?start ?stop ?continue_on_error ?finished ~f ~continue:(After span)
 ;;
 
