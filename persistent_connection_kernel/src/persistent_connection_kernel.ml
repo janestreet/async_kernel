@@ -108,24 +108,30 @@ module Make (Conn : T) = struct
         ~server_name
         ?(on_event = fun _ -> Deferred.unit)
         ?retry_delay
-        ?(random_state = Random.State.default)
+        ?(random_state = `State Random.State.default)
         ?(time_source = Time_source.wall_clock ())
         ~connect
         get_address
     =
     let event_handler = { Event.Handler.server_name; on_event } in
-    let retry_delay () =
-      let default_retry_delay () =
-        if am_running_test then Time_ns.Span.of_sec 0.1 else Time_ns.Span.of_sec 10.
-      in
-      let retry_delay = Option.value retry_delay ~default:default_retry_delay in
-      let span = Time_ns.Span.to_sec (retry_delay ()) in
-      let distance = Random.State.float random_state (span *. 0.3) in
-      let wait =
-        if Random.State.bool random_state then span +. distance else span -. distance
-      in
-      Time_source.after time_source (Time_ns.Span.of_sec wait)
+    let default_retry_delay =
+      Fn.const (Time_ns.Span.of_sec (if am_running_test then 0.1 else 10.))
     in
+    let non_randomized_delay = Option.value retry_delay ~default:default_retry_delay in
+    let retry_delay_span =
+      match random_state with
+      | `Non_random -> non_randomized_delay
+      | `State random_state ->
+        fun () ->
+          let span = non_randomized_delay () in
+          let span = Time_ns.Span.to_sec span in
+          let distance = Random.State.float random_state (span *. 0.3) in
+          let wait =
+            if Random.State.bool random_state then span +. distance else span -. distance
+          in
+          Time_ns.Span.of_sec wait
+    in
+    let retry_delay () = Time_source.after time_source (retry_delay_span ()) in
     let t =
       { event_handler
       ; get_address
