@@ -7,7 +7,17 @@
 open Core_kernel
 module Deferred = Deferred1
 
+module Or_timeout = struct
+  type 'a t =
+    [ `Result of 'a
+    | `Timeout
+    ]
+  [@@deriving compare, sexp_of]
+end
+
 module type Clock = sig
+  module Or_timeout = Or_timeout
+
   module Time : sig
     module Span : sig
       type t
@@ -40,10 +50,7 @@ module type Clock = sig
       depending on which one succeeded first.  At the time the returned deferred becomes
       determined, both things may have happened, in which case [`Result] is given
       preference. *)
-  val with_timeout
-    :  Time.Span.t
-    -> 'a Deferred.t
-    -> [ `Timeout | `Result of 'a ] Deferred.t
+  val with_timeout : Time.Span.t -> 'a Deferred.t -> 'a Or_timeout.t Deferred.t
 
   (** Events provide variants of [run_at] and [run_after] with the ability to abort or
       reschedule an event that hasn't yet happened.  Once an event happens or is aborted,
@@ -274,6 +281,8 @@ end
 (** [Clock_deprecated] is used in [Require_explicit_time_source] to create a clock
     module in which all functions are deprecated. *)
 module type Clock_deprecated = sig
+  module Or_timeout = Or_timeout
+
   module Time : sig
     module Span : sig
       type t
@@ -293,10 +302,7 @@ module type Clock_deprecated = sig
   val after : Time.Span.t -> unit Deferred.t
   [@@deprecated "[since 2016-02] Use [Time_source]"]
 
-  val with_timeout
-    :  Time.Span.t
-    -> 'a Deferred.t
-    -> [ `Timeout | `Result of 'a ] Deferred.t
+  val with_timeout : Time.Span.t -> 'a Deferred.t -> 'a Or_timeout.t Deferred.t
   [@@deprecated "[since 2016-02] Use [Time_source]"]
 
   module Event : sig
