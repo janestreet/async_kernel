@@ -57,6 +57,9 @@ module Make (Conn : T) = struct
     Sexp.equal (to_sexp e1) (to_sexp e2)
   ;;
 
+  (* Continue trying to connect until we are able to do so, in which case we return both
+     the new connection and a deferred that will become determined once we are ready for
+     the next reconnection attempt. *)
   let try_connecting_until_successful t =
     (* We take care not to spam logs with the same message over and over by comparing
        each log message the the previous one of the same type. *)
@@ -82,11 +85,12 @@ module Make (Conn : T) = struct
       if Ivar.is_full t.close_started
       then return `Close_started
       else (
+        let ready_to_retry_connecting = t.retry_delay () in
         let%bind connect_result = connect () in
         Ivar.fill t.next_connect_result connect_result;
         t.next_connect_result <- Ivar.create ();
         match connect_result with
-        | Ok conn -> return (`Ok conn)
+        | Ok conn -> return (`Ok (conn, ready_to_retry_connecting))
         | Error err ->
           let same_as_previous_error =
             match !previous_error with
@@ -98,7 +102,7 @@ module Make (Conn : T) = struct
            then Deferred.unit
            else handle_event t (Failed_to_connect err))
           >>= fun () ->
-          Deferred.any [ t.retry_delay (); Ivar.read t.close_started ]
+          Deferred.any [ ready_to_retry_connecting; Ivar.read t.close_started ]
           >>= fun () -> loop ())
     in
     loop ()
@@ -149,13 +153,16 @@ module Make (Conn : T) = struct
     @@ Deferred.repeat_until_finished () (fun () ->
       handle_event t Attempting_to_connect
       >>= fun () ->
-      let ready_to_retry_connecting = t.retry_delay () in
       try_connecting_until_successful t
       >>= fun maybe_conn ->
-      Ivar.fill t.conn maybe_conn;
+      Ivar.fill
+        t.conn
+        (match maybe_conn with
+         | `Ok (conn, _) -> `Ok conn
+         | `Close_started -> `Close_started);
       match maybe_conn with
       | `Close_started -> return (`Finished ())
-      | `Ok conn ->
+      | `Ok (conn, ready_to_retry_connecting) ->
         handle_event t (Connected conn)
         >>= fun () ->
         Conn.close_finished conn
