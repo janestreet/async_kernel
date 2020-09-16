@@ -85,6 +85,7 @@ module type Eager_deferred1 = sig
 
   module List : Monad_sequence.S with type 'a monad := 'a t with type 'a t := 'a list
   module Or_error : Eager_deferred_or_error with type 'a deferred := 'a t
+  module Result : Monad.S2 with type ('a, 'b) t = ('a, 'b) Result.t Deferred.t
 end
 
 module type S = sig
@@ -108,11 +109,14 @@ module type S = sig
     val ( >>> ) : 'a t -> ('a -> unit) -> unit
 
     val ( >>=? )
-      :  ('a, 'e) Result.t t
-      -> ('a -> ('b, 'e) Result.t t)
-      -> ('b, 'e) Result.t t
+      :  ('a, 'e) Core_kernel.Result.t t
+      -> ('a -> ('b, 'e) Core_kernel.Result.t t)
+      -> ('b, 'e) Core_kernel.Result.t t
 
-    val ( >>|? ) : ('a, 'e) Result.t t -> ('a -> 'b) -> ('b, 'e) Result.t t
+    val ( >>|? )
+      :  ('a, 'e) Core_kernel.Result.t t
+      -> ('a -> 'b)
+      -> ('b, 'e) Core_kernel.Result.t t
   end
 end
 
