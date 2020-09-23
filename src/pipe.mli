@@ -614,6 +614,14 @@ val map'
 (** [map] is like [map'], except that it processes one element at a time. *)
 val map : 'a Reader.t -> f:('a -> 'b) -> 'b Reader.t
 
+(** [concat_map_list] is like [List.concat_map].  It produces the same result as
+    [map' ~f:(fun q -> return (Queue.concat_map q ~f))] *)
+val concat_map_list
+  :  ?max_queue_length:int (** default is [Int.max_value] *)
+  -> 'a Reader.t
+  -> f:('a -> 'b list)
+  -> 'b Reader.t
+
 (** [folding_map] is a version of [map] that threads an accumulator through calls to [f].
 *)
 val folding_map

@@ -1023,6 +1023,11 @@ let map' ?max_queue_length input ~f =
 
 let map input ~f = map_gen read_now write input ~f:(fun a k -> k (f a))
 
+let concat_map_list ?max_queue_length input ~f =
+  map_gen (read_now' ?max_queue_length) write' input ~f:(fun q k ->
+    k (Queue.concat_map q ~f))
+;;
+
 let filter_map' ?max_queue_length input ~f =
   map' ?max_queue_length input ~f:(fun q -> Deferred.Queue.filter_map q ~f)
 ;;
