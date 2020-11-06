@@ -107,7 +107,7 @@ module Expert = struct
         end;
         return_to_hopper t ~now:(cycle_start ()) return_after
       | Job.Deferred  (f, v, i) ->
-        Monitor.try_with (fun () ->
+        Monitor.try_with ~run:(`Schedule)  ~rest:(`Log)  (fun () ->
           f v)
         >>> fun res ->
         return_to_hopper t ~now:(cycle_start ()) return_after;
@@ -398,7 +398,7 @@ module Resource_throttle = struct
   let enqueue' t f =
     let f () =
       let v = Queue.dequeue_exn t.resources in
-      Monitor.protect (fun () -> f v)
+      Monitor.protect ~run:(`Schedule)  ~rest:(`Log)  (fun () -> f v)
         ~finally:(fun () -> Queue.enqueue t.resources v; Deferred.unit)
     in
     Throttle.enqueue' t.throttle f ()

@@ -32,7 +32,13 @@ end = struct
       match%bind Ivar.read start with
       | `Abort -> return `Aborted
       | `Start a ->
-        (match%map Monitor.try_with (fun () -> work a) with
+        (match%map
+           Monitor.try_with
+             ~run:
+               `Schedule
+             ~rest:`Log
+             (fun () -> work a)
+         with
          | Ok a -> `Ok a
          | Error exn -> `Raised exn)
     in

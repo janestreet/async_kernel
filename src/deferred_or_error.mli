@@ -71,10 +71,17 @@ val ok_unit : unit t
 
     The option [extract_exn] is passed along to [Monitor.try_with ?extract_exn] and
     specifies whether or not the monitor exn wrapper should be skipped ([extract_exn:true]
-    or kept ([extract_exn:false]). *)
+    or kept ([extract_exn:false]).
+
+    The [~rest] argument controls how exceptions are handled after the [try_with] deferred
+    becomes determined. They may be logged, raised, or passed to a callback.
+
+    The [~run] argument controls when [f] gets called. [`Now] calls [f] immediately;
+    [`Schedule] schedules an asynchronous job to run [f]. *)
 val try_with
   :  ?extract_exn:bool (** default is [false] *)
-  -> ?run:[ `Now | `Schedule ] (** default is [`Schedule] *)
+  -> run:[ `Now | `Schedule ] (** suggested default is [`Now] *)
+  -> rest:[ `Log | `Raise | `Call of exn -> unit ] (** suggested default is [`Raise] *)
   -> ?here:Lexing.position
   -> ?name:string
   -> (unit -> 'a Deferred.t)
@@ -82,11 +89,13 @@ val try_with
 
 val try_with_join
   :  ?extract_exn:bool (** default is [false] *)
-  -> ?run:[ `Now | `Schedule ] (** default is [`Schedule] *)
+  -> run:[ `Now | `Schedule ] (** suggested default is [`Now] *)
+  -> rest:[ `Log | `Raise | `Call of exn -> unit ] (** suggested default is [`Raise] *)
   -> ?here:Lexing.position
   -> ?name:string
   -> (unit -> 'a t)
   -> 'a t
+
 
 (** All of the [List] functions that take a [how] argument treat it the following way:
 

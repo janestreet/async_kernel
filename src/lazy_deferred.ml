@@ -12,7 +12,9 @@ module T = struct
     { start
     ; result =
         (let%bind () = Ivar.read start in
-         Monitor.try_with_or_error f)
+         Monitor.try_with_or_error
+           ~rest:`Log
+           f)
     }
   ;;
 

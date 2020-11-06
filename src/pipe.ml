@@ -399,6 +399,9 @@ let create_reader ?size_budget ~close_on_exception f =
     let r, w = create ?size_budget () in
     don't_wait_for
       (Monitor.protect
+         ~run:
+           `Schedule
+         ~rest:`Log
          (fun () -> f w)
          ~finally:(fun () ->
            close w;
@@ -410,6 +413,9 @@ let create_writer ?size_budget f =
   let r, w = create ?size_budget () in
   don't_wait_for
     (Monitor.protect
+       ~run:
+         `Schedule
+       ~rest:`Log
        (fun () -> f r)
        ~finally:(fun () ->
          close_read r;
@@ -815,7 +821,13 @@ let with_error_to_current_monitor ?(continue_on_error = false) f a =
   if not continue_on_error
   then f a
   else (
-    match%map Monitor.try_with (fun () -> f a) with
+    match%map
+      Monitor.try_with
+        ~run:
+          `Schedule
+        ~rest:`Log
+        (fun () -> f a)
+    with
     | Ok () -> ()
     | Error exn -> Monitor.send_exn (Monitor.current ()) (Monitor.extract_exn exn))
 ;;

@@ -173,12 +173,14 @@ module Make (Conn : T) = struct
         (* waits until [retry_delay ()] time has passed since the time just before we last
            tried to connect rather than the time we noticed being disconnected, so that if
            a long-lived connection dies, we will attempt to reconnect immediately. *)
-        Deferred.choose
-          [ Deferred.choice ready_to_retry_connecting (fun () -> `Repeat ())
-          ; Deferred.choice (Ivar.read t.close_started) (fun () ->
-              Ivar.fill t.conn `Close_started;
-              `Finished ())
-          ]);
+        let%map () =
+          Deferred.any [ ready_to_retry_connecting; Ivar.read t.close_started ]
+        in
+        if Ivar.is_full t.close_started
+        then (
+          Ivar.fill t.conn `Close_started;
+          `Finished ())
+        else `Repeat ());
     t
   ;;
 

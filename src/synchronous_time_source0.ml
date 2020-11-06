@@ -567,7 +567,7 @@ let run_fired_events t ~(send_exn : send_exn option) =
          (match send_exn with
           | None -> t.advance_errors <- Error.of_exn exn :: t.advance_errors
           | Some send_exn ->
-            let backtrace = Backtrace.get () in
+            let backtrace = Backtrace.Exn.most_recent () in
             send_exn event.execution_context.monitor exn ~backtrace:(`This backtrace));
          Event.set_status event Unscheduled
        | () ->

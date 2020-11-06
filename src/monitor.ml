@@ -384,15 +384,7 @@ let make_handle_exn rest =
     fun exn -> within ~monitor:parent (fun () -> f exn)
 ;;
 
-let try_with
-      ?here
-      ?info
-      ?(name = "")
-      ?extract_exn:(do_extract_exn = false)
-      ?(run = `Schedule)
-      ?(rest = `Log)
-      f
-  =
+let try_with ?here ?info ?(name = "") ?extract_exn:(do_extract_exn = false) ~run ~rest f =
   let { Ok_and_exns.ok; exns } = Ok_and_exns.create ?here ?info ~name ~run f in
   let handle_exn = make_handle_exn rest in
   let handle_exns_after_result exns = stream_iter exns ~f:handle_exn in
@@ -425,18 +417,33 @@ let try_with
       result))
 ;;
 
-let try_with_or_error ?here ?info ?(name = "try_with_or_error") ?extract_exn f =
-  try_with f ?here ?info ~name ?extract_exn ~run:`Now ~rest:`Log
-  >>| Or_error.of_exn_result
+let try_with_or_error ?here ?info ?(name = "try_with_or_error") ?extract_exn ~rest f =
+  try_with f ?here ?info ~name ?extract_exn ~run:`Now ~rest >>| Or_error.of_exn_result
 ;;
 
-let try_with_join_or_error ?here ?info ?(name = "try_with_join_or_error") ?extract_exn f =
-  try_with_or_error f ?here ?info ~name ?extract_exn >>| Or_error.join
+let try_with_join_or_error
+      ?here
+      ?info
+      ?(name = "try_with_join_or_error")
+      ?extract_exn
+      ~rest
+      f
+  =
+  try_with_or_error f ?here ?info ~name ?extract_exn ~rest >>| Or_error.join
 ;;
 
-let protect ?here ?info ?(name = "Monitor.protect") ?extract_exn ?run f ~finally =
-  let%bind r = try_with ?extract_exn ?here ?info ?run ~name f in
-  let%map fr = try_with ~extract_exn:false ?here ?info ~name:"finally" finally in
+let protect ?here ?info ?(name = "Monitor.protect") ?extract_exn ~run ~rest f ~finally =
+  let%bind r = try_with ?extract_exn ?here ?info ~run ~rest ~name f in
+  let%map fr =
+    try_with
+      ~extract_exn:false
+      ?here
+      ?info
+      ~run:`Schedule (* consider [~run:`Now] *)
+      ~rest
+      ~name:"finally"
+      finally
+  in
   match r, fr with
   | Error exn, Error finally_exn ->
     raise_s [%message "Async finally" (exn : exn) (finally_exn : exn)]

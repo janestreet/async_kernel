@@ -83,14 +83,14 @@ let find_map_ok l ~f =
 
 let ok_unit = return ()
 
-let try_with ?extract_exn ?run ?here ?name f =
-  Deferred.map (Monitor.try_with ?extract_exn ?run ?here ?name f) ~f:(function
+let try_with ?extract_exn ~run ~rest ?here ?name f =
+  Deferred.map (Monitor.try_with ?extract_exn ~run ~rest ?here ?name f) ~f:(function
     | Error exn -> Error (Error.of_exn exn)
     | Ok _ as ok -> ok)
 ;;
 
-let try_with_join ?extract_exn ?run ?here ?name f =
-  Deferred.map (try_with ?extract_exn ?run ?here ?name f) ~f:Or_error.join
+let try_with_join ?extract_exn ~run ~rest ?here ?name f =
+  Deferred.map (try_with ?extract_exn ~run ~rest ?here ?name f) ~f:Or_error.join
 ;;
 
 module List = struct
