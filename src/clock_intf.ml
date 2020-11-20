@@ -204,7 +204,7 @@ module type Clock = sig
 
   (** [every' ?start ?stop span f] runs [f ()] every [span] amount of time starting when
       [start] becomes determined and stopping when [stop] becomes determined.  [every']
-      waits until the result of [f ()] becomes determined before waiting for the next
+      waits until the outcome of [f ()] becomes determined before waiting for the next
       [span].
 
       It is guaranteed that if [stop] becomes determined, even during evaluation of [f],
@@ -212,15 +212,18 @@ module type Clock = sig
 
       It is an error for [span] to be nonpositive.
 
-      With [~continue_on_error:true], when [f] asynchronously raises, iteration continues.
-      With [~continue_on_error:false], if [f] asynchronously raises, then iteration only
-      continues when the result of [f] becomes determined.
+      [continue_on_error] controls what should happen if [f] raises an exception.
+      With [~continue_on_error:false], iteration only continues if [f] successfully
+      returns a deferred and that deferred is determined.
+      With [~continue_on_error:true], iteration also continues if [f] raises an exception.
+      If [f] raises an exception asynchronously, this may cause us to proceed with the
+      next iteration while the previous call to [f] is still running.
 
-      Exceptions raised by [f] are always sent to monitor in effect when [every'] was
+      Exceptions raised by [f] are always sent to the monitor in effect when [every'] was
       called, even with [~continue_on_error:true].
 
       If [finished] is supplied, [every'] will fill it once all of the following become
-      determined: [start], [stop], and the result of the final call to [f]. *)
+      determined: [start], [stop], and the outcome of the final call to [f]. *)
   val every'
     :  ?start:unit Deferred.t (** default is [return ()] *)
     -> ?stop:unit Deferred.t (** default is [Deferred.never ()] *)

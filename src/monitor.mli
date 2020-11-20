@@ -118,7 +118,8 @@ val send_exn : t -> ?backtrace:[ `Get | `This of Backtrace.t ] -> exn -> unit
     [try_with] runs [f ()] in a new monitor [t] that has no parent.  This works because
     [try_with] calls [detach_and_get_error_stream t] and explicitly handles all errors
     sent to [t].  No errors would ever implicitly propagate to [t]'s parent, although
-    [try_with] will explicitly send them to [t]'s parent with [rest = `Raise].
+    [try_with] will explicitly send them to the monitor of the caller with
+    [rest = `Raise].
 
     If [extract_exn = true], then in an [Error exn] result, the [exn] will be the actual
     exception raised by the computation.  If [extract_exn = false], then the [exn] will
