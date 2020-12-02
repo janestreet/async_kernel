@@ -3,18 +3,19 @@ open Import
 
 let debug = Debug.monitor
 
+module Forwarding = Types.Forwarding
+
 type t = Types.Monitor.t =
   { name : Info.t
   ; here : Source_code_position.t option
   ; id : int
-  ; parent : t option
   ; mutable next_error : exn Types.Ivar.t
   ; (* [Monitor.send_exn] schedules a job for each element of [handlers_for_all_errors]. *)
     mutable handlers_for_all_errors : (Types.Execution_context.t * (exn -> unit)) Bag.t
   ; (* [Monitor.send_exn] extends each tail in [tails_for_all_errors]. *)
     mutable tails_for_all_errors : exn Types.Tail.t list
   ; mutable has_seen_error : bool
-  ; mutable is_detached : bool
+  ; mutable forwarding : Forwarding.t
   }
 [@@deriving fields]
 
@@ -36,15 +37,19 @@ let to_pretty =
             { name
             ; here
             ; id
-            ; parent
+            ; forwarding
             ; has_seen_error
-            ; is_detached
             ; next_error = _
             ; handlers_for_all_errors = _
             ; tails_for_all_errors = _
             }
             ac
     =
+    let is_detached, parent =
+      match forwarding with
+      | Detached -> true, None
+      | Parent parent -> false, parent
+    in
     let ac = { Pretty.name; here; id; has_seen_error; is_detached } :: ac in
     match parent with
     | None -> List.rev ac
@@ -74,13 +79,12 @@ let create_with_parent ?here ?info ?name parent =
   let t =
     { name
     ; here
-    ; parent
+    ; forwarding = Parent parent
     ; id
     ; next_error = { cell = Empty }
     ; handlers_for_all_errors = Bag.create ()
     ; tails_for_all_errors = []
     ; has_seen_error = false
-    ; is_detached = false
     }
   in
   if debug then Debug.log "created monitor" t [%sexp_of: t];

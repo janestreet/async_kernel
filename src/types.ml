@@ -65,17 +65,25 @@ and Execution_context : sig
 end =
   Execution_context
 
+and Forwarding : sig
+  type t =
+    | Detached
+    (* [Parent None] means that the exceptions sent to this monitor are unhandled and
+       should terminate the program. *)
+    | Parent of Monitor.t option
+end =
+  Forwarding
+
 and Monitor : sig
   type t =
     { name : Info.t
     ; here : Source_code_position.t option
     ; id : int
-    ; parent : t option
     ; mutable next_error : exn Ivar.t
     ; mutable handlers_for_all_errors : (Execution_context.t * (exn -> unit)) Bag.t
     ; mutable tails_for_all_errors : exn Tail.t list
     ; mutable has_seen_error : bool
-    ; mutable is_detached : bool
+    ; mutable forwarding : Forwarding.t
     }
 end =
   Monitor

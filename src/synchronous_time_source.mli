@@ -175,6 +175,9 @@ module Event : sig
   val reschedule_at : [> read ] T1.t -> t -> Time_ns.t -> Reschedule_result.t
 
   val reschedule_after : [> read ] T1.t -> t -> Time_ns.Span.t -> Reschedule_result.t
+
+  (** [scheduled_at] returns the time that the event is currently scheduled at *)
+  val scheduled_at : t -> Time_ns.t
 end
 
 val default_timing_wheel_config : Timing_wheel.Config.t

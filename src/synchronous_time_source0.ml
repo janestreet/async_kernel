@@ -142,8 +142,6 @@ module T1 = struct
           ~status:ignore)
     ;;
 
-    let compare_at t1 t2 = Time_ns.compare t1.at t2.at
-
     let set_status t to_ =
       let from = t.status in
       if not (Status.transition_is_allowed ~from ~to_)
@@ -157,6 +155,8 @@ module T1 = struct
               ~event:(t : t)];
       t.status <- to_
     ;;
+
+    let scheduled_at = at
   end
 
   module Job_or_event = struct

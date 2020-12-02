@@ -16,30 +16,20 @@ let invariant t =
       ~name:ignore
       ~here:ignore
       ~id:ignore
-      ~parent:ignore
+      ~forwarding:ignore
       ~next_error:(check (fun next_error -> assert (Ivar.is_empty next_error)))
       ~handlers_for_all_errors:ignore
       ~tails_for_all_errors:ignore
-      ~has_seen_error:ignore
-      ~is_detached:ignore)
+      ~has_seen_error:ignore)
 ;;
 
 let current_execution_context () = Scheduler.(current_execution_context (t ()))
 let current () = Execution_context.monitor (current_execution_context ())
 
-let depth t =
-  let rec loop t n =
-    match t.parent with
-    | None -> n
-    | Some t -> loop t (n + 1)
-  in
-  loop t 0
-;;
-
 type 'a with_optional_monitor_name =
   ?here:Source_code_position.t -> ?info:Info.t -> ?name:string -> 'a
 
-let detach t = t.is_detached <- true
+let detach t = t.forwarding <- Detached
 
 type handler_state =
   | Uninitialized
@@ -217,22 +207,22 @@ let send_exn t ?backtrace exn =
   let rec loop t =
     Ivar.fill t.next_error exn;
     t.next_error <- Ivar.create ();
-    if t.is_detached
-    then (
+    match t.forwarding with
+    | Detached ->
       if Debug.monitor_send_exn
       then
         Debug.log "Monitor.send_exn found listening monitor" (t, exn) [%sexp_of: t * exn];
       Bag.iter t.handlers_for_all_errors ~f:(fun (execution_context, f) ->
         Scheduler.enqueue scheduler execution_context f exn);
-      List.iter t.tails_for_all_errors ~f:(fun tail -> Tail.extend tail exn))
-    else (
-      match t.parent with
-      | Some t' -> loop t'
-      | None ->
-        (* Do not change this branch to print the exception or to exit.  Having the
-           scheduler raise an uncaught exception is the necessary behavior for programs
-           that call [Scheduler.go] and want to handle it. *)
-        Scheduler.(got_uncaught_exn (t ())) exn (!Async_kernel_config.task_id ()))
+      List.iter t.tails_for_all_errors ~f:(fun tail -> Tail.extend tail exn)
+    | Parent parent ->
+      (match parent with
+       | Some t' -> loop t'
+       | None ->
+         (* Do not change this branch to print the exception or to exit.  Having the
+            scheduler raise an uncaught exception is the necessary behavior for programs
+            that call [Scheduler.go] and want to handle it. *)
+         Scheduler.(got_uncaught_exn (t ())) exn (!Async_kernel_config.task_id ()))
   in
   loop t
 ;;
@@ -473,3 +463,20 @@ let catch ?here ?info ?name f =
 ;;
 
 let catch_error ?here ?info ?name f = catch ?here ?info ?name f >>| Error.of_exn
+
+module For_tests = struct
+  let parent t =
+    match t.forwarding with
+    | Parent parent -> parent
+    | Detached -> None
+  ;;
+
+  let depth t =
+    let rec loop t n =
+      match parent t with
+      | None -> n
+      | Some t -> loop t (n + 1)
+    in
+    loop t 0
+  ;;
+end

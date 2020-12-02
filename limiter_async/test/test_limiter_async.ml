@@ -291,7 +291,7 @@ let%test_module _ =
           then (Deferred.unit)
           else begin
             enqueue' seq (fun () ->
-              assert (Monitor.depth (Monitor.current ()) < 5);
+              assert (Monitor.For_tests.depth (Monitor.current ()) < 5);
               don't_wait_for (loop (n - 1));
               Deferred.unit) ()
             >>| fun (_ : unit Outcome.t) -> ()
