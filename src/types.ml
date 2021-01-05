@@ -68,9 +68,8 @@ end =
 and Forwarding : sig
   type t =
     | Detached
-    (* [Parent None] means that the exceptions sent to this monitor are unhandled and
-       should terminate the program. *)
-    | Parent of Monitor.t option
+    | Parent of Monitor.t
+    | Report_uncaught_exn
 end =
   Forwarding
 

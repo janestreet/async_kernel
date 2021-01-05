@@ -48,7 +48,8 @@ let to_pretty =
     let is_detached, parent =
       match forwarding with
       | Detached -> true, None
-      | Parent parent -> false, parent
+      | Parent parent -> false, Some parent
+      | Report_uncaught_exn -> false, None
     in
     let ac = { Pretty.name; here; id; has_seen_error; is_detached } :: ac in
     match parent with
@@ -79,7 +80,10 @@ let create_with_parent ?here ?info ?name parent =
   let t =
     { name
     ; here
-    ; forwarding = Parent parent
+    ; forwarding =
+        (match parent with
+         | None -> Report_uncaught_exn
+         | Some parent -> Parent parent)
     ; id
     ; next_error = { cell = Empty }
     ; handlers_for_all_errors = Bag.create ()

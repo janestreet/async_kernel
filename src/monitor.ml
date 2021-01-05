@@ -215,14 +215,12 @@ let send_exn t ?backtrace exn =
       Bag.iter t.handlers_for_all_errors ~f:(fun (execution_context, f) ->
         Scheduler.enqueue scheduler execution_context f exn);
       List.iter t.tails_for_all_errors ~f:(fun tail -> Tail.extend tail exn)
-    | Parent parent ->
-      (match parent with
-       | Some t' -> loop t'
-       | None ->
-         (* Do not change this branch to print the exception or to exit.  Having the
-            scheduler raise an uncaught exception is the necessary behavior for programs
-            that call [Scheduler.go] and want to handle it. *)
-         Scheduler.(got_uncaught_exn (t ())) exn (!Async_kernel_config.task_id ()))
+    | Parent parent -> loop parent
+    | Report_uncaught_exn ->
+      (* Do not change this branch to print the exception or to exit.  Having the
+         scheduler raise an uncaught exception is the necessary behavior for programs
+         that call [Scheduler.go] and want to handle it. *)
+      Scheduler.(got_uncaught_exn (t ())) exn (!Async_kernel_config.task_id ())
   in
   loop t
 ;;
@@ -467,7 +465,8 @@ let catch_error ?here ?info ?name f = catch ?here ?info ?name f >>| Error.of_exn
 module For_tests = struct
   let parent t =
     match t.forwarding with
-    | Parent parent -> parent
+    | Report_uncaught_exn -> None
+    | Parent parent -> Some parent
     | Detached -> None
   ;;
 
