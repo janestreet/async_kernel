@@ -157,6 +157,8 @@ module Expert : sig
   val last_cycle_num_jobs : unit -> int
   val run_every_cycle_start : (unit -> unit) -> unit
   val run_every_cycle_end : (unit -> unit) -> unit
+  val with_execution_context : Execution_context.t -> (unit -> unit) -> unit
+  val with_execution_context1 : Execution_context.t -> f:('a -> unit) -> 'a -> unit
 end
 
 module Private = Scheduler

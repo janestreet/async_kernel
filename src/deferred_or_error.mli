@@ -114,7 +114,7 @@ val try_with_join
     only evaluates [n] of the deferreds at a time. *)
 module List : Monad_sequence.S with type 'a monad := 'a t with type 'a t := 'a list
 
-(** [repeat_until_finished initial_state f] works the just like
+(** [repeat_until_finished initial_state f] works just like
     {!Deferred.repeat_until_finished} but with the [Deferred.Or_error] monad.
     If [f] returns an [Or_error.Error] the loop terminates and returns. *)
 val repeat_until_finished

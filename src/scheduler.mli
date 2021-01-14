@@ -12,6 +12,7 @@ include Invariant.S with type t := t
 
 val current_execution_context : t -> Execution_context.t
 val with_execution_context : t -> Execution_context.t -> f:(unit -> 'a) -> 'a
+val with_execution_context1 : t -> Execution_context.t -> f:('a -> 'b) -> 'a -> 'b
 val set_execution_context : t -> Execution_context.t -> unit
 val enqueue : t -> Execution_context.t -> ('a -> unit) -> 'a -> unit
 val create_job : t -> Execution_context.t -> ('a -> unit) -> 'a -> Job.t

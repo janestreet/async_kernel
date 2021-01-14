@@ -47,6 +47,14 @@ module Expert = struct
   let last_cycle_num_jobs () = last_cycle_num_jobs (t ())
   let run_every_cycle_start f = run_every_cycle_start (t ()) ~f
   let run_every_cycle_end f = run_every_cycle_end (t ()) ~f
+
+  let with_execution_context execution_context f =
+    with_execution_context (t ()) execution_context ~f
+  ;;
+
+  let with_execution_context1 execution_context ~f x =
+    with_execution_context1 (t ()) execution_context ~f x
+  ;;
 end
 
 module Private = Scheduler
