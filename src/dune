@@ -3,4 +3,4 @@
   core_kernel.sexp_hidden_in_test core_kernel.thread_pool_cpu_affinity
   core_kernel.thread_safe_queue core_kernel.timing_wheel
   core_kernel.tuple_pool)
- (preprocess (pps ppx_jane -annotated-ignores -check-doc-comments)))
+ (preprocess (pps ppx_jane)))
