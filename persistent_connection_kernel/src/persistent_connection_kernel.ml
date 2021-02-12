@@ -254,9 +254,9 @@ module Make (Conn : T) = struct
     if is_closed t
     then return connected_or_failed_to_connect_connection_closed
     else (
-      match Deferred.peek (connected t) with
-      | Some x -> return (Ok x)
-      | None ->
+      match current_connection t with
+      | Some x when not (Conn.is_closed x) -> return (Ok x)
+      | Some (_ : Conn.t) | None ->
         Deferred.choose
           [ choice (Ivar.read t.close_started) (fun () ->
               connected_or_failed_to_connect_connection_closed)
