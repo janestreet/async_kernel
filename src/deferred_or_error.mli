@@ -80,8 +80,8 @@ val ok_unit : unit t
     [`Schedule] schedules an asynchronous job to run [f]. *)
 val try_with
   :  ?extract_exn:bool (** default is [false] *)
-  -> run:[ `Now | `Schedule ] (** suggested default is [`Now] *)
-  -> rest:[ `Log | `Raise | `Call of exn -> unit ] (** suggested default is [`Raise] *)
+  -> ?run:[ `Now | `Schedule ] (** default is [`Now] *)
+  -> ?rest:[ `Log | `Raise | `Call of exn -> unit ] (** default is [`Raise] *)
   -> ?here:Lexing.position
   -> ?name:string
   -> (unit -> 'a Deferred.t)
@@ -89,13 +89,12 @@ val try_with
 
 val try_with_join
   :  ?extract_exn:bool (** default is [false] *)
-  -> run:[ `Now | `Schedule ] (** suggested default is [`Now] *)
-  -> rest:[ `Log | `Raise | `Call of exn -> unit ] (** suggested default is [`Raise] *)
+  -> ?run:[ `Now | `Schedule ] (** default is [`Now] *)
+  -> ?rest:[ `Log | `Raise | `Call of exn -> unit ] (** default is [`Raise] *)
   -> ?here:Lexing.position
   -> ?name:string
   -> (unit -> 'a t)
   -> 'a t
-
 
 (** All of the [List] functions that take a [how] argument treat it the following way:
 

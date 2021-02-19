@@ -372,7 +372,15 @@ let make_handle_exn rest =
     fun exn -> within ~monitor:parent (fun () -> f exn)
 ;;
 
-let try_with ?here ?info ?(name = "") ?extract_exn:(do_extract_exn = false) ~run ~rest f =
+let try_with
+      ?here
+      ?info
+      ?(name = "")
+      ?extract_exn:(do_extract_exn = false)
+      ?(run = `Now)
+      ?(rest = `Raise)
+      f
+  =
   let { Ok_and_exns.ok; exns } = Ok_and_exns.create ?here ?info ~name ~run f in
   let handle_exn = make_handle_exn rest in
   let handle_exns_after_result exns = stream_iter exns ~f:handle_exn in
@@ -405,8 +413,8 @@ let try_with ?here ?info ?(name = "") ?extract_exn:(do_extract_exn = false) ~run
       result))
 ;;
 
-let try_with_or_error ?here ?info ?(name = "try_with_or_error") ?extract_exn ~rest f =
-  try_with f ?here ?info ~name ?extract_exn ~run:`Now ~rest >>| Or_error.of_exn_result
+let try_with_or_error ?here ?info ?(name = "try_with_or_error") ?extract_exn ?rest f =
+  try_with f ?here ?info ~name ?extract_exn ~run:`Now ?rest >>| Or_error.of_exn_result
 ;;
 
 let try_with_join_or_error
@@ -414,21 +422,21 @@ let try_with_join_or_error
       ?info
       ?(name = "try_with_join_or_error")
       ?extract_exn
-      ~rest
+      ?rest
       f
   =
-  try_with_or_error f ?here ?info ~name ?extract_exn ~rest >>| Or_error.join
+  try_with_or_error f ?here ?info ~name ?extract_exn ?rest >>| Or_error.join
 ;;
 
-let protect ?here ?info ?(name = "Monitor.protect") ?extract_exn ~run ~rest f ~finally =
-  let%bind r = try_with ?extract_exn ?here ?info ~run ~rest ~name f in
+let protect ?here ?info ?(name = "Monitor.protect") ?extract_exn ?run ?rest f ~finally =
+  let%bind r = try_with ?extract_exn ?here ?info ?run ?rest ~name f in
   let%map fr =
     try_with
       ~extract_exn:false
       ?here
       ?info
       ~run:`Schedule (* consider [~run:`Now] *)
-      ~rest
+      ?rest
       ~name:"finally"
       finally
   in

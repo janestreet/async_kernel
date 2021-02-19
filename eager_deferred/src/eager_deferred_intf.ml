@@ -27,7 +27,7 @@ module type Eager_deferred_or_error = sig
   val try_with
     :  ?extract_exn:bool
     -> ?run:[ `Now | `Schedule ]
-    -> rest:[ `Log | `Raise | `Call of exn -> unit ] (** suggested default is [`Raise] *)
+    -> ?rest:[ `Log | `Raise | `Call of exn -> unit ] (** default is [`Raise] *)
     -> ?here:Lexing.position
     -> ?name:string
     -> (unit -> 'a deferred)
@@ -37,12 +37,11 @@ module type Eager_deferred_or_error = sig
   val try_with_join
     :  ?extract_exn:bool
     -> ?run:[ `Now | `Schedule ]
-    -> rest:[ `Log | `Raise | `Call of exn -> unit ] (** suggested default is [`Raise] *)
+    -> ?rest:[ `Log | `Raise | `Call of exn -> unit ] (** default is [`Raise] *)
     -> ?here:Lexing.position
     -> ?name:string
     -> (unit -> 'a t)
     -> 'a t
-
 
   val combine_errors : 'a t list -> 'a list t
   val combine_errors_unit : unit t list -> unit t

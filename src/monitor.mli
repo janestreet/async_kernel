@@ -121,12 +121,11 @@ val send_exn : t -> ?backtrace:[ `Get | `This of Backtrace.t ] -> exn -> unit
     include additional information, like the monitor and backtrace. *)
 val try_with
   : (?extract_exn:bool (** default is [false] *)
-     -> run:[ `Now | `Schedule ] (** suggested default is [`Now] *)
-     -> rest:[ `Log | `Raise | `Call of exn -> unit ] (** suggested default is [`Raise] *)
+     -> ?run:[ `Now | `Schedule ] (** default is [`Now] *)
+     -> ?rest:[ `Log | `Raise | `Call of exn -> unit ] (** default is [`Raise] *)
      -> (unit -> 'a Deferred.t)
      -> ('a, exn) Result.t Deferred.t)
       with_optional_monitor_name
-
 
 
 (** [try_with_or_error] is like [try_with] but returns ['a Or_error.t Deferred.t]
@@ -140,7 +139,7 @@ val try_with
     experience, we think [~run:`Now] is a better behavior. *)
 val try_with_or_error
   : (?extract_exn:bool (** default is [false] *)
-     -> rest:[ `Log | `Raise | `Call of exn -> unit ] (** suggested default is [`Raise] *)
+     -> ?rest:[ `Log | `Raise | `Call of exn -> unit ] (** default is [`Raise] *)
      -> (unit -> 'a Deferred.t)
      -> 'a Or_error.t Deferred.t)
       with_optional_monitor_name
@@ -148,7 +147,7 @@ val try_with_or_error
 (** [try_with_join_or_error f = try_with_or_error f >>| Or_error.join]. *)
 val try_with_join_or_error
   : (?extract_exn:bool (** default is [false] *)
-     -> rest:[ `Log | `Raise | `Call of exn -> unit ] (** suggested default is [`Raise] *)
+     -> ?rest:[ `Log | `Raise | `Call of exn -> unit ] (** default is [`Raise] *)
      -> (unit -> 'a Or_error.t Deferred.t)
      -> 'a Or_error.t Deferred.t)
       with_optional_monitor_name
@@ -183,8 +182,8 @@ val catch_error : ((unit -> unit) -> Error.t Deferred.t) with_optional_monitor_n
     running in.  This name will appear when printing the errors. *)
 val protect
   : (?extract_exn:bool (** default is [false] *)
-     -> run:[ `Now | `Schedule ] (** suggested default is [`Now] *)
-     -> rest:[ `Log | `Raise | `Call of exn -> unit ] (** suggested default is [`Raise] *)
+     -> ?run:[ `Now | `Schedule ] (** default is [`Now] *)
+     -> ?rest:[ `Log | `Raise | `Call of exn -> unit ] (** default is [`Raise] *)
      -> (unit -> 'a Deferred.t)
      -> finally:(unit -> unit Deferred.t)
      -> 'a Deferred.t)
