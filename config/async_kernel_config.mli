@@ -93,6 +93,26 @@ type t =
   }
 [@@deriving sexp_of]
 
+val create
+  :  ?abort_after_thread_pool_stuck_for:Time_ns.Span.t
+  -> ?check_invariants:bool
+  -> ?detect_invalid_access_from_thread:bool
+  -> ?dump_core_on_job_delay:Dump_core_on_job_delay.t
+  -> ?epoll_max_ready_events:Epoll_max_ready_events.t
+  -> ?file_descr_watcher:File_descr_watcher.t
+  -> ?max_inter_cycle_timeout:Max_inter_cycle_timeout.t
+  -> ?max_num_open_file_descrs:Max_num_open_file_descrs.t
+  -> ?max_num_threads:Max_num_threads.t
+  -> ?max_num_jobs_per_priority_per_cycle:Max_num_jobs_per_priority_per_cycle.t
+  -> ?min_inter_cycle_timeout:Min_inter_cycle_timeout.t
+  -> ?print_debug_messages_for:Debug_tag.t list
+  -> ?record_backtraces:bool
+  -> ?report_thread_pool_stuck_for:Time_ns.Span.t
+  -> ?thread_pool_cpu_affinity:Thread_pool_cpu_affinity.t
+  -> ?timing_wheel_config:Timing_wheel.Config.t
+  -> unit
+  -> t
+
 val t : t
 val environment_variable : string
 

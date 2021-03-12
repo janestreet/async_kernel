@@ -381,6 +381,9 @@ val read'
     meaning of values being flushed (see the [Consumer] module above). *)
 val read : ?consumer:Consumer.t -> 'a Reader.t -> [ `Eof | `Ok of 'a ] Deferred.t
 
+(** [read_exn] is like [read], except it raises on [`Eof]. *)
+val read_exn : ?consumer:Consumer.t -> 'a Reader.t -> 'a Deferred.t
+
 
 (** [read_exactly r ~num_values] reads exactly [num_values] items, unless EOF is
     encountered.  [read_exactly] performs a sequence of [read_at_most] operations, so

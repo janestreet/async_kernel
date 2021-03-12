@@ -624,6 +624,12 @@ let read ?consumer t =
     return (`Ok (consume_one t consumer)))
 ;;
 
+let read_exn ?consumer t =
+  match%map read ?consumer t with
+  | `Ok value -> value
+  | `Eof -> raise_s [%message "Pipe.read_exn: received EOF"]
+;;
+
 let values_available t =
   start_read t "values_available";
   if not (is_empty t)

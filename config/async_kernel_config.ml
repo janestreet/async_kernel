@@ -1,8 +1,7 @@
 module Inria_sys = Sys
-module Time_ns_in_this_directory = Time_ns
 open Core_kernel
+module Time_ns = Core_kernel_private.Time_ns_alternate_sexp
 open Poly
-module Time_ns = Time_ns_in_this_directory
 
 let sec = Time_ns.Span.of_sec
 let concat = String.concat
@@ -174,6 +173,44 @@ let empty =
   ; report_thread_pool_stuck_for = None
   ; thread_pool_cpu_affinity = None
   ; timing_wheel_config = None
+  }
+;;
+
+let create
+      ?abort_after_thread_pool_stuck_for
+      ?check_invariants
+      ?detect_invalid_access_from_thread
+      ?dump_core_on_job_delay
+      ?epoll_max_ready_events
+      ?file_descr_watcher
+      ?max_inter_cycle_timeout
+      ?max_num_open_file_descrs
+      ?max_num_threads
+      ?max_num_jobs_per_priority_per_cycle
+      ?min_inter_cycle_timeout
+      ?print_debug_messages_for
+      ?record_backtraces
+      ?report_thread_pool_stuck_for
+      ?thread_pool_cpu_affinity
+      ?timing_wheel_config
+      ()
+  =
+  { abort_after_thread_pool_stuck_for
+  ; check_invariants
+  ; detect_invalid_access_from_thread
+  ; dump_core_on_job_delay
+  ; epoll_max_ready_events
+  ; file_descr_watcher
+  ; max_inter_cycle_timeout
+  ; max_num_open_file_descrs
+  ; max_num_threads
+  ; max_num_jobs_per_priority_per_cycle
+  ; min_inter_cycle_timeout
+  ; print_debug_messages_for
+  ; record_backtraces
+  ; report_thread_pool_stuck_for
+  ; thread_pool_cpu_affinity
+  ; timing_wheel_config
   }
 ;;
 
