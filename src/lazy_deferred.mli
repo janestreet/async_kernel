@@ -33,6 +33,11 @@ type 'a t
 (** [create f] creates a new lazy deferred that will call [f] when it is forced. *)
 val create : (unit -> 'a Deferred.t) -> 'a t
 
+(** Same as {!create} but allows [f] to explicitly return errors as well as
+    raise. The two cases are joined and not distingused in the result of
+    {!force}. *)
+val create_or_error : (unit -> 'a Deferred.Or_error.t) -> 'a t
+
 (** [force t] forces evaluation of [t] and returns a deferred that becomes determined
     when the deferred computation becomes determined or raises. *)
 val force : 'a t -> 'a Or_error.t Deferred.t

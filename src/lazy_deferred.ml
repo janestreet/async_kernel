@@ -18,6 +18,17 @@ module T = struct
     }
   ;;
 
+  let create_or_error f =
+    let start = Ivar.create () in
+    { start
+    ; result =
+        (let%bind () = Ivar.read start in
+         Monitor.try_with_join_or_error
+           ~rest:`Log
+           f)
+    }
+  ;;
+
   let wait t = t.result
   let wait_exn t = wait t >>| ok_exn
   let start t = Ivar.fill_if_empty t.start ()

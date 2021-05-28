@@ -2,6 +2,7 @@ open Core
 open Async
 module L = Laziness_preserving_deferred
 
+let () = Backtrace.elide := true
 let value = "foo"
 
 let sexp_of_test = function
