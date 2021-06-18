@@ -37,7 +37,7 @@
     [try_with] creates its own monitor and uses [Scheduler.within], so it does not have
     this problem. *)
 
-open! Core_kernel
+open! Core
 module Deferred = Deferred1
 
 type t = Monitor0.t [@@deriving sexp_of]

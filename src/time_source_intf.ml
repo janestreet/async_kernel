@@ -7,7 +7,7 @@
     useful so that state machines can depend on a notion of time that is distinct from
     wall-clock time. *)
 
-open! Core_kernel
+open! Core
 open! Import
 module Deferred = Deferred1
 
@@ -240,7 +240,7 @@ module type Time_source = sig
     -> unit
 
   val run_at_intervals'
-    :  ?start:Time_ns.t (** default is [Time_ns.now ()] *)
+    :  ?start:Time_ns.t (** default is [now t] *)
     -> ?stop:unit Deferred.t (** default is [Deferred.never ()] *)
     -> ?continue_on_error:bool (** default is [true] *)
     -> [> read ] T1.t
@@ -249,7 +249,7 @@ module type Time_source = sig
     -> unit
 
   val run_at_intervals
-    :  ?start:Time_ns.t (** default is [Time_ns.now ()] *)
+    :  ?start:Time_ns.t (** default is [now t] *)
     -> ?stop:unit Deferred.t (** default is [Deferred.never ()] *)
     -> ?continue_on_error:bool (** default is [true] *)
     -> [> read ] T1.t

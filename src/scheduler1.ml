@@ -1,4 +1,4 @@
-open Core_kernel
+open Core
 open Import
 include Scheduler0
 module Synchronous_time_source = Synchronous_time_source0

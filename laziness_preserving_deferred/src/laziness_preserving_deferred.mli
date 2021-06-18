@@ -1,4 +1,4 @@
-open Core_kernel
+open Core
 open Async_kernel
 
 (** [Laziness_preserving_deferred] offers a monad for working with lazy deferreds that has

@@ -8,7 +8,7 @@
     except that it uses the fact that [Event.t] is a pointer and [Job.t] is an
     int to be zero alloc. *)
 
-open! Core_kernel
+open! Core
 open! Import
 module Event = Types.Event
 

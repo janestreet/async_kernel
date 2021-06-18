@@ -2,7 +2,7 @@
     to reconnect whenever the underlying connection is lost, until a new one can be
     established. *)
 
-open! Core_kernel
+open! Core
 open! Async_kernel
 
 module type Closable = sig

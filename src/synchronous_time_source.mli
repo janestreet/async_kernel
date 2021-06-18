@@ -6,7 +6,7 @@
     [Timing_wheel] that is only true for alarms in different time intervals as
     determined by [alarm_precision]. *)
 
-open! Core_kernel
+open! Core
 open! Import
 
 module T1 : sig

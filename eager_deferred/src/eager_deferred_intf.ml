@@ -1,4 +1,4 @@
-open! Core_kernel
+open! Core
 open! Async_kernel
 open! Import
 
@@ -74,7 +74,7 @@ module type Eager_deferred1 = sig
   val don't_wait_for : unit t -> unit
   val is_determined : 'a t -> bool
   val never : unit -> _ t
-  val ok : 'a t -> ('a, _) Core_kernel.Result.t t
+  val ok : 'a t -> ('a, _) Core.Result.t t
   val peek : 'a t -> 'a option
   val unit : unit t
   val upon : 'a t -> ('a -> unit) -> unit
@@ -111,14 +111,11 @@ module type S = sig
     val ( >>> ) : 'a t -> ('a -> unit) -> unit
 
     val ( >>=? )
-      :  ('a, 'e) Core_kernel.Result.t t
-      -> ('a -> ('b, 'e) Core_kernel.Result.t t)
-      -> ('b, 'e) Core_kernel.Result.t t
+      :  ('a, 'e) Core.Result.t t
+      -> ('a -> ('b, 'e) Core.Result.t t)
+      -> ('b, 'e) Core.Result.t t
 
-    val ( >>|? )
-      :  ('a, 'e) Core_kernel.Result.t t
-      -> ('a -> 'b)
-      -> ('b, 'e) Core_kernel.Result.t t
+    val ( >>|? ) : ('a, 'e) Core.Result.t t -> ('a -> 'b) -> ('b, 'e) Core.Result.t t
   end
 end
 

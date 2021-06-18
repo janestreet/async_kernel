@@ -1,4 +1,4 @@
-open! Core_kernel
+open! Core
 open! Async_kernel
 open! Async_kernel_require_explicit_time_source
 include Persistent_connection_kernel_intf

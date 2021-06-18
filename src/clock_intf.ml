@@ -4,7 +4,7 @@
     run in the future.  The Async scheduler is responsible for waking up at the right time
     to run the jobs. *)
 
-open Core_kernel
+open Core
 module Deferred = Deferred1
 
 module Or_timeout = struct
@@ -37,12 +37,11 @@ module type Clock = sig
   val run_after : Time.Span.t -> ('a -> unit) -> 'a -> unit
 
   (** [at time] returns a deferred [d] that will become determined as soon as possible
-      after [time] *)
+      after [time]. *)
   val at : Time.t -> unit Deferred.t
 
   (** [after] is like [at], except that one specifies a time span rather than an absolute
-      time.  If you set up a lot of [after] events at the beginning of your program they
-      will trigger at the same time.  Use [Time.Span.randomize] to even them out. *)
+      time. *)
   val after : Time.Span.t -> unit Deferred.t
 
   (** [with_timeout span d] returns a deferred that will become determined after either

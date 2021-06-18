@@ -1,4 +1,4 @@
-open Core_kernel
+open Core
 module Deferred = Deferred0
 include Ivar0
 

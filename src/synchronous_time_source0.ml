@@ -1,12 +1,12 @@
-open! Core_kernel
+open! Core
 open! Import
 
 module Time_ns = struct
   include Time_ns
 
-  external format : float -> string -> string = "core_kernel_time_ns_format"
+  external format : float -> string -> string = "core_time_ns_format"
 
-  (* We use a more pleasant format than [Core_kernel.Time_ns.sexp_of_t],
+  (* We use a more pleasant format than [Core.Time_ns.sexp_of_t],
      which has to be messier for round trippability. *)
   let sexp_of_t t =
     [%sexp

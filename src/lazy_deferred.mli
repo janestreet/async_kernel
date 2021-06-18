@@ -26,7 +26,7 @@
 
     See also [Deferred.Memo.unit], if you only are interested in [create] and [force]. *)
 
-open! Core_kernel
+open! Core
 
 type 'a t
 

@@ -1,6 +1,6 @@
 (** Internal to Async -- see {!Async_unix.Scheduler} for the public API. *)
 
-open! Core_kernel
+open! Core
 open! Import
 module Deferred = Deferred1
 
@@ -106,3 +106,5 @@ end
 module For_bench : sig
   val advance_clock : t -> now:Time_ns.t -> unit
 end
+
+val in_cycle : t -> bool

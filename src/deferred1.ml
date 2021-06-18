@@ -1,4 +1,4 @@
-open Core_kernel
+open Core
 module Scheduler = Scheduler1
 include Deferred0
 

@@ -1,6 +1,6 @@
 (** The priority of a job. *)
 
-open! Core_kernel
+open! Core
 open! Import
 
 type t =

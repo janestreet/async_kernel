@@ -1,6 +1,6 @@
 module Debug_in_this_directory = Debug
 module Time_ns_in_this_directory = Time_ns
-open! Core_kernel
+open! Core
 include Int.Replace_polymorphic_compare
 module Debug = Debug_in_this_directory
 module Time_ns = Time_ns_in_this_directory
@@ -10,9 +10,9 @@ module Max_num_jobs_per_priority_per_cycle =
   Async_kernel_config.Max_num_jobs_per_priority_per_cycle
 
 let concat = String.concat
-let eprint = Core_kernel.Debug.eprint
-let eprint_s = Core_kernel.Debug.eprint_s
-let eprints = Core_kernel.Debug.eprints
+let eprint = Core.Debug.eprint
+let eprint_s = Core.Debug.eprint_s
+let eprints = Core.Debug.eprints
 let print_s sexp = printf "%s\n%!" (sexp |> Sexp.to_string_hum)
 let sec = Time_ns.Span.of_sec
 

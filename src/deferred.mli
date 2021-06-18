@@ -4,7 +4,7 @@
     at some point become determined with value v, and will henceforth always be determined
     with value v. *)
 
-open! Core_kernel
+open! Core
 open! Import
 
 type +'a t = 'a Deferred1.t [@@deriving sexp_of]
@@ -176,7 +176,7 @@ val forever : 'state -> ('state -> 'state t) -> unit
 
 (** Useful for lifting values from the [Deferred.t] monad to the [Result.t Deferred.t]
     monad. *)
-val ok : 'a t -> ('a, _) Core_kernel.Result.t t
+val ok : 'a t -> ('a, _) Core.Result.t t
 
 (** {2 Deferred collections}
 

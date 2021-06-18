@@ -1,4 +1,4 @@
-open! Core_kernel
+open! Core
 open! Import
 open! Deferred_std
 module Deferred = Deferred1
@@ -94,7 +94,7 @@ let add_finalizer t heap_block f =
     thread_safe_enqueue_external_job t execution_context f heap_block
   in
   if Debug.finalizers then Debug.log_string "adding finalizer";
-  (* We use [Caml.Gc.finalise] instead of [Core_kernel.Gc.add_finalizer] because the latter
+  (* We use [Caml.Gc.finalise] instead of [Core.Gc.add_finalizer] because the latter
      has its own wrapper around [Caml.Gc.finalise] to run finalizers synchronously. *)
   try Caml.Gc.finalise finalizer heap_block with
   | Invalid_argument _ ->
@@ -118,7 +118,7 @@ let add_finalizer_last t heap_block f =
     thread_safe_enqueue_external_job t execution_context f ()
   in
   if Debug.finalizers then Debug.log_string "adding finalizer (using 'last' semantic)";
-  (* We use [Caml.Gc.finalise_last] instead of [Core_kernel.Gc.add_finalizer_last] because
+  (* We use [Caml.Gc.finalise_last] instead of [Core.Gc.add_finalizer_last] because
      the latter has its own wrapper around [Caml.Gc.finalise_last] to run finalizers
      synchronously. *)
   try Caml.Gc.finalise_last finalizer heap_block with
@@ -304,3 +304,5 @@ end
 module For_bench = struct
   let advance_clock = advance_clock
 end
+
+let in_cycle t = t.in_cycle

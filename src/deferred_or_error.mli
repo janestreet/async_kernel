@@ -21,7 +21,7 @@
     If you have to deal with a function that does not respect this idiom, you can use
     [Deferred.Or_error.try_with_join] to wrap its execution and enforce this property. *)
 
-open! Core_kernel
+open! Core
 open! Import
 module Deferred = Deferred1
 

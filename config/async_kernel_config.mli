@@ -10,7 +10,7 @@
       ASYNC_CONFIG= foo.exe
     v} *)
 
-open! Core_kernel
+open! Core
 module Epoll_max_ready_events : Validated.S with type raw := int
 module Max_inter_cycle_timeout : Validated.S with type raw := Time_ns.Span.t
 module Min_inter_cycle_timeout : Validated.S with type raw := Time_ns.Span.t

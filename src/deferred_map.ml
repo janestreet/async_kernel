@@ -1,4 +1,4 @@
-open Core_kernel
+open Core
 open Deferred_std
 module Deferred = Deferred1
 module List = Deferred_list
@@ -42,20 +42,51 @@ module Job = struct
   [@@deriving fields]
 end
 
-let filter_mapi ?how t ~f =
-  let jobs = ref [] in
-  let job_map =
-    Map.mapi t ~f:(fun ~key ~data ->
-      let job = { Job.key; data; result = None } in
-      jobs := job :: !jobs;
-      job)
-  in
-  let%map () =
-    List.iter ?how !jobs ~f:(function { Job.key; data; result = _ } as job ->
-      let%map x = f ~key ~data in
-      job.result <- x)
-  in
-  Map.filter_map job_map ~f:Job.result
+let filter_mapi_sequential t ~f =
+  let comparator = Map.comparator t in
+  let sequence = Map.to_sequence ~order:`Increasing_key t in
+  Deferred.create (fun ivar ->
+    Sequence.delayed_fold
+      sequence
+      ~init:Base.Map.Using_comparator.Tree.Build_increasing.empty
+      ~f:(fun s (key, data) ~k ->
+        upon (f ~key ~data) (function
+          | None -> k s
+          | Some data ->
+            let s =
+              Base.Map.Using_comparator.Tree.Build_increasing.add_exn
+                s
+                ~comparator
+                ~key
+                ~data
+            in
+            k s))
+      ~finish:(fun x ->
+        Ivar.fill
+          ivar
+          (Map.Using_comparator.of_tree
+             ~comparator
+             (Base.Map.Using_comparator.Tree.Build_increasing.to_tree x))))
+;;
+
+let filter_mapi ?(how = `Sequential) t ~f =
+  match how with
+  | `Sequential -> filter_mapi_sequential t ~f
+  | `Parallel | `Max_concurrent_jobs _ ->
+    let jobs = ref [] in
+    let job_map =
+      Map.mapi t ~f:(fun ~key ~data ->
+        let job = { Job.key; data; result = None } in
+        jobs := job :: !jobs;
+        job)
+    in
+    let%map () =
+      List.iter ~how (Base.List.rev !jobs) ~f:(function
+        | { Job.key; data; result = _ } as job ->
+          let%map x = f ~key ~data in
+          job.result <- x)
+    in
+    Map.filter_map job_map ~f:Job.result
 ;;
 
 let filter_map ?how t ~f = filter_mapi ?how t ~f:(fun ~key:_ ~data -> f data)

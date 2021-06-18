@@ -3,7 +3,7 @@
     queue, along with some other bookkeeping, like advancing Async's clock to the current
     time. *)
 
-open! Core_kernel
+open! Core
 open! Import
 
 type 'a with_options = ?monitor:Monitor.t -> ?priority:Priority.t -> 'a

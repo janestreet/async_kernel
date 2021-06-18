@@ -23,7 +23,7 @@
     For debugging your pipe usage you can use [show_debug_messages], and also use
     [set_info] to attach some data to a pipe for identification purposes. *)
 
-open! Core_kernel
+open! Core
 
 type ('a, 'phantom) t [@@deriving sexp_of]
 type ('a, 'phantom) pipe = ('a, 'phantom) t [@@deriving sexp_of]

@@ -1,6 +1,6 @@
 module Inria_sys = Sys
-open Core_kernel
-module Time_ns = Core_kernel_private.Time_ns_alternate_sexp
+open Core
+module Time_ns = Core_private.Time_ns_alternate_sexp
 open Poly
 
 let sec = Time_ns.Span.of_sec
