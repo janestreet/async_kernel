@@ -155,8 +155,12 @@ val num_pending_jobs : unit -> int
 module Expert : sig
   val run_cycles_until_no_jobs_remain : unit -> unit
   val last_cycle_num_jobs : unit -> int
-  val run_every_cycle_start : (unit -> unit) -> unit
-  val run_every_cycle_end : (unit -> unit) -> unit
+  val run_every_cycle_start : Cycle_hook.t -> unit
+  val run_every_cycle_end : Cycle_hook.t -> unit
+  val add_every_cycle_start_hook : f:Cycle_hook.t -> Cycle_hook.Handle.t
+  val add_every_cycle_end_hook : f:Cycle_hook.t -> Cycle_hook.Handle.t
+  val remove_every_cycle_start_hook_exn : Cycle_hook.Handle.t -> unit
+  val remove_every_cycle_end_hook_exn : Cycle_hook.Handle.t -> unit
   val with_execution_context : Execution_context.t -> (unit -> unit) -> unit
   val with_execution_context1 : Execution_context.t -> f:('a -> unit) -> 'a -> unit
 end

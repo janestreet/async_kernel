@@ -47,6 +47,16 @@ module Expert = struct
   let last_cycle_num_jobs () = last_cycle_num_jobs (t ())
   let run_every_cycle_start f = run_every_cycle_start (t ()) ~f
   let run_every_cycle_end f = run_every_cycle_end (t ()) ~f
+  let add_every_cycle_start_hook ~f = add_every_cycle_start_hook (t ()) ~f
+  let add_every_cycle_end_hook ~f = add_every_cycle_end_hook (t ()) ~f
+
+  let remove_every_cycle_start_hook_exn handle =
+    remove_every_cycle_start_hook_exn (t ()) handle
+  ;;
+
+  let remove_every_cycle_end_hook_exn handle =
+    remove_every_cycle_end_hook_exn (t ()) handle
+  ;;
 
   let with_execution_context execution_context f =
     with_execution_context (t ()) execution_context ~f

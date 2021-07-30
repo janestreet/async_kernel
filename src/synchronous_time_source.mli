@@ -52,12 +52,20 @@ val create
 
 val alarm_precision : [> read ] T1.t -> Time_ns.Span.t
 
-(** [next_alarm_fires_at t] returns a time to which the clock can be advanced
+(** [next_alarm_runs_at t] returns a time to which the clock can be advanced
     such that an alarm will fire, or [None] if [t] has no alarms that can ever fire.
 
     Note that this is not necessarily the minimum such time, but it's within
-    [alarm_precision] of that. *)
+    [alarm_precision] of that.
+
+    If an alarm was already fired (e.g. because it was scheduled in the past), but
+    its callbacks were not run yet, this function returns [Some now], to indicate
+    that a trivial time advancement is sufficient for those to run.
+*)
+val next_alarm_runs_at : [> read ] T1.t -> Time_ns.t option
+
 val next_alarm_fires_at : [> read ] T1.t -> Time_ns.t option
+[@@deprecated "[since 2021-06] Use [next_alarm_runs_at]"]
 
 (** [is_wall_clock] reports whether this time source represents 'wall clock' time, or some
     alternate source of time. *)

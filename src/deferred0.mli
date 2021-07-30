@@ -4,6 +4,7 @@ open! Core
 open! Import
 
 type +'a t = 'a Types.Deferred.t [@@deriving sexp_of]
+(** @canonical Async_kernel.Deferred.t *)
 
 include Invariant.S1 with type 'a t := 'a t
 

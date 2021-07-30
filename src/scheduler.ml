@@ -30,6 +30,54 @@ let cycle_start t = t.cycle_start
 let run_every_cycle_start t ~f = t.run_every_cycle_start <- f :: t.run_every_cycle_start
 let run_every_cycle_end t ~f = t.run_every_cycle_end <- f :: t.run_every_cycle_end
 
+let add_every_cycle_start_hook t ~f =
+  let handle = Types.Cycle_hook_handle.create () in
+  Hashtbl.add_exn t.run_every_cycle_start_state ~key:handle ~data:f;
+  run_every_cycle_start t ~f;
+  handle
+;;
+
+let add_every_cycle_end_hook t ~f =
+  let handle = Types.Cycle_hook_handle.create () in
+  Hashtbl.add_exn t.run_every_cycle_end_state ~key:handle ~data:f;
+  run_every_cycle_end t ~f;
+  handle
+;;
+
+(* Unbelievable that [List.remove] is not a thing *)
+let list_remove_first lst ~f =
+  match List.split_while ~f:(fun x -> not (f x)) lst with
+  | _, [] -> None
+  | l, _ :: r -> Some (l @ r)
+;;
+
+let remove_single_cycle_hook lst f =
+  (* Remove a single instance of [f] from [lst]. More than one instance may be present,
+     but removal is reference-counted by [run_every_cycle_(start|end)_state] tables. *)
+  match list_remove_first ~f:(phys_equal f) lst with
+  | Some lst -> lst
+  | None ->
+    (* This should be unreachable, see the [invariant] in [scheduler1.ml]. *)
+    raise_s
+      [%message
+        "Scheduler.remove_single_cycle_hook called with a hook that isn't registered"]
+;;
+
+let remove_every_cycle_start_hook_exn t handle =
+  match Hashtbl.find_and_remove t.run_every_cycle_start_state handle with
+  | None ->
+    failwith "Attempted to remove a cycle start hook which has already been removed."
+  | Some f ->
+    t.run_every_cycle_start <- remove_single_cycle_hook t.run_every_cycle_start f
+;;
+
+let remove_every_cycle_end_hook_exn t handle =
+  match Hashtbl.find_and_remove t.run_every_cycle_end_state handle with
+  | None ->
+    failwith "Attempted to remove a cycle end hook which has already been removed."
+  | Some f -> t.run_every_cycle_end <- remove_single_cycle_hook t.run_every_cycle_end f
+;;
+
 let map_cycle_times t ~f =
   Stream.create (fun tail ->
     run_every_cycle_start t ~f:(fun () -> Tail.extend tail (f t.last_cycle_time)))

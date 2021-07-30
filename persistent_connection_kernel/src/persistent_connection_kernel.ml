@@ -45,6 +45,7 @@ module Make (Conn : T) = struct
     }
   [@@deriving fields]
 
+  let server_name t = t.event_handler.server_name
   let handle_event t event = Event.handle event t.event_handler
 
   (* This function focuses in on the the error itself, discarding information about which

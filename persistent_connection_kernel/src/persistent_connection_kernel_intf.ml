@@ -103,6 +103,8 @@ module type S = sig
   (** The current connection, if any. *)
   val current_connection : t -> conn option
 
+  val server_name : t -> string
+
   (** [close t] closes the current connection and stops it from trying to reconnect.
       After the deferred it returns becomes determined, the last connection has been
       closed and no others will be attempted.
