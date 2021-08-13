@@ -78,13 +78,16 @@ let create ?here ?info ?name () =
   create_with_parent ?here ?info ?name (Some parent)
 ;;
 
-module Exn_for_monitor = struct
+module Monitor_exn = struct
   type t =
     { exn : exn
     ; backtrace : Backtrace.t option
     ; backtrace_history : Backtrace.t list
     ; monitor : Monitor.t
     }
+
+  let backtrace t = t.backtrace
+  let extract_exn t = t.exn
 
   let backtrace_truncation_heuristics =
     let job_queue = "Called from file \"job_queue.ml\"" in
@@ -171,11 +174,11 @@ module Exn_for_monitor = struct
   ;;
 end
 
-exception Error_ of Exn_for_monitor.t
+exception Monitor_exn of Monitor_exn.t
 
 let () =
-  Sexplib.Conv.Exn_converter.add [%extension_constructor Error_] (function
-    | Error_ t -> [%sexp "monitor.ml.Error" :: (t : Exn_for_monitor.t)]
+  Sexplib.Conv.Exn_converter.add [%extension_constructor Monitor_exn] (function
+    | Monitor_exn t -> [%sexp "monitor.ml.Error" :: (t : Monitor_exn.t)]
     | _ ->
       (* Reaching this branch indicates a bug in sexplib. *)
       assert false)
@@ -183,23 +186,22 @@ let () =
 
 let extract_exn exn =
   match exn with
-  | Error_ error -> error.exn
+  | Monitor_exn error -> error.exn
   | exn -> exn
 ;;
 
-let send_exn t ?backtrace exn =
+let send_exn t ?(backtrace = `Get) exn =
   let exn =
     match exn with
-    | Error_ _ -> exn
+    | Monitor_exn _ -> exn
     | _ ->
       let backtrace =
         match backtrace with
-        | None -> None
-        | Some `Get -> Some (Backtrace.Exn.most_recent ())
-        | Some (`This b) -> Some b
+        | `Get -> Backtrace.Exn.most_recent_for_exn exn
+        | `This b -> Some b
       in
       let backtrace_history = (current_execution_context ()).backtrace_history in
-      Error_ { Exn_for_monitor.exn; backtrace; backtrace_history; monitor = t }
+      Monitor_exn { Monitor_exn.exn; backtrace; backtrace_history; monitor = t }
   in
   if Debug.monitor_send_exn then Debug.log "Monitor.send_exn" (t, exn) [%sexp_of: t * exn];
   t.has_seen_error <- true;

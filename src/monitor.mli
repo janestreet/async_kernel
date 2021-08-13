@@ -90,6 +90,21 @@ val detach_and_get_error_stream : t -> exn Tail.Stream.t
     includes the error returned by [get_next_error], which will then be handled twice. *)
 val get_next_error : t -> exn Deferred.t
 
+module Monitor_exn : sig
+  type t
+
+  (** Extract the exception as it was originally received by an async monitor. *)
+  val extract_exn : t -> exn
+
+  (** Extract the backtrace originally captured at the point the exception was received
+      by an async monitor. *)
+  val backtrace : t -> Backtrace.t option
+end
+
+(** When [extract_exn] is set to false, exceptions returned by [try_with] are wrapped
+    into this exception type which also provides backtrace information. *)
+type exn += private Monitor_exn of Monitor_exn.t
+
 (** [extract_exn exn] extracts the exn from an error exn that comes from a monitor. If it
     is not supplied such an error exn, it returns the exn itself.  It removes the
     backtrace from the error (see discussion in [try_with]). *)
@@ -99,9 +114,9 @@ val extract_exn : exn -> exn
 val has_seen_error : t -> bool
 
 (** [send_exn t exn ?backtrace] sends the exception [exn] as an error to be handled by
-    monitor [t].  By default, the error will not contain a backtrace.  However, the caller
-    can supply one using [`This], or use [`Get] to request that [send_exn] obtain one
-    using [Backtrace.Exn.most_recent ()]. *)
+    monitor [t].  If the backtrace is not specified, it defaults to [`Get], which means
+    that the backtrace will be collected automatically. Automatic backtrace collection
+    only works if [exn] is the most recently raised exception. *)
 val send_exn : t -> ?backtrace:[ `Get | `This of Backtrace.t ] -> exn -> unit
 
 (** [try_with f] runs [f ()] in a monitor and returns the result as [Ok x] if [f] finishes

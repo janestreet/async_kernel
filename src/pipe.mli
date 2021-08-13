@@ -159,7 +159,7 @@ module Flushed_result : sig
     [ `Ok
     | `Reader_closed
     ]
-  [@@deriving sexp_of]
+  [@@deriving compare, sexp_of]
 end
 
 (** Deferreds returned by [upstream_flushed] and [downstream_flushed] become determined
