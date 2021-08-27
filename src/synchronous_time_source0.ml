@@ -315,9 +315,8 @@ let fire t (event : Event.t) =
      alarms in non-decreasing time order, which is close to what [Timing_wheel]
      provides (although [Timing_wheel] doesn't guarantee time ordering for times in the
      same interval). *)
-  if
-    Event.is_some t.most_recently_fired
-    && Time_ns.( >= ) event.at t.most_recently_fired.at
+  if Event.is_some t.most_recently_fired
+  && Time_ns.( >= ) event.at t.most_recently_fired.at
   then (
     prev := t.most_recently_fired;
     current := !prev.next_fired);

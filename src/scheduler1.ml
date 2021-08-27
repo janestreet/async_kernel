@@ -109,8 +109,7 @@ type t = Scheduler0.t =
   ; mutable event_added_hook : (Time_ns.t -> unit) option
   ; mutable yield : ((unit, read_write) Types.Bvar.t[@sexp.opaque])
   ; mutable yield_until_no_jobs_remain :
-      ((unit, read_write) Types.Bvar.t
-       [@sexp.opaque] (* configuration*))
+      ((unit, read_write) Types.Bvar.t[@sexp.opaque] (* configuration*))
   ; mutable check_invariants : bool
   ; mutable max_num_jobs_per_priority_per_cycle : Max_num_jobs_per_priority_per_cycle.t
   ; mutable record_backtraces : bool
@@ -360,9 +359,8 @@ let rec run_jobs t =
     (match Job_queue.run_jobs t.low_priority_jobs t with
      | Error _ as e -> e
      | Ok () ->
-       if
-         Job_queue.can_run_a_job t.normal_priority_jobs
-         || Job_queue.can_run_a_job t.low_priority_jobs
+       if Job_queue.can_run_a_job t.normal_priority_jobs
+       || Job_queue.can_run_a_job t.low_priority_jobs
        then run_jobs t
        else Ok ())
 ;;

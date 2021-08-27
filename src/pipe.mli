@@ -265,18 +265,18 @@ val is_empty : (_, _) t -> bool
 (** {2 Writing} *)
 
 (** The write operations return a deferred value that is determined when either (1) it is
-    OK to write again to the pipe or (2) the pipe has been closed.  This deferred is the
+    OK to write again to the pipe or (2) the pipe has been closed. This deferred is the
     data-producer's interface to the pipe pushback mechanism: it tells the producer when
     it should proceed after doing a write -- either to produce and write more data to the
-    pipe, or to abandon production entirely.  The pushback mechanism is just advisory: a
+    pipe, or to abandon production entirely. The pushback mechanism is just advisory: a
     producer task can, but typically should not, dump arbitrary amounts of data into a
     pipe even if there is no consumer draining it.
 
     Producers that write a sequence of values to a pipe should be aware that the consumers
     who read from the pipe can close the pipe early -- that is, before the producer has
-    finished doing all of its writes.  If this happens, further writes will raise an
-    exception.  To avoid these errors, all writes must be atomically guarded by
-    [is_closed] tests.  Thus, a typical writer loop should look like this:
+    finished doing all of its writes. If this happens, further writes will raise an
+    exception. To avoid these errors, all writes must be atomically guarded by [is_closed]
+    tests. Thus, a typical writer loop should look like this:
 
     {[
       fun countup hi w = (* Send the ints in range \[0,hi) to writer W. *)
