@@ -80,6 +80,16 @@ val now : [> read ] T1.t -> Time_ns.t
     [timing_wheel_now () <= now ()]. *)
 val timing_wheel_now : [> read ] T1.t -> Time_ns.t
 
+(** [advance_by_alarms_yielding_in_between t ~to_] advances [t]'s time to [to_], running
+    callbacks for each alarm in [t] where [at <= to_], and yields into the Async scheduler
+    between each alarm. Callbacks are run in nondecreasing order of [at]. If [to_ = now]
+    then this function will yield into the scheduler and alarms with [at <= now] may still
+    fire. *)
+val advance_by_alarms_yielding_in_between
+  :  [> write ] T1.t
+  -> to_:Time_ns.t
+  -> unit Deferred.Or_error.t
+
 (** [advance_by_alarms t ~to_] advances [t]'s time to [to_], running callbacks for all
     alarms in [t] whose [at <= to_].  Callbacks run in nondecreasing order of [at].  If
     [to_ <= now t], then [now t] does not change (and in particular does not go backward),
