@@ -216,7 +216,7 @@ module Event = struct
          While [t.alarm] is still in the timing wheel, this is the same as [Alarm.at
          t.alarm]. *)
       mutable scheduled_at : Time_ns.t
-    ; time_source : Synchronous_time_source.t
+    ; time_source : Synchronous_time_source0.t
     }
   [@@deriving fields, sexp_of]
 

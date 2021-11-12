@@ -259,7 +259,7 @@ module type Time_source = sig
 
   (** [Time_source] and [Synchronous_time_source] are the same data structure and use the
       same underlying timing wheel.  The types are freely interchangeable. *)
-  val of_synchronous : 'a Synchronous_time_source.T1.t -> 'a T1.t
+  val of_synchronous : 'a Synchronous_time_source0.T1.t -> 'a T1.t
 
-  val to_synchronous : 'a T1.t -> 'a Synchronous_time_source.T1.t
+  val to_synchronous : 'a T1.t -> 'a Synchronous_time_source0.T1.t
 end

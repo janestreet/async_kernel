@@ -6,7 +6,7 @@ include Types.Job_or_event
 
 (* This redefinition of [Event] is here so the type checks are right next to
    [Obj.magic]s. *)
-module Event_is_block : sig end = struct
+module _ : sig end = struct
   open Types
   open Event
 
@@ -22,7 +22,7 @@ module Event_is_block : sig end = struct
     }
 end
 
-module Job_is_not_block : sig end = struct
+module _ : sig end = struct
   module Ensure_private_int (M : sig
       type t = private int
     end) =

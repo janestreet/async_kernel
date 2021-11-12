@@ -141,12 +141,27 @@ module Monitor_exn = struct
              perhaps that's what should change. *)
           let column = here.pos_cnum - here.pos_bol in
           Some
-            (sprintf
-               "file %S, line %d, characters %d-%d"
-               here.pos_fname
-               here.pos_lnum
-               column
-               column)
+            (* We hide line and column numbers when [am_running_test] to make test output
+               more robust.  This saves people manually hiding the numbers or even worse,
+               leaving them in test output.  Hiding in test is different choice for
+               behavior than our codebase makes for [Backtrace.elide], which has default
+               [false], and thus shows backtraces in test.  There are a couple reasons for
+               this different choice.  First, expect-test machinery has check to prevent
+               backtraces from appearing in test output.  It has no such checks for line
+               and column numbers.  Second, when there is a real error and you want to see
+               the backtrace, throwing away the whole backtrace loses a lot of potentially
+               useful information that may be hard to recover.  Whereas we're just
+               throwing a way a line number and column, which are a minor convenience
+               given that the filename has most of the information. *)
+            (if am_running_test
+             then sprintf "file %S, line LINE, characters C1-C2" here.pos_fname
+             else
+               sprintf
+                 "file %S, line %d, characters %d-%d"
+                 here.pos_fname
+                 here.pos_lnum
+                 column
+                 column)
       in
       match pos, name with
       | None, None -> []

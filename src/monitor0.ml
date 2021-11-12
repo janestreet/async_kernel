@@ -19,47 +19,23 @@ type t = Types.Monitor.t =
   }
 [@@deriving fields]
 
-module Pretty = struct
-  type one =
-    { name : Info.t
-    ; here : Source_code_position.t option
-    ; id : int
-    ; has_seen_error : bool
-    ; is_detached : bool
-    }
-  [@@deriving sexp_of]
+let description t =
+  match t.here with
+  | None -> [%sexp (t.name : Info.t)]
+  | Some here -> [%sexp (t.name : Info.t), (here : Source_code_position.t)]
+;;
 
-  type t = one list [@@deriving sexp_of]
-end
-
-let to_pretty =
-  let rec loop
-            { name
-            ; here
-            ; id
-            ; forwarding
-            ; has_seen_error
-            ; next_error = _
-            ; handlers_for_all_errors = _
-            ; tails_for_all_errors = _
-            }
-            ac
-    =
-    let is_detached, parent =
-      match forwarding with
-      | Detached -> true, None
-      | Parent parent -> false, Some parent
-      | Report_uncaught_exn -> false, None
-    in
-    let ac = { Pretty.name; here; id; has_seen_error; is_detached } :: ac in
-    match parent with
-    | None -> List.rev ac
-    | Some t -> loop t ac
+let descriptions =
+  let rec loop t ac =
+    let ac = description t :: ac in
+    match t.forwarding with
+    | Detached | Report_uncaught_exn -> List.rev ac
+    | Parent t -> loop t ac
   in
   fun t -> loop t []
 ;;
 
-let sexp_of_t t = Pretty.sexp_of_t (to_pretty t)
+let sexp_of_t t = [%sexp (descriptions t : Sexp.t list)]
 
 let next_id =
   let r = ref 0 in
@@ -75,7 +51,7 @@ let create_with_parent ?here ?info ?name parent =
     | Some i, None -> i
     | Some i, Some s -> Info.tag i ~tag:s
     | None, Some s -> Info.of_string s
-    | None, None -> Info.create "id" id [%sexp_of: int]
+    | None, None -> Info.create "id" id [%sexp_of: int Sexp_hidden_in_test.t]
   in
   let t =
     { name

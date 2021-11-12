@@ -424,7 +424,8 @@ include (
 struct
   [@@@warning "-3"]
 
-  module F1 (C : Clock) : Clock_deprecated = C
-  module F2 (C : Clock_deprecated) : Clock = C
+  module _ (C : Clock) : Clock_deprecated = C
+
+  module _ (C : Clock_deprecated) : Clock = C
 end :
 sig end)
