@@ -19,6 +19,7 @@ module type Eager_deferred_or_error = sig
   val errorf : ('a, unit, string, _ t) format4 -> 'a
   val tag : 'a t -> tag:string -> 'a t
   val tag_s : 'a t -> tag:Sexp.t -> 'a t
+  val tag_s_lazy : 'a t -> tag:Sexp.t Lazy.t -> 'a t
   val tag_arg : 'a t -> string -> 'b -> ('b -> Sexp.t) -> 'a t
   val unimplemented : string -> _ t
   val find_map_ok : 'a list -> f:('a -> 'b t) -> 'b t
@@ -87,7 +88,25 @@ module type Eager_deferred1 = sig
 
   module List : Monad_sequence.S with type 'a monad := 'a t with type 'a t := 'a list
   module Or_error : Eager_deferred_or_error with type 'a deferred := 'a t
-  module Result : Monad.S2 with type ('a, 'b) t = ('a, 'b) Result.t Deferred.t
+
+  module Result : sig
+    include Monad.S2 with type ('a, 'b) t = ('a, 'b) Result.t Deferred.t
+
+    val fail : 'err -> (_, 'err) t
+
+    (** e.g., [failf "Couldn't find bloogle %s" (Bloogle.to_string b)]. *)
+    val failf : ('a, unit, string, (_, string) t) format4 -> 'a
+
+    val map_error : ('ok, 'error1) t -> f:('error1 -> 'error2) -> ('ok, 'error2) t
+
+    (** [combine] waits on both inputs and combines their results using [Result.combine]. *)
+    val combine
+      :  ('ok1, 'err) t
+      -> ('ok2, 'err) t
+      -> ok:('ok1 -> 'ok2 -> 'ok3)
+      -> err:('err -> 'err -> 'err)
+      -> ('ok3, 'err) t
+  end
 end
 
 module type S = sig

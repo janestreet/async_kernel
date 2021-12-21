@@ -49,6 +49,7 @@ val error_string : string -> _ t
 val errorf : ('a, unit, string, _ t) format4 -> 'a
 val tag : 'a t -> tag:string -> 'a t
 val tag_s : 'a t -> tag:Sexp.t -> 'a t
+val tag_s_lazy : 'a t -> tag:Sexp.t Lazy.t -> 'a t
 val tag_arg : 'a t -> string -> 'b -> ('b -> Sexp.t) -> 'a t
 val unimplemented : string -> _ t
 

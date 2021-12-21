@@ -4,6 +4,12 @@ open! Async_kernel_require_explicit_time_source
 include Persistent_connection_kernel_intf
 
 module Make (Conn : T) = struct
+  module Conn = struct
+    include Conn
+
+    let sexp_of_t (_ : t) : Sexp.t = Atom "<Conn.t>"
+  end
+
   type address = Conn.Address.t [@@deriving sexp_of]
   type conn = Conn.t
 
@@ -23,6 +29,7 @@ module Make (Conn : T) = struct
         { server_name : string
         ; on_event : event -> unit Deferred.t
         }
+      [@@deriving sexp_of]
     end
 
     let log_level = function
@@ -42,8 +49,9 @@ module Make (Conn : T) = struct
     ; event_handler : Event.Handler.t
     ; close_started : unit Ivar.t
     ; close_finished : unit Ivar.t
+    ; don't_reconnect : unit Ivar.t
     }
-  [@@deriving fields]
+  [@@deriving fields, sexp_of]
 
   let server_name t = t.event_handler.server_name
   let handle_event t event = Event.handle event t.event_handler
@@ -85,6 +93,8 @@ module Make (Conn : T) = struct
     let rec loop () =
       if Ivar.is_full t.close_started
       then return `Close_started
+      else if Ivar.is_full t.don't_reconnect
+      then return `Don't_reconnect
       else (
         let ready_to_retry_connecting = t.retry_delay () in
         let%bind connect_result = connect () in
@@ -103,10 +113,20 @@ module Make (Conn : T) = struct
            then Deferred.unit
            else handle_event t (Failed_to_connect err))
           >>= fun () ->
-          Deferred.any [ ready_to_retry_connecting; Ivar.read t.close_started ]
+          Deferred.any
+            [ ready_to_retry_connecting
+            ; Ivar.read t.close_started
+            ; Ivar.read t.don't_reconnect
+            ]
           >>= fun () -> loop ())
     in
     loop ()
+  ;;
+
+  let abort_reconnecting_with_no_active_connection t =
+    Ivar.fill t.close_started ();
+    Ivar.fill t.close_finished ();
+    Ivar.fill t.conn `Close_started
   ;;
 
   let create
@@ -146,6 +166,7 @@ module Make (Conn : T) = struct
       ; conn = Ivar.create ()
       ; close_started = Ivar.create ()
       ; close_finished = Ivar.create ()
+      ; don't_reconnect = Ivar.create ()
       }
     in
     (* this loop finishes once [close t] has been called, in which case it makes sure to
@@ -155,15 +176,15 @@ module Make (Conn : T) = struct
       handle_event t Attempting_to_connect
       >>= fun () ->
       try_connecting_until_successful t
-      >>= fun maybe_conn ->
-      Ivar.fill
-        t.conn
-        (match maybe_conn with
-         | `Ok (conn, _) -> `Ok conn
-         | `Close_started -> `Close_started);
-      match maybe_conn with
-      | `Close_started -> return (`Finished ())
+      >>= function
+      | `Close_started ->
+        Ivar.fill t.conn `Close_started;
+        return (`Finished ())
+      | `Don't_reconnect ->
+        abort_reconnecting_with_no_active_connection t;
+        return (`Finished ())
       | `Ok (conn, ready_to_retry_connecting) ->
+        Ivar.fill t.conn (`Ok conn);
         handle_event t (Connected conn)
         >>= fun () ->
         Conn.close_finished conn
@@ -175,11 +196,19 @@ module Make (Conn : T) = struct
            tried to connect rather than the time we noticed being disconnected, so that if
            a long-lived connection dies, we will attempt to reconnect immediately. *)
         let%map () =
-          Deferred.any [ ready_to_retry_connecting; Ivar.read t.close_started ]
+          Deferred.any
+            [ ready_to_retry_connecting
+            ; Ivar.read t.close_started
+            ; Ivar.read t.don't_reconnect
+            ]
         in
         if Ivar.is_full t.close_started
         then (
           Ivar.fill t.conn `Close_started;
+          `Finished ())
+        else if Ivar.is_full t.don't_reconnect
+        then (
+          abort_reconnecting_with_no_active_connection t;
           `Finished ())
         else `Repeat ());
     t
@@ -264,4 +293,6 @@ module Make (Conn : T) = struct
           ; choice (Ivar.read t.next_connect_result) Fn.id
           ])
   ;;
+
+  let close_when_current_connection_is_closed t = Ivar.fill_if_empty t.don't_reconnect ()
 end
