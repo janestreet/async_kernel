@@ -5,6 +5,14 @@
 open! Core
 open! Async_kernel
 
+
+(** The address of a service to which one can connect. E.g. [Host_and_port.t] is a
+    reasonable choice when making a TCP connection.
+*)
+module type Address = sig
+  type t [@@deriving equal, sexp_of]
+end
+
 module type Closable = sig
   (** a connection type *)
   type t
@@ -30,24 +38,19 @@ end
 module type S = sig
   type t [@@deriving sexp_of]
 
-  (** The address of a service to which one can connect. E.g. [Host_and_port.t] is a
-      reasonable choice when making a TCP connection.
-  *)
-  type address
-
   (** A connection, perhaps embellished with additional information upon connection. *)
   type conn
 
   module Event : sig
-    type t =
+    type 'address t =
       | Attempting_to_connect
-      | Obtained_address of address
+      | Obtained_address of 'address
       | Failed_to_connect of Error.t
       | Connected of conn
       | Disconnected
     [@@deriving sexp_of]
 
-    val log_level : t -> [ `Info | `Debug | `Error ]
+    val log_level : _ t -> [ `Info | `Debug | `Error ]
   end
 
   (** [create ~server_name ~on_event ~retry_delay get_address] returns a persistent
@@ -82,12 +85,13 @@ module type S = sig
   *)
   val create
     :  server_name:string
-    -> ?on_event:(Event.t -> unit Deferred.t)
+    -> ?on_event:('address Event.t -> unit Deferred.t)
     -> ?retry_delay:(unit -> Time_ns.Span.t)
     -> ?random_state:[ `Non_random | `State of Random.State.t ]
     -> ?time_source:Time_source.t
-    -> connect:(address -> conn Or_error.t Deferred.t)
-    -> (unit -> address Or_error.t Deferred.t)
+    -> connect:('address -> conn Or_error.t Deferred.t)
+    -> address:(module Address with type t = 'address)
+    -> (unit -> 'address Or_error.t Deferred.t)
     -> t
 
   (** [connected] returns the first available connection from the time it is called. When
@@ -120,21 +124,10 @@ module type S = sig
   val close_when_current_connection_is_closed : t -> unit
 end
 
-module type T = sig
-  module Address : sig
-    type t [@@deriving sexp_of]
-
-    val equal : t -> t -> bool
-  end
-
-  type t
-
-  include Closable with type t := t
-end
-
 module type Persistent_connection_kernel = sig
+  module type Address = Address
+  module type Closable = Closable
   module type S = S
-  module type T = T
 
-  module Make (Conn : T) : S with type conn = Conn.t and type address = Conn.Address.t
+  module Make (Conn : Closable) : S with type conn = Conn.t
 end

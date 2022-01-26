@@ -131,11 +131,14 @@ end
 module rec Event : sig
   module Status : sig
     type t =
-      | Aborted
       | Fired
       | Happening
       | Scheduled
       | Unscheduled
+  end
+
+  module Option : sig
+    type t
   end
 
   type t =
@@ -144,7 +147,8 @@ module rec Event : sig
     ; callback : unit -> unit
     ; execution_context : Execution_context.t
     ; mutable interval : Time_ns.Span.t option
-    ; mutable next_fired : t
+    ; mutable next_fired : Option.t
+    ; mutable prev_fired : Option.t
     ; mutable status : Status.t
     }
 end =
@@ -242,8 +246,8 @@ and Time_source : sig
     ; mutable advance_errors : Error.t list
     ; mutable am_advancing : bool
     ; events : Job_or_event.t Timing_wheel.t
-    ; mutable fired_events : Event.t
-    ; mutable most_recently_fired : Event.t
+    ; mutable fired_events : Event.Option.t
+    ; mutable most_recently_fired : Event.Option.t
     ; handle_fired : Job_or_event.t Timing_wheel.Alarm.t -> unit
     ; is_wall_clock : bool
     ; scheduler : Scheduler.t

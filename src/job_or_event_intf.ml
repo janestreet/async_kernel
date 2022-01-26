@@ -35,7 +35,7 @@ module type Job_or_event = sig
       | Event : Event.t kind
       | Job : Job.t kind
 
-    type packed = K : _ kind -> packed
+    type packed = K : _ kind -> packed [@@unboxed] [@@immediate]
 
     val kind : t -> packed
     val project : 'a kind -> t -> 'a

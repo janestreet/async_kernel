@@ -280,9 +280,9 @@ let create () =
     ; am_advancing = false
     ; events
     ; handle_fired = (fun alarm -> handle_fired time_source (Alarm.value events alarm))
-    ; fired_events = Event.none
+    ; fired_events = Event.Option.none
     ; is_wall_clock = true
-    ; most_recently_fired = Event.none
+    ; most_recently_fired = Event.Option.none
     ; scheduler = t
     }
   in
@@ -388,9 +388,9 @@ let create_time_source
     ; am_advancing = false
     ; events
     ; handle_fired = (fun alarm -> handle_fired time_source (Alarm.value events alarm))
-    ; fired_events = Event.none
+    ; fired_events = Event.Option.none
     ; is_wall_clock = false
-    ; most_recently_fired = Event.none
+    ; most_recently_fired = Event.Option.none
     ; scheduler = t
     }
   in

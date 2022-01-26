@@ -56,6 +56,7 @@ module type Time_source = sig
   (** Accessors.  [now (wall_clock ())] behaves specially; see [wall_clock] above. *)
 
   val alarm_precision : [> read ] T1.t -> Time_ns.Span.t
+  val is_wall_clock : [> read ] T1.t -> bool
   val next_alarm_fires_at : [> read ] T1.t -> Time_ns.t option
   val now : [> read ] T1.t -> Time_ns.t
 
@@ -103,6 +104,15 @@ module type Time_source = sig
     -> [> write ] T1.t
     -> to_:Time_ns.t
     -> unit Deferred.t
+
+  val advance_by_max_alarms_in_each_timing_wheel_interval
+    :  ?wait_for:(unit -> unit Deferred.t)
+    -> [> write ] T1.t
+    -> to_:Time_ns.t
+    -> unit Deferred.t
+  [@@deprecated
+    "[since 2021-12] This is the old implementation of [advance_by_alarms], kept in \
+     case the new implementation causes problems."]
 
   (** [advance_by_alarms_by ?wait_for t by] is equivalent to:
       [advance_by_alarms ?wait_for t ~to_:(Time_ns.add (now t) by)] *)

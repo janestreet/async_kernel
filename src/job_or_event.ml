@@ -17,7 +17,8 @@ module _ : sig end = struct
     ; callback : unit -> unit
     ; execution_context : Execution_context.t
     ; mutable interval : Time_ns.Span.t option
-    ; mutable next_fired : t
+    ; mutable next_fired : Option.t
+    ; mutable prev_fired : Option.t
     ; mutable status : Status.t
     }
 end
@@ -43,7 +44,7 @@ module Match = struct
     | Event : Event.t kind
     | Job : Job.t kind
 
-  type packed = K : _ kind -> packed
+  type packed = K : _ kind -> packed [@@unboxed]
 
   let kind t = if is_event t then K Event else K Job
   let project (type a) (_ : a kind) job_or_event = (Obj.magic : t -> a) job_or_event

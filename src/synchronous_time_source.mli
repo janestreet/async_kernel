@@ -92,11 +92,29 @@ module Event : sig
   include Invariant.S with type t := t
 
   module Option : sig
-    type value = t
+    type value := t
     type t [@@deriving sexp_of]
 
-    include
-      Immediate_option.S_without_immediate_plain with type t := t and type value := value
+    (** Constructors analogous to [None] and [Some].  If [not (some_is_representable x)]
+        then [some x] may raise or return [none]. *)
+
+    val none : t
+    val some : value -> t
+    val is_none : t -> bool
+    val is_some : t -> bool
+
+    (** [value (some x) ~default = x] and [value none ~default = default]. *)
+    val value : t -> default:value -> value
+
+    (** [value_exn (some x) = x].  [value_exn none] raises.  Unlike [Option.value_exn],
+        there is no [?message] argument, so that calls to [value_exn] that do not raise
+        also do not have to allocate. *)
+    val value_exn : t -> value
+
+    val to_option : t -> value option
+    val of_option : value option -> t
+
+    module Optional_syntax : Optional_syntax.S with type t := t with type value := value
   end
 
   (** These are like the corresponding [run_*] functions, except they return an event that
@@ -135,26 +153,14 @@ module Event : sig
   val schedule_after : [> read ] T1.t -> t -> Time_ns.Span.t -> unit Or_error.t
   val schedule_at_intervals : [> read ] T1.t -> t -> Time_ns.Span.t -> unit Or_error.t
 
-  module Reschedule_result : sig
-    (** [Recently_aborted] and [Recently_fired] can happen if the time was not advanced
-        between the corresponding thing happening and the call to [reschedule*]. *)
-    type t =
-      | Ok
-      | Currently_happening
-      | Recently_aborted
-      | Recently_fired
-    [@@deriving sexp_of]
-  end
+  (** [reschedule_at timesource t time] updates [t] to next fire at [time].
 
-  (** [reschedule_at timesource t time] attempts to update [t] to next fire at [time].
-      This returns [Ok] for events that are unscheduled, or scheduled but not yet fired.
-      If the event is in the process of firing or being aborted, [reschedule_at] does not
-      succeed.  For periodic events, [reschedule] updates the next time to fire, and leave
-      the interval unchanged.  Events rescheduled to a past time will fire at the next
-      advance of [timesource]. *)
-  val reschedule_at : [> read ] T1.t -> t -> Time_ns.t -> Reschedule_result.t
+      For periodic events, [reschedule] updates the next time to fire, and
+      leaves the interval unchanged.  Events rescheduled to a past time will
+      fire at the next advance of [timesource]. *)
+  val reschedule_at : [> read ] T1.t -> t -> Time_ns.t -> unit
 
-  val reschedule_after : [> read ] T1.t -> t -> Time_ns.Span.t -> Reschedule_result.t
+  val reschedule_after : [> read ] T1.t -> t -> Time_ns.Span.t -> unit
 
   (** [scheduled_at] returns the time that the event is currently scheduled at *)
   val scheduled_at : t -> Time_ns.t
@@ -193,6 +199,21 @@ val next_alarm_fires_at : [> write ] T1.t -> Time_ns.t option
     [to_ <= now t], then [now t] does not change (and in particular does not go backward),
     but alarms with [at <= to_] may still may fire. *)
 val advance_by_alarms : [> write ] T1.t -> to_:Time_ns.t -> unit Or_error.t
+
+(** A version of [advance_by_alarms] with some weird behavior caused by timing wheel
+    [alarm_precision]: if there are multiple alarms within the same timing_wheel
+    precision bucket, then this function fires them all at the same time (when the last
+    of the bunch of alarms is supposed to fire).
+    The time  [to_] counts as an alarm for this purpose. (any alarms in the same bucket as
+    [to_] will be fired at time [to_].
+
+    [advance_by_alarms] has no such weirdness, and fires every alarm at the time that
+    alarm is scheduled.
+*)
+val advance_by_max_alarms_in_each_timing_wheel_interval
+  :  [> write ] T1.t
+  -> to_:Time_ns.t
+  -> unit Or_error.t
 
 (** Instead of [advance_directly], you probably should use [advance_by_alarms].
     [advance_directly t ~to_] advances the clock directly to [to_], whereas

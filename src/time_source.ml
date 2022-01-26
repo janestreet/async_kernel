@@ -59,6 +59,7 @@ let read_only (t : [> read ] T1.t) = (t :> t)
 let create = Scheduler.create_time_source
 let wall_clock = Scheduler.wall_clock
 let alarm_precision t = Timing_wheel.alarm_precision t.events
+let is_wall_clock t = t.is_wall_clock
 let next_alarm_fires_at t = Timing_wheel.next_alarm_fires_at t.events
 let timing_wheel_now t = Timing_wheel.now t.events
 let id t = t.id
@@ -88,6 +89,48 @@ let fire_past_alarms t = Synchronous_time_source0.fire_past_alarms t ~send_exn
 let yield t = Bvar.wait (Scheduler.yield t.scheduler)
 
 let advance_by_alarms ?wait_for t ~to_ =
+  let run_queued_alarms () =
+    (* Every time we want to run queued alarms we need to yield control back to the
+       [Async.Scheduler] and [wait_for] any logic that is supposed to finish at this time
+       before advancing.  If no [wait_for] logic is specified we can simply yield control
+       by invoking [yield t], which enqueues another job at the end of the scheduler job
+       queue so alarm jobs have the opportunity to run before we advance. *)
+    match wait_for with
+    | None -> yield t
+    | Some f -> f ()
+  in
+  let finish () =
+    advance_directly t ~to_;
+    fire_past_alarms t;
+    (* so that alarms scheduled at or before [to_] fire *)
+    run_queued_alarms ()
+  in
+  let rec walk_alarms () =
+    match Timing_wheel.min_alarm_time_in_min_interval t.events with
+    | None -> finish ()
+    | Some min_alarm_time_in_min_interval ->
+      if Time_ns.( >= ) min_alarm_time_in_min_interval to_
+      then finish ()
+      else (
+        advance_directly t ~to_:min_alarm_time_in_min_interval;
+        fire_past_alarms t;
+        let queued_alarms_ran = run_queued_alarms () in
+        if Deferred.is_determined queued_alarms_ran
+        then walk_alarms ()
+        else (
+          let%bind () = queued_alarms_ran in
+          walk_alarms ()))
+  in
+  fire_past_alarms t;
+  (* This first [run_queued_alarms] call allows [Clock_ns.every] the opportunity to run
+     its continuation deferreds so that they can reschedule alarms.  This is particularly
+     useful in our "advance hits intermediate alarms" unit test below, but likely useful
+     in other cases where [every] is synchronously followed by [advance]. *)
+  let%bind () = run_queued_alarms () in
+  walk_alarms ()
+;;
+
+let advance_by_max_alarms_in_each_timing_wheel_interval ?wait_for t ~to_ =
   let run_queued_alarms () =
     (* Every time we want to run queued alarms we need to yield control back to the
        [Async.Scheduler] and [wait_for] any logic that is supposed to finish at this time

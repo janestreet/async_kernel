@@ -148,10 +148,7 @@ val try_with
 
     {[
       try_with_or_error f ?extract_exn ~rest
-      = try_with f ?extract_exn ~run:`Now ~rest >>| Or_error.of_exn_result ]}
-
-    [~run:`Now] is different from [try_with]'s default, [~run:`Schedule].  Based on
-    experience, we think [~run:`Now] is a better behavior. *)
+      = try_with f ?extract_exn ~run:`Now ~rest >>| Or_error.of_exn_result ]} *)
 val try_with_or_error
   : (?extract_exn:bool (** default is [false] *)
      -> ?rest:[ `Log | `Raise | `Call of exn -> unit ] (** default is [`Raise] *)
