@@ -6,7 +6,7 @@
 open! Core
 open! Import
 
-type 'a with_options = ?monitor:Monitor.t -> ?priority:Priority.t -> 'a
+type 'a with_options := ?monitor:Monitor.t -> ?priority:Priority.t -> 'a
 
 val current_execution_context : unit -> Execution_context.t
 
@@ -62,14 +62,14 @@ val preserve_execution_context' : ('a -> 'b Deferred.t) -> ('a -> 'b Deferred.t)
 
 (** [cycle_start ()] returns the result of [Time.now ()] called at the beginning of
     cycle. *)
-val cycle_start : unit -> Time.t
+val cycle_start : unit -> Time_float.t
 
 val cycle_start_ns : unit -> Time_ns.t
 
 (** [cycle_times ()] returns a stream that is extended with an element at the start of
     each Async cycle, with the amount of time that the previous cycle took, as determined
     by calls to [Time.now] at the beginning and end of the cycle. *)
-val cycle_times : unit -> Time.Span.t Async_stream.t
+val cycle_times : unit -> Time_float.Span.t Async_stream.t
 
 val cycle_times_ns : unit -> Time_ns.Span.t Async_stream.t
 
@@ -89,7 +89,7 @@ val cycle_count : unit -> int
 val total_cycle_time : unit -> Time_ns.Span.t
 
 (** The [alarm_precision] of the timing-wheel used to implement Async's [Clock]. *)
-val event_precision : unit -> Time.Span.t
+val event_precision : unit -> Time_float.Span.t
 
 val event_precision_ns : unit -> Time_ns.Span.t
 

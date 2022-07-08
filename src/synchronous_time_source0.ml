@@ -111,7 +111,6 @@ module T1 = struct
          is faster by ~10ns per alarm), presumably because it avoids the expensive
          parts of caml_modify. *)
       let none = (Obj.magic None : t) (* an arbitrary immediate *)
-
       let some = (Obj.magic : Types.Event.t -> t)
       let is_none t = phys_equal t none
       let is_some t = not (is_none t)

@@ -399,8 +399,7 @@ let create_reader ?size_budget ~close_on_exception f =
     let r, w = create ?size_budget () in
     don't_wait_for
       (Monitor.protect
-         ~run:
-           `Schedule
+         ~run:`Schedule
          ~rest:`Log
          (fun () -> f w)
          ~finally:(fun () ->
@@ -413,8 +412,7 @@ let create_writer ?size_budget f =
   let r, w = create ?size_budget () in
   don't_wait_for
     (Monitor.protect
-       ~run:
-         `Schedule
+       ~run:`Schedule
        ~rest:`Log
        (fun () -> f r)
        ~finally:(fun () ->
@@ -787,9 +785,9 @@ let fold_gen
   if !check_invariant then invariant t;
   ensure_consumer_matches t ?consumer;
   Deferred.create (fun finished ->
-    (* We do [return () >>>] to ensure that [f] is only called asynchronously. *)
-    return ()
-    >>> fun () ->
+    (* We do [values_available t >>>] to ensure that [f] is only called asynchronously. *)
+    values_available t
+    >>> fun (_ : [ `Ok | `Eof ]) ->
     let rec loop b =
       match read_now t ?consumer with
       | `Eof -> Ivar.fill finished b
@@ -829,8 +827,7 @@ let with_error_to_current_monitor ?(continue_on_error = false) f a =
   else (
     match%map
       Monitor.try_with
-        ~run:
-          `Schedule
+        ~run:`Schedule
         ~rest:`Log
         (fun () -> f a)
     with
@@ -1079,13 +1076,15 @@ let folding_map ?max_queue_length input ~init ~f =
 
 let filter input ~f = filter_map input ~f:(fun x -> if f x then Some x else None)
 
-let of_list l =
-  let t = create_internal ~size_budget:0 ~info:None ~initial_buffer:(Queue.of_list l) in
+let of_queue_internal queue =
+  let t = create_internal ~size_budget:0 ~info:None ~initial_buffer:queue in
   Ivar.fill t.closed ();
   update_pushback t;
   t
 ;;
 
+let of_queue queue = of_queue_internal (Queue.copy queue)
+let of_list l = of_queue_internal (Queue.of_list l)
 let empty () = of_list []
 
 let singleton x =

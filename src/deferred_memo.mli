@@ -23,4 +23,12 @@ val general
   -> ('a -> 'b Deferred.t)
   -> ('a -> 'b Deferred.t) Staged.t
 
+(** Memoize a recursive asynchronous function. See [Memo.recursive] for the introduction.
+    We do not implement Async-aware dependency cycle detection, so if recursion is not
+    well-founded then the computation will just deadlock. *)
+val recursive
+  :  (module Hashable.S_plain with type t = 'a)
+  -> (('a -> 'b Deferred.t) -> 'a -> 'b Deferred.t)
+  -> ('a -> 'b Deferred.t) Staged.t
+
 val unit : (unit -> 'a Deferred.t) -> (unit -> 'a Deferred.t) Staged.t

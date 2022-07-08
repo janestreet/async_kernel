@@ -25,10 +25,6 @@ let invariant t =
 
 let current_execution_context () = Scheduler.(current_execution_context (t ()))
 let current () = Execution_context.monitor (current_execution_context ())
-
-type 'a with_optional_monitor_name =
-  ?here:Source_code_position.t -> ?info:Info.t -> ?name:string -> 'a
-
 let detach t = t.forwarding <- Detached
 
 type handler_state =
@@ -251,8 +247,6 @@ module Exported_for_scheduler = struct
         send_exn (Execution_context.monitor context) exn ~backtrace:`Get;
         Error ())
   ;;
-
-  type 'a with_options = ?monitor:t -> ?priority:Priority.t -> 'a
 
   let within_gen ?monitor ?priority f =
     let tmp_context =

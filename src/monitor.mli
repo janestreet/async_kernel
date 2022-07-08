@@ -44,7 +44,7 @@ type t = Monitor0.t [@@deriving sexp_of]
 
 include Invariant.S with type t := t
 
-type 'a with_optional_monitor_name =
+type 'a with_optional_monitor_name :=
   ?here:Source_code_position.t -> ?info:Info.t -> ?name:string -> 'a
 
 (** [create ()] returns a new monitor whose parent is the current monitor. *)
@@ -212,7 +212,7 @@ module Expert : sig
 end
 
 module Exported_for_scheduler : sig
-  type 'a with_options = ?monitor:t -> ?priority:Priority.t -> 'a
+  type 'a with_options := ?monitor:t -> ?priority:Priority.t -> 'a
 
   val within' : ((unit -> 'a Deferred.t) -> 'a Deferred.t) with_options
   val within : ((unit -> unit) -> unit) with_options

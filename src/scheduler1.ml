@@ -292,6 +292,12 @@ let create () =
 let is_dead t = is_some t.uncaught_exn
 let set_check_access t f = t.check_access <- f
 
+let backtrace_of_first_job t =
+  Option.first_some
+    (Job_queue.backtrace_of_first_enqueue t.normal_priority_jobs)
+    (Job_queue.backtrace_of_first_enqueue t.low_priority_jobs)
+;;
+
 let t_ref =
   match Result.try_with create with
   | Ok t -> ref t

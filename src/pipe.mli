@@ -88,6 +88,10 @@ val create : ?size_budget:int -> ?info:Sexp.t -> unit -> 'a Reader.t * 'a Writer
 (** [empty ()] returns a closed pipe reader with no contents. *)
 val empty : unit -> _ Reader.t
 
+(** [of_queue queue] returns a closed pipe reader filled with the contents of [queue]. Any
+    mutation of the [queue] after the call won't affect the pipe's content. *)
+val of_queue : 'a Queue.t -> 'a Reader.t
+
 (** [of_list l] returns a closed pipe reader filled with the contents of [l]. *)
 val of_list : 'a list -> 'a Reader.t
 

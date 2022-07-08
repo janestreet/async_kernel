@@ -9,8 +9,7 @@ module Async = struct
   let invariant here t sexp_of_t f =
     match%map
       Monitor.try_with
-        ~run:
-          `Schedule
+        ~run:`Schedule
         ~rest:`Log
         f
         ~extract_exn:true
@@ -26,8 +25,7 @@ module Async = struct
     let%bind () = wait_for_previous in
     match%map
       Monitor.try_with
-        ~run:
-          `Schedule
+        ~run:`Schedule
         ~rest:`Log
         ~extract_exn:true
         (fun () -> f (Field.get field t))

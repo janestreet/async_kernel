@@ -34,8 +34,7 @@ end = struct
       | `Start a ->
         (match%map
            Monitor.try_with
-             ~run:
-               `Schedule
+             ~run:`Schedule
              ~rest:`Log
              (fun () -> work a)
          with

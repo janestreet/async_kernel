@@ -232,8 +232,7 @@ let iter_durably' t ~f =
       | Nil -> Ivar.fill result ()
       | Cons (x, t) ->
         Monitor.try_with
-          ~run:
-            `Schedule
+          ~run:`Schedule
           ~rest:`Raise
           (fun () -> f x)
         >>> fun z ->

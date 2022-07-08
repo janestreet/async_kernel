@@ -25,7 +25,7 @@ end
 
 module Time : sig
   include module type of struct
-    include Time
+    include Time_float
   end
 
   val now : unit -> t [@@deprecated "[since 2019-05] Use [Time_source]"]

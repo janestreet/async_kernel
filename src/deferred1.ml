@@ -80,13 +80,13 @@ end
 
 module Unregister = struct
   (* This representation saves 2n words for a list of n choices. *)
-  type t =
-    | Nil : t
-    | Cons : 'a Deferred0.t * 'a Deferred0.Handler.t * t -> t
+  type 'r t =
+    | Nil : 'r t
+    | Cons : 'a Deferred0.t * ('a -> 'r) * 'a Deferred0.Handler.t * 'r t -> 'r t
 
   let rec process = function
     | Nil -> ()
-    | Cons (t, handler, rest) ->
+    | Cons (t, _f, handler, rest) ->
       remove_handler t handler;
       process rest
   ;;
@@ -110,34 +110,74 @@ let enabled choices =
   in
   let execution_context = Scheduler.(current_execution_context (t ())) in
   unregisters
-  := List.fold choices ~init:Unregister.Nil ~f:(fun acc (Choice.T (t, _)) ->
-    Cons (t, Deferred0.add_handler t ready execution_context, acc));
+  := List.fold choices ~init:Unregister.Nil ~f:(fun acc (Choice.T (t, f)) ->
+    Cons (t, f, Deferred0.add_handler t ready execution_context, acc));
   Ivar.read result
 ;;
 
 let rec choose_result choices =
   match choices with
-  | [] -> assert false
-  | Choice.T (t, f) :: choices ->
+  | Unregister.Nil -> assert false
+  | Unregister.Cons (t, f, _, rest) ->
     (match peek t with
-     | None -> choose_result choices
+     | None -> choose_result rest
      | Some v -> f v)
 ;;
 
-let choose choices =
+let generic_choose choices =
   let result = Ivar.create () in
-  let unregisters = ref Unregister.Nil in
-  let ready _ =
-    if Ivar.is_empty result
-    then (
-      Unregister.process !unregisters;
-      Ivar.fill result (choose_result choices))
-  in
   let execution_context = Scheduler.(current_execution_context (t ())) in
-  unregisters
-  := List.fold choices ~init:Unregister.Nil ~f:(fun acc (Choice.T (t, _)) ->
-    Cons (t, Deferred0.add_handler t ready execution_context, acc));
+  (* A back-patched ref could be used here, but using lazy saves some memory
+     because the GC eventually removes the extra indirection. *)
+  let rec unregisters =
+    lazy
+      (List.fold_right choices ~init:Unregister.Nil ~f:(fun (Choice.T (t, f)) acc ->
+         Unregister.Cons (t, f, Deferred0.add_handler t ready execution_context, acc)))
+  and ready : 'a. 'a -> unit =
+    fun _ ->
+      if Ivar.is_empty result
+      then (
+        let unregisters = Lazy.force unregisters in
+        Unregister.process unregisters;
+        Ivar.fill result (choose_result unregisters))
+  in
+  let (_ : _) = Lazy.force unregisters in
   Ivar.read result
+;;
+
+(* [choose2] is a specialization of [choose] that has better memory usage.
+   At the time of writing, [choose2] keeps 22 extra words alive
+   for the duration of choice staying undetermined, while the equivalent generic
+   [choose] keeps 27 (see the benchmark in ../bench/bin/bench_choose_memory_usage.ml). *)
+let choose2 a fa b fb =
+  let result = Ivar.create () in
+  let execution_context = Scheduler.(current_execution_context (t ())) in
+  let rec a_handler = lazy (Deferred0.add_handler a ready execution_context)
+  and b_handler = lazy (Deferred0.add_handler b ready execution_context)
+  and ready : 'a. 'a -> unit =
+    fun _ ->
+      if Ivar.is_empty result
+      then (
+        (* The order of these operations matters:
+           if we call [fb] or [fa] first and [remove_handler] after, then
+           any exceptions raised will cause the handlers to remain and then
+           the "second choice" gets a chance to run.
+        *)
+        remove_handler a (Lazy.force a_handler);
+        remove_handler b (Lazy.force b_handler);
+        match peek a with
+        | Some av -> Ivar.fill result (fa av)
+        | None -> Ivar.fill result (fb (value_exn b)))
+  in
+  let (_ : _) = Lazy.force a_handler in
+  let (_ : _) = Lazy.force b_handler in
+  Ivar.read result
+;;
+
+let choose choices =
+  match choices with
+  | [ Choice.T (a, fa); Choice.T (b, fb) ] -> choose2 a fa b fb
+  | choices -> generic_choose choices
 ;;
 
 let any_f ts f = choose (List.map ts ~f:(fun t -> choice t f))
@@ -192,3 +232,7 @@ let seqmap t ~f = fold t ~init:[] ~f:(fun bs a -> f a >>| fun b -> b :: bs) >>| 
 let all ds = seqmap ds ~f:Fn.id
 let all_unit ds = fold ds ~init:() ~f:(fun () d -> d)
 let ok x = x >>| fun x -> Ok x
+
+module For_tests = struct
+  let generic_choose = generic_choose
+end

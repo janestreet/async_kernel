@@ -2,7 +2,7 @@ open! Core
 open! Import
 module Clock_ns = Clock_ns
 module Time_ns = Time_ns
-module Time = Time
+module Time = Time_float
 module Async_kernel_scheduler = Async_kernel_scheduler
 module Date = Date
 

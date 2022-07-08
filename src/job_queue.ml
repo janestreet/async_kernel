@@ -20,12 +20,16 @@ type t = Types.Job_queue.t =
        don't use [Pool] because that implements a set, where [jobs] is a queue. *)
     mutable jobs : (Obj.t A.t[@sexp.opaque])
   ; (* [mask] is [capacity t - 1], and is used for quickly computing [i mod (capacity
-       t)] *)
+       t)]. A special case when the job queue has capacity 0 is represented
+       with [mask = -1]. This value is not useful as a bit-mask, but we only use
+       the bit-mask when there's capacity in the array, so that is not a problem.
+    *)
     mutable mask : int
   ; (* [front] is the index of the first job in the queue.  The array index of that job's
        execution context is [front * slots_per_elt]. *)
     mutable front : int
   ; mutable length : int
+  ; mutable backtrace_of_first_enqueue : Backtrace.t option
   }
 [@@deriving fields, sexp_of]
 
@@ -48,12 +52,13 @@ let invariant t : unit =
       ~mask:
         (check (fun mask ->
            let capacity = mask + 1 in
-           assert (Int.is_pow2 capacity);
+           assert (capacity = 0 || Int.is_pow2 capacity);
            assert (capacity * slots_per_elt = A.length t.jobs)))
+      ~backtrace_of_first_enqueue:(fun _ -> ())
       ~front:
         (check (fun front ->
            assert (front >= 0);
-           assert (front < capacity t)))
+           assert (front < max 1 (capacity t))))
       ~length:
         (check (fun length ->
            assert (length >= 0);
@@ -63,15 +68,20 @@ let invariant t : unit =
 let create_array ~capacity = A.create_obj_array ~len:(capacity * slots_per_elt)
 
 let create () =
-  let capacity = 1 in
+  (* We start with [capacity  = 0] so that the first job that is added calls [grow] and
+     fills in the [backtrace_of_first_enqueue]. *)
+  let capacity = 0 in
   { num_jobs_run = 0
   ; jobs_left_this_cycle = 0
   ; jobs = create_array ~capacity
   ; mask = capacity - 1
   ; front = 0
   ; length = 0
+  ; backtrace_of_first_enqueue = None
   }
 ;;
+
+let backtrace_of_first_enqueue t = t.backtrace_of_first_enqueue
 
 let clear t =
   t.front <- 0;
@@ -80,8 +90,11 @@ let clear t =
 ;;
 
 let grow t =
+  (match t.backtrace_of_first_enqueue with
+   | Some _ -> assert (capacity t > 0)
+   | None -> t.backtrace_of_first_enqueue <- Some (Backtrace.get ()));
   let old_capacity = capacity t in
-  let new_capacity = old_capacity * 2 in
+  let new_capacity = max 1 (old_capacity * 2) in
   let old_jobs = t.jobs in
   let old_front = t.front in
   let len1 = Int.min t.length (old_capacity - old_front) * slots_per_elt in

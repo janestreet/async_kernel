@@ -183,6 +183,7 @@ and Job_queue : sig
     ; mutable mask : int
     ; mutable front : int
     ; mutable length : int
+    ; mutable backtrace_of_first_enqueue : Backtrace.t option
     }
 end =
   Job_queue

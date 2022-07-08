@@ -96,7 +96,9 @@ module Make (Conn : Closable) = struct
       in
       let rec loop () =
         if Ivar.is_full t.close_started
-        then return `Close_started
+        then (
+          Ivar.fill t.conn `Close_started;
+          return `Close_started)
         else if Ivar.is_full t.don't_reconnect
         then return `Don't_reconnect
         else (
@@ -105,7 +107,9 @@ module Make (Conn : Closable) = struct
           Ivar.fill t.next_connect_result connect_result;
           t.next_connect_result <- Ivar.create ();
           match connect_result with
-          | Ok conn -> return (`Ok (conn, ready_to_retry_connecting))
+          | Ok conn ->
+            Ivar.fill t.conn (`Ok conn);
+            return (`Ok (conn, ready_to_retry_connecting))
           | Error err ->
             let same_as_previous_error =
               match !previous_error with
@@ -187,14 +191,11 @@ module Make (Conn : Closable) = struct
         >>= fun () ->
         try_connecting_until_successful t
         >>= function
-        | `Close_started ->
-          Ivar.fill t.conn `Close_started;
-          return (`Finished ())
+        | `Close_started -> return (`Finished ())
         | `Don't_reconnect ->
           abort_reconnecting_with_no_active_connection t;
           return (`Finished ())
         | `Ok (conn, ready_to_retry_connecting) ->
-          Ivar.fill t.conn (`Ok conn);
           handle_event t (Connected conn)
           >>= fun () ->
           Conn.close_finished conn

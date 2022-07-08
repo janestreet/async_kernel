@@ -71,8 +71,8 @@ val ok_unit : unit t
     [try_with f >>| Result.join].
 
     The option [extract_exn] is passed along to [Monitor.try_with ?extract_exn] and
-    specifies whether or not the monitor exn wrapper should be skipped ([extract_exn:true]
-    or kept ([extract_exn:false]).
+    specifies whether or not the monitor exn wrapper should be skipped
+    ([extract_exn:true]) or kept ([extract_exn:false]).
 
     The [~rest] argument controls how exceptions are handled after the [try_with] deferred
     becomes determined. They may be logged, raised, or passed to a callback.

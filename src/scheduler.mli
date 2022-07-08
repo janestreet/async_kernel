@@ -59,6 +59,7 @@ val add_finalizer_last_exn : t -> 'a -> (unit -> unit) -> unit
 val set_thread_safe_external_job_hook : t -> (unit -> unit) -> unit
 val set_job_queued_hook : t -> (Priority.t -> unit) -> unit
 val set_event_added_hook : t -> (Time_ns.t -> unit) -> unit
+val backtrace_of_first_job : t -> Backtrace.t option
 
 val thread_safe_enqueue_external_job
   :  t
@@ -69,7 +70,7 @@ val thread_safe_enqueue_external_job
 
 val force_current_cycle_to_end : t -> unit
 
-type 'a with_options = ?monitor:Monitor.t -> ?priority:Priority.t -> 'a
+type 'a with_options := ?monitor:Monitor.t -> ?priority:Priority.t -> 'a
 
 val within' : ((unit -> 'a Deferred.t) -> 'a Deferred.t) with_options
 val within : ((unit -> unit) -> unit) with_options

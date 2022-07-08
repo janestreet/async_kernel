@@ -21,12 +21,18 @@ let main =
 ;;
 
 let create_like ?monitor ?priority ?local_storage t =
-  let monitor = Option.value monitor ~default:t.monitor in
-  { monitor
-  ; priority = Option.value priority ~default:t.priority
-  ; local_storage = Option.value local_storage ~default:t.local_storage
-  ; backtrace_history = t.backtrace_history
-  }
+  match monitor, priority, local_storage with
+  | None, None, None ->
+    (* avoid allocating in the trivial case, which e.g. happens when calling
+       [Async.schedule] without optional args *)
+    t
+  | _ ->
+    let monitor = Option.value monitor ~default:t.monitor in
+    { monitor
+    ; priority = Option.value priority ~default:t.priority
+    ; local_storage = Option.value local_storage ~default:t.local_storage
+    ; backtrace_history = t.backtrace_history
+    }
 ;;
 
 let find_local t key = Univ_map.find t.local_storage key

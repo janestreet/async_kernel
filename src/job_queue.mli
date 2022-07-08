@@ -16,3 +16,4 @@ val can_run_a_job : t -> bool
 val length : t -> int
 val run_jobs : t -> Scheduler.t -> (unit, exn * Backtrace.t) Result.t
 val num_jobs_run : t -> int
+val backtrace_of_first_enqueue : t -> Backtrace.t option
