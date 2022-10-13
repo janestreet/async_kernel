@@ -5,7 +5,6 @@
 open! Core
 open! Async_kernel
 
-
 (** The address of a service to which one can connect. E.g. [Host_and_port.t] is a
     reasonable choice when making a TCP connection.
 *)
@@ -98,6 +97,11 @@ module type S = sig
       currently connected, the returned deferred is already determined. If [closed] has
       been called, then the returned deferred is never determined. *)
   val connected : t -> conn Deferred.t
+
+  (** [event] returns a bus which is written to whenever an event happens.
+      Since the ['address] used in create is not exposed as a parameter of the
+      [t] type, we replace it with (). *)
+  val event_bus : t -> (unit Event.t -> unit) Bus.Read_only.t
 
   (** [connected_or_failed_to_connect] is immediately determined as [Ok _] if [t] is
       already connected. Otherwise it becomes determined the next time [t] becomes

@@ -28,6 +28,7 @@ module Stream = Async_stream
 module Synchronous_time_source = Synchronous_time_source
 module Tail = Tail
 module Throttle = Throttle
+module Throttled = Throttled
 module Time_source = Time_source
 
 

@@ -48,8 +48,8 @@ open Let_syntax
 
 let fail error = Deferred.return (Result.fail error)
 let ok_exn t = Deferred.map t ~f:Or_error.ok_exn
-let of_exn exn = Deferred.return (Or_error.of_exn exn)
-let of_exn_result t = Deferred.map t ~f:Or_error.of_exn_result
+let of_exn ?backtrace exn = Deferred.return (Or_error.of_exn ?backtrace exn)
+let of_exn_result ?backtrace t = Deferred.map t ~f:(Or_error.of_exn_result ?backtrace)
 let error msg v sexp_of = Deferred.return (Or_error.error msg v sexp_of)
 let error_s sexp = Deferred.return (Or_error.error_s sexp)
 let error_string msg = Deferred.return (Or_error.error_string msg)

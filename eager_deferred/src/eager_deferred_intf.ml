@@ -11,8 +11,13 @@ module type Eager_deferred_or_error = sig
   val fail : Error.t -> _ t
   val ok_unit : unit t
   val ok_exn : 'a t -> 'a deferred
-  val of_exn : exn -> _ t
-  val of_exn_result : ('a, exn) Result.t deferred -> 'a t
+  val of_exn : ?backtrace:[ `Get | `This of string ] -> exn -> _ t
+
+  val of_exn_result
+    :  ?backtrace:[ `Get | `This of string ]
+    -> ('a, exn) Result.t deferred
+    -> 'a t
+
   val error : string -> 'a -> ('a -> Sexp.t) -> _ t
   val error_s : Sexp.t -> _ t
   val error_string : string -> _ t
@@ -88,6 +93,7 @@ module type Eager_deferred1 = sig
 
   module List : Monad_sequence.S with type 'a monad := 'a t with type 'a t := 'a list
   module Or_error : Eager_deferred_or_error with type 'a deferred := 'a t
+  module Memo : Deferred.Memo.S with type 'a deferred := 'a t
 
   module Result : sig
     include Monad.S2 with type ('a, 'b) t = ('a, 'b) Result.t Deferred.t
@@ -118,7 +124,7 @@ module type S = sig
       non-eager world and rebind them to their eager counterparts. *)
   module Use : sig
     module Deferred : sig
-      type nonrec 'a t = 'a t
+      type nonrec 'a t = 'a t [@@deriving sexp_of]
 
       include Eager_deferred1 with type 'a t := 'a t
     end

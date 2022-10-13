@@ -88,6 +88,16 @@ let advance_by = advance_directly_by
 let fire_past_alarms t = Synchronous_time_source0.fire_past_alarms t ~send_exn
 let yield t = Bvar.wait (Scheduler.yield t.scheduler)
 
+module Eager_deferred = struct
+  let bind_unit t ~f =
+    if Deferred.is_determined t
+    then f ()
+    else (
+      let%bind () = t in
+      f ())
+  ;;
+end
+
 let advance_by_alarms ?wait_for t ~to_ =
   let run_queued_alarms () =
     (* Every time we want to run queued alarms we need to yield control back to the
@@ -99,29 +109,26 @@ let advance_by_alarms ?wait_for t ~to_ =
     | None -> yield t
     | Some f -> f ()
   in
-  let finish () =
-    advance_directly t ~to_;
-    fire_past_alarms t;
-    (* so that alarms scheduled at or before [to_] fire *)
-    run_queued_alarms ()
+  let one_step () =
+    if Synchronous_time_source0.any_fired_events_to_run t
+    then now t, `continue
+    else (
+      match Timing_wheel.min_alarm_time_in_min_interval t.events with
+      | None -> to_, `finish
+      | Some min_alarm_time_in_min_interval ->
+        if Time_ns.( >= ) min_alarm_time_in_min_interval to_
+        then to_, `finish
+        else min_alarm_time_in_min_interval, `continue)
   in
   let rec walk_alarms () =
-    match Timing_wheel.min_alarm_time_in_min_interval t.events with
-    | None -> finish ()
-    | Some min_alarm_time_in_min_interval ->
-      if Time_ns.( >= ) min_alarm_time_in_min_interval to_
-      then finish ()
-      else (
-        advance_directly t ~to_:min_alarm_time_in_min_interval;
-        fire_past_alarms t;
-        let queued_alarms_ran = run_queued_alarms () in
-        if Deferred.is_determined queued_alarms_ran
-        then walk_alarms ()
-        else (
-          let%bind () = queued_alarms_ran in
-          walk_alarms ()))
+    let advance_to, next = one_step () in
+    advance_directly t ~to_:advance_to;
+    fire_past_alarms t;
+    Eager_deferred.bind_unit (run_queued_alarms ()) ~f:(fun () ->
+      match next with
+      | `finish -> return ()
+      | `continue -> walk_alarms ())
   in
-  fire_past_alarms t;
   (* This first [run_queued_alarms] call allows [Clock_ns.every] the opportunity to run
      its continuation deferreds so that they can reschedule alarms.  This is particularly
      useful in our "advance hits intermediate alarms" unit test below, but likely useful
@@ -157,11 +164,7 @@ let advance_by_max_alarms_in_each_timing_wheel_interval ?wait_for t ~to_ =
         advance_directly t ~to_:(Timing_wheel.max_alarm_time_in_min_interval_exn t.events);
         fire_past_alarms t;
         let queued_alarms_ran = run_queued_alarms () in
-        if Deferred.is_determined queued_alarms_ran
-        then walk_alarms ()
-        else (
-          let%bind () = queued_alarms_ran in
-          walk_alarms ()))
+        Eager_deferred.bind_unit queued_alarms_ran ~f:walk_alarms)
   in
   fire_past_alarms t;
   (* This first [run_queued_alarms] call allows [Clock_ns.every] the opportunity to run

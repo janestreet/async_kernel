@@ -200,6 +200,10 @@ val next_alarm_fires_at : [> write ] T1.t -> Time_ns.t option
     but alarms with [at <= to_] may still may fire. *)
 val advance_by_alarms : [> write ] T1.t -> to_:Time_ns.t -> unit Or_error.t
 
+(** [advance_by_alarms_by t by] is equivalent to:
+    [advance_by_alarms t ~to_:(Time_ns.add (now t) by)] *)
+val advance_by_alarms_by : [> write ] T1.t -> Time_ns.Span.t -> unit Or_error.t
+
 (** A version of [advance_by_alarms] with some weird behavior caused by timing wheel
     [alarm_precision]: if there are multiple alarms within the same timing_wheel
     precision bucket, then this function fires them all at the same time (when the last
@@ -220,6 +224,10 @@ val advance_by_max_alarms_in_each_timing_wheel_interval
     [advance_by_alarms] advances the clock in steps, to each intervening alarm.  In
     particular periodic/rearming timers will fire at most twice. *)
 val advance_directly : [> write ] T1.t -> to_:Time_ns.t -> unit Or_error.t
+
+(** [advance_directly_by t by] is equivalent to:
+    [advance_directly_by t ~to_:(Time_ns.add (now t) by)] *)
+val advance_directly_by : [> write ] T1.t -> Time_ns.Span.t -> unit Or_error.t
 
 
 (** This value is close to [next_alarm_fires_at] but differs from it by at most

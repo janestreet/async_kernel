@@ -51,7 +51,7 @@ end =
   Ivar
 
 and Deferred : sig
-  type +'a t
+  type +!'a t
 end =
   Deferred
 
@@ -212,9 +212,9 @@ and Scheduler : sig
     ; mutable cycle_count : int
     ; mutable cycle_start : Time_ns.t
     ; mutable in_cycle : bool
-    ; mutable run_every_cycle_start : Cycle_hook.t list
+    ; mutable run_every_cycle_start : Cycle_hook.t array
     ; run_every_cycle_start_state : (Cycle_hook_handle.t, Cycle_hook.t) Hashtbl.t
-    ; mutable run_every_cycle_end : Cycle_hook.t list
+    ; mutable run_every_cycle_end : Cycle_hook.t array
     ; run_every_cycle_end_state : (Cycle_hook_handle.t, Cycle_hook.t) Hashtbl.t
     ; mutable last_cycle_time : Time_ns.Span.t
     ; mutable last_cycle_num_jobs : int

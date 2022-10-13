@@ -3,6 +3,10 @@ open! Async_kernel
 open! Async_kernel_require_explicit_time_source
 include Persistent_connection_kernel_intf
 
+(* This position shows up in tests in a way that is difficult to suppress, so we define it
+   here in a place that is unlikely to change very often *)
+let dummy_src_pos_that_shows_up_in_tests = [%here]
+
 module Make (Conn : Closable) = struct
   module Conn = struct
     include Conn
@@ -49,6 +53,7 @@ module Make (Conn : Closable) = struct
       ; mutable conn : [ `Ok of Conn.t | `Close_started ] Ivar.t
       ; mutable next_connect_result : Conn.t Or_error.t Ivar.t
       ; event_handler : 'address Event.Handler.t
+      ; event_bus : (unit Event.t -> unit, read_write) Bus.t
       ; close_started : unit Ivar.t
       ; close_finished : unit Ivar.t
       ; don't_reconnect : unit Ivar.t
@@ -58,7 +63,18 @@ module Make (Conn : Closable) = struct
     [@@deriving fields, sexp_of]
 
     let server_name t = t.event_handler.server_name
-    let handle_event t event = Event.handle event t.event_handler
+
+    let handle_event (type address) t (event : address Event.t) =
+      Bus.write
+        t.event_bus
+        (match event with
+         | Obtained_address (_ : address) -> Obtained_address ()
+         | Attempting_to_connect -> Attempting_to_connect
+         | Failed_to_connect e -> Failed_to_connect e
+         | Connected conn -> Connected conn
+         | Disconnected -> Disconnected);
+      Event.handle event t.event_handler
+    ;;
 
     (* This function focuses in on the the error itself, discarding information about which
        monitor caught the error, if any.
@@ -171,6 +187,12 @@ module Make (Conn : Closable) = struct
       let retry_delay () = Time_source.after time_source (retry_delay_span ()) in
       let t =
         { event_handler
+        ; event_bus =
+            Bus.create_exn
+              (if am_running_test then dummy_src_pos_that_shows_up_in_tests else [%here])
+              Arity1
+              ~on_subscription_after_first_write:Allow_and_send_last_value
+              ~on_callback_raise:ignore
         ; get_address
         ; connect
         ; next_connect_result = Ivar.create ()
@@ -187,22 +209,17 @@ module Make (Conn : Closable) = struct
          leave [t.conn] filled with [`Close_started]. *)
       don't_wait_for
       @@ Deferred.repeat_until_finished () (fun () ->
-        handle_event t Attempting_to_connect
-        >>= fun () ->
-        try_connecting_until_successful t
-        >>= function
+        let%bind () = handle_event t Attempting_to_connect in
+        match%bind try_connecting_until_successful t with
         | `Close_started -> return (`Finished ())
         | `Don't_reconnect ->
           abort_reconnecting_with_no_active_connection t;
           return (`Finished ())
         | `Ok (conn, ready_to_retry_connecting) ->
-          handle_event t (Connected conn)
-          >>= fun () ->
-          Conn.close_finished conn
-          >>= fun () ->
+          let%bind () = handle_event t (Connected conn) in
+          let%bind () = Conn.close_finished conn in
           t.conn <- Ivar.create ();
-          handle_event t Disconnected
-          >>= fun () ->
+          let%bind () = handle_event t Disconnected in
           (* waits until [retry_delay ()] time has passed since the time just before we last
              tried to connect rather than the time we noticed being disconnected, so that if
              a long-lived connection dies, we will attempt to reconnect immediately. *)
@@ -320,6 +337,7 @@ module Make (Conn : Closable) = struct
 
   let close_finished (T t) = Poly.close_finished t
   let is_closed (T t) = Poly.is_closed t
+  let event_bus (T t) = Bus.read_only t.event_bus
   let close (T t) = Poly.close t
   let server_name (T t) = Poly.server_name t
   let current_connection (T t) = Poly.current_connection t

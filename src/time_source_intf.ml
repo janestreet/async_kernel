@@ -128,7 +128,10 @@ module type Time_source = sig
     val immediately : t
   end
 
-  (** See {{!Async_kernel.Clock_intf.Clock.every'}[Clock.every]} for documentation. *)
+  (** [run_repeatedly] is the same as [every'], with the delay between jobs controlled by
+      [continue]. When [continue] is [Continue.immediately] (the only value currently
+      exposed in this interface), a new execution of [f] will be scheduled immediately
+      after the deferred returned by [f] is resolved. *)
   val run_repeatedly
     :  ?start:unit Deferred.t (** default is [return ()] *)
     -> ?stop:unit Deferred.t (** default is [Deferred.never ()] *)

@@ -776,6 +776,17 @@ val size_budget : (_, _) t -> int
     allowed. *)
 val set_size_budget : (_, _) t -> int -> unit
 
+(** {2 Reserved space} *)
+
+(** It is possible to reserve space for a value in a pipe before actually writing the
+    value yet. Reserved space behaves like a temporary reduction in the pipe's size budget
+    that is restored as values are written to the pipe. *)
+val reserved_space : (_, _) t -> int
+
+(** [reserve_space writer n] increases the reserved space of [writer] by [n]. [n] must be
+    nonnegative. *)
+val reserve_space : _ Writer.t -> int -> unit
+
 (** {2 Debugging} *)
 
 (** [show_debug_messages], if true, will cause a message to be printed at the start of

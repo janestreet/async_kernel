@@ -27,8 +27,20 @@ let next_upcoming_event t = Timing_wheel.next_alarm_fires_at (events t)
 let next_upcoming_event_exn t = Timing_wheel.next_alarm_fires_at_exn (events t)
 let event_precision t = Timing_wheel.alarm_precision (events t)
 let cycle_start t = t.cycle_start
-let run_every_cycle_start t ~f = t.run_every_cycle_start <- f :: t.run_every_cycle_start
-let run_every_cycle_end t ~f = t.run_every_cycle_end <- f :: t.run_every_cycle_end
+
+let run_every_cycle_start t ~f =
+  (* Using an array rather than a list for cache efficiency. This and
+     [run_every_cycle_end] should only be called during program initialization, so the
+     allocation and garbage creation should not be an issue.
+
+     Note that calling this function N times takes O(N^2) time, but this should be fine
+     because N is small. Same for [run_every_cycle_end]. *)
+  t.run_every_cycle_start <- Array.append [| f |] t.run_every_cycle_start
+;;
+
+let run_every_cycle_end t ~f =
+  t.run_every_cycle_end <- Array.append [| f |] t.run_every_cycle_end
+;;
 
 let add_every_cycle_start_hook t ~f =
   let handle = Types.Cycle_hook_handle.create () in
@@ -44,18 +56,21 @@ let add_every_cycle_end_hook t ~f =
   handle
 ;;
 
-(* Unbelievable that [List.remove] is not a thing *)
-let list_remove_first lst ~f =
-  match List.split_while ~f:(fun x -> not (f x)) lst with
-  | _, [] -> None
-  | l, _ :: r -> Some (l @ r)
+let array_remove_first arr ~f =
+  match Array.findi arr ~f with
+  | None -> None
+  | Some (idx, _) ->
+    Some
+      (Array.init
+         (Array.length arr - 1)
+         ~f:(fun i -> if i < idx then arr.(i) else arr.(i + 1)))
 ;;
 
-let remove_single_cycle_hook lst f =
-  (* Remove a single instance of [f] from [lst]. More than one instance may be present,
+let remove_single_cycle_hook arr f =
+  (* Remove a single instance of [f] from [arr]. More than one instance may be present,
      but removal is reference-counted by [run_every_cycle_(start|end)_state] tables. *)
-  match list_remove_first ~f:(phys_equal f) lst with
-  | Some lst -> lst
+  match array_remove_first ~f:(fun _ g -> phys_equal f g) arr with
+  | Some arr -> arr
   | None ->
     (* This should be unreachable, see the [invariant] in [scheduler1.ml]. *)
     raise_s
@@ -200,7 +215,7 @@ let run_cycle t =
   t.in_cycle <- true;
   Bvar.broadcast t.yield ();
   let num_jobs_run_at_start_of_cycle = num_jobs_run t in
-  List.iter t.run_every_cycle_start ~f:(fun f -> f ());
+  Array.iter t.run_every_cycle_start ~f:(fun f -> f ());
   advance_clock t ~now;
   start_cycle t ~max_num_jobs_per_priority:t.max_num_jobs_per_priority_per_cycle;
   let rec run_jobs t =
@@ -219,7 +234,7 @@ let run_cycle t =
   t.total_cycle_time <- Time_ns.Span.(t.total_cycle_time + cycle_time);
   if Bvar.has_any_waiters t.yield_until_no_jobs_remain && num_pending_jobs t = 0
   then Bvar.broadcast t.yield_until_no_jobs_remain ();
-  List.iter t.run_every_cycle_end ~f:(fun f -> f ());
+  Array.iter t.run_every_cycle_end ~f:(fun f -> f ());
   t.in_cycle <- false;
   if debug
   then

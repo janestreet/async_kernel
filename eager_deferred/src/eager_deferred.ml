@@ -8,7 +8,7 @@ include Eager_deferred1
 
 module Use = struct
   module Deferred = struct
-    type 'a t = 'a Deferred.t
+    type 'a t = 'a Deferred.t [@@deriving sexp_of]
 
     include Eager_deferred1
   end

@@ -193,32 +193,36 @@ type ('a, 'phantom) t =
     mutable buffer : 'a Queue.t
   ; (* [size_budget] governs pushback on writers to the pipe.
 
-       There is *no* invariant that [Queue.length buffer <= size_budget].  There is no
-       hard upper bound on the number of elements that can be stuffed into the [buffer].
-       This is due to the way we handle writes.  When we do a write, all of the values
-       written are immediately enqueued into [buffer].  After the write, if [Queue.length
-       buffer <= t.size_budget], then the writer will be notified to continue writing.
-       After the write, if [length t > t.size_budget], then the write will block until the
-       pipe is under budget. *)
+       There is *no* invariant that [Queue.length buffer <= size_budget].
+       There is no hard upper bound on the number of elements that can be stuffed into the
+       [buffer]. This is due to the way we handle writes. When we do a write, all of the
+       values written are immediately enqueued into [buffer]. After the write, if
+       [Queue.length buffer <= t.size_budget], then the writer will be notified to
+       continue writing. After the write, if [length t > t.size_budget], then the write
+       will block until the pipe is under budget. *)
     mutable size_budget : int
+  ; (* [reserved_space] counts against [size_budget] without actually buffering anything
+       yet. When it's positive, writes decrement it. *)
+    mutable reserved_space : int
   ; (* [pushback] is used to give feedback to writers about whether they should write to
-       the pipe.  [pushback] is full iff [length t <= t.size_budget || is_closed t]. *)
+       the pipe. [pushback] is full iff [length t + reserved_space t <= t.size_budget ||
+       is_closed t]. *)
     mutable pushback : unit Ivar.t
   ; (* [num_values_read] keeps track of the total number of values that have been read
        from the pipe.  We do not have to worry about overflow in [num_values_read].  You'd
        need to write 2^62 elements to the pipe, which would take about 146 years, at a
        flow rate of 1 size-unit/nanosecond. *)
     mutable num_values_read : int
-  ; (* [blocked_flushes] holds flushes whose preceding elements have not been completely
-       read.  For each blocked flush, the number of elements that need to be read from the
-       pipe in order to fill the flush is                        :
+  (* [blocked_flushes] holds flushes whose preceding elements have not been completely
+     read.  For each blocked flush, the number of elements that need to be read from the
+     pipe in order to fill the flush is                        :
 
-       fill_when_num_values_read - num_values_read
+     fill_when_num_values_read - num_values_read
 
-       Keeping the data in this form allows us to change a single field(num_values_read)
-       when we consume values instead of having to iterate over the whole queue of
-       flushes. *)
-    blocked_flushes : Blocked_flush.t Queue.t
+     Keeping the data in this form allows us to change a single field(num_values_read)
+     when we consume values instead of having to iterate over the whole queue of
+     flushes. *)
+  ; blocked_flushes : Blocked_flush.t Queue.t
   ; (* [blocked_reads] holds reads that are waiting on data to be written to the pipe. *)
     blocked_reads : 'a Blocked_read.t Queue.t
   ; (* [closed] is filled when we close the write end of the pipe. *)
@@ -236,6 +240,8 @@ type ('a, 'phantom) t =
   }
 [@@deriving fields, sexp_of]
 
+let effective_size_budget t = t.size_budget - t.reserved_space
+
 type ('a, 'phantom) pipe = ('a, 'phantom) t [@@deriving sexp_of]
 
 let hash t = Hashtbl.hash t.id
@@ -247,6 +253,7 @@ let closed t = Ivar.read t.closed
 let pushback t = Ivar.read t.pushback
 let length t = Queue.length t.buffer
 let is_empty t = length t = 0
+let update_num_values_read t ~delta = t.num_values_read <- t.num_values_read + delta
 
 let invariant t : unit =
   try
@@ -256,12 +263,13 @@ let invariant t : unit =
       ~info:ignore
       ~buffer:ignore
       ~size_budget:(check (fun size_budget -> assert (size_budget >= 0)))
+      ~reserved_space:(check (fun reserved_space -> assert (reserved_space >= 0)))
       ~pushback:
         (check (fun pushback ->
            assert (
              Bool.equal
                (Ivar.is_full pushback)
-               (length t <= t.size_budget || is_closed t))))
+               (length t <= effective_size_budget t || is_closed t))))
       ~num_values_read:ignore
       ~blocked_flushes:
         (check (fun blocked_flushes ->
@@ -321,6 +329,7 @@ let create_internal ~size_budget ~info ~initial_buffer =
     ; read_closed = Ivar.create ()
     ;
       size_budget
+    ; reserved_space = 0
     ; pushback = Ivar.create ()
     ; buffer = initial_buffer
     ; num_values_read = 0
@@ -353,7 +362,7 @@ let create ?size_budget ?info () =
 ;;
 
 let update_pushback t =
-  if length t <= t.size_budget || is_closed t
+  if length t <= effective_size_budget t || is_closed t
   then Ivar.fill_if_empty t.pushback ()
   else if Ivar.is_full t.pushback
   then t.pushback <- Ivar.create ()
@@ -381,6 +390,7 @@ let close_read t =
     Queue.iter t.blocked_flushes ~f:(fun flush -> Blocked_flush.fill flush `Reader_closed);
     Queue.clear t.blocked_flushes;
     Queue.clear t.buffer;
+    t.reserved_space <- 0;
     update_pushback t;
     (* we just cleared the buffer, so may need to fill [t.pushback] *)
     close t)
@@ -400,7 +410,6 @@ let create_reader ?size_budget ~close_on_exception f =
     don't_wait_for
       (Monitor.protect
          ~run:`Schedule
-         ~rest:`Log
          (fun () -> f w)
          ~finally:(fun () ->
            close w;
@@ -413,7 +422,6 @@ let create_writer ?size_budget f =
   don't_wait_for
     (Monitor.protect
        ~run:`Schedule
-       ~rest:`Log
        (fun () -> f r)
        ~finally:(fun () ->
          close_read r;
@@ -444,7 +452,7 @@ let values_were_read t consumer =
 let consume_all t consumer =
   let result = t.buffer in
   t.buffer <- Queue.create ();
-  t.num_values_read <- t.num_values_read + Queue.length result;
+  update_num_values_read t ~delta:(Queue.length result);
   values_were_read t consumer;
   update_pushback t;
   result
@@ -453,7 +461,7 @@ let consume_all t consumer =
 let consume_one t consumer =
   assert (length t >= 1);
   let result = Queue.dequeue_exn t.buffer in
-  t.num_values_read <- t.num_values_read + 1;
+  update_num_values_read t ~delta:1;
   values_were_read t consumer;
   update_pushback t;
   result
@@ -464,7 +472,7 @@ let consume t ~max_queue_length consumer =
   if max_queue_length >= length t
   then consume_all t consumer
   else (
-    t.num_values_read <- t.num_values_read + max_queue_length;
+    update_num_values_read t ~delta:max_queue_length;
     values_were_read t consumer;
     let result = Queue.create ~capacity:max_queue_length () in
     Queue.blit_transfer ~src:t.buffer ~dst:result ~len:max_queue_length ();
@@ -475,6 +483,16 @@ let consume t ~max_queue_length consumer =
 let set_size_budget t size_budget =
   let size_budget = validate_size_budget size_budget in
   t.size_budget <- size_budget;
+  update_pushback t
+;;
+
+let reserve_space t n =
+  if n < 0 then raise_s [%message "reserving negative space" (n : int)];
+  let reserved_space = t.reserved_space + n in
+  if reserved_space < 0
+  then
+    raise_s [%message "overflow when reserving space" (t.reserved_space : int) (n : int)];
+  t.reserved_space <- reserved_space;
   update_pushback t
 ;;
 
@@ -490,12 +508,15 @@ let fill_blocked_reads t =
   done
 ;;
 
+let decrease_reserved_space t n = t.reserved_space <- Int.max 0 (t.reserved_space - n)
+
 (* checks all invariants, calls a passed in f to handle a write, then updates reads and
    pushback *)
-let start_write t =
+let start_write t ~size =
   if !show_debug_messages then eprints "write" t [%sexp_of: (_, _) t];
   if !check_invariant then invariant t;
-  if is_closed t then raise_s [%message "write to closed pipe" ~pipe:(t : (_, _) t)]
+  if is_closed t then raise_s [%message "write to closed pipe" ~pipe:(t : (_, _) t)];
+  decrease_reserved_space t size
 ;;
 
 let finish_write t =
@@ -504,7 +525,7 @@ let finish_write t =
 ;;
 
 let transfer_in_without_pushback t ~from =
-  start_write t;
+  start_write t ~size:(Queue.length from);
   Queue.blit_transfer ~src:from ~dst:t.buffer ();
   finish_write t
 ;;
@@ -515,7 +536,7 @@ let transfer_in t ~from =
 ;;
 
 let copy_in_without_pushback t ~from =
-  start_write t;
+  start_write t ~size:(Queue.length from);
   Queue.iter from ~f:(fun x -> Queue.enqueue t.buffer x);
   finish_write t
 ;;
@@ -524,7 +545,7 @@ let copy_in_without_pushback t ~from =
 let write' t q = transfer_in t ~from:q
 
 let write_without_pushback t value =
-  start_write t;
+  start_write t ~size:1;
   Queue.enqueue t.buffer value;
   finish_write t
 ;;
@@ -1123,6 +1144,7 @@ let of_sequence sequence =
         match Sequence.next sequence with
         | None -> sequence
         | Some (a, sequence) ->
+          decrease_reserved_space writer 1;
           Queue.enqueue writer.buffer a;
           enqueue_n sequence (i - 1))
     in
@@ -1130,7 +1152,12 @@ let of_sequence sequence =
       if is_closed writer || Sequence.is_empty sequence
       then return ()
       else (
-        start_write writer;
+        (* [size:0] here as we don't know the size of the sequence statically. We'll
+           call [decrease_reserved_space] as we go.
+           (although realistically, it's impossible for the user to reserve space in
+           this pipe because you need a pipe writer for that, but [of_sequence] returns
+           a reader) *)
+        start_write writer ~size:0;
         let sequence = enqueue_n sequence (1 + writer.size_budget - length writer) in
         finish_write writer;
         let%bind () = pushback writer in

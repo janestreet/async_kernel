@@ -41,8 +41,13 @@ val fail : Error.t -> _ t
 (** These functions are direct analogs of the corresponding [Core.Or_error] functions. *)
 val ok_exn : 'a t -> 'a Deferred.t
 
-val of_exn : exn -> _ t
-val of_exn_result : ('a, exn) Result.t Deferred.t -> 'a t
+val of_exn : ?backtrace:[ `Get | `This of string ] -> exn -> _ t
+
+val of_exn_result
+  :  ?backtrace:[ `Get | `This of string ]
+  -> ('a, exn) Result.t Deferred.t
+  -> 'a t
+
 val error : string -> 'a -> ('a -> Sexp.t) -> _ t
 val error_s : Sexp.t -> _ t
 val error_string : string -> _ t

@@ -674,6 +674,8 @@ let run_fired_events t ~(send_exn : send_exn option) =
   Scheduler0.set_execution_context t.scheduler current_execution_context
 ;;
 
+let any_fired_events_to_run t = Event.Option.is_some (t.fired_events : Event.Option.t)
+
 let advance_clock t ~to_ ~send_exn =
   Timing_wheel.advance_clock t.events ~to_ ~handle_fired:t.handle_fired;
   run_fired_events t ~send_exn
@@ -730,6 +732,8 @@ let advance_by_alarms t ~to_ =
   finish_advancing t
 ;;
 
+let advance_by_alarms_by t by = advance_by_alarms t ~to_:(Time_ns.after (now t) by)
+
 let advance_by_max_alarms_in_each_timing_wheel_interval t ~to_ =
   let send_exn = None in
   prepare_to_advance t ~send_exn;
@@ -760,6 +764,8 @@ let advance_directly t ~to_ =
   advance_internal t ~to_ ~send_exn;
   finish_advancing t
 ;;
+
+let advance_directly_by t by = advance_directly t ~to_:(Time_ns.after (now t) by)
 
 let duration_of t f =
   let start = now t in
