@@ -42,24 +42,30 @@ module T1 = struct
     module Status = struct
       type t = Types.Event.Status.t =
         | Fired (* in [fired_events], ready to run *)
-        | Happening (* currently running the callback *)
+        | Happening_periodic_event
+        (* currently running the callback (for a periodic event) *)
         | Scheduled (* in the timing wheel *)
         | Unscheduled (* not in timing wheel or [fired_events] *)
       [@@deriving compare, equal, sexp_of]
 
       let transition_is_allowed ~from ~to_ =
         match from, to_ with
-        | Fired, Happening (* started running callback *)
-        | Fired, Unscheduled (* aborted *)
+        | ( Fired
+          , Happening_periodic_event (* started running callback (for a periodic event) *)
+          )
+        | ( Fired
+          , Unscheduled
+            (* aborted, or started running callback (for a non-periodic event) *) )
         (* [reschedule_*] goes through an intermediate [Fired, Unscheduled] state,
            so we never transition from [Fired] directly to [Scheduled]. *)
-        | Happening, Scheduled (* for repeating events *)
-        | Happening, Unscheduled (* event callback finished *)
+        | ( Happening_periodic_event
+          , Scheduled (* scheduled next iteration of a periodic event *) )
+        | Happening_periodic_event, Unscheduled (* aborted *)
         | Scheduled, Fired (* moved from timing wheel to [fired_events] *)
         | Scheduled, Unscheduled (* aborted *)
         | Unscheduled, Fired (* event scheduled in the past *)
         | Unscheduled, Scheduled (* event scheduled in the future *) -> true
-        | (Fired | Happening | Scheduled | Unscheduled), _ -> false
+        | (Fired | Happening_periodic_event | Scheduled | Unscheduled), _ -> false
       ;;
     end
 
@@ -187,7 +193,7 @@ module T1 = struct
                  (Alarm.is_null alarm)
                  ~expect:
                    (match t.status with
-                    | Fired | Happening | Unscheduled -> true
+                    | Fired | Happening_periodic_event | Unscheduled -> true
                     | Scheduled -> false)))
           ~at:ignore
           ~callback:ignore
@@ -213,7 +219,11 @@ module T1 = struct
                | Some prev_fired ->
                  [%test_result: Status.t] t.status ~expect:Fired;
                  assert (phys_equal (Option.some t) prev_fired.next_fired)))
-          ~status:ignore)
+          ~status:
+            (check (fun (status : Status.t) ->
+               match status with
+               | Happening_periodic_event -> assert (Core.Option.is_some t.interval)
+               | Fired | Unscheduled | Scheduled -> ())))
     ;;
 
     let set_status t to_ =
@@ -525,18 +535,18 @@ module Event = struct
   module Abort_result = struct
     type t =
       | Ok
-      | Currently_happening
       | Previously_unscheduled
     [@@deriving sexp_of]
   end
 
   let abort t (event : t) : Abort_result.t =
     match event.status with
-    | Happening ->
+    | Happening_periodic_event ->
       (match event.interval with
-       | None -> Currently_happening
+       | None -> assert false
        | Some (_ : Time_ns.Span.t) ->
          event.interval <- None;
+         event.status <- Unscheduled;
          Ok)
     | Fired ->
       remove_from_fired t event ~new_status:Unscheduled;
@@ -563,12 +573,15 @@ module Event = struct
 
   let create t callback = create_internal t ~at:Time_ns.epoch ~interval:None ~callback
 
-  let schedule_at_internal t (event : t) at ~interval =
-    (* [Fired] is disallowed to prevent the user from entering into an infinite loop.  The
-       user could specify [at] in the past which would constantly add [callback] to the
-       back of [t.next_fired] if this function is called from [callback]. *)
+  let is_scheduled (event : t) =
     match event.status with
-    | (Happening | Scheduled | Fired) as status ->
+    | Happening_periodic_event | Scheduled | Fired -> true
+    | Unscheduled -> false
+  ;;
+
+  let schedule_at_internal t (event : t) at ~interval =
+    match event.status with
+    | (Happening_periodic_event | Scheduled | Fired) as status ->
       Or_error.error_s
         [%sexp "cannot schedule an event with status", (status : Event.Status.t)]
     | Unscheduled ->
@@ -592,8 +605,8 @@ module Event = struct
       remove_from_fired t event ~new_status:Unscheduled;
       event.at <- at;
       add t event
-    | Happening ->
-      (* Happening events have already been removed from [fired]. *)
+    | Happening_periodic_event ->
+      (* Happening_periodic_event events have already been removed from [fired]. *)
       event.at <- at;
       add t event
     | Scheduled ->
@@ -629,21 +642,27 @@ let run_fired_events t ~(send_exn : send_exn option) =
     | None -> false
     | Some event ->
       (match event.status with
-       | Happening | Scheduled | Unscheduled -> assert false
+       | Happening_periodic_event | Scheduled | Unscheduled -> assert false
        | Fired ->
-         remove_from_fired t event ~new_status:Happening;
+         let new_status =
+           match event.interval with
+           | None -> (Unscheduled : Event.Status.t)
+           | Some _ -> (Happening_periodic_event : Event.Status.t)
+         in
+         remove_from_fired t event ~new_status;
          (* We set the execution context so that [event.callback] runs in the same context
             that was in place when [event] was created. *)
          Scheduler0.set_execution_context t.scheduler event.execution_context;
          (* Any modification of [status] below needs to first check that the event is
-            still [Happening]. If the event status is not [Happening] then the event's
-            callback must have rescheduled the event. In that case, do not set the status
-            or attempt to reschedule a repeating event.
+            still [Happening_periodic_event]. If the event status is not
+            [Happening_periodic_event] then the event's callback must have rescheduled the
+            event. In that case, do not set the status or attempt to reschedule a
+            repeating event.
 
             This code could be much simpler if we immediately rescheduled the event before
-            running the callback (no need for the Happening state then). One reason we
-            don't do that is that we don't want to automatically reschedule a periodic
-            event if its callback raises. *)
+            running the callback (no need for the Happening_periodic_event state then).
+            One reason we don't do that is that we don't want to automatically reschedule
+            a periodic event if its callback raises. *)
          (match event.callback () with
           | exception exn ->
             (match send_exn with
@@ -651,12 +670,12 @@ let run_fired_events t ~(send_exn : send_exn option) =
              | Some send_exn ->
                let backtrace = Backtrace.Exn.most_recent () in
                send_exn event.execution_context.monitor exn ~backtrace:(`This backtrace));
-            Event.set_status_if ~is:Happening event Unscheduled
+            Event.set_status_if ~is:Happening_periodic_event event Unscheduled
           | () ->
             (match event.interval with
-             | None -> Event.set_status_if ~is:Happening event Unscheduled
+             | None -> Event.set_status_if ~is:Happening_periodic_event event Unscheduled
              | Some interval ->
-               if Event.Status.equal Happening event.status
+               if Event.Status.equal Happening_periodic_event event.status
                then (
                  (* The event's callback did not reschedule the event. So reschedule the
                     repeating timer based on the last [at] time. *)

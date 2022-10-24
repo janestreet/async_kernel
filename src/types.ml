@@ -132,7 +132,7 @@ module rec Event : sig
   module Status : sig
     type t =
       | Fired
-      | Happening
+      | Happening_periodic_event
       | Scheduled
       | Unscheduled
   end

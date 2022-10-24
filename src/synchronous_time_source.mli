@@ -127,15 +127,12 @@ module Event : sig
   module Abort_result : sig
     type t =
       | Ok
-      | Currently_happening
       | Previously_unscheduled
     [@@deriving sexp_of]
   end
 
   (** [abort t] aborts the event [t], if possible, and returns [Ok] if the event was
-      aborted, or the reason it could not be aborted.  [abort] returns
-      [Currently_happening] iff it is called on an event while running that event's
-      callback and the event is not scheduled at intervals. *)
+      aborted, or the reason it could not be aborted. *)
   val abort : [> read ] T1.t -> t -> Abort_result.t
 
   val abort_exn : [> read ] T1.t -> t -> unit
@@ -145,6 +142,10 @@ module Event : sig
       [timesource]'s timing wheel but is available to be scheduled using [schedule_at] and
       [schedule_after]. *)
   val create : [> read ] T1.t -> callback -> t
+
+  (** If [is_scheduled t] returns false, calling any of the below [schedule_*] functions
+      is guaranteed to not return an error. *)
+  val is_scheduled : t -> bool
 
   (** [schedule_at timesource t time] schedules [t] to fire at [time].  [schedule_at]
       returns [Error] if [t] is currently scheduled to run. *)

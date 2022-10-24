@@ -44,20 +44,22 @@ let fold_mapi
     in
     loop 0 t (return init)
   | `Max_concurrent_jobs max_concurrent_jobs ->
-    let rec gen_computation idx t c =
+    let throttle = Throttle.create ~max_concurrent_jobs ~continue_on_error:false in
+    (* [loop] forces the input sequence and enqueues a throttle job only if there is
+       capacity available. *)
+    let rec loop i t (c : c Deferred.t) =
+      let%bind () = Throttle.capacity_available throttle in
       match Sequence.next t with
       | None -> c
       | Some (a, t) ->
-        Throttled.of_thunk (fun () ->
-          gen_computation
-            (idx + 1)
-            t
-            (Throttled.map2
-               c
-               (Throttled.job (fun () -> mapi_f idx a))
-               ~f:(fun c b -> fold_f c b)))
+        loop
+          (i + 1)
+          t
+          (let%bind b = Throttle.enqueue throttle (fun () -> mapi_f i a) in
+           let%map c = c in
+           fold_f c b)
     in
-    Throttled.run (gen_computation 0 t (Throttled.return init)) ~max_concurrent_jobs
+    loop 0 t (return init)
 ;;
 
 let foldi t ~init ~f =

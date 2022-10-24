@@ -173,8 +173,7 @@ module Blocked_flush = struct
      data has been read from the pipe.
 
      A [Blocked_flush.t] can also be filled with [`Reader_closed], which happens when the
-     reader end of the pipe is closed, and we are thus sure that the unread elements
-     preceding the flush will never be read. *)
+     reader end of the pipe is closed, and we are thus sure that the unread elements preceding the flush will never be read. *)
   type t =
     { fill_when_num_values_read : int
     ; ready : [ `Ok | `Reader_closed ] Ivar.t
@@ -409,7 +408,6 @@ let create_reader ?size_budget ~close_on_exception f =
     let r, w = create ?size_budget () in
     don't_wait_for
       (Monitor.protect
-         ~run:`Schedule
          (fun () -> f w)
          ~finally:(fun () ->
            close w;
@@ -421,7 +419,6 @@ let create_writer ?size_budget f =
   let r, w = create ?size_budget () in
   don't_wait_for
     (Monitor.protect
-       ~run:`Schedule
        (fun () -> f r)
        ~finally:(fun () ->
          close_read r;
@@ -806,7 +803,12 @@ let fold_gen
   if !check_invariant then invariant t;
   ensure_consumer_matches t ?consumer;
   Deferred.create (fun finished ->
-    (* We do [values_available t >>>] to ensure that [f] is only called asynchronously. *)
+    (* We do [values_available t >>>] to ensure that [f] is only called asynchronously.
+       See [1] for more details. *)
+    (* [1] For new empty pipes created at top-level we want to avoid immediately
+       scheduling a job on the scheduler (see [Scheduler.raise_if_any_jobs_were_scheduled]).
+       Just [return () >>>] doesn't work: [return ()] creates a full ivar that causes
+       [>>>] to schedule a job. *)
     values_available t
     >>> fun (_ : [ `Ok | `Eof ]) ->
     let rec loop b =
@@ -898,9 +900,10 @@ let iter_without_pushback
         | exn -> Monitor.send_exn (Monitor.current ()) exn
   in
   Deferred.create (fun finished ->
-    (* We do [return () >>>] to ensure that [f] is only called asynchronously. *)
-    return ()
-    >>> fun () ->
+    (* We do [values_available t >>>] to ensure that [f] is only called asynchronously.
+       See [1] for more details. *)
+    values_available t
+    >>> fun (_ : [ `Ok | `Eof ]) ->
     let rec start () = loop ~remaining:max_iterations_per_job
     and loop ~remaining =
       if remaining = 0
@@ -1002,8 +1005,12 @@ let transfer_gen
      output into which we transfer lots of short-lived inputs. *)
   let unlink () = Link.unlink_upstream link in
   Deferred.create (fun result ->
-    (* We do [return () >>>] to ensure that [f] is only called asynchronously. *)
-    return ()
+    let input_available_or_output_closed () =
+      choose [ choice (values_available input) ignore; choice (closed output) ignore ]
+    in
+    (* We do [input_available_or_output_closed () >>>] to ensure that [f] is only called
+       asynchronously. See [1] for more details. *)
+    input_available_or_output_closed ()
     >>> fun () ->
     let output_closed () =
       close_read input;
@@ -1020,9 +1027,7 @@ let transfer_gen
           Ivar.fill result ()
         | `Ok x -> f x continue
         | `Nothing_available ->
-          choose
-            [ choice (values_available input) ignore; choice (closed output) ignore ]
-          >>> fun () -> loop ())
+          input_available_or_output_closed () >>> fun () -> loop ())
     and continue y =
       if is_closed output
       then output_closed ()
