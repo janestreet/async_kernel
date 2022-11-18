@@ -43,7 +43,7 @@ module type Time_source = sig
     :  ?timing_wheel_config:Timing_wheel.Config.t
     -> now:Time_ns.t
     -> unit
-    -> read_write T1.t
+    -> _ T1.t
 
   (** A time source with [now t] given by wall-clock time (i.e., [Time_ns.now]) and that
       is advanced automatically as time passes (specifically, at the start of each Async
