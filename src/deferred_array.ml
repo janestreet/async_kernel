@@ -22,30 +22,30 @@ let seqmapi t ~f =
 let all ds = seqmapi ds ~f:(fun _ x -> x)
 let all_unit ds = Deferred.ignore_m (fold ds ~init:() ~f:(fun () d -> d))
 
-let iteri ?(how = `Sequential) t ~f =
+let iteri ~how t ~f =
   match how with
   | (`Parallel | `Max_concurrent_jobs _) as how ->
     all_unit (Array.mapi t ~f:(unstage (Throttle.monad_sequence_how2 ~how ~f)))
   | `Sequential -> foldi t ~init:() ~f:(fun i () x -> f i x)
 ;;
 
-let mapi ?(how = `Sequential) t ~f =
+let mapi ~how t ~f =
   match how with
   | (`Parallel | `Max_concurrent_jobs _) as how ->
     all (Array.mapi t ~f:(unstage (Throttle.monad_sequence_how2 ~how ~f)))
   | `Sequential -> seqmapi t ~f
 ;;
 
-let filteri ?how t ~f =
-  let%map bools = mapi t ?how ~f in
+let filteri ~how t ~f =
+  let%map bools = mapi t ~how ~f in
   Array.of_list_rev
     (Array.fold2_exn t bools ~init:[] ~f:(fun ac x b -> if b then x :: ac else ac))
 ;;
 
-let filter_mapi ?how t ~f = mapi t ?how ~f >>| Array.filter_opt
+let filter_mapi ~how t ~f = mapi t ~how ~f >>| Array.filter_opt
 
-let concat_mapi ?how t ~f =
-  let%map t = mapi t ?how ~f in
+let concat_mapi ~how t ~f =
+  let%map t = mapi t ~how ~f in
   Array.concat (Array.to_list t)
 ;;
 
@@ -93,12 +93,12 @@ let for_alli t ~f =
   | None -> true
 ;;
 
-let iter ?how t ~f = iteri ?how t ~f:(fun _ a -> f a)
-let map ?how t ~f = mapi ?how t ~f:(fun _ a -> f a)
-let filter_map ?how t ~f = filter_mapi ?how t ~f:(fun _ a -> f a)
-let filter ?how t ~f = filteri ?how t ~f:(fun _ a -> f a)
-let concat_map ?how t ~f = concat_mapi ?how t ~f:(fun _ a -> f a)
+let iter ~how t ~f = iteri ~how t ~f:(fun _ a -> f a)
+let map ~how t ~f = mapi ~how t ~f:(fun _ a -> f a)
+let filter_map ~how t ~f = filter_mapi ~how t ~f:(fun _ a -> f a)
+let filter ~how t ~f = filteri ~how t ~f:(fun _ a -> f a)
+let concat_map ~how t ~f = concat_mapi ~how t ~f:(fun _ a -> f a)
 let find_map t ~f = find_mapi t ~f:(fun _ a -> f a)
 let exists t ~f = existsi t ~f:(fun _ a -> f a)
 let for_all t ~f = for_alli t ~f:(fun _ a -> f a)
-let init ?how n ~f = map ?how (Array.init n ~f:Fn.id) ~f
+let init ~how n ~f = map ~how (Array.init n ~f:Fn.id) ~f

@@ -16,9 +16,9 @@ let update t k ~f =
   Map.set t ~key:k ~data
 ;;
 
-let iter_keys ?how t ~f = List.iter ?how (Map.keys t) ~f
-let iter ?how t ~f = List.iter ?how (Map.data t) ~f
-let iteri ?how t ~f = List.iter ?how (Map.to_alist t) ~f:(fun (key, data) -> f ~key ~data)
+let iter_keys ~how t ~f = List.iter ~how (Map.keys t) ~f
+let iter ~how t ~f = List.iter ~how (Map.data t) ~f
+let iteri ~how t ~f = List.iter ~how (Map.to_alist t) ~f:(fun (key, data) -> f ~key ~data)
 
 let fold t ~init ~f =
   let alist_in_increasing_key_order =
@@ -78,7 +78,7 @@ let filter_mapi_max_concurrent t ~f ~max_concurrent_jobs =
   Throttled.run computation ~max_concurrent_jobs
 ;;
 
-let filter_mapi ?(how = `Sequential) t ~f =
+let filter_mapi ~how t ~f =
   match how with
   | `Sequential -> filter_mapi_sequential t ~f
   | `Max_concurrent_jobs max_concurrent_jobs ->
@@ -100,22 +100,22 @@ let filter_mapi ?(how = `Sequential) t ~f =
     Map.filter_map job_map ~f:Job.result
 ;;
 
-let filter_map ?how t ~f = filter_mapi ?how t ~f:(fun ~key:_ ~data -> f data)
+let filter_map ~how t ~f = filter_mapi ~how t ~f:(fun ~key:_ ~data -> f data)
 
-let filter_keys ?how t ~f =
-  filter_mapi ?how t ~f:(fun ~key ~data ->
+let filter_keys ~how t ~f =
+  filter_mapi ~how t ~f:(fun ~key ~data ->
     let%map b = f key in
     if b then Some data else None)
 ;;
 
-let filter ?how t ~f =
-  filter_mapi ?how t ~f:(fun ~key:_ ~data ->
+let filter ~how t ~f =
+  filter_mapi ~how t ~f:(fun ~key:_ ~data ->
     let%map b = f data in
     if b then Some data else None)
 ;;
 
-let filteri ?how t ~f =
-  filter_mapi ?how t ~f:(fun ~key ~data ->
+let filteri ~how t ~f =
+  filter_mapi ~how t ~f:(fun ~key ~data ->
     let%map b = f ~key ~data in
     if b then Some data else None)
 ;;
@@ -127,7 +127,7 @@ let mapi_max_concurrent t ~f ~max_concurrent_jobs =
   Throttled.run computation ~max_concurrent_jobs
 ;;
 
-let mapi ?(how = `Sequential) t ~f =
+let mapi ~how t ~f =
   match how with
   | `Sequential | `Parallel ->
     filter_mapi ~how t ~f:(fun ~key ~data ->
@@ -137,13 +137,13 @@ let mapi ?(how = `Sequential) t ~f =
     mapi_max_concurrent t ~f ~max_concurrent_jobs
 ;;
 
-let map ?how t ~f = mapi ?how t ~f:(fun ~key:_ ~data -> f data)
+let map ~how t ~f = mapi ~how t ~f:(fun ~key:_ ~data -> f data)
 
-let merge ?how t1 t2 ~f =
+let merge ~how t1 t2 ~f =
   filter_map
-    ?how
+    ~how
     (Map.merge t1 t2 ~f:(fun ~key z -> Some (fun () -> f ~key z)))
     ~f:(fun thunk -> thunk ())
 ;;
 
-let all t = map t ~f:Fn.id
+let all t = map t ~f:Fn.id ~how:`Sequential

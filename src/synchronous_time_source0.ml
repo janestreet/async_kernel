@@ -121,11 +121,12 @@ module T1 = struct
       let is_none t = phys_equal t none
       let is_some t = not (is_none t)
       let first_some t1 t2 = if is_some t1 then t1 else t2
+      let unsafe_value = (Obj.magic : t -> Types.Event.t)
 
       module Optional_syntax = struct
         module Optional_syntax = struct
           let is_none = is_none
-          let unsafe_value = (Obj.magic : t -> Types.Event.t)
+          let unsafe_value = unsafe_value
         end
       end
 
@@ -137,11 +138,7 @@ module T1 = struct
         | Some event -> [%sexp (event : event)]
       ;;
 
-      let value t ~default =
-        match%optional t with
-        | None -> default
-        | Some event -> event
-      ;;
+      let value t ~default = Bool.select (is_none t) default (unsafe_value t)
 
       let value_exn t =
         match%optional t with

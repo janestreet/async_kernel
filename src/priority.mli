@@ -16,7 +16,7 @@ open! Import
 type t =
   | Normal
   | Low
-[@@deriving sexp_of]
+[@@deriving sexp_of, enumerate]
 
 val normal : t
 val low : t

@@ -87,6 +87,7 @@ let advance = advance_directly
 let advance_by = advance_directly_by
 let fire_past_alarms t = Synchronous_time_source0.fire_past_alarms t ~send_exn
 let yield t = Bvar.wait (Scheduler.yield t.scheduler)
+let can_run_a_job t = Scheduler.num_pending_jobs t > 0 || Bvar.has_any_waiters t.yield
 
 module Eager_deferred = struct
   let bind_unit t ~f =
@@ -95,6 +96,12 @@ module Eager_deferred = struct
     else (
       let%bind () = t in
       f ())
+  ;;
+
+  let map t ~f =
+    if Deferred.is_determined t
+    then return (f (Deferred.value_exn t))
+    else Deferred.map t ~f
   ;;
 end
 
@@ -584,10 +591,40 @@ let with_timeout t span d =
 
 let duration_of t f =
   let start = now t in
-  let%map result = f () in
-  let duration = Time_ns.diff (now t) start in
-  result, duration
+  (* Eager map to provide more accurate timings when [f] is synchronous. *)
+  Eager_deferred.map (f ()) ~f:(fun result ->
+    let duration = Time_ns.diff (now t) start in
+    result, duration)
 ;;
 
 let of_synchronous t = t
 let to_synchronous t = t
+
+let timing_wheel_has_event_at_or_before wheel time =
+  if Timing_wheel.is_empty wheel
+  then false
+  else (
+    let next_alarm = Timing_wheel.next_alarm_fires_at_exn wheel in
+    Time_ns_in_this_directory.(next_alarm <= time))
+;;
+
+let advance_directly_if_quiescent t ~to_ =
+  let is_quescent =
+    (* Since this function is intended to be just a fast case of [advance_by_alarms],
+       we want to make sure that the call to [Scheduler.yield ()] can be elided,
+       hence the [can_run_a_job] check.
+
+       We're not checking epoll, and we're not checking the [external_jobs].  That is an
+       observable difference, but since [advance_by_alarms ?wait_for:None] is already
+       pretty broken when waiting for external events, it's not going to be meaningful.
+    *)
+    can_run_a_job t.scheduler
+    || Synchronous_time_source0.has_events_to_run t
+    || timing_wheel_has_event_at_or_before t.events to_
+  in
+  if is_quescent
+  then false
+  else (
+    advance_directly t ~to_;
+    true)
+;;

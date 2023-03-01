@@ -110,6 +110,10 @@ module Make (Conn : Closable) = struct
            else handle_event t (Obtained_address addr))
           >>= fun () -> t.connect addr
       in
+      let connect () =
+        (* Catch exceptions raised by the user-provided [t.get_address] or [t.connect] *)
+        Deferred.Or_error.try_with_join ~extract_exn:am_running_test connect
+      in
       let rec loop () =
         if Ivar.is_full t.close_started
         then (

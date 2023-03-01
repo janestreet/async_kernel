@@ -1070,7 +1070,8 @@ let concat_map_list ?max_queue_length input ~f =
 ;;
 
 let filter_map' ?max_queue_length input ~f =
-  map' ?max_queue_length input ~f:(fun q -> Deferred.Queue.filter_map q ~f)
+  map' ?max_queue_length input ~f:(fun q ->
+    Deferred.Queue.filter_map ~how:`Sequential q ~f)
 ;;
 
 let filter_map ?max_queue_length input ~f =
@@ -1257,7 +1258,7 @@ let merge inputs ~compare =
               pop_heap_and_loop ()))
     in
     let initial_push =
-      Deferred.List.iter inputs ~f:(fun input ->
+      Deferred.List.iter ~how:`Sequential inputs ~f:(fun input ->
         let%map x = read input in
         handle_read input x)
     in
@@ -1278,7 +1279,7 @@ let concat_pipe inputs =
 
 let concat inputs =
   create_reader_not_close_on_exception (fun w ->
-    Deferred.List.iter inputs ~f:(fun input -> transfer_id input w))
+    Deferred.List.iter ~how:`Sequential inputs ~f:(fun input -> transfer_id input w))
 ;;
 
 let fork t ~pushback_uses =

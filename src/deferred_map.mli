@@ -16,31 +16,31 @@ val update
   -> ('k, 'v, 'comparator) t Deferred.t
 
 val iter_keys
-  :  ?how:Monad_sequence.how
+  :  how:Monad_sequence.how
   -> ('k, _, _) t
   -> f:('k -> unit Deferred.t)
   -> unit Deferred.t
 
 val iter
-  :  ?how:Monad_sequence.how
+  :  how:Monad_sequence.how
   -> (_, 'v, _) t
   -> f:('v -> unit Deferred.t)
   -> unit Deferred.t
 
 val iteri
-  :  ?how:Monad_sequence.how
+  :  how:Monad_sequence.how
   -> ('k, 'v, _) t
   -> f:(key:'k -> data:'v -> unit Deferred.t)
   -> unit Deferred.t
 
 val map
-  :  ?how:Monad_sequence.how
+  :  how:Monad_sequence.how
   -> ('k, 'v1, 'comparator) t
   -> f:('v1 -> 'v2 Deferred.t)
   -> ('k, 'v2, 'comparator) t Deferred.t
 
 val mapi
-  :  ?how:Monad_sequence.how
+  :  how:Monad_sequence.how
   -> ('k, 'v1, 'comparator) t
   -> f:(key:'k -> data:'v1 -> 'v2 Deferred.t)
   -> ('k, 'v2, 'comparator) t Deferred.t
@@ -58,31 +58,31 @@ val fold_right
   -> 'a Deferred.t
 
 val filter_keys
-  :  ?how:Monad_sequence.how
+  :  how:Monad_sequence.how
   -> ('k, 'v, 'comparable) t
   -> f:('k -> bool Deferred.t)
   -> ('k, 'v, 'comparable) t Deferred.t
 
 val filter
-  :  ?how:Monad_sequence.how
+  :  how:Monad_sequence.how
   -> ('k, 'v, 'comparable) t
   -> f:('v -> bool Deferred.t)
   -> ('k, 'v, 'comparable) t Deferred.t
 
 val filteri
-  :  ?how:Monad_sequence.how
+  :  how:Monad_sequence.how
   -> ('k, 'v, 'comparable) t
   -> f:(key:'k -> data:'v -> bool Deferred.t)
   -> ('k, 'v, 'comparable) t Deferred.t
 
 val filter_map
-  :  ?how:Monad_sequence.how
+  :  how:Monad_sequence.how
   -> ('k, 'v1, 'comparable) t
   -> f:('v1 -> 'v2 option Deferred.t)
   -> ('k, 'v2, 'comparable) t Deferred.t
 
 val filter_mapi
-  :  ?how:Monad_sequence.how
+  :  how:Monad_sequence.how
   -> ('k, 'v1, 'comparable) t
   -> f:(key:'k -> data:'v1 -> 'v2 option Deferred.t)
   -> ('k, 'v2, 'comparable) t Deferred.t
@@ -101,7 +101,7 @@ val filter_mapi
       -> bool Deferred.t ]} *)
 
 val merge
-  :  ?how:Monad_sequence.how
+  :  how:Monad_sequence.how
   -> ('k, 'v1, 'comparator) t
   -> ('k, 'v2, 'comparator) t
   -> f:

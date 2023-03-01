@@ -311,9 +311,8 @@ module type Clock_deprecated = sig
     type ('a, 'h) t [@@deriving sexp_of]
     type t_unit = (unit, unit) t [@@deriving sexp_of]
 
-    include
-      Invariant.S2 with type ('a, 'b) t := ('a, 'b) t
-      [@@deprecated "[since 2016-02] Use [Time_source]"]
+    val invariant : 'a Invariant.t -> 'b Invariant.t -> ('a, 'b) t Invariant.t
+    [@@deprecated "[since 2016-02] Use [Time_source]"]
 
     val scheduled_at : (_, _) t -> Time.t
     [@@deprecated "[since 2016-02] Use [Time_source]"]

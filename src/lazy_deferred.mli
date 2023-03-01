@@ -30,13 +30,25 @@ open! Core
 
 type 'a t
 
-(** [create f] creates a new lazy deferred that will call [f] when it is forced. *)
-val create : (unit -> 'a Deferred.t) -> 'a t
+(** [create f] creates a new lazy deferred that will call [f] when it is forced.
+
+    If an exception is raised by [f] asynchronously after its result is determined,
+    [rest_exn] specifies how to handle the exception. *)
+val create
+  :  ?rest_exn:[ `Call of exn -> unit | `Log | `Raise ]
+  -> (unit -> 'a Deferred.t)
+  -> 'a t
 
 (** Same as {!create} but allows [f] to explicitly return errors as well as
     raise. The two cases are joined and not distingused in the result of
-    {!force}. *)
-val create_or_error : (unit -> 'a Deferred.Or_error.t) -> 'a t
+    {!force}.
+
+    If an exception is raised by [f] asynchronously after its result is determined,
+    [rest_exn] specifies how to handle the exception. *)
+val create_or_error
+  :  ?rest_exn:[ `Call of exn -> unit | `Log | `Raise ]
+  -> (unit -> 'a Deferred.Or_error.t)
+  -> 'a t
 
 (** [force t] forces evaluation of [t] and returns a deferred that becomes determined
     when the deferred computation becomes determined or raises. *)

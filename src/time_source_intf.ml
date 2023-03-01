@@ -275,4 +275,15 @@ module type Time_source = sig
   val of_synchronous : 'a Synchronous_time_source0.T1.t -> 'a T1.t
 
   val to_synchronous : 'a T1.t -> 'a Synchronous_time_source0.T1.t
+
+  (** Advance iff:
+      - no alarms are scheduled up (and including) to that time point
+      - no jobs are runnable (which could cause events to happen in the time range)
+
+      Returns true if we advanced, false if we were unable to.
+
+      This is an optimisation relative to (for instance) [Time_source.advance_by_alarms] or
+      other methods that will rely on running async cycles to produce quiescence.
+  *)
+  val advance_directly_if_quiescent : [> write ] T1.t -> to_:Time_ns.t -> bool
 end

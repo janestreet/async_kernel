@@ -390,12 +390,12 @@ val read_exn : ?consumer:Consumer.t -> 'a Reader.t -> 'a Deferred.t
 
 
 (** [read_exactly r ~num_values] reads exactly [num_values] items, unless EOF is
-    encountered.  [read_exactly] performs a sequence of [read_at_most] operations, so
-    there is no guarantee that the queue of values it returns comprise a contiguous
-    segment of the written stream of values -- other readers might pick off elements
-    in-between [read_exactly]'s atomic reads.  [read_exactly] raises if [num_values <= 0].
-    The [consumer] is used to extend the meaning of values being flushed (see the
-    [Consumer] module above). *)
+    encountered. [read_exactly] performs a sequence of [read'] operations, so there is no
+    guarantee that the queue of values it returns comprise a contiguous segment of the
+    written stream of values -- other readers might pick off elements in-between
+    [read_exactly]'s atomic reads. [read_exactly] raises if [num_values <= 0]. The
+    [consumer] is used to extend the meaning of values being flushed (see the [Consumer]
+    module above). *)
 val read_exactly
   :  ?consumer:Consumer.t
   -> 'a Reader.t

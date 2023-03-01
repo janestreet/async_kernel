@@ -7,24 +7,24 @@ module T = struct
     ; result : 'a Or_error.t Deferred.t
     }
 
-  let create f =
+  let create ?(rest_exn = `Log) f =
     let start = Ivar.create () in
     { start
     ; result =
         (let%bind () = Ivar.read start in
          Monitor.try_with_or_error
-           ~rest:`Log
+           ~rest:rest_exn
            f)
     }
   ;;
 
-  let create_or_error f =
+  let create_or_error ?(rest_exn = `Log) f =
     let start = Ivar.create () in
     { start
     ; result =
         (let%bind () = Ivar.read start in
          Monitor.try_with_join_or_error
-           ~rest:`Log
+           ~rest:rest_exn
            f)
     }
   ;;

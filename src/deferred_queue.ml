@@ -14,23 +14,23 @@ let foldi t ~init ~f = List.foldi (Queue.to_list t) ~init ~f
 let fold t ~init ~f = List.fold (Queue.to_list t) ~init ~f
 let all t = List.all (Queue.to_list t) >>| Queue.of_list
 let all_unit t = List.all_unit (Queue.to_list t)
-let iter ?how t ~f = List.iter ?how (Queue.to_list t) ~f
-let iteri ?how t ~f = List.iteri ?how (Queue.to_list t) ~f
-let map ?how t ~f = List.map ?how (Queue.to_list t) ~f >>| Queue.of_list
-let mapi ?how t ~f = List.mapi ?how (Queue.to_list t) ~f >>| Queue.of_list
-let init ?how n ~f = List.init ?how n ~f >>| Queue.of_list
-let filter ?how t ~f = List.filter ?how (Queue.to_list t) ~f >>| Queue.of_list
-let filteri ?how t ~f = List.filteri ?how (Queue.to_list t) ~f >>| Queue.of_list
-let filter_map ?how t ~f = List.filter_map ?how (Queue.to_list t) ~f >>| Queue.of_list
-let filter_mapi ?how t ~f = List.filter_mapi ?how (Queue.to_list t) ~f >>| Queue.of_list
+let iter ~how t ~f = List.iter ~how (Queue.to_list t) ~f
+let iteri ~how t ~f = List.iteri ~how (Queue.to_list t) ~f
+let map ~how t ~f = List.map ~how (Queue.to_list t) ~f >>| Queue.of_list
+let mapi ~how t ~f = List.mapi ~how (Queue.to_list t) ~f >>| Queue.of_list
+let init ~how n ~f = List.init ~how n ~f >>| Queue.of_list
+let filter ~how t ~f = List.filter ~how (Queue.to_list t) ~f >>| Queue.of_list
+let filteri ~how t ~f = List.filteri ~how (Queue.to_list t) ~f >>| Queue.of_list
+let filter_map ~how t ~f = List.filter_map ~how (Queue.to_list t) ~f >>| Queue.of_list
+let filter_mapi ~how t ~f = List.filter_mapi ~how (Queue.to_list t) ~f >>| Queue.of_list
 
-let concat_map ?how t ~f =
-  List.concat_map ?how (Queue.to_list t) ~f:(fun x -> f x >>| Queue.to_list)
+let concat_map ~how t ~f =
+  List.concat_map ~how (Queue.to_list t) ~f:(fun x -> f x >>| Queue.to_list)
   >>| Queue.of_list
 ;;
 
-let concat_mapi ?how t ~f =
-  List.concat_mapi ?how (Queue.to_list t) ~f:(fun i x -> f i x >>| Queue.to_list)
+let concat_mapi ~how t ~f =
+  List.concat_mapi ~how (Queue.to_list t) ~f:(fun i x -> f i x >>| Queue.to_list)
   >>| Queue.of_list
 ;;
 

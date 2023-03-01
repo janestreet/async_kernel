@@ -117,25 +117,25 @@ module List = struct
   let all = all
   let all_unit = all_unit
 
-  let iteri ?(how = `Sequential) t ~f =
+  let iteri ~how t ~f =
     match how with
     | (`Parallel | `Max_concurrent_jobs _) as how ->
       all_unit (List.mapi t ~f:(unstage (Throttle.monad_sequence_how2 ~how ~f)))
     | `Sequential -> foldi t ~init:() ~f:(fun i () x -> f i x)
   ;;
 
-  let mapi ?(how = `Sequential) t ~f =
+  let mapi ~how t ~f =
     match how with
     | (`Parallel | `Max_concurrent_jobs _) as how ->
       all (List.mapi t ~f:(unstage (Throttle.monad_sequence_how2 ~how ~f)))
     | `Sequential -> seqmapi t ~f
   ;;
 
-  let filter_mapi ?how t ~f = mapi t ?how ~f >>| List.filter_opt
-  let concat_mapi ?how t ~f = mapi t ?how ~f >>| List.concat
+  let filter_mapi ~how t ~f = mapi t ~how ~f >>| List.filter_opt
+  let concat_mapi ~how t ~f = mapi t ~how ~f >>| List.concat
 
-  let filteri ?how t ~f =
-    filter_mapi ?how t ~f:(fun i x ->
+  let filteri ~how t ~f =
+    filter_mapi ~how t ~f:(fun i x ->
       let%map b = f i x in
       if b then Some x else None)
   ;;
@@ -186,15 +186,15 @@ module List = struct
     | None -> true
   ;;
 
-  let iter ?how t ~f = iteri ?how t ~f:(fun _ a -> f a)
-  let map ?how t ~f = mapi ?how t ~f:(fun _ a -> f a)
-  let filter ?how t ~f = filteri ?how t ~f:(fun _ a -> f a)
-  let filter_map ?how t ~f = filter_mapi ?how t ~f:(fun _ a -> f a)
-  let concat_map ?how t ~f = concat_mapi ?how t ~f:(fun _ a -> f a)
+  let iter ~how t ~f = iteri ~how t ~f:(fun _ a -> f a)
+  let map ~how t ~f = mapi ~how t ~f:(fun _ a -> f a)
+  let filter ~how t ~f = filteri ~how t ~f:(fun _ a -> f a)
+  let filter_map ~how t ~f = filter_mapi ~how t ~f:(fun _ a -> f a)
+  let concat_map ~how t ~f = concat_mapi ~how t ~f:(fun _ a -> f a)
   let find_map t ~f = find_mapi t ~f:(fun _ a -> f a)
   let exists t ~f = existsi t ~f:(fun _ a -> f a)
   let for_all t ~f = for_alli t ~f:(fun _ a -> f a)
-  let init ?how n ~f = map ?how (List.init n ~f:Fn.id) ~f
+  let init ~how n ~f = map ~how (List.init n ~f:Fn.id) ~f
 end
 
 let rec repeat_until_finished state f =

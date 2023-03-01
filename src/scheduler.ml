@@ -159,7 +159,7 @@ let add_finalizer t heap_block f =
   if Debug.finalizers then Debug.log_string "adding finalizer";
   (* We use [Caml.Gc.finalise] instead of [Core.Gc.add_finalizer] because the latter
      has its own wrapper around [Caml.Gc.finalise] to run finalizers synchronously. *)
-  try Caml.Gc.finalise finalizer heap_block with
+  try Stdlib.Gc.finalise finalizer heap_block with
   | Invalid_argument _ ->
     (* [Heap_block] ensures that this will only fail for static data, in which case we
        can drop the finalizer since the block will never be collected.*)
@@ -184,7 +184,7 @@ let add_finalizer_last t heap_block f =
   (* We use [Caml.Gc.finalise_last] instead of [Core.Gc.add_finalizer_last] because
      the latter has its own wrapper around [Caml.Gc.finalise_last] to run finalizers
      synchronously. *)
-  try Caml.Gc.finalise_last finalizer heap_block with
+  try Stdlib.Gc.finalise_last finalizer heap_block with
   | Invalid_argument _ ->
     (* [Heap_block] ensures that this will only fail for static data, in which case we
        can drop the finalizer since the block will never be collected.*)
