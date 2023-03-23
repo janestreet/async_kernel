@@ -60,7 +60,8 @@ end = struct
     { pipe_id : int
     ; (* [values_read] reflects whether values the consumer has read from the pipe have been
          sent downstream or if not, holds an ivar that is to be filled when they are. *)
-      mutable values_read :
+      mutable
+        values_read :
         [ `Have_been_sent_downstream | `Have_not_been_sent_downstream of unit Ivar.t ]
     ; (* [downstream_flushed ()] returns when all prior values that the consumer has
          passed downstream have been flushed all the way down the chain of pipes. *)
@@ -438,8 +439,9 @@ let values_were_read t consumer =
         (match consumer with
          | None -> Blocked_flush.fill flush `Ok
          | Some consumer ->
-           upon (Consumer.values_sent_downstream_and_flushed consumer) (fun flush_result ->
-             Blocked_flush.fill flush flush_result));
+           upon
+             (Consumer.values_sent_downstream_and_flushed consumer)
+             (fun flush_result -> Blocked_flush.fill flush flush_result));
         loop ())
   in
   loop ()
@@ -1026,8 +1028,7 @@ let transfer_gen
           unlink ();
           Ivar.fill result ()
         | `Ok x -> f x continue
-        | `Nothing_available ->
-          input_available_or_output_closed () >>> fun () -> loop ())
+        | `Nothing_available -> input_available_or_output_closed () >>> fun () -> loop ())
     and continue y =
       if is_closed output
       then output_closed ()
@@ -1290,8 +1291,7 @@ let fork t ~pushback_uses =
     add_consumer t ~downstream_flushed:(fun () ->
       let some_reader_was_closed = !some_reader_was_closed in
       match%map
-        Flushed_result.combine
-          [ downstream_flushed writer0; downstream_flushed writer1 ]
+        Flushed_result.combine [ downstream_flushed writer0; downstream_flushed writer1 ]
       with
       | `Reader_closed -> `Reader_closed
       | `Ok ->

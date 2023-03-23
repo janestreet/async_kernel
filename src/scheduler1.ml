@@ -108,7 +108,8 @@ type t = Scheduler0.t =
   ; mutable job_queued_hook : (Priority.t -> unit) option
   ; mutable event_added_hook : (Time_ns.t -> unit) option
   ; mutable yield : ((unit, read_write) Types.Bvar.t[@sexp.opaque])
-  ; mutable yield_until_no_jobs_remain :
+  ; mutable
+    yield_until_no_jobs_remain :
       ((unit, read_write) Types.Bvar.t[@sexp.opaque] (* configuration*))
   ; mutable check_invariants : bool
   ; mutable max_num_jobs_per_priority_per_cycle : Max_num_jobs_per_priority_per_cycle.t
@@ -175,9 +176,7 @@ let invariant t : unit =
       ~run_every_cycle_start:ignore
       ~run_every_cycle_start_state:
         (check (fun run_every_cycle_start_state ->
-           check_hook_table_invariant
-             run_every_cycle_start_state
-             t.run_every_cycle_start))
+           check_hook_table_invariant run_every_cycle_start_state t.run_every_cycle_start))
       ~run_every_cycle_end:ignore
       ~run_every_cycle_end_state:
         (check (fun run_every_cycle_end_state ->

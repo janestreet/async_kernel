@@ -300,10 +300,7 @@ module Event = struct
         ~scheduled_at:
           (check (fun scheduled_at ->
              if Timing_wheel.mem events t.alarm
-             then
-               [%test_result: Time_ns.t]
-                 scheduled_at
-                 ~expect:(Alarm.at events t.alarm)))
+             then [%test_result: Time_ns.t] scheduled_at ~expect:(Alarm.at events t.alarm)))
         ~time_source:ignore)
   ;;
 
@@ -584,8 +581,7 @@ let with_timeout t span d =
     ; choice (Event.fired timeout) (function
         | Happened () -> `Timeout
         | Aborted () ->
-          raise_s
-            [%message "Time_source.with_timeout bug: both completed and timed out"])
+          raise_s [%message "Time_source.with_timeout bug: both completed and timed out"])
     ]
 ;;
 

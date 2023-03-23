@@ -117,9 +117,7 @@ let filter_map_deprecated t ~f = filter_map' t ~f:(fun a -> return (f a))
 
 let map' t ~f =
   create (fun tail ->
-    upon
-      (iter' t ~f:(fun v -> f v >>| Tail.extend tail))
-      (fun () -> Tail.close_exn tail))
+    upon (iter' t ~f:(fun v -> f v >>| Tail.extend tail)) (fun () -> Tail.close_exn tail))
 ;;
 
 let map t ~f = map' t ~f:(fun a -> return (f a))
