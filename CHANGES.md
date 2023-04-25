@@ -1,3 +1,61 @@
+## Release v0.16.0
+
+- In `Deferred_or_error` (also `Eager_deferred_or_error`):
+  * Functions `of_exn` and `of_exn_result` now accept an optional `backtrace` parameter
+    - Allows users to provide an exception backtrace when creating an error result
+
+- Add `Eager_deferred.Memo`, which is an eager deferred version of `Deferred.Memo`
+
+- Add new function `Persistent_connection.event_bus`:
+  * Returns a bus that is written to whenever an event occurs
+
+- Change a few type aliases into type abbreviations, thus removing them from the public interface:
+  * `Async_kernel_scheduler.with_options`
+  * `Monitor.with_optional_monitor_name`
+
+- Update function signatures of deferred mapping functions to make `how` 
+parameter non-optional (the original default is `` `Sequential``):
+  * `Deferred_map.iter_keys`
+  * `Deferred_map.iter`
+  * `Deferred_map.iteri`
+  * `Deferred_map.map`
+  * `Deferred_map.mapi`
+  * `Deferred_map.filter_keys`
+  * `Deferred_map.filter`
+  * `Deferred_map.filteri`
+  * `Deferred_map.filter_map`
+  * `Deferred_map.filter_mapi`
+  * `Deferred_map.merge`
+
+- Add a function `Deferred_memo.recursive`
+  * Facilitates memoization of recursivive functions
+  
+- Update `Lazy_deferred.create` and `Lazy_deferred.create_or_error`:
+  *  Add an optional `rest_exn` parameter, to specify handling of exceptions 
+  raised by `f` after its result is determined (previous default: `` `Log``).
+
+- Add new function `Pipe.of_queue`:
+  * Creates a closed pipe reader filled with the contents of the given queue
+
+-  In `Pipe`, add the ability to reserve space in the pipe prior to writing:
+  * Space reservation behaves like a temporary reduction in the pipe's size budget.
+
+- In `Time_source.Event`, remove the `Currently_happening` state for one-shot events.
+  * An event can now be rescheduled from its own handler.
+  * `abort` of such events will return `Previously_unscheduled` now
+  * Added a function `is_scheduled`
+
+- Added functions `Time_source.advance_by_alarms_by` and `advance_directly_by` for convenience and to make API more predictable.
+
+- Add a module `Async_kernel.Throttled`: an applicative type for concurrent computations with limited concurrency.
+  * Used to implement some `List` and `Map` traversals.
+  
+- Add new function: `Time_source.advance_directly_if_quiescent`
+  * Advances time only if no alarms are scheduled up to and including the specified time point and no jobs are runnable
+
+
+## Old pre-v0.15 changelogs (very likely stale and incomplete)
+
 ## git version
 
 - Deprecated `Deferred.choice` type alias.  Use `Deferred.Choice.t`
