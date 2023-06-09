@@ -21,7 +21,8 @@ val is_empty : _ t -> bool
 val is_full : _ t -> bool
 val equal : 'a t -> 'a t -> bool
 val connect : bind_result:'a t -> bind_rhs:'a t -> unit
-val fill : 'a t -> 'a -> unit
+val fill_exn : 'a t -> 'a -> unit
+val fill : 'a t -> 'a -> unit [@@deprecated "[since 2023-04] Use [fill_exn]"]
 
 module Handler : sig
   type 'a t = ('a, [ `Empty_one_or_more_handlers ]) Cell.t [@@deriving sexp_of]

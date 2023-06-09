@@ -99,10 +99,10 @@ let lazy_encounters_test ~run =
   let (_ : _) = run t in
   let%bind () = Scheduler.yield_until_no_jobs_remain () in
   print_s [%message "*** Forcing [y] ***"];
-  Ivar.fill force_y ();
+  Ivar.fill_exn force_y ();
   let%bind () = Scheduler.yield_until_no_jobs_remain () in
   print_s [%message "*** Forcing [prod] ***"];
-  Ivar.fill force_prod ();
+  Ivar.fill_exn force_prod ();
   Scheduler.yield_until_no_jobs_remain ()
 ;;
 

@@ -41,6 +41,7 @@ val set_check_access : t -> (unit -> unit) option -> unit
 val check_access : t -> unit
 val check_invariants : t -> bool
 val set_check_invariants : t -> bool -> unit
+val recording_backtraces : t -> bool
 val set_record_backtraces : t -> bool -> unit
 val run_every_cycle_start : t -> f:Cycle_hook.t -> unit
 val run_every_cycle_end : t -> f:Cycle_hook.t -> unit

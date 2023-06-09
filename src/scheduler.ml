@@ -282,6 +282,7 @@ let reset_in_forked_process () =
 
 let check_invariants t = t.check_invariants
 let set_check_invariants t b = t.check_invariants <- b
+let recording_backtraces t = t.record_backtraces
 let set_record_backtraces t b = t.record_backtraces <- b
 let yield t = Bvar.wait t.yield
 

@@ -35,7 +35,7 @@ end = struct
   let release_job_token ({ max_concurrent_jobs; waiter; aborted = _ } as t) =
     match waiter with
     | Some ivar ->
-      Ivar.fill ivar ();
+      Ivar.fill_exn ivar ();
       t.waiter <- None
     | None -> t.max_concurrent_jobs <- max_concurrent_jobs + 1
   ;;
@@ -89,7 +89,7 @@ include Applicative.Make (T)
 
 let enqueue' scheduler ctx f =
   let ivar = Ivar.create () in
-  Scheduler.enqueue scheduler ctx (fun () -> upon (f ()) (Ivar.fill ivar)) ();
+  Scheduler.enqueue scheduler ctx (fun () -> upon (f ()) (Ivar.fill_exn ivar)) ();
   Ivar.read ivar
 ;;
 
@@ -122,7 +122,7 @@ let run t ~max_concurrent_jobs =
       (Scheduler.current_execution_context (Scheduler.t ()))
   in
   let ivar = Ivar.create () in
-  t.compute exec_ctx semaphore (fun r -> Deferred.upon r (Ivar.fill ivar));
+  t.compute exec_ctx semaphore (fun r -> Deferred.upon r (Ivar.fill_exn ivar));
   Ivar.read ivar
 ;;
 

@@ -41,15 +41,7 @@ module type S = sig
   type conn
 
   module Event : sig
-    type 'address t =
-      | Attempting_to_connect
-      | Obtained_address of 'address
-      | Failed_to_connect of Error.t
-      | Connected of conn
-      | Disconnected
-    [@@deriving sexp_of]
-
-    val log_level : _ t -> [ `Info | `Debug | `Error ]
+    type 'address t = (conn, 'address) Event.t [@@deriving sexp_of]
   end
 
   (** [create ~server_name ~on_event ~retry_delay get_address] returns a persistent
@@ -133,5 +125,6 @@ module type Persistent_connection_kernel = sig
   module type Closable = Closable
   module type S = S
 
+  module Event = Event
   module Make (Conn : Closable) : S with type conn = Conn.t
 end

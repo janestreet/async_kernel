@@ -21,10 +21,12 @@ val create : unit -> 'a t
 (** [create_full v] returns an ivar filled with [v]. *)
 val create_full : 'a -> 'a t
 
-(** [fill t v] fills [t] with value [v] if [t] was empty.  If [t] was full, [fill] raises
-    an exception.  It is guaranteed that immediately after calling [fill t], [is_some
-    (Deferred.peek (read t))]. *)
-val fill : 'a t -> 'a -> unit
+(** [fill_exn t v] fills [t] with value [v] if [t] was empty.  If [t] was full, [fill_exn]
+    raises an exception.  It is guaranteed that immediately after calling [fill_exn t],
+    [is_some (Deferred.peek (read t))]. *)
+val fill_exn : 'a t -> 'a -> unit
+
+val fill : 'a t -> 'a -> unit [@@deprecated "[since 2023-04] Use [fill_exn]"]
 
 (** [fill_if_empty t v] fills [t] with [v] if [t] is currently empty.  If [t] is full,
     then [fill_if_empty] does nothing.  *)

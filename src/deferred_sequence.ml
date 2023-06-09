@@ -25,7 +25,7 @@ let fold_mapi
     let result = Ivar.create () in
     let rec loop i t (c : c) =
       match Sequence.next t with
-      | None -> Ivar.fill result c
+      | None -> Ivar.fill_exn result c
       | Some (a, t) -> upon (mapi_f i a) (fun b -> loop (i + 1) t (fold_f c b))
     in
     loop 0 t init;

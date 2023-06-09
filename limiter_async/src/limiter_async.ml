@@ -83,7 +83,7 @@ module Expert = struct
     (match t.hopper_filled with
      | None -> ()
      | Some i ->
-       Ivar.fill i ();
+       Ivar.fill_exn i ();
        t.hopper_filled <- None);
     Limiter.Expert.return_to_hopper t.limiter ~now amount
   ;;
@@ -234,7 +234,7 @@ module Expert = struct
           (Deferred (f, v, i))
           ~allow_immediate_run:false
       with
-      | e -> Ivar.fill i (Raised e))
+      | e -> Ivar.fill_exn i (Raised e))
   ;;
 
   let cost_of_jobs_waiting_to_start t =

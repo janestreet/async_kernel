@@ -36,7 +36,7 @@ let broadcast t a =
   if repr.has_any_waiters
   then (
     repr.has_any_waiters <- false;
-    Ivar.fill repr.ivar a;
+    Ivar.fill_exn repr.ivar a;
     repr.ivar <- Ivar.create ())
 ;;
 

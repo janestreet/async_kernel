@@ -35,11 +35,11 @@ let collect t = Ivar.read (next t)
 let is_closed t = Ivar.is_full (next t)
 
 let fill_exn t v =
-  if is_closed t then raise_s [%message "stream is closed"] else Ivar.fill (next t) v
+  if is_closed t then raise_s [%message "stream is closed"] else Ivar.fill_exn (next t) v
 ;;
 
 let close_exn t = fill_exn t Nil
-let close_if_open t = if not (is_closed t) then Ivar.fill (next t) Nil
+let close_if_open t = if not (is_closed t) then Ivar.fill_exn (next t) Nil
 
 let extend t v =
   let next = Ivar.create () in

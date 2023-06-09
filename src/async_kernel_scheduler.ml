@@ -26,6 +26,7 @@ let set_max_num_jobs_per_priority_per_cycle i =
 
 let max_num_jobs_per_priority_per_cycle () = max_num_jobs_per_priority_per_cycle (t ())
 let set_record_backtraces bool = set_record_backtraces (t ()) bool
+let recording_backtraces () = recording_backtraces (t ())
 let force_current_cycle_to_end () = force_current_cycle_to_end (t ())
 let yield () = yield (t ())
 

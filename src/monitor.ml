@@ -86,40 +86,26 @@ module Monitor_exn = struct
   let extract_exn t = t.exn
 
   let backtrace_truncation_heuristics =
-    let job_queue = "Called from file \"job_queue.ml\"" in
-    let deferred0 = "Called from file \"deferred0.ml\"" in
-    let deferred1 = "Called from file \"deferred1.ml\"" in
-    let monitor = "Called from file \"monitor.ml\"" in
-    let import0 = "Raised at file \"import0.ml\"" in
-    let error = "Called from file \"error.ml\"" in
+    let job_queue = "Called from Async_kernel__Job_queue" in
+    let deferred0 = "Called from Async_kernel__Deferred0" in
+    let deferred1 = "Called from Async_kernel__Deferred1" in
+    let monitor = "Called from Async_kernel__Monitor" in
+    let try_with = "Called from Base__Result.try_with" in
+    let error = "Raised at Base__Error.raise" in
     fun traces ->
       (* ../test/test_try_with_error_display.ml makes sure this stays up-to-date. *)
-      let traces =
-        match traces with
-        | t1 :: rest when String.is_prefix t1 ~prefix:import0 ->
-          (match rest with
-           | t2 :: rest when String.is_prefix t2 ~prefix:error ->
-             (match rest with
-              | t3 :: rest when String.is_prefix t3 ~prefix:error -> rest
-              | _ -> rest)
-           | _ -> rest)
-        | _ -> traces
+      let strip_prefixes lines ~prefixes =
+        List.drop_while lines ~f:(fun line ->
+          List.exists prefixes ~f:(fun prefix -> String.is_prefix line ~prefix))
       in
-      match List.rev traces with
-      | t1 :: rest when String.is_prefix t1 ~prefix:job_queue ->
-        (match rest with
-         | t2 :: rest when String.is_prefix t2 ~prefix:job_queue ->
-           (match rest with
-            | t2 :: rest
-              when String.is_prefix t2 ~prefix:deferred0
-                (* bind *)
-                || String.is_prefix t2 ~prefix:deferred1
-                (* map *)
-                || String.is_prefix t2 ~prefix:monitor
-              (* try_with *) -> List.rev rest
-            | _ -> List.rev rest)
-         | _ -> List.rev rest)
-      | _ -> traces
+      let strip_suffixes input ~suffixes =
+        let rev_input = List.rev input in
+        let rev_output = strip_prefixes rev_input ~prefixes:suffixes in
+        if not (phys_equal rev_input rev_output) then List.rev rev_output else input
+      in
+      traces
+      |> strip_prefixes ~prefixes:[ error ]
+      |> strip_suffixes ~suffixes:[ job_queue; deferred0; deferred1; monitor; try_with ]
   ;;
 
   let sexp_of_t { exn; backtrace; backtrace_history; monitor } =
@@ -218,7 +204,7 @@ let send_exn t ?(backtrace = `Get) exn =
   t.has_seen_error <- true;
   let scheduler = Scheduler.t () in
   let rec loop t =
-    Ivar.fill t.next_error exn;
+    Ivar.fill_exn t.next_error exn;
     t.next_error <- Ivar.create ();
     match t.forwarding with
     | Detached ->
@@ -290,7 +276,7 @@ module Exported_for_scheduler = struct
   let schedule' =
     (* For performance, we use [schedule_with_data] with a closed function, and inline
        [Deferred.create]. *)
-    let upon_work_fill_i (work, i) = upon (work ()) (fun a -> Ivar.fill i a) in
+    let upon_work_fill_i (work, i) = upon (work ()) (fun a -> Ivar.fill_exn i a) in
     fun ?monitor ?priority work ->
       let i = Ivar.create () in
       schedule_with_data ?monitor ?priority upon_work_fill_i (work, i);
@@ -306,7 +292,7 @@ module Exported_for_scheduler = struct
   let preserve_execution_context' f =
     let scheduler = Scheduler.t () in
     let execution_context = Scheduler.current_execution_context scheduler in
-    let call_and_fill (f, a, i) = upon (f a) (fun r -> Ivar.fill i r) in
+    let call_and_fill (f, a, i) = upon (f a) (fun r -> Ivar.fill_exn i r) in
     stage (fun a ->
       Deferred.create (fun i ->
         Scheduler.enqueue scheduler execution_context call_and_fill (f, a, i)))
@@ -377,7 +363,7 @@ let make_handle_exn rest =
     !Expert.try_with_log_exn
   | `Raise ->
     let parent = current () in
-    fun exn -> send_exn parent exn ?backtrace:None
+    fun exn -> send_exn parent exn ~backtrace:`Get
   | `Call f ->
     let parent = current () in
     fun exn -> within ~monitor:parent (fun () -> f exn)

@@ -6,7 +6,7 @@ let foldi t ~init ~f =
   Deferred.create (fun result ->
     let rec loop i b =
       if i = Array.length t
-      then Ivar.fill result b
+      then Ivar.fill_exn result b
       else f i b t.(i) >>> fun b -> loop (i + 1) b
     in
     loop 0 init)

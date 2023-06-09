@@ -14,7 +14,7 @@ module M = Monad.Make (struct
       (* We manually inline [Deferred.create] here, because the non-flambda compiler isn't
          able to optimize away the closure that would be be created. *)
       let result = Ivar.create () in
-      upon t (fun a -> Ivar.fill result (f a));
+      upon t (fun a -> Ivar.fill_exn result (f a));
       of_ivar result
     ;;
 
@@ -58,7 +58,8 @@ let _ = all
 let unit = return ()
 
 let both t1 t2 =
-  create (fun result -> upon t1 (fun a1 -> upon t2 (fun a2 -> Ivar.fill result (a1, a2))))
+  create (fun result ->
+    upon t1 (fun a1 -> upon t2 (fun a2 -> Ivar.fill_exn result (a1, a2))))
 ;;
 
 module Infix = struct
@@ -101,7 +102,7 @@ let enabled choices =
     if Ivar.is_empty result
     then (
       Unregister.process !unregisters;
-      Ivar.fill result (fun () ->
+      Ivar.fill_exn result (fun () ->
         List.rev
           (List.fold choices ~init:[] ~f:(fun ac (Choice.T (t, f)) ->
              match peek t with
@@ -135,11 +136,11 @@ let generic_choose choices =
          Unregister.Cons (t, f, Deferred0.add_handler t ready execution_context, acc)))
   and ready : 'a. 'a -> unit =
     fun _ ->
-      if Ivar.is_empty result
-      then (
-        let unregisters = Lazy.force unregisters in
-        Unregister.process unregisters;
-        Ivar.fill result (choose_result unregisters))
+    if Ivar.is_empty result
+    then (
+      let unregisters = Lazy.force unregisters in
+      Unregister.process unregisters;
+      Ivar.fill_exn result (choose_result unregisters))
   in
   let (_ : _) = Lazy.force unregisters in
   Ivar.read result
@@ -156,18 +157,18 @@ let choose2 a fa b fb =
   and b_handler = lazy (Deferred0.add_handler b ready execution_context)
   and ready : 'a. 'a -> unit =
     fun _ ->
-      if Ivar.is_empty result
-      then (
-        (* The order of these operations matters:
-           if we call [fb] or [fa] first and [remove_handler] after, then
-           any exceptions raised will cause the handlers to remain and then
-           the "second choice" gets a chance to run.
-        *)
-        remove_handler a (Lazy.force a_handler);
-        remove_handler b (Lazy.force b_handler);
-        match peek a with
-        | Some av -> Ivar.fill result (fa av)
-        | None -> Ivar.fill result (fb (value_exn b)))
+    if Ivar.is_empty result
+    then (
+      (* The order of these operations matters:
+         if we call [fb] or [fa] first and [remove_handler] after, then
+         any exceptions raised will cause the handlers to remain and then
+         the "second choice" gets a chance to run.
+      *)
+      remove_handler a (Lazy.force a_handler);
+      remove_handler b (Lazy.force b_handler);
+      match peek a with
+      | Some av -> Ivar.fill_exn result (fa av)
+      | None -> Ivar.fill_exn result (fb (value_exn b)))
   in
   let (_ : _) = Lazy.force a_handler in
   let (_ : _) = Lazy.force b_handler in
@@ -201,7 +202,7 @@ let repeat_until_finished state f =
       f state
       >>> function
       | `Repeat state -> loop state
-      | `Finished result -> Ivar.fill finished result
+      | `Finished result -> Ivar.fill_exn finished result
     in
     loop state)
 ;;
@@ -222,7 +223,7 @@ let fold t ~init ~f =
   create (fun result ->
     let rec loop t b =
       match t with
-      | [] -> Ivar.fill result b
+      | [] -> Ivar.fill_exn result b
       | x :: xs -> f b x >>> fun b -> loop xs b
     in
     loop t init)

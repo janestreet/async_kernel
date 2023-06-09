@@ -214,7 +214,7 @@ let run_at t time f a = ignore (run_at_internal t time f a : _ Alarm.t)
 let run_after t span f a = run_at t (span_to_time t span) f a
 
 let at =
-  let fill result = Ivar.fill result () in
+  let fill result = Ivar.fill_exn result () in
   fun t time ->
     if Time_ns.( <= ) time (Timing_wheel.now t.events)
     then return ()
@@ -333,7 +333,7 @@ module Event = struct
     | Some (Aborted a) -> Previously_aborted a
     | Some (Happened h) -> Previously_happened h
     | None ->
-      Ivar.fill t.fired (Aborted a);
+      Ivar.fill_exn t.fired (Aborted a);
       remove_alarm_if_scheduled t.time_source t.alarm;
       Ok
   ;;
@@ -409,7 +409,7 @@ module Event = struct
         else (
           let result = f z in
           (* [f z] may have aborted the event, so we must check [fired] again. *)
-          if Ivar.is_empty t.fired then Ivar.fill t.fired (Happened result))
+          if Ivar.is_empty t.fired then Ivar.fill_exn t.fired (Happened result))
     in
     t.fire <- fire;
     schedule t;

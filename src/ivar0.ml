@@ -300,11 +300,11 @@ let is_empty t =
 
 let is_full t = not (is_empty t)
 
-let fill t v =
+let fill_exn t v =
   let t = squash t in
   match t.cell with
   | Indir _ -> assert false (* fulfilled by [squash] *)
-  | Full _ -> raise_s [%message "Ivar.fill of full ivar" (t : _ t)]
+  | Full _ -> raise_s [%message "Ivar.fill_exn called on full ivar" (t : _ t)]
   | Empty -> t.cell <- Full v
   | Empty_one_handler (run, execution_context) ->
     t.cell <- Full v;
@@ -313,6 +313,8 @@ let fill t v =
     t.cell <- Full v;
     Handler.schedule_jobs handler v
 ;;
+
+let fill = fill_exn
 
 let remove_handler t (handler : _ Handler.t) =
   Handler.set_run handler ignore;

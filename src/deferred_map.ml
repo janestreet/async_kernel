@@ -63,7 +63,7 @@ let filter_mapi_sequential t ~f =
             in
             k s))
       ~finish:(fun x ->
-        Ivar.fill
+        Ivar.fill_exn
           ivar
           (Map.Using_comparator.of_tree
              ~comparator

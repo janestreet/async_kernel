@@ -52,13 +52,13 @@ end = struct
   ;;
 
   let run t a =
-    Ivar.fill t.start (`Start a);
+    Ivar.fill_exn t.start (`Start a);
     match%map t.outcome with
     | `Aborted -> assert false
     | (`Ok | `Raised) as x -> x
   ;;
 
-  let abort t = Ivar.fill t.start `Abort
+  let abort t = Ivar.fill_exn t.start `Abort
 end
 
 type 'a t =
@@ -146,7 +146,7 @@ let clean_resource t a =
   Deferred.all_unit (List.map t.cleans ~f:(fun f -> f a))
   >>> fun () ->
   t.num_resources_not_cleaned <- t.num_resources_not_cleaned - 1;
-  if t.num_resources_not_cleaned = 0 then Ivar.fill t.cleaned ()
+  if t.num_resources_not_cleaned = 0 then Ivar.fill_exn t.cleaned ()
 ;;
 
 let kill t =
@@ -191,7 +191,7 @@ let rec start_job t =
       match t.capacity_available with
       | None -> ()
       | Some ivar ->
-        Ivar.fill ivar ();
+        Ivar.fill_exn ivar ();
         t.capacity_available <- None))
 ;;
 
@@ -281,7 +281,7 @@ let enqueue_exclusive t f =
     don't_wait_for (enqueue t f_placeholder)
   done;
   let%map result = enqueue' t (fun _slot -> f ()) in
-  Ivar.fill done_ ();
+  Ivar.fill_exn done_ ();
   handle_enqueue_result result
 ;;
 
@@ -324,7 +324,7 @@ let prior_jobs_done t =
         (enqueue t (fun _ ->
            incr dummy_jobs_running;
            if !dummy_jobs_running = t.max_concurrent_jobs
-           then Ivar.fill all_dummy_jobs_running ();
+           then Ivar.fill_exn all_dummy_jobs_running ();
            Ivar.read all_dummy_jobs_running))
     done)
 ;;

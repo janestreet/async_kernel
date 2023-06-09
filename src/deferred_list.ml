@@ -6,7 +6,7 @@ let foldi t ~init ~f =
   Deferred.create (fun result ->
     let rec loop t i b =
       match t with
-      | [] -> Ivar.fill result b
+      | [] -> Ivar.fill_exn result b
       | x :: xs -> f i b x >>> fun b -> loop xs (i + 1) b
     in
     loop t 0 init)

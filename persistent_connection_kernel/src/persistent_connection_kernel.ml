@@ -2,6 +2,17 @@ open! Core
 open! Async_kernel
 open! Async_kernel_require_explicit_time_source
 include Persistent_connection_kernel_intf
+module Event = Event
+
+module Event_handler = struct
+  type ('conn, 'address) t =
+    { server_name : string
+    ; on_event : ('conn, 'address) Event.t -> unit Deferred.t
+    }
+  [@@deriving sexp_of]
+
+  let handle t { server_name = _; on_event } = on_event t
+end
 
 (* This position shows up in tests in a way that is difficult to suppress, so we define it
    here in a place that is unlikely to change very often *)
@@ -17,30 +28,7 @@ module Make (Conn : Closable) = struct
   type conn = Conn.t
 
   module Event = struct
-    type 'address t =
-      | Attempting_to_connect
-      | Obtained_address of 'address
-      | Failed_to_connect of Error.t
-      | Connected of (conn[@sexp.opaque])
-      | Disconnected
-    [@@deriving sexp_of]
-
-    type 'address event = 'address t
-
-    module Handler = struct
-      type 'address t =
-        { server_name : string
-        ; on_event : 'address event -> unit Deferred.t
-        }
-      [@@deriving sexp_of]
-    end
-
-    let log_level = function
-      | Attempting_to_connect | Connected _ | Disconnected | Obtained_address _ -> `Info
-      | Failed_to_connect _ -> `Error
-    ;;
-
-    let handle t { Handler.server_name = _; on_event } = on_event t
+    type 'address t = (Conn.t, 'address) Event.t [@@deriving sexp_of]
   end
 
   (* A persistent connection that is polymorphic in the address type.  We hide away this
@@ -52,7 +40,7 @@ module Make (Conn : Closable) = struct
       ; retry_delay : unit -> unit Deferred.t
       ; mutable conn : [ `Ok of Conn.t | `Close_started ] Ivar.t
       ; mutable next_connect_result : Conn.t Or_error.t Ivar.t
-      ; event_handler : 'address Event.Handler.t
+      ; event_handler : (Conn.t, 'address) Event_handler.t
       ; event_bus : (unit Event.t -> unit, read_write) Bus.t
       ; close_started : unit Ivar.t
       ; close_finished : unit Ivar.t
@@ -73,7 +61,7 @@ module Make (Conn : Closable) = struct
          | Failed_to_connect e -> Failed_to_connect e
          | Connected conn -> Connected conn
          | Disconnected -> Disconnected);
-      Event.handle event t.event_handler
+      Event_handler.handle event t.event_handler
     ;;
 
     (* This function focuses in on the the error itself, discarding information about which
@@ -117,18 +105,18 @@ module Make (Conn : Closable) = struct
       let rec loop () =
         if Ivar.is_full t.close_started
         then (
-          Ivar.fill t.conn `Close_started;
+          Ivar.fill_exn t.conn `Close_started;
           return `Close_started)
         else if Ivar.is_full t.don't_reconnect
         then return `Don't_reconnect
         else (
           let ready_to_retry_connecting = t.retry_delay () in
           let%bind connect_result = connect () in
-          Ivar.fill t.next_connect_result connect_result;
+          Ivar.fill_exn t.next_connect_result connect_result;
           t.next_connect_result <- Ivar.create ();
           match connect_result with
           | Ok conn ->
-            Ivar.fill t.conn (`Ok conn);
+            Ivar.fill_exn t.conn (`Ok conn);
             return (`Ok (conn, ready_to_retry_connecting))
           | Error err ->
             let same_as_previous_error =
@@ -152,9 +140,9 @@ module Make (Conn : Closable) = struct
     ;;
 
     let abort_reconnecting_with_no_active_connection t =
-      Ivar.fill t.close_started ();
-      Ivar.fill t.close_finished ();
-      Ivar.fill t.conn `Close_started
+      Ivar.fill_exn t.close_started ();
+      Ivar.fill_exn t.close_finished ();
+      Ivar.fill_exn t.conn `Close_started
     ;;
 
     let create
@@ -168,7 +156,7 @@ module Make (Conn : Closable) = struct
           ~address:(module Address : Address with type t = address)
           get_address
       =
-      let event_handler = { Event.Handler.server_name; on_event } in
+      let event_handler = { Event_handler.server_name; on_event } in
       let default_retry_delay =
         Fn.const (Time_ns.Span.of_sec (if am_running_test then 0.1 else 10.))
       in
@@ -236,7 +224,7 @@ module Make (Conn : Closable) = struct
           in
           if Ivar.is_full t.close_started
           then (
-            Ivar.fill t.conn `Close_started;
+            Ivar.fill_exn t.conn `Close_started;
             `Finished ())
           else if Ivar.is_full t.don't_reconnect
           then (
@@ -299,13 +287,13 @@ module Make (Conn : Closable) = struct
         (* Another call to close is already in progress.  Wait for it to finish. *)
         close_finished t
       else (
-        Ivar.fill t.close_started ();
+        Ivar.fill_exn t.close_started ();
         Ivar.read t.conn
         >>= fun conn_opt ->
         (match conn_opt with
          | `Close_started -> Deferred.unit
          | `Ok conn -> Conn.close conn)
-        >>| fun () -> Ivar.fill t.close_finished ())
+        >>| fun () -> Ivar.fill_exn t.close_finished ())
     ;;
 
     let connected_or_failed_to_connect_connection_closed =

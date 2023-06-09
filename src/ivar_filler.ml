@@ -31,6 +31,6 @@ let fill t a =
   match !t with
   | Empty i ->
     t := Full;
-    Ivar.fill i a
+    Ivar.fill_exn i a
   | Full -> raise_s [%message "attempt to fill full ivar"]
 ;;

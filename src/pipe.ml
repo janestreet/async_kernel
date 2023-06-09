@@ -98,7 +98,7 @@ end = struct
     match t.values_read with
     | `Have_been_sent_downstream -> ()
     | `Have_not_been_sent_downstream ivar ->
-      Ivar.fill ivar ();
+      Ivar.fill_exn ivar ();
       t.values_read <- `Have_been_sent_downstream
   ;;
 
@@ -159,9 +159,9 @@ module Blocked_read = struct
 
   let fill_with_eof t =
     match t.wants with
-    | Zero i -> Ivar.fill i `Eof
-    | One i -> Ivar.fill i `Eof
-    | At_most (_, i) -> Ivar.fill i `Eof
+    | Zero i -> Ivar.fill_exn i `Eof
+    | One i -> Ivar.fill_exn i `Eof
+    | At_most (_, i) -> Ivar.fill_exn i `Eof
   ;;
 end
 
@@ -181,7 +181,7 @@ module Blocked_flush = struct
     }
   [@@deriving fields, sexp_of]
 
-  let fill t v = Ivar.fill t.ready v
+  let fill t v = Ivar.fill_exn t.ready v
 end
 
 type ('a, 'phantom) t =
@@ -356,7 +356,7 @@ let create ?size_budget ?info () =
   in
   let t = create_internal ~size_budget ~info ~initial_buffer:(Queue.create ()) in
   (* initially, the pipe does not pushback *)
-  Ivar.fill t.pushback ();
+  Ivar.fill_exn t.pushback ();
   if !check_invariant then invariant t;
   t, t
 ;;
@@ -373,7 +373,7 @@ let close t =
   if !check_invariant then invariant t;
   if not (is_closed t)
   then (
-    Ivar.fill t.closed ();
+    Ivar.fill_exn t.closed ();
     if is_empty t
     then (
       Queue.iter t.blocked_reads ~f:Blocked_read.fill_with_eof;
@@ -386,7 +386,7 @@ let close_read t =
   if !check_invariant then invariant t;
   if not (is_read_closed t)
   then (
-    Ivar.fill t.read_closed ();
+    Ivar.fill_exn t.read_closed ();
     Queue.iter t.blocked_flushes ~f:(fun flush -> Blocked_flush.fill flush `Reader_closed);
     Queue.clear t.blocked_flushes;
     Queue.clear t.buffer;
@@ -500,10 +500,10 @@ let fill_blocked_reads t =
     let blocked_read = Queue.dequeue_exn t.blocked_reads in
     let consumer = blocked_read.consumer in
     match blocked_read.wants with
-    | Zero ivar -> Ivar.fill ivar `Ok
-    | One ivar -> Ivar.fill ivar (`Ok (consume_one t consumer))
+    | Zero ivar -> Ivar.fill_exn ivar `Ok
+    | One ivar -> Ivar.fill_exn ivar (`Ok (consume_one t consumer))
     | At_most (max_queue_length, ivar) ->
-      Ivar.fill ivar (`Ok (consume t ~max_queue_length consumer))
+      Ivar.fill_exn ivar (`Ok (consume t ~max_queue_length consumer))
   done
 ;;
 
@@ -609,6 +609,14 @@ let read_now' ?consumer ?max_queue_length t =
 ;;
 
 let read_now ?consumer t = gen_read_now t ?consumer consume_one
+
+let read_now_exn ?consumer t =
+  match read_now ?consumer t with
+  | `Ok a -> a
+  | `Eof -> raise_s [%message "Pipe.read_now_exn: received EOF"]
+  | `Nothing_available -> raise_s [%message "Pipe.read_now_exn: nothing available"]
+;;
+
 let peek t = Queue.peek t.buffer
 
 let clear t =
@@ -691,11 +699,11 @@ let read_exactly ?consumer t ~num_values =
       let already_read = Queue.length result in
       assert (already_read <= num_values);
       if already_read = num_values
-      then Ivar.fill finish (`Exactly result)
+      then Ivar.fill_exn finish (`Exactly result)
       else
         read' ?consumer t ~max_queue_length:(num_values - already_read)
         >>> function
-        | `Eof -> Ivar.fill finish (if already_read = 0 then `Eof else `Fewer result)
+        | `Eof -> Ivar.fill_exn finish (if already_read = 0 then `Eof else `Fewer result)
         | `Ok q ->
           Queue.blit_transfer ~src:q ~dst:result ();
           loop ()
@@ -815,7 +823,7 @@ let fold_gen
     >>> fun (_ : [ `Ok | `Eof ]) ->
     let rec loop b =
       match read_now t ?consumer with
-      | `Eof -> Ivar.fill finished b
+      | `Eof -> Ivar.fill_exn finished b
       | `Ok v -> f b v continue
       | `Nothing_available -> values_available t >>> fun _ -> loop b
     and continue b =
@@ -912,7 +920,7 @@ let iter_without_pushback
       then return () >>> fun () -> start ()
       else (
         match read_now t ?consumer with
-        | `Eof -> Ivar.fill finished ()
+        | `Eof -> Ivar.fill_exn finished ()
         | `Ok a ->
           f a;
           loop ~remaining:(remaining - 1)
@@ -1017,7 +1025,7 @@ let transfer_gen
     let output_closed () =
       close_read input;
       unlink ();
-      Ivar.fill result ()
+      Ivar.fill_exn result ()
     in
     let rec loop () =
       if is_closed output
@@ -1026,7 +1034,7 @@ let transfer_gen
         match read_now input ~consumer with
         | `Eof ->
           unlink ();
-          Ivar.fill result ()
+          Ivar.fill_exn result ()
         | `Ok x -> f x continue
         | `Nothing_available -> input_available_or_output_closed () >>> fun () -> loop ())
     and continue y =
@@ -1106,7 +1114,7 @@ let filter input ~f = filter_map input ~f:(fun x -> if f x then Some x else None
 
 let of_queue_internal queue =
   let t = create_internal ~size_budget:0 ~info:None ~initial_buffer:queue in
-  Ivar.fill t.closed ();
+  Ivar.fill_exn t.closed ();
   update_pushback t;
   t
 ;;

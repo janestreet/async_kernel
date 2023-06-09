@@ -113,6 +113,8 @@ val max_num_jobs_per_priority_per_cycle : unit -> int
     impact, both in running time and space usage. *)
 val set_record_backtraces : bool -> unit
 
+val recording_backtraces : unit -> bool
+
 (** [yield ()] returns a deferred that becomes determined after the current cycle
     completes.  This can be useful to improve fairness by [yield]ing within a computation
     to give other jobs a chance to run. *)

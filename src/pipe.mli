@@ -424,6 +424,10 @@ val read_now
   -> 'a Reader.t
   -> [ `Eof | `Nothing_available | `Ok of 'a ]
 
+(** [read_now_exn] is like [read_now], but it raises on the [`Eof] and
+    [`Nothing_available] cases. *)
+val read_now_exn : ?consumer:Consumer.t -> 'a Reader.t -> 'a
+
 
 val peek : 'a Reader.t -> 'a option
 

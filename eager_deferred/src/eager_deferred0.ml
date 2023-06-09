@@ -34,7 +34,8 @@ let value_exn = Deferred.value_exn
 let upon t f = if is_determined t then f (value_exn t) else Deferred.upon t f
 
 let both t1 t2 =
-  create (fun result -> upon t1 (fun a1 -> upon t2 (fun a2 -> Ivar.fill result (a1, a2))))
+  create (fun result ->
+    upon t1 (fun a1 -> upon t2 (fun a2 -> Ivar.fill_exn result (a1, a2))))
 ;;
 
 let ok t = if is_determined t then return (Ok (value_exn t)) else Deferred.ok t
@@ -65,7 +66,7 @@ let repeat_until_finished state f =
       f state
       >>> function
       | `Repeat state -> loop state
-      | `Finished result -> Ivar.fill finished result
+      | `Finished result -> Ivar.fill_exn finished result
     in
     loop state)
 ;;
@@ -78,7 +79,7 @@ module List = struct
     create (fun result ->
       let rec loop t i b =
         match t with
-        | [] -> Ivar.fill result b
+        | [] -> Ivar.fill_exn result b
         | x :: xs -> f i b x >>> fun b -> loop xs (i + 1) b
       in
       loop t 0 init)

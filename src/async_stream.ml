@@ -13,7 +13,7 @@ let fold' t ~init ~f =
   Deferred.create (fun result ->
     let rec loop t b =
       upon (next t) (function
-        | Nil -> Ivar.fill result b
+        | Nil -> Ivar.fill_exn result b
         | Cons (v, t) -> upon (f b v) (loop t))
     in
     loop t init)
@@ -29,7 +29,7 @@ let fold t ~init ~f =
       | Some next -> loop_next next b
     and loop_next next b =
       match next with
-      | Nil -> Ivar.fill result b
+      | Nil -> Ivar.fill_exn result b
       | Cons (v, t) -> loop t (f b v)
     in
     loop t init)
@@ -151,7 +151,7 @@ let split ?(stop = Deferred.never ()) ?(f = fun _ -> `Continue) t =
   let prefix = Tail.create () in
   let finish v =
     Tail.close_exn prefix;
-    Ivar.fill reason_for_stopping v
+    Ivar.fill_exn reason_for_stopping v
   in
   let rec loop t =
     choose [ choice stop (fun () -> `Stopped); choice (next t) (fun o -> `Next o) ]
@@ -227,7 +227,7 @@ let iter_durably' t ~f =
     let rec loop t =
       next t
       >>> function
-      | Nil -> Ivar.fill result ()
+      | Nil -> Ivar.fill_exn result ()
       | Cons (x, t) ->
         Monitor.try_with
           ~run:`Schedule
@@ -247,7 +247,7 @@ let iter_durably_report_end t ~f =
     let rec loop t =
       next t
       >>> function
-      | Nil -> Ivar.fill result ()
+      | Nil -> Ivar.fill_exn result ()
       | Cons (x, t) ->
         (* We immediately call [loop], thus making the iter durable.  Any exceptions
            raised by [f] will not prevent the loop from continuing, and will go to the

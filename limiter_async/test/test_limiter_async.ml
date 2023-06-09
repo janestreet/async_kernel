@@ -305,7 +305,7 @@ let%test_module _ =
          let%bind () = stabilize () in
          assert (num_jobs_waiting_to_start t = 1);
          assert (num_jobs_running t = 2);
-         Ivar.fill i1 ();
+         Ivar.fill_exn i1 ();
          let%bind () = stabilize () in
          assert (num_jobs_waiting_to_start t = 0);
          assert (num_jobs_running t = 2);
@@ -476,7 +476,7 @@ let%test_module _ =
            ()
          >>> fun res ->
          decr jobs_remaining;
-         if !jobs_remaining = 0 then Ivar.fill all_jobs_returned ();
+         if !jobs_remaining = 0 then Ivar.fill_exn all_jobs_returned ();
          match res with
          | Ok () -> incr num_ok
          | Aborted -> incr num_aborted
