@@ -63,6 +63,12 @@ val enqueue' : ('a, _) T2.t -> ('a -> 'b Deferred.t) -> 'b outcome Deferred.t
 
 val enqueue : ('a, _) T2.t -> ('a -> 'b Deferred.t) -> 'b Deferred.t
 
+(** Same as [enqueue'] but makes this job run before other enqueued jobs (skip to the
+    front of the queue). *)
+val enqueue_front' : ('a, _) T2.t -> ('a -> 'b Deferred.t) -> 'b outcome Deferred.t
+
+val enqueue_front : ('a, _) T2.t -> ('a -> 'b Deferred.t) -> 'b Deferred.t
+
 (** [enqueue_exclusive] schedules a job that occupies all slots of the throttle, so it
     won't run concurrently with any other job.  The job counts as being enqueued normally,
     so it runs after the jobs enqueued previously and before the jobs enqueued later.

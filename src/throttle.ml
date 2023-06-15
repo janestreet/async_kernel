@@ -67,8 +67,7 @@ type 'a t =
   ; (* [job_resources_not_in_use] holds resources that are not currently in use by a
        running job. *)
     job_resources_not_in_use : 'a Stack_or_counter.t
-  ;
-    (* [jobs_waiting_to_start] is the queue of jobs that haven't yet started. *)
+  ; (* [jobs_waiting_to_start] is the queue of jobs that haven't yet started. *)
     jobs_waiting_to_start : 'a Internal_job.t Queue.t
   ; (* [0 <= num_jobs_running <= max_concurrent_jobs]. *)
     mutable num_jobs_running : int
@@ -247,12 +246,12 @@ module Job = struct
   ;;
 end
 
-let enqueue' t f =
+let enqueue_internal t f enqueue =
   let job = Job.create f in
   if t.is_dead
   then Job.abort job
   else (
-    Queue.enqueue t.jobs_waiting_to_start job.internal_job;
+    enqueue t.jobs_waiting_to_start job.internal_job;
     if t.num_jobs_running < t.max_concurrent_jobs then start_job t);
   Job.result job
 ;;
@@ -264,7 +263,10 @@ let handle_enqueue_result result =
   | `Raised exn -> raise exn
 ;;
 
+let enqueue' t f = (enqueue_internal [@inlined]) t f Queue.enqueue
 let enqueue t f = enqueue' t f >>| handle_enqueue_result
+let enqueue_front' t f = (enqueue_internal [@inlined]) t f Queue.enqueue_front
+let enqueue_front t f = enqueue_front' t f >>| handle_enqueue_result
 
 let enqueue_exclusive t f =
   let n = t.max_concurrent_jobs in
