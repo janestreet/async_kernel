@@ -7,4 +7,4 @@ principle it could also be used on Windows, but no scheduler has been written
 for Async on Windows as of yet.
 
 API documentation for the latest release can be found
-[here][https://ocaml.janestreet.com/ocaml-core/latest/doc/async/index.html].
+[here](https://ocaml.janestreet.com/ocaml-core/latest/doc/async/index.html).
