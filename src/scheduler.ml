@@ -21,7 +21,13 @@ let with_local key value ~f =
 ;;
 
 let main_execution_context = (t ()).main_execution_context
-let can_run_a_job t = num_pending_jobs t > 0 || Bvar.has_any_waiters t.yield
+
+let can_run_a_job t =
+  num_pending_jobs t > 0
+  || Bvar.has_any_waiters t.yield
+  || Bvar.has_any_waiters t.yield_until_no_jobs_remain
+;;
+
 let has_upcoming_event t = not (Timing_wheel.is_empty (events t))
 let next_upcoming_event t = Timing_wheel.next_alarm_fires_at (events t)
 let next_upcoming_event_exn t = Timing_wheel.next_alarm_fires_at_exn (events t)
