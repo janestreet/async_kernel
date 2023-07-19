@@ -115,6 +115,22 @@ module Choice : sig
   val map : 'a t -> f:('a -> 'b) -> 'b t
 end
 
+(** [choice t g] corresponds to one alternative to use in [choose].
+
+    One needs to be mindful of memory leaks and effect leaks when using this interface: if
+    the corresponding choice is not taken, then [t] is simply discarded (as if
+    [don't_wait_for] was called), but any work that was scheduled to make [t] determined
+    won't be cancelled automatically.
+
+    This means that something as simple as [choice (map d ~f) g] creates a leak: it adds a
+    handler [f] to [d], which will still run if [d] is filled (effect leak), or stay in
+    memory until the subroutine responsible for filling this ivar drops it (memory leak).
+
+    To avoid this memory leak it's sufficient to choose on an pre-existing ivar, whose
+    lifetime is controlled separately. For example:
+    - use [Pipe.read_choice], not [Pipe.read],
+    - use [Clock.Event.fired], not [Clock.after] (then cancel the event).
+*)
 val choice : 'a t -> ('a -> 'b) -> 'b Choice.t
 
 (** [enabled [choice t1 f1; ... choice tn fn;]] returns a deferred [d] that becomes

@@ -44,6 +44,7 @@ let num_jobs_run () = num_jobs_run (t ())
 let num_pending_jobs () = num_pending_jobs (t ())
 
 module Expert = struct
+  let set_execution_context context = set_execution_context (t ()) context
   let run_cycles_until_no_jobs_remain = run_cycles_until_no_jobs_remain
   let last_cycle_num_jobs () = last_cycle_num_jobs (t ())
   let run_every_cycle_start f = run_every_cycle_start (t ()) ~f

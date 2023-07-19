@@ -155,6 +155,7 @@ val num_jobs_run : unit -> int
 val num_pending_jobs : unit -> int
 
 module Expert : sig
+  val set_execution_context : Execution_context.t -> unit
   val run_cycles_until_no_jobs_remain : unit -> unit
   val last_cycle_num_jobs : unit -> int
   val run_every_cycle_start : Cycle_hook.t -> unit
