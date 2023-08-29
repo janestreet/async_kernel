@@ -82,6 +82,11 @@ let now t =
 (* We preallocate [send_exn] to avoid allocating it on each call to [advance_clock]. *)
 let send_exn = Some Monitor.send_exn
 let advance_directly t ~to_ = Synchronous_time_source0.advance_clock t ~to_ ~send_exn
+
+let advance_directly_stop_on_next_alarm t ~to_ =
+  Synchronous_time_source0.advance_clock_stop_at_next_alarm t ~to_ ~send_exn
+;;
+
 let advance_directly_by t by = advance_directly t ~to_:(Time_ns.after (now t) by)
 let advance = advance_directly
 let advance_by = advance_directly_by
@@ -119,21 +124,16 @@ let advance_by_alarms ?wait_for t ~to_ =
   let one_step () =
     if Synchronous_time_source0.any_fired_events_to_run t
     then now t, `continue
-    else (
-      match Timing_wheel.min_alarm_time_in_min_interval t.events with
-      | None -> to_, `finish
-      | Some min_alarm_time_in_min_interval ->
-        if Time_ns.( >= ) min_alarm_time_in_min_interval to_
-        then to_, `finish
-        else min_alarm_time_in_min_interval, `continue)
+    else to_, `check_time
   in
   let rec walk_alarms () =
     let advance_to, next = one_step () in
-    advance_directly t ~to_:advance_to;
+    advance_directly_stop_on_next_alarm t ~to_:advance_to;
     fire_past_alarms t;
     Eager_deferred.bind_unit (run_queued_alarms ()) ~f:(fun () ->
       match next with
-      | `finish -> return ()
+      | `check_time ->
+        if Time_ns.( < ) (timing_wheel_now t) to_ then walk_alarms () else return ()
       | `continue -> walk_alarms ())
   in
   (* This first [run_queued_alarms] call allows [Clock_ns.every] the opportunity to run
@@ -271,7 +271,7 @@ module Event = struct
       mutable scheduled_at : Time_ns.t
     ; time_source : Synchronous_time_source0.t
     }
-  [@@deriving fields, sexp_of]
+  [@@deriving fields ~getters ~iterators:iter, sexp_of]
 
   type t_unit = (unit, unit) t [@@deriving sexp_of]
 

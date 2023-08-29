@@ -154,7 +154,7 @@ type t =
   ; thread_pool_cpu_affinity : Thread_pool_cpu_affinity.t option [@sexp.option]
   ; timing_wheel_config : Timing_wheel.Config.t option [@sexp.option]
   }
-[@@deriving fields, sexp]
+[@@deriving fields ~fields ~iterators:fold, sexp]
 
 let empty =
   { abort_after_thread_pool_stuck_for = None

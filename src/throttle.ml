@@ -91,7 +91,7 @@ type 'a t =
        i.e. after [t] is killed and all its clean functions complete. *)
     cleaned : unit Ivar.t
   }
-[@@deriving fields, sexp_of]
+[@@deriving fields ~getters ~iterators:iter, sexp_of]
 
 let invariant invariant_a t : unit =
   try

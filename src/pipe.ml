@@ -67,7 +67,7 @@ end = struct
          passed downstream have been flushed all the way down the chain of pipes. *)
       downstream_flushed : unit -> Flushed_result.t Deferred.t
     }
-  [@@deriving fields, sexp_of]
+  [@@deriving fields ~getters ~iterators:iter, sexp_of]
 
   let invariant t : unit =
     try
@@ -129,7 +129,7 @@ module Blocked_read = struct
     { wants : 'a wants
     ; consumer : Consumer.t option
     }
-  [@@deriving fields, sexp_of]
+  [@@deriving fields ~iterators:iter, sexp_of]
 
   let invariant t : unit =
     try
@@ -179,7 +179,7 @@ module Blocked_flush = struct
     { fill_when_num_values_read : int
     ; ready : [ `Ok | `Reader_closed ] Ivar.t
     }
-  [@@deriving fields, sexp_of]
+  [@@deriving fields ~getters, sexp_of]
 
   let fill t v = Ivar.fill_exn t.ready v
 end
@@ -238,7 +238,7 @@ type ('a, 'phantom) t =
        below. *)
     upstream_flusheds : (unit -> Flushed_result.t Deferred.t) Bag.t
   }
-[@@deriving fields, sexp_of]
+[@@deriving fields ~getters ~setters ~iterators:iter, sexp_of]
 
 let effective_size_budget t = t.size_budget - t.reserved_space
 

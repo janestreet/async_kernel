@@ -9,7 +9,7 @@ type t = Types.Execution_context.t =
   ; local_storage : Univ_map.t
   ; backtrace_history : Backtrace.t list
   }
-[@@deriving fields, sexp_of]
+[@@deriving fields ~getters, sexp_of]
 
 include Invariant.S with type t := t
 

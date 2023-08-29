@@ -7,7 +7,7 @@ type 'a repr = 'a Types.Bvar.repr =
   { mutable has_any_waiters : bool
   ; mutable ivar : 'a Ivar.t
   }
-[@@deriving fields, sexp_of]
+[@@deriving fields ~iterators:iter, sexp_of]
 
 let invariant invariant_a _ t =
   let repr = Types.Bvar.to_repr t in

@@ -31,7 +31,7 @@ type t = Types.Job_queue.t =
   ; mutable length : int
   ; mutable backtrace_of_first_enqueue : Backtrace.t option
   }
-[@@deriving fields, sexp_of]
+[@@deriving fields ~getters ~iterators:iter, sexp_of]
 
 let offset t i = (t.front + i) land t.mask * slots_per_elt
 let capacity t = t.mask + 1

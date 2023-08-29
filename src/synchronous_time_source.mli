@@ -124,6 +124,13 @@ module Event : sig
   val after : [> read ] T1.t -> Time_ns.Span.t -> callback -> t
   val at_intervals : [> read ] T1.t -> Time_ns.Span.t -> callback -> t
 
+  val at_intervals'
+    :  [> read ] T1.t
+    -> Time_ns.Span.t
+    -> starting_at:Time_ns.t
+    -> callback
+    -> t
+
   module Abort_result : sig
     type t =
       | Ok
@@ -153,6 +160,13 @@ module Event : sig
 
   val schedule_after : [> read ] T1.t -> t -> Time_ns.Span.t -> unit Or_error.t
   val schedule_at_intervals : [> read ] T1.t -> t -> Time_ns.Span.t -> unit Or_error.t
+
+  val schedule_at_intervals'
+    :  [> read ] T1.t
+    -> t
+    -> Time_ns.Span.t
+    -> starting_at:Time_ns.t
+    -> unit Or_error.t
 
   (** [reschedule_at timesource t time] updates [t] to next fire at [time].
 

@@ -45,7 +45,7 @@ module Very_low_priority_worker = struct
     { execution_context : Execution_context.t
     ; exec : unit -> Exec_result.t
     }
-  [@@deriving fields, sexp_of]
+  [@@deriving fields ~iterators:iter, sexp_of]
 
   let invariant t =
     Invariant.invariant [%here] t [%sexp_of: t] (fun () ->
@@ -115,7 +115,7 @@ type t = Scheduler0.t =
   ; mutable max_num_jobs_per_priority_per_cycle : Max_num_jobs_per_priority_per_cycle.t
   ; mutable record_backtraces : bool
   }
-[@@deriving fields, sexp_of]
+[@@deriving fields ~getters ~iterators:iter, sexp_of]
 
 let uncaught_exn_unwrapped = uncaught_exn
 

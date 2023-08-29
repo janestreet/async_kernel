@@ -87,11 +87,20 @@ module List = struct
 
   let fold t ~init ~f = foldi t ~init ~f:(fun _ a x -> f a x)
 
-  let seqmapi t ~f =
-    foldi t ~init:[] ~f:(fun i bs a ->
-      let%map b = f i a in
-      b :: bs)
-    >>| List.rev
+  let seqmapi l ~f =
+    create (fun result ->
+      let rec loop i l f acc =
+        match l with
+        | [] -> Ivar.fill_exn result (List.rev acc)
+        | h :: l ->
+          let b = f i h in
+          (* for some reason, inlining [upon] here by hand gives a significant boost in
+             benchmarks (maybe avoids the closure allocation) *)
+          if is_determined b
+          then loop (i + 1) l f (value_exn b :: acc)
+          else Deferred.upon b (fun b -> loop (i + 1) l f (b :: acc))
+      in
+      loop 0 l f [])
   ;;
 
   let all ds = seqmapi ds ~f:(fun _ x -> x)

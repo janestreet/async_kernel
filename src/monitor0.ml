@@ -17,7 +17,7 @@ type t = Types.Monitor.t =
   ; mutable has_seen_error : bool
   ; mutable forwarding : Forwarding.t
   }
-[@@deriving fields]
+[@@deriving fields ~getters ~iterators:iter]
 
 let description t =
   match t.here with

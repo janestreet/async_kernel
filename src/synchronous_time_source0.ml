@@ -176,7 +176,7 @@ module T1 = struct
       ; mutable prev_fired : Option.t
       ; mutable status : Status.t
       }
-    [@@deriving fields]
+    [@@deriving fields ~getters ~iterators:iter]
 
     let sexp_of_t = [%sexp_of: event]
 
@@ -282,7 +282,7 @@ module T1 = struct
     ; is_wall_clock : bool
     ; scheduler : Scheduler0.t
     }
-  [@@deriving fields]
+  [@@deriving fields ~iterators:iter]
 
   (* We don't include the [id] in the sexp because the user (rightly) can't control it, so
      it's hard to make it deterministic in tests. *)
@@ -524,10 +524,12 @@ module Event = struct
             (alarm_precision : Time_ns.Span.t)]
   ;;
 
-  let at_intervals t span callback =
+  let at_intervals' t span ~starting_at callback =
     require_span_at_least_alarm_precision t span;
-    create_and_add t ~at:(now t) ~interval:(Some span) ~callback
+    create_and_add t ~at:starting_at ~interval:(Some span) ~callback
   ;;
+
+  let at_intervals t span callback = at_intervals' t span ~starting_at:(now t) callback
 
   module Abort_result = struct
     type t =
@@ -591,9 +593,13 @@ module Event = struct
   let schedule_at t event at = schedule_at_internal t event at ~interval:None
   let schedule_after t event span = schedule_at t event (Time_ns.after (now t) span)
 
-  let schedule_at_intervals t event span =
+  let schedule_at_intervals' t event span ~starting_at =
     require_span_at_least_alarm_precision t span;
-    schedule_at_internal t event (now t) ~interval:(Some span)
+    schedule_at_internal t event starting_at ~interval:(Some span)
+  ;;
+
+  let schedule_at_intervals t event span =
+    schedule_at_intervals' t event span ~starting_at:(now t)
   ;;
 
   let reschedule_at t event at : unit =
@@ -697,6 +703,11 @@ let advance_clock t ~to_ ~send_exn =
   run_fired_events t ~send_exn
 ;;
 
+let advance_clock_stop_at_next_alarm t ~to_ ~send_exn =
+  Timing_wheel.advance_clock_stop_at_next_alarm t.events ~to_ ~handle_fired:t.handle_fired;
+  run_fired_events t ~send_exn
+;;
+
 let fire_past_alarms t ~send_exn =
   Timing_wheel.fire_past_alarms t.events ~handle_fired:t.handle_fired;
   run_fired_events t ~send_exn
@@ -704,6 +715,11 @@ let fire_past_alarms t ~send_exn =
 
 let advance_internal t ~to_ ~send_exn =
   advance_clock t ~to_ ~send_exn;
+  fire_past_alarms t ~send_exn
+;;
+
+let advance_internal_stop_at_next_alarm t ~to_ ~send_exn =
+  advance_clock_stop_at_next_alarm t ~to_ ~send_exn;
   fire_past_alarms t ~send_exn
 ;;
 
@@ -730,21 +746,9 @@ let finish_advancing t =
 let advance_by_alarms t ~to_ =
   let send_exn = None in
   prepare_to_advance t ~send_exn;
-  let continue = ref true in
-  while !continue do
-    if Timing_wheel.is_empty t.events
-    then continue := false
-    else (
-      let min_alarm_time = Timing_wheel.min_alarm_time_in_min_interval_exn t.events in
-      if Time_ns.( >= ) min_alarm_time to_
-      then continue := false
-      else
-        (* We use the actual alarm time, rather than [next_alarm_fires_at], so as not to
-           expose (or accumulate errors associated with) the precision of
-           [Timing_wheel]. *)
-        advance_internal t ~to_:min_alarm_time ~send_exn)
+  while Time_ns.( < ) (Timing_wheel.now t.events) to_ do
+    advance_internal_stop_at_next_alarm t ~to_ ~send_exn
   done;
-  advance_internal t ~to_ ~send_exn;
   finish_advancing t
 ;;
 

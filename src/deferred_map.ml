@@ -40,7 +40,7 @@ module Job = struct
     ; data : 'b
     ; mutable result : 'c option
     }
-  [@@deriving fields]
+  [@@deriving fields ~getters]
 end
 
 let filter_mapi_sequential t ~f =

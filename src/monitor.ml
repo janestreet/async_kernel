@@ -320,7 +320,7 @@ module Ok_and_exns = struct
     { ok : 'a Deferred.t
     ; exns : exn Stream.t
     }
-  [@@deriving fields, sexp_of]
+  [@@deriving sexp_of]
 
   let create ?here ?info ?name ~run f =
     (* We call [create_with_parent None] because [monitor] does not need a parent.  It

@@ -7,7 +7,7 @@ type ('a, 'phantom) t =
   ; taken : (unit, read_write) Bvar.t
   ; mutable value_available : unit Ivar.t
   }
-[@@deriving fields, sexp_of]
+[@@deriving fields ~iterators:iter, sexp_of]
 
 let value_available t = Ivar.read t.value_available
 let is_empty t = Moption.is_none t.current_value

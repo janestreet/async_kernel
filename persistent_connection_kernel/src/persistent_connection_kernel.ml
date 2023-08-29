@@ -48,7 +48,7 @@ module Make (Conn : Closable) = struct
       ; address_equal : 'address -> 'address -> bool
       ; sexp_of_address : 'address -> Sexp.t
       }
-    [@@deriving fields, sexp_of]
+    [@@deriving sexp_of]
 
     let server_name t = t.event_handler.server_name
 
