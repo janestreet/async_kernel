@@ -32,12 +32,7 @@ end = struct
       match%bind Ivar.read start with
       | `Abort -> return `Aborted
       | `Start a ->
-        (match%map
-           Monitor.try_with
-             ~run:`Schedule
-             ~rest:`Log
-             (fun () -> work a)
-         with
+        (match%map Monitor.try_with ~run:`Schedule ~rest:`Log (fun () -> work a) with
          | Ok a -> `Ok a
          | Error exn -> `Raised exn)
     in
@@ -117,8 +112,8 @@ let invariant invariant_a t : unit =
            then assert (Queue.is_empty t.jobs_waiting_to_start)))
       ~capacity_available:
         (check (function
-           | None -> ()
-           | Some ivar -> assert (Ivar.is_empty ivar)))
+          | None -> ()
+          | Some ivar -> assert (Ivar.is_empty ivar)))
       ~is_dead:ignore
       ~cleans:ignore
       ~num_resources_not_cleaned:

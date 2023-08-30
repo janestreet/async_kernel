@@ -72,7 +72,6 @@ include Monad with type 'a t := 'a t
 module Infix : sig
   include Monad.Infix with type 'a t := 'a t
 
-
   val ( >>> ) : 'a t -> ('a -> unit) -> unit
 end
 

@@ -19,10 +19,10 @@ end
 module Expert = struct
   type t =
     { continue_on_error : bool
-    (* [is_dead] is true if [t] was killed due to a job raising an exception or [kill t]
+        (* [is_dead] is true if [t] was killed due to a job raising an exception or [kill t]
        being called. *)
     ; mutable is_dead : bool
-    (* Ivar that is filled the next time return_to_hopper is called. *)
+        (* Ivar that is filled the next time return_to_hopper is called. *)
     ; mutable hopper_filled : unit Ivar.t option
     ; limiter : Limiter.t
     ; throttle_queue : ((int * Job.t) Queue.t[@sexp.opaque])
@@ -33,12 +33,12 @@ module Expert = struct
   let cycle_start () = Async_kernel_scheduler.cycle_start_ns ()
 
   let create_exn
-        ~hopper_to_bucket_rate_per_sec
-        ~bucket_limit
-        ~in_flight_limit
-        ~initial_bucket_level
-        ~initial_hopper_level
-        ~continue_on_error
+    ~hopper_to_bucket_rate_per_sec
+    ~bucket_limit
+    ~in_flight_limit
+    ~initial_bucket_level
+    ~initial_hopper_level
+    ~continue_on_error
     =
     let limiter =
       Limiter.Expert.create_exn
@@ -98,10 +98,7 @@ module Expert = struct
          | e -> Monitor.send_exn monitor ~backtrace:`Get e);
         return_to_hopper t ~now:(cycle_start ()) return_after
       | Job.Deferred (f, v, i) ->
-        Monitor.try_with
-          ~run:`Schedule
-          ~rest:`Log
-          (fun () -> f v)
+        Monitor.try_with ~run:`Schedule ~rest:`Log (fun () -> f v)
         >>> fun res ->
         return_to_hopper t ~now:(cycle_start ()) return_after;
         (match res with
@@ -116,13 +113,13 @@ module Expert = struct
   let fail_job t job k =
     ksprintf
       (fun s ->
-         let f () = failwith s in
-         let job =
-           match job with
-           | Job.Immediate (monitor, _, _) -> Job.Immediate (monitor, f, ())
-           | Job.Deferred (_, _, i) -> Job.Deferred (f, (), i)
-         in
-         run_job_now t job ~return_after:0)
+        let f () = failwith s in
+        let job =
+          match job with
+          | Job.Immediate (monitor, _, _) -> Job.Immediate (monitor, f, ())
+          | Job.Deferred (_, _, i) -> Job.Deferred (f, (), i)
+        in
+        run_job_now t job ~return_after:0)
       k
   ;;
 
@@ -273,12 +270,12 @@ module Token_bucket = struct
   type _ u = t
 
   let create_exn
-        ~burst_size:bucket_limit
-        ~sustained_rate_per_sec:fill_rate
-        ~continue_on_error
-        ?in_flight_limit
-        ?(initial_burst_size = 0)
-        ()
+    ~burst_size:bucket_limit
+    ~sustained_rate_per_sec:fill_rate
+    ~continue_on_error
+    ?in_flight_limit
+    ?(initial_burst_size = 0)
+    ()
     =
     let in_flight_limit =
       match in_flight_limit with
@@ -305,11 +302,11 @@ module Throttle = struct
   type _ u = t
 
   let create_exn
-        ~concurrent_jobs_target
-        ~continue_on_error
-        ?burst_size
-        ?sustained_rate_per_sec
-        ()
+    ~concurrent_jobs_target
+    ~continue_on_error
+    ?burst_size
+    ?sustained_rate_per_sec
+    ()
     =
     if concurrent_jobs_target < 1
     then
@@ -408,8 +405,7 @@ module Resource_throttle = struct
       Monitor.protect
         ~run:`Schedule
         ~rest:`Log
-        (fun () ->
-          f v)
+        (fun () -> f v)
         ~finally:(fun () ->
           Queue.enqueue t.resources v;
           Deferred.unit)

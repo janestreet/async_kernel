@@ -7,51 +7,51 @@ let sec = Time_ns.Span.of_sec
 let concat = String.concat
 
 module Epoll_max_ready_events = Validated.Make (struct
+  include Int
+
+  let here = [%here]
+  let validate = Int.validate_positive
+end)
+
+module Max_inter_cycle_timeout = Validated.Make (struct
+  include Time_ns.Span
+
+  let here = [%here]
+  let validate = Time_ns.Span.validate_non_negative
+end)
+
+module Min_inter_cycle_timeout = Validated.Make (struct
+  include Time_ns.Span
+
+  let here = [%here]
+  let validate = Time_ns.Span.validate_non_negative
+end)
+
+module Max_num_open_file_descrs = struct
+  include Validated.Make (struct
     include Int
 
     let here = [%here]
     let validate = Int.validate_positive
   end)
-
-module Max_inter_cycle_timeout = Validated.Make (struct
-    include Time_ns.Span
-
-    let here = [%here]
-    let validate = Time_ns.Span.validate_non_negative
-  end)
-
-module Min_inter_cycle_timeout = Validated.Make (struct
-    include Time_ns.Span
-
-    let here = [%here]
-    let validate = Time_ns.Span.validate_non_negative
-  end)
-
-module Max_num_open_file_descrs = struct
-  include Validated.Make (struct
-      include Int
-
-      let here = [%here]
-      let validate = Int.validate_positive
-    end)
 
   let default = create_exn (1 lsl 17)
   let equal (t1 : t) t2 = t1 = t2
 end
 
 module Max_num_threads = Validated.Make (struct
-    include Int
+  include Int
 
-    let here = [%here]
-    let validate = Int.validate_positive
-  end)
+  let here = [%here]
+  let validate = Int.validate_positive
+end)
 
 module Max_num_jobs_per_priority_per_cycle = Validated.Make (struct
-    include Int
+  include Int
 
-    let here = [%here]
-    let validate = Int.validate_positive
-  end)
+  let here = [%here]
+  let validate = Int.validate_positive
+end)
 
 module Dump_core_on_job_delay = struct
   module How_to_dump = struct
@@ -146,7 +146,7 @@ type t =
   ; max_num_open_file_descrs : Max_num_open_file_descrs.t option [@sexp.option]
   ; max_num_threads : Max_num_threads.t option [@sexp.option]
   ; max_num_jobs_per_priority_per_cycle : Max_num_jobs_per_priority_per_cycle.t option
-                                          [@sexp.option]
+       [@sexp.option]
   ; min_inter_cycle_timeout : Min_inter_cycle_timeout.t option [@sexp.option]
   ; print_debug_messages_for : Debug_tag.t list option [@sexp.option]
   ; record_backtraces : bool option [@sexp.option]
@@ -177,23 +177,23 @@ let empty =
 ;;
 
 let create
-      ?abort_after_thread_pool_stuck_for
-      ?check_invariants
-      ?detect_invalid_access_from_thread
-      ?dump_core_on_job_delay
-      ?epoll_max_ready_events
-      ?file_descr_watcher
-      ?max_inter_cycle_timeout
-      ?max_num_open_file_descrs
-      ?max_num_threads
-      ?max_num_jobs_per_priority_per_cycle
-      ?min_inter_cycle_timeout
-      ?print_debug_messages_for
-      ?record_backtraces
-      ?report_thread_pool_stuck_for
-      ?thread_pool_cpu_affinity
-      ?timing_wheel_config
-      ()
+  ?abort_after_thread_pool_stuck_for
+  ?check_invariants
+  ?detect_invalid_access_from_thread
+  ?dump_core_on_job_delay
+  ?epoll_max_ready_events
+  ?file_descr_watcher
+  ?max_inter_cycle_timeout
+  ?max_num_open_file_descrs
+  ?max_num_threads
+  ?max_num_jobs_per_priority_per_cycle
+  ?min_inter_cycle_timeout
+  ?print_debug_messages_for
+  ?record_backtraces
+  ?report_thread_pool_stuck_for
+  ?thread_pool_cpu_affinity
+  ?timing_wheel_config
+  ()
   =
   { abort_after_thread_pool_stuck_for
   ; check_invariants
@@ -345,14 +345,14 @@ let field_descriptions () : string =
       ~max_num_open_file_descrs:
         (field
            (fun default ->
-              [%message
-                ""
-                  ~_:
-                    (concat
-                       [ "min "
-                       ; default |> Max_num_open_file_descrs.raw |> Int.to_string_hum
-                       ; " [ulimit -n -H]"
-                       ]
+             [%message
+               ""
+                 ~_:
+                   (concat
+                      [ "min "
+                      ; default |> Max_num_open_file_descrs.raw |> Int.to_string_hum
+                      ; " [ulimit -n -H]"
+                      ]
                      : string)])
            [ {|
   The maximum number of open file descriptors allowed at any one time.|} ])

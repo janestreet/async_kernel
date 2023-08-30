@@ -302,8 +302,8 @@ module Monad_laws_test = struct
               ~law:"Associativity"
               ~cases:
                 ([%message
-                  "" ~m:(m_case : Case.t) ~f:(f_case : Case.t) ~g:(g_case : Case.t)]
-                 : Sexp.t)
+                   "" ~m:(m_case : Case.t) ~f:(f_case : Case.t) ~g:(g_case : Case.t)]
+                  : Sexp.t)
               (m >>= f >>= g : result1)
               (m >>= fun x -> f x >>= g : result2)]
     in

@@ -12,12 +12,12 @@ module Deferred = Deferred1
    the result as soon as possible, possibly avoiding creating an intermediate structure
    (e.g. [iteri] and [filter_map] uses [fold_mapi] to do this). *)
 let fold_mapi
-      (type a b c)
-      ?(how = `Sequential)
-      (t : a Sequence.t)
-      ~(init : c)
-      ~(mapi_f : int -> a -> b Deferred.t)
-      ~(fold_f : c -> b -> c)
+  (type a b c)
+  ?(how = `Sequential)
+  (t : a Sequence.t)
+  ~(init : c)
+  ~(mapi_f : int -> a -> b Deferred.t)
+  ~(fold_f : c -> b -> c)
   : c Deferred.t
   =
   match how with

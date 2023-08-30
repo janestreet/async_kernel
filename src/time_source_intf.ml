@@ -64,7 +64,6 @@ module type Time_source = sig
       timing_wheel's notion of now. *)
   val timing_wheel_now : [> read ] T1.t -> Time_ns.t
 
-
   (** Instead of [advance_directly], you probably should use [advance_by_alarms].
       [advance_directly t ~to_] advances the clock directly to [to_], whereas
       [advance_by_alarms] advances the clock in steps, to each intervening alarm.
@@ -76,16 +75,16 @@ module type Time_source = sig
   val advance_directly : [> write ] T1.t -> to_:Time_ns.t -> unit
 
   val advance : [> write ] T1.t -> to_:Time_ns.t -> unit
-  [@@deprecated
-    "[since 2019-06] Use [advance_directly] (to preserve behavior) or \
-     [advance_by_alarms]"]
+    [@@deprecated
+      "[since 2019-06] Use [advance_directly] (to preserve behavior) or \
+       [advance_by_alarms]"]
 
   val advance_directly_by : [> write ] T1.t -> Time_ns.Span.t -> unit
 
   val advance_by : [> write ] T1.t -> Time_ns.Span.t -> unit
-  [@@deprecated
-    "[since 2019-06] Use [advance_directly_by] (to preserve behavior) or \
-     [advance_by_alarms_by]"]
+    [@@deprecated
+      "[since 2019-06] Use [advance_directly_by] (to preserve behavior) or \
+       [advance_by_alarms_by]"]
 
   val fire_past_alarms : [> write ] T1.t -> unit
 
@@ -110,9 +109,9 @@ module type Time_source = sig
     -> [> write ] T1.t
     -> to_:Time_ns.t
     -> unit Deferred.t
-  [@@deprecated
-    "[since 2021-12] This is the old implementation of [advance_by_alarms], kept in \
-     case the new implementation causes problems."]
+    [@@deprecated
+      "[since 2021-12] This is the old implementation of [advance_by_alarms], kept in \
+       case the new implementation causes problems."]
 
   (** [advance_by_alarms_by ?wait_for t by] is equivalent to:
       [advance_by_alarms ?wait_for t ~to_:(Time_ns.add (now t) by)] *)
@@ -148,8 +147,6 @@ module type Time_source = sig
 
   val run_at : [> read ] T1.t -> Time_ns.t -> ('a -> unit) -> 'a -> unit
   val run_after : [> read ] T1.t -> Time_ns.Span.t -> ('a -> unit) -> 'a -> unit
-
-
   val at : [> read ] T1.t -> Time_ns.t -> unit Deferred.t
   val after : [> read ] T1.t -> Time_ns.Span.t -> unit Deferred.t
 

@@ -15,10 +15,7 @@ module Make (M : Monad.Infix with type 'a t = 'a Deferred1.t) :
     let module Hashable = (val hashable) in
     let f =
       Memo.general ~hashable:Hashable.hashable (fun a ->
-        Monitor.try_with
-          ~rest:`Log
-          ~run
-          (fun () -> f a))
+        Monitor.try_with ~rest:`Log ~run (fun () -> f a))
     in
     Staged.stage (fun a -> f a >>| reraise)
   ;;
@@ -37,13 +34,7 @@ module Make (M : Monad.Infix with type 'a t = 'a Deferred1.t) :
   ;;
 
   let unit f =
-    let f =
-      Memo.unit (fun () ->
-        Monitor.try_with
-          ~rest:`Log
-          ~run:`Now
-          f)
-    in
+    let f = Memo.unit (fun () -> Monitor.try_with ~rest:`Log ~run:`Now f) in
     Staged.stage (fun () -> f () >>| reraise)
   ;;
 end

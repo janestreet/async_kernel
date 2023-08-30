@@ -214,10 +214,10 @@ let take_until t d =
       upon
         (choose [ choice d (fun () -> `Stop); choice (next t) (fun z -> `Next z) ])
         (function
-          | `Stop | `Next Nil -> Tail.close_exn tail
-          | `Next (Cons (x, t)) ->
-            Tail.extend tail x;
-            loop t)
+         | `Stop | `Next Nil -> Tail.close_exn tail
+         | `Next (Cons (x, t)) ->
+           Tail.extend tail x;
+           loop t)
     in
     loop t)
 ;;
@@ -229,10 +229,7 @@ let iter_durably' t ~f =
       >>> function
       | Nil -> Ivar.fill_exn result ()
       | Cons (x, t) ->
-        Monitor.try_with
-          ~run:`Schedule
-          ~rest:`Raise
-          (fun () -> f x)
+        Monitor.try_with ~run:`Schedule ~rest:`Raise (fun () -> f x)
         >>> fun z ->
         loop t;
         (match z with

@@ -31,12 +31,10 @@ module Throttle = Throttle
 module Throttled = Throttled
 module Time_source = Time_source
 
-
 (** {2 Toplevel functions }
 
     The functions below are broadly useful when writing Async programs, and so are made
     available at the toplevel. *)
-
 
 let after = Clock_ns.after
 let at = Clock_ns.at

@@ -36,14 +36,12 @@ module Writer : sig
   type phantom
   type 'a t = ('a, phantom) pipe [@@deriving sexp_of]
 
-
   val invariant : _ t -> unit
 end
 
 module Reader : sig
   type phantom
   type 'a t = ('a, phantom) pipe [@@deriving sexp_of]
-
 
   val invariant : _ t -> unit
 end
@@ -388,7 +386,6 @@ val read : ?consumer:Consumer.t -> 'a Reader.t -> [ `Eof | `Ok of 'a ] Deferred.
 (** [read_exn] is like [read], except it raises on [`Eof]. *)
 val read_exn : ?consumer:Consumer.t -> 'a Reader.t -> 'a Deferred.t
 
-
 (** [read_exactly r ~num_values] reads exactly [num_values] items, unless EOF is
     encountered. [read_exactly] performs a sequence of [read'] operations, so there is no
     guarantee that the queue of values it returns comprise a contiguous segment of the
@@ -404,7 +401,7 @@ val read_exactly
      | `Fewer of 'a Queue.t (** [0 < Q.length q < num_values] *)
      | `Exactly of 'a Queue.t (** [Q.length q = num_values] *)
      ]
-       Deferred.t
+     Deferred.t
 
 (** [read_now' reader] reads values from [reader] that are immediately available.  If
     [reader] is empty, [read_now'] returns [`Eof] if [reader] is closed and
@@ -428,7 +425,6 @@ val read_now
     [`Nothing_available] cases. *)
 val read_now_exn : ?consumer:Consumer.t -> 'a Reader.t -> 'a
 
-
 val peek : 'a Reader.t -> 'a option
 
 (** [clear reader] consumes all of the values currently in [reader], and all blocked
@@ -438,7 +434,6 @@ val clear : 'a Reader.t -> unit
 (** [read_all reader] reads all the values from the pipe until it is closed.  An
     alternative name might be [Reader.to_queue]. *)
 val read_all : 'a Reader.t -> 'a Queue.t Deferred.t
-
 
 (** [values_available reader] returns a deferred that becomes determined when there are
     values in the pipe.  If there are multiple readers (a rare situation), there is no
@@ -485,7 +480,6 @@ val read_choice_single_consumer_exn
 (** {2 Sequence functions} *)
 
 module Flushed : sig
-
   type t =
     | Consumer of Consumer.t
     | When_value_processed
@@ -530,7 +524,6 @@ val fold'
   -> init:'accum
   -> f:('accum -> 'a Queue.t -> 'accum Deferred.t)
   -> 'accum Deferred.t
-
 
 (** [fold reader ~init ~f] folds over the elements of [reader], consuming them as they
     come in.  [fold] finishes when the final call to [f] returns. *)
@@ -585,7 +578,6 @@ val iter_without_pushback
   -> 'a Reader.t
   -> f:('a -> unit)
   -> unit Deferred.t
-
 
 (** [transfer' input output ~f] repeatedly reads a batch of elements from [input], applies
     [f] to the batch, writes the result as a batch to [output], and then waits on

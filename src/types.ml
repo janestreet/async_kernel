@@ -199,7 +199,6 @@ end =
   Jobs
 
 and Scheduler : sig
-
   type t =
     { mutable check_access : (unit -> unit) option
     ; mutable job_pool : Job_pool.t

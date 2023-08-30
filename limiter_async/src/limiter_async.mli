@@ -57,10 +57,10 @@ module Token_bucket : sig
     :  burst_size:int
     -> sustained_rate_per_sec:float
     -> continue_on_error:bool
-    (** If false, then the token bucket is [kill]ed if there's
+         (** If false, then the token bucket is [kill]ed if there's
         an unhandled exception in any job *)
     -> ?in_flight_limit:int
-    (** default to infinite. This can be used for concurrency
+         (** default to infinite. This can be used for concurrency
         control *)
     -> ?initial_burst_size:int (** Defaults to zero *)
     -> unit

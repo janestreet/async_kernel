@@ -52,7 +52,7 @@ let detach_and_iter_errors t ~f =
          raise inner_exn)
   in
   handler_state_ref
-  := Running (Bag.add t.handlers_for_all_errors (execution_context, run_f))
+    := Running (Bag.add t.handlers_for_all_errors (execution_context, run_f))
 ;;
 
 let detach_and_get_error_stream t =
@@ -165,9 +165,9 @@ module Monitor_exn = struct
     in
     [%sexp
       (exn : exn)
-    , (list_if_not_empty backtrace : (string list option[@sexp.option]))
-    , `backtrace_history
-        (list_if_not_empty backtrace_history : (Backtrace.t list option[@sexp.option]))]
+      , (list_if_not_empty backtrace : (string list option[@sexp.option]))
+      , `backtrace_history
+          (list_if_not_empty backtrace_history : (Backtrace.t list option[@sexp.option]))]
   ;;
 end
 
@@ -338,10 +338,10 @@ module Ok_and_exns = struct
 end
 
 let fill_result_and_handle_background_errors
-      result_filler
-      result
-      exns
-      handle_exns_after_result
+  result_filler
+  result
+  exns
+  handle_exns_after_result
   =
   if Ivar_filler.is_empty result_filler
   then (
@@ -370,13 +370,13 @@ let make_handle_exn rest =
 ;;
 
 let try_with
-      ?here
-      ?info
-      ?(name = "")
-      ?extract_exn:(do_extract_exn = false)
-      ?(run = `Now)
-      ?(rest = `Raise)
-      f
+  ?here
+  ?info
+  ?(name = "")
+  ?extract_exn:(do_extract_exn = false)
+  ?(run = `Now)
+  ?(rest = `Raise)
+  f
   =
   let { Ok_and_exns.ok; exns } = Ok_and_exns.create ?here ?info ~name ~run f in
   let handle_exn = make_handle_exn rest in
@@ -415,12 +415,12 @@ let try_with_or_error ?here ?info ?(name = "try_with_or_error") ?extract_exn ?re
 ;;
 
 let try_with_join_or_error
-      ?here
-      ?info
-      ?(name = "try_with_join_or_error")
-      ?extract_exn
-      ?rest
-      f
+  ?here
+  ?info
+  ?(name = "try_with_join_or_error")
+  ?extract_exn
+  ?rest
+  f
   =
   try_with_or_error f ?here ?info ~name ?extract_exn ?rest >>| Or_error.join
 ;;

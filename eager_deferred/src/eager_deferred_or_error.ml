@@ -15,20 +15,20 @@ include (Deferred_result : Monad.S2 with type ('a, 'b) t := ('a, 'b) Deferred_re
 type 'a t = 'a Or_error.t Deferred.t
 
 include Applicative.Make (struct
-    type nonrec 'a t = 'a t
+  type nonrec 'a t = 'a t
 
-    let return = return
+  let return = return
 
-    let apply f x =
-      Deferred_result.combine
-        f
-        x
-        ~ok:(fun f x -> f x)
-        ~err:(fun e1 e2 -> Error.of_list [ e1; e2 ])
-    ;;
+  let apply f x =
+    Deferred_result.combine
+      f
+      x
+      ~ok:(fun f x -> f x)
+      ~err:(fun e1 e2 -> Error.of_list [ e1; e2 ])
+  ;;
 
-    let map = `Custom map
-  end)
+  let map = `Custom map
+end)
 
 module Let_syntax = struct
   let return = return

@@ -12,9 +12,7 @@ module T = struct
     { start
     ; result =
         (let%bind () = Ivar.read start in
-         Monitor.try_with_or_error
-           ~rest:rest_exn
-           f)
+         Monitor.try_with_or_error ~rest:rest_exn f)
     }
   ;;
 
@@ -23,9 +21,7 @@ module T = struct
     { start
     ; result =
         (let%bind () = Ivar.read start in
-         Monitor.try_with_join_or_error
-           ~rest:rest_exn
-           f)
+         Monitor.try_with_join_or_error ~rest:rest_exn f)
     }
   ;;
 

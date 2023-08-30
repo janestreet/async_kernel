@@ -19,17 +19,17 @@ module T1 = struct
   (* We don't include the [id] in the sexp because the user (rightly) can't control it, so
      it's hard to make it deterministic in tests. *)
   let sexp_of_t
-        _
-        { id = _
-        ; advance_errors = _
-        ; am_advancing = _
-        ; events
-        ; fired_events = _
-        ; handle_fired = _
-        ; is_wall_clock
-        ; most_recently_fired = _
-        ; scheduler = _
-        }
+    _
+    { id = _
+    ; advance_errors = _
+    ; am_advancing = _
+    ; events
+    ; fired_events = _
+    ; handle_fired = _
+    ; is_wall_clock
+    ; most_recently_fired = _
+    ; scheduler = _
+    }
     =
     if is_wall_clock
     then [%message "<wall_clock>"]
@@ -472,13 +472,13 @@ module Continue = struct
 end
 
 let run_repeatedly
-      ?(start = return ())
-      ?stop
-      ?(continue_on_error = true)
-      ?(finished = Ivar.create ())
-      t
-      ~f
-      ~continue
+  ?(start = return ())
+  ?stop
+  ?(continue_on_error = true)
+  ?(finished = Ivar.create ())
+  t
+  ~f
+  ~continue
   =
   start
   >>> fun () ->

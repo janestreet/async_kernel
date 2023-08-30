@@ -94,8 +94,8 @@ let filter_mapi ~how t ~f =
     let%map () =
       List.iter ~how (Base.List.rev !jobs) ~f:(function
         | { Job.key; data; result = _ } as job ->
-          let%map x = f ~key ~data in
-          job.result <- x)
+        let%map x = f ~key ~data in
+        job.result <- x)
     in
     Map.filter_map job_map ~f:Job.result
 ;;

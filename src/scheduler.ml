@@ -120,7 +120,7 @@ let cycle_count t = t.cycle_count
 
 let set_max_num_jobs_per_priority_per_cycle t int =
   t.max_num_jobs_per_priority_per_cycle
-  <- Max_num_jobs_per_priority_per_cycle.create_exn int
+    <- Max_num_jobs_per_priority_per_cycle.create_exn int
 ;;
 
 let max_num_jobs_per_priority_per_cycle t =
@@ -275,9 +275,9 @@ let run_cycles_until_no_jobs_remain () =
 let make_async_unusable () =
   let t = !t_ref in
   t.check_access
-  <- Some
-       (fun () ->
-          raise_s [%sexp "Async scheduler is unusable due to [make_async_unusable]"])
+    <- Some
+         (fun () ->
+           raise_s [%sexp "Async scheduler is unusable due to [make_async_unusable]"])
 ;;
 
 let reset_in_forked_process () =
@@ -325,7 +325,6 @@ let total_cycle_time t =
 
 module Very_low_priority_work = struct
   module Worker_result = Very_low_priority_worker.Exec_result
-
 
   let rec run t = run_workers t ~num_execs_before_yielding:1_000
 

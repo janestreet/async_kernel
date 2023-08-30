@@ -39,7 +39,7 @@ module Async_kernel_scheduler : sig
   val cycle_start : unit -> Time.t [@@deprecated "[since 2016-02] Use [Time_source]"]
 
   val cycle_start_ns : unit -> Time_ns.t
-  [@@deprecated "[since 2016-02] Use [Time_source]"]
+    [@@deprecated "[since 2016-02] Use [Time_source]"]
 end
 
 module Date : sig
@@ -53,7 +53,7 @@ end
 val at : Time_ns.t -> unit Deferred.t [@@deprecated "[since 2016-02] Use [Time_source]"]
 
 val after : Time_ns.Span.t -> unit Deferred.t
-[@@deprecated "[since 2016-02] Use [Time_source]"]
+  [@@deprecated "[since 2016-02] Use [Time_source]"]
 
 val every
   :  ?start:unit Deferred.t
@@ -62,10 +62,10 @@ val every
   -> Time_ns.Span.t
   -> (unit -> unit)
   -> unit
-[@@deprecated "[since 2016-02] Use [Time_source]"]
+  [@@deprecated "[since 2016-02] Use [Time_source]"]
 
 val with_timeout
   :  Time_ns.Span.t
   -> 'a Deferred.t
   -> [ `Timeout | `Result of 'a ] Deferred.t
-[@@deprecated "[since 2016-02] Use [Time_source]"]
+  [@@deprecated "[since 2016-02] Use [Time_source]"]

@@ -36,7 +36,6 @@ type 'a t = ('a, [ `throttle ]) T2.t [@@deriving sexp_of]
 
 include Invariant.S1 with type 'a t := 'a t
 
-
 (** [create ~continue_on_error ~max_concurrent_jobs] returns a throttle that will run up
     to [max_concurrent_jobs] concurrently.  If some job raises an exception, then the
     throttle will be killed, unless [continue_on_error] is true. *)
@@ -53,7 +52,6 @@ type 'a outcome =
   | `Raised of exn
   ]
 [@@deriving sexp_of]
-
 
 (** [enqueue t job] schedules [job] to be run as soon as possible.  Jobs are guaranteed to
     be started in the order they are [enqueue]d and to not be started during the call to
@@ -88,7 +86,6 @@ val monad_sequence_how2
   :  how:Monad_sequence.how
   -> f:('a1 -> 'a2 -> 'b Deferred.t)
   -> ('a1 -> 'a2 -> 'b Deferred.t) Staged.t
-
 
 (** [prior_jobs_done t] becomes determined when all of the jobs that were previously
     enqueued in [t] have completed. *)

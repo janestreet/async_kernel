@@ -65,7 +65,7 @@ type t = Scheduler0.t =
   ; very_low_priority_workers : Very_low_priority_worker.t Deque.t
   ; mutable main_execution_context : Execution_context.t
   ; mutable current_execution_context : Execution_context.t
-  (* The scheduler calls [got_uncaught_exn] when an exception bubbles to the top of the
+      (* The scheduler calls [got_uncaught_exn] when an exception bubbles to the top of the
      monitor tree without being handled.  This function guarantees to never run another
      job after this by calling [clear] and because [enqueue_job] will never add another
      job. *)
@@ -83,7 +83,7 @@ type t = Scheduler0.t =
   ; mutable last_cycle_num_jobs : int
   ; mutable total_cycle_time : Time_ns.Span.t
   ; mutable time_source : read_write Synchronous_time_source.T1.t
-  (* [external_jobs] is a queue of actions sent from outside of async.  This is for the
+      (* [external_jobs] is a queue of actions sent from outside of async.  This is for the
      case where we want to schedule a job or fill an ivar from a context where it is not
      safe to run async code, because the async lock isn't held.  For instance: - in an
      OCaml finalizer, as they can run at any time in any thread.
@@ -102,14 +102,14 @@ type t = Scheduler0.t =
      immediately. *)
   ; external_jobs : External_job.t Thread_safe_queue.t
   ; mutable thread_safe_external_job_hook : unit -> unit
-  (* [job_queued_hook] and [event_added_hook] aim to be used by js_of_ocaml. *)
-  (* We use [_ option] here because those hooks will not be set in the common case
+      (* [job_queued_hook] and [event_added_hook] aim to be used by js_of_ocaml. *)
+      (* We use [_ option] here because those hooks will not be set in the common case
      and we want to avoid extra function calls. *)
   ; mutable job_queued_hook : (Priority.t -> unit) option
   ; mutable event_added_hook : (Time_ns.t -> unit) option
   ; mutable yield : ((unit, read_write) Types.Bvar.t[@sexp.opaque])
   ; mutable
-    yield_until_no_jobs_remain :
+      yield_until_no_jobs_remain :
       ((unit, read_write) Types.Bvar.t[@sexp.opaque] (* configuration*))
   ; mutable check_invariants : bool
   ; mutable max_num_jobs_per_priority_per_cycle : Max_num_jobs_per_priority_per_cycle.t
@@ -366,7 +366,7 @@ let rec run_jobs t =
      | Error _ as e -> e
      | Ok () ->
        if Job_queue.can_run_a_job t.normal_priority_jobs
-       || Job_queue.can_run_a_job t.low_priority_jobs
+          || Job_queue.can_run_a_job t.low_priority_jobs
        then run_jobs t
        else Ok ())
 ;;
@@ -382,9 +382,9 @@ let stabilize t =
 ;;
 
 let create_time_source
-      ?(timing_wheel_config = Async_kernel_config.timing_wheel_config)
-      ~now
-      ()
+  ?(timing_wheel_config = Async_kernel_config.timing_wheel_config)
+  ~now
+  ()
   =
   let t = t () in
   let events = Timing_wheel.create ~config:timing_wheel_config ~start:now in

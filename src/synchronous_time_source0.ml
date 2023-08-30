@@ -72,16 +72,16 @@ module T1 = struct
     type event = Types.Event.t
 
     let sexp_of_event
-          ({ alarm = _
-           ; at
-           ; callback = _
-           ; execution_context = _
-           ; interval
-           ; next_fired = _
-           ; prev_fired = _
-           ; status
-           } :
-             event)
+      ({ alarm = _
+       ; at
+       ; callback = _
+       ; execution_context = _
+       ; interval
+       ; next_fired = _
+       ; prev_fired = _
+       ; status
+       } :
+        event)
       =
       [%sexp
         { status : Status.t
@@ -287,17 +287,17 @@ module T1 = struct
   (* We don't include the [id] in the sexp because the user (rightly) can't control it, so
      it's hard to make it deterministic in tests. *)
   let sexp_of_t
-        _
-        { id = _
-        ; advance_errors = _
-        ; am_advancing = _
-        ; events
-        ; fired_events = _
-        ; handle_fired = _
-        ; is_wall_clock
-        ; most_recently_fired = _
-        ; scheduler = _
-        }
+    _
+    { id = _
+    ; advance_errors = _
+    ; am_advancing = _
+    ; events
+    ; fired_events = _
+    ; handle_fired = _
+    ; is_wall_clock
+    ; most_recently_fired = _
+    ; scheduler = _
+    }
     =
     let now = Timing_wheel.now events in
     if is_wall_clock
@@ -626,7 +626,6 @@ module Event = struct
   ;;
 
   let reschedule_after t event span = reschedule_at t event (Time_ns.after (now t) span)
-
 end
 
 let run_after t span callback = ignore (Event.after t span callback : Event.t)
@@ -683,11 +682,11 @@ let run_fired_events t ~(send_exn : send_exn option) =
                  (* The event's callback did not reschedule the event. So reschedule the
                     repeating timer based on the last [at] time. *)
                  event.at
-                 <- Time_ns.next_multiple
-                      ()
-                      ~base:event.at
-                      ~after:(timing_wheel_now t)
-                      ~interval;
+                   <- Time_ns.next_multiple
+                        ()
+                        ~base:event.at
+                        ~after:(timing_wheel_now t)
+                        ~interval;
                  schedule t event)));
          true)
   do

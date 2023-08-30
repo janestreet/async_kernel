@@ -207,7 +207,7 @@ val length : [> write ] T1.t -> int
 val next_alarm_runs_at : [> write ] T1.t -> Time_ns.t option
 
 val next_alarm_fires_at : [> write ] T1.t -> Time_ns.t option
-[@@deprecated "[since 2021-06] Use [next_alarm_runs_at]"]
+  [@@deprecated "[since 2021-06] Use [next_alarm_runs_at]"]
 
 (** [advance_by_alarms t ~to_] advances [t]'s time to [to_], running callbacks for all
     alarms in [t] whose [at <= to_].  Callbacks run in nondecreasing order of [at].  If
@@ -243,7 +243,6 @@ val advance_directly : [> write ] T1.t -> to_:Time_ns.t -> unit Or_error.t
 (** [advance_directly_by t by] is equivalent to:
     [advance_directly_by t ~to_:(Time_ns.add (now t) by)] *)
 val advance_directly_by : [> write ] T1.t -> Time_ns.Span.t -> unit Or_error.t
-
 
 (** This value is close to [next_alarm_fires_at] but differs from it by at most
     [alarm_precision]. Requires a more expensive iteration of alarms.

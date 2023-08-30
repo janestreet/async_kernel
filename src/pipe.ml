@@ -76,8 +76,8 @@ end = struct
         ~pipe_id:ignore
         ~values_read:
           (check (function
-             | `Have_been_sent_downstream -> ()
-             | `Have_not_been_sent_downstream ivar -> assert (Ivar.is_empty ivar)))
+            | `Have_been_sent_downstream -> ()
+            | `Have_not_been_sent_downstream ivar -> assert (Ivar.is_empty ivar)))
         ~downstream_flushed:ignore
     with
     | exn -> raise_s [%message "Pipe.Consumer.invariant failed" (exn : exn) ~pipe:(t : t)]
@@ -137,12 +137,12 @@ module Blocked_read = struct
       Fields.iter
         ~wants:
           (check (function
-             | Zero _ | One _ -> ()
-             | At_most (i, _) -> assert (i > 0)))
+            | Zero _ | One _ -> ()
+            | At_most (i, _) -> assert (i > 0)))
         ~consumer:
           (check (function
-             | None -> ()
-             | Some consumer -> Consumer.invariant consumer))
+            | None -> ()
+            | Some consumer -> Consumer.invariant consumer))
     with
     | exn ->
       raise_s [%message "Pipe.Blocked_read.invariant failed" (exn : exn) ~pipe:(t : _ t)]
@@ -213,7 +213,7 @@ type ('a, 'phantom) t =
        need to write 2^62 elements to the pipe, which would take about 146 years, at a
        flow rate of 1 size-unit/nanosecond. *)
     mutable num_values_read : int
-  (* [blocked_flushes] holds flushes whose preceding elements have not been completely
+      (* [blocked_flushes] holds flushes whose preceding elements have not been completely
      read.  For each blocked flush, the number of elements that need to be read from the
      pipe in order to fill the flush is                        :
 
@@ -327,8 +327,7 @@ let create_internal ~size_budget ~info ~initial_buffer =
     ; info
     ; closed = Ivar.create ()
     ; read_closed = Ivar.create ()
-    ;
-      size_budget
+    ; size_budget
     ; reserved_space = 0
     ; pushback = Ivar.create ()
     ; buffer = initial_buffer
@@ -795,11 +794,11 @@ module Flushed = struct
 end
 
 let fold_gen
-      (read_now : ?consumer:Consumer.t -> _ Reader.t -> _)
-      ?(flushed = Flushed.When_value_read)
-      t
-      ~init
-      ~f
+  (read_now : ?consumer:Consumer.t -> _ Reader.t -> _)
+  ?(flushed = Flushed.When_value_read)
+  t
+  ~init
+  ~f
   =
   let consumer =
     match flushed with
@@ -858,12 +857,7 @@ let with_error_to_current_monitor ?(continue_on_error = false) f a =
   if not continue_on_error
   then f a
   else (
-    match%map
-      Monitor.try_with
-        ~run:`Schedule
-        ~rest:`Log
-        (fun () -> f a)
-    with
+    match%map Monitor.try_with ~run:`Schedule ~rest:`Log (fun () -> f a) with
     | Ok () -> ()
     | Error exn -> Monitor.send_exn (Monitor.current ()) (Monitor.extract_exn exn))
 ;;
@@ -882,11 +876,11 @@ let iter ?continue_on_error ?flushed t ~f =
    rather than via [iter].  The implementation reads only one element at a time, so that
    if [f] closes [t] or raises, no more elements will be read. *)
 let iter_without_pushback
-      ?consumer
-      ?(continue_on_error = false)
-      ?max_iterations_per_job
-      t
-      ~f
+  ?consumer
+  ?(continue_on_error = false)
+  ?max_iterations_per_job
+  t
+  ~f
   =
   ensure_consumer_matches t ?consumer;
   let max_iterations_per_job =
@@ -906,8 +900,8 @@ let iter_without_pushback
     then f
     else
       fun a ->
-        try f a with
-        | exn -> Monitor.send_exn (Monitor.current ()) exn
+      try f a with
+      | exn -> Monitor.send_exn (Monitor.current ()) exn
   in
   Deferred.create (fun finished ->
     (* We do [values_available t >>>] to ensure that [f] is only called asynchronously.
@@ -998,11 +992,11 @@ let of_stream_deprecated s =
 ;;
 
 let transfer_gen
-      (read_now : ?consumer:Consumer.t -> _ Reader.t -> _)
-      write
-      input
-      output
-      ~f
+  (read_now : ?consumer:Consumer.t -> _ Reader.t -> _)
+  write
+  input
+  output
+  ~f
   =
   if !check_invariant
   then (

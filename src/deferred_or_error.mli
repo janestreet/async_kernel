@@ -57,8 +57,6 @@ val tag_s : 'a t -> tag:Sexp.t -> 'a t
 val tag_s_lazy : 'a t -> tag:Sexp.t Lazy.t -> 'a t
 val tag_arg : 'a t -> string -> 'b -> ('b -> Sexp.t) -> 'a t
 val unimplemented : string -> _ t
-
-
 val combine_errors : 'a t list -> 'a list t
 val combine_errors_unit : unit t list -> unit t
 val filter_ok_at_least_one : 'a t list -> 'a list t

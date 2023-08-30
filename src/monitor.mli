@@ -67,7 +67,6 @@ val current : unit -> t
 *)
 val detach : t -> unit
 
-
 (** [detach_and_iter_errors t ~f] detaches [t] and passes to [f] all subsequent errors
     that reach [t], stopping iteration if [f] raises an exception.  An exception raised by
     [f] is sent to the monitor in effect when [detach_and_iter_errors] was called. *)
@@ -140,8 +139,7 @@ val try_with
      -> ?rest:[ `Log | `Raise | `Call of exn -> unit ] (** default is [`Raise] *)
      -> (unit -> 'a Deferred.t)
      -> ('a, exn) Result.t Deferred.t)
-      with_optional_monitor_name
-
+    with_optional_monitor_name
 
 (** [try_with_or_error] is like [try_with] but returns ['a Or_error.t Deferred.t]
     instead of [('a,exn) Result.t Deferred.t].  More precisely:
@@ -154,7 +152,7 @@ val try_with_or_error
      -> ?rest:[ `Log | `Raise | `Call of exn -> unit ] (** default is [`Raise] *)
      -> (unit -> 'a Deferred.t)
      -> 'a Or_error.t Deferred.t)
-      with_optional_monitor_name
+    with_optional_monitor_name
 
 (** [try_with_join_or_error f = try_with_or_error f >>| Or_error.join]. *)
 val try_with_join_or_error
@@ -162,7 +160,7 @@ val try_with_join_or_error
      -> ?rest:[ `Log | `Raise | `Call of exn -> unit ] (** default is [`Raise] *)
      -> (unit -> 'a Or_error.t Deferred.t)
      -> 'a Or_error.t Deferred.t)
-      with_optional_monitor_name
+    with_optional_monitor_name
 
 (** [handle_errors ?name f handler] runs [f ()] inside a new monitor with the optionally
     supplied name, and calls [handler error] on every error raised to that monitor.  Any
@@ -199,7 +197,7 @@ val protect
      -> (unit -> 'a Deferred.t)
      -> finally:(unit -> unit Deferred.t)
      -> 'a Deferred.t)
-      with_optional_monitor_name
+    with_optional_monitor_name
 
 (** This is the initial monitor and is the root of the monitor tree.  Unhandled exceptions
     are raised to this monitor. *)

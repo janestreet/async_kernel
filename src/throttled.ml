@@ -62,24 +62,24 @@ module T = struct
   let map =
     `Custom
       (fun t ~f ->
-         { compute =
-             (fun exec_ctx semaphore k ->
-                t.compute exec_ctx semaphore (fun d ->
-                  k
-                    (let%map result = d in
-                     f result)))
-         })
+        { compute =
+            (fun exec_ctx semaphore k ->
+              t.compute exec_ctx semaphore (fun d ->
+                k
+                  (let%map result = d in
+                   f result)))
+        })
   ;;
 
   let apply t_f t =
     { compute =
         (fun exec_ctx semaphore k ->
-           t_f.compute exec_ctx semaphore (fun df ->
-             t.compute exec_ctx semaphore (fun dv ->
-               k
-                 (let%bind f = df in
-                  let%map v = dv in
-                  f v))))
+          t_f.compute exec_ctx semaphore (fun df ->
+            t.compute exec_ctx semaphore (fun dv ->
+              k
+                (let%bind f = df in
+                 let%map v = dv in
+                 f v))))
     }
   ;;
 end
@@ -96,12 +96,12 @@ let enqueue' scheduler ctx f =
 let job f =
   { compute =
       (fun exec_ctx semaphore k ->
-         Deferred.upon (Counting_semaphore.wait_to_acquire_job_token semaphore) (fun () ->
-           k
-             (enqueue' (Scheduler.t ()) exec_ctx (fun () ->
-                let%map a = f () in
-                Counting_semaphore.release_job_token semaphore;
-                a))))
+        Deferred.upon (Counting_semaphore.wait_to_acquire_job_token semaphore) (fun () ->
+          k
+            (enqueue' (Scheduler.t ()) exec_ctx (fun () ->
+               let%map a = f () in
+               Counting_semaphore.release_job_token semaphore;
+               a))))
   }
 ;;
 
@@ -129,19 +129,19 @@ let run t ~max_concurrent_jobs =
 let of_thunk thunk =
   { compute =
       (fun exec_ctx semaphore k ->
-         let t = thunk () in
-         t.compute exec_ctx semaphore k)
+        let t = thunk () in
+        t.compute exec_ctx semaphore k)
   }
 ;;
 
 let ( *> ) t1 t2 =
   { compute =
       (fun exec_ctx semaphore k ->
-         t1.compute exec_ctx semaphore (fun d1 ->
-           t2.compute exec_ctx semaphore (fun d2 ->
-             k
-               (let%bind () = d1 in
-                d2))))
+        t1.compute exec_ctx semaphore (fun d1 ->
+          t2.compute exec_ctx semaphore (fun d2 ->
+            k
+              (let%bind () = d1 in
+               d2))))
   }
 ;;
 
