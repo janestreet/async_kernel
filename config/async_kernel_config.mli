@@ -12,6 +12,7 @@
 
 open! Core
 module Epoll_max_ready_events : Validated.S with type raw := int
+module Io_uring_max_submission_entries : Validated.S with type raw := int
 module Max_inter_cycle_timeout : Validated.S with type raw := Time_ns.Span.t
 module Min_inter_cycle_timeout : Validated.S with type raw := Time_ns.Span.t
 module Max_num_threads : Validated.S with type raw := int
@@ -73,12 +74,22 @@ module File_descr_watcher : sig
   [@@deriving sexp_of]
 end
 
+module Io_uring_mode : sig
+  type t =
+    | Disabled
+    | Eventfd
+    | If_available_eventfd
+  [@@deriving sexp_of]
+end
+
 type t =
   { abort_after_thread_pool_stuck_for : Time_ns.Span.t option
   ; check_invariants : bool option
   ; detect_invalid_access_from_thread : bool option
   ; dump_core_on_job_delay : Dump_core_on_job_delay.t option
   ; epoll_max_ready_events : Epoll_max_ready_events.t option
+  ; io_uring_max_submission_entries : Io_uring_max_submission_entries.t option
+  ; io_uring_mode : Io_uring_mode.t option
   ; file_descr_watcher : File_descr_watcher.t option
   ; max_inter_cycle_timeout : Max_inter_cycle_timeout.t option
   ; max_num_open_file_descrs : Max_num_open_file_descrs.t option
@@ -99,6 +110,8 @@ val create
   -> ?detect_invalid_access_from_thread:bool
   -> ?dump_core_on_job_delay:Dump_core_on_job_delay.t
   -> ?epoll_max_ready_events:Epoll_max_ready_events.t
+  -> ?io_uring_max_submission_entries:Io_uring_max_submission_entries.t
+  -> ?io_uring_mode:Io_uring_mode.t
   -> ?file_descr_watcher:File_descr_watcher.t
   -> ?max_inter_cycle_timeout:Max_inter_cycle_timeout.t
   -> ?max_num_open_file_descrs:Max_num_open_file_descrs.t
@@ -142,6 +155,8 @@ val detect_invalid_access_from_thread : bool
 val dump_core_on_job_delay : Dump_core_on_job_delay.t
 val thread_pool_cpu_affinity : Thread_pool_cpu_affinity.t
 val epoll_max_ready_events : Epoll_max_ready_events.t
+val io_uring_max_submission_entries : Io_uring_max_submission_entries.t
+val io_uring_mode : Io_uring_mode.t
 val file_descr_watcher : File_descr_watcher.t
 val max_inter_cycle_timeout : Max_inter_cycle_timeout.t
 val max_num_jobs_per_priority_per_cycle : Max_num_jobs_per_priority_per_cycle.t

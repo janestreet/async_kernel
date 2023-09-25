@@ -16,7 +16,12 @@
     throttle is killed, then all jobs in it that haven't yet started are aborted, i.e.,
     they will not start and will become determined with [`Aborted].  Jobs that had already
     started will continue, and return [`Ok] or [`Raised] as usual when they finish.  Jobs
-    enqueued into a killed throttle will be immediately aborted. *)
+    enqueued into a killed throttle will be immediately aborted.
+
+    [rest] controls what happens to exceptions raised by the throttle jobs after they have
+    finished (see [Monitor.try_with]). Exceptions forwarded through [rest] do not affect
+    the throttle or any other jobs (since the original job has already succesfully run).
+*)
 
 open! Core
 module Deferred := Deferred1
@@ -36,14 +41,37 @@ type 'a t = ('a, [ `throttle ]) T2.t [@@deriving sexp_of]
 
 include Invariant.S1 with type 'a t := 'a t
 
-(** [create ~continue_on_error ~max_concurrent_jobs] returns a throttle that will run up
-    to [max_concurrent_jobs] concurrently.  If some job raises an exception, then the
-    throttle will be killed, unless [continue_on_error] is true. *)
+(** [create' ~rest ~continue_on_error ~max_concurrent_jobs] returns a throttle that will
+    run up to [max_concurrent_jobs] concurrently.
+
+    If some job raises an exception, then the throttle will be killed, unless
+    [continue_on_error] is true.
+*)
+val create'
+  :  rest:[ `Log | `Raise | `Call of exn -> unit ]
+       (** What to do on exceptions raised from enqueued jobs after the job has already
+      completed (either from the result becoming determined or raising an exception). If
+      [`Raise] is provided, the exceptions will be raised to the monitor that [enqueue]
+      for that job was invoked from within. *)
+  -> continue_on_error:bool
+  -> max_concurrent_jobs:int
+  -> unit t
+
+(** [create ~continue_on_error ~max_concurrent_jobs] is
+    [create' ~rest:`Log ~continue_on_error ~max_concurrent_jobs] *)
 val create : continue_on_error:bool -> max_concurrent_jobs:int -> unit t
 
 (** [create_with ~continue_on_error job_resources] returns a throttle that will run up to
     [List.length job_resources] concurrently, and will ensure that all running jobs are
     supplied distinct elements of [job_resources]. *)
+val create_with'
+  :  rest:[ `Log | `Raise | `Call of exn -> unit ]
+  -> continue_on_error:bool
+  -> 'a list
+  -> 'a t
+
+(** [create_with ~continue_on_error job_resources] is
+    [create_with' ~rest:`Log ~continue_on_error job_resources] *)
 val create_with : continue_on_error:bool -> 'a list -> 'a t
 
 type 'a outcome =
@@ -136,7 +164,11 @@ val cleaned : (_, _) T2.t -> unit Deferred.t
 module Sequencer : sig
   type 'a t = ('a, [ `sequencer ]) T2.t [@@deriving sexp_of]
 
-  val create : ?continue_on_error:bool (** default is [false] *) -> 'a -> 'a t
+  val create
+    :  ?rest:[ `Log | `Raise | `Call of exn -> unit ] (** default is `Log *)
+    -> ?continue_on_error:bool (** default is [false] *)
+    -> 'a
+    -> 'a t
 end
 
 module Deferred = Deferred

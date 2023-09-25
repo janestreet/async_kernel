@@ -13,7 +13,10 @@ type 'a outcome =
 module Internal_job : sig
   type 'a t [@@deriving sexp_of]
 
-  val create : ('a -> 'b Deferred.t) -> 'a t * 'b outcome Deferred.t
+  val create
+    :  rest:[ `Log | `Raise | `Call of exn -> unit ]
+    -> ('a -> 'b Deferred.t)
+    -> 'a t * 'b outcome Deferred.t
 
   (* Every internal job will eventually be either [run] or [abort]ed, but not both. *)
 
@@ -26,13 +29,13 @@ end = struct
     }
   [@@deriving sexp_of]
 
-  let create work =
+  let create ~rest work =
     let start = Ivar.create () in
     let result =
       match%bind Ivar.read start with
       | `Abort -> return `Aborted
       | `Start a ->
-        (match%map Monitor.try_with ~run:`Schedule ~rest:`Log (fun () -> work a) with
+        (match%map Monitor.try_with ~run:`Schedule ~rest (fun () -> work a) with
          | Ok a -> `Ok a
          | Error exn -> `Raised exn)
     in
@@ -58,6 +61,7 @@ end
 
 type 'a t =
   { continue_on_error : bool
+  ; rest : [ `Log | `Raise | `Call of exn -> unit ]
   ; max_concurrent_jobs : int
   ; (* [job_resources_not_in_use] holds resources that are not currently in use by a
        running job. *)
@@ -93,6 +97,7 @@ let invariant invariant_a t : unit =
     let check f field = f (Field.get field t) in
     Fields.iter
       ~continue_on_error:ignore
+      ~rest:ignore
       ~max_concurrent_jobs:
         (check (fun max_concurrent_jobs -> assert (max_concurrent_jobs > 0)))
       ~job_resources_not_in_use:
@@ -189,9 +194,10 @@ let rec start_job t =
         t.capacity_available <- None))
 ;;
 
-let create_internal ~continue_on_error job_resources =
+let create_internal ~continue_on_error ~rest job_resources =
   let max_concurrent_jobs = Stack_or_counter.length job_resources in
   { continue_on_error
+  ; rest
   ; max_concurrent_jobs
   ; job_resources_not_in_use = job_resources
   ; jobs_waiting_to_start = Queue.create ()
@@ -204,17 +210,23 @@ let create_internal ~continue_on_error job_resources =
   }
 ;;
 
+let create_with' ~rest ~continue_on_error job_resources =
+  create_internal ~rest ~continue_on_error (Stack_or_counter.of_list job_resources)
+;;
+
 let create_with ~continue_on_error job_resources =
-  create_internal ~continue_on_error (Stack_or_counter.of_list job_resources)
+  create_with' ~rest:`Log ~continue_on_error job_resources
 ;;
 
 module Sequencer = struct
   type nonrec 'a t = 'a t [@@deriving sexp_of]
 
-  let create ?(continue_on_error = false) a = create_with ~continue_on_error [ a ]
+  let create ?(rest = `Log) ?(continue_on_error = false) a =
+    create_with' ~rest ~continue_on_error [ a ]
+  ;;
 end
 
-let create ~continue_on_error ~max_concurrent_jobs =
+let create' ~rest ~continue_on_error ~max_concurrent_jobs =
   if max_concurrent_jobs <= 0
   then
     raise_s
@@ -222,8 +234,13 @@ let create ~continue_on_error ~max_concurrent_jobs =
         "Throttle.create requires positive max_concurrent_jobs, but got"
           (max_concurrent_jobs : int)];
   create_internal
+    ~rest
     ~continue_on_error
     (Stack_or_counter.create_counter ~length:max_concurrent_jobs)
+;;
+
+let create ~continue_on_error ~max_concurrent_jobs =
+  create' ~rest:`Log ~continue_on_error ~max_concurrent_jobs
 ;;
 
 module Job = struct
@@ -235,14 +252,14 @@ module Job = struct
   let result t = t.result
   let abort t = Internal_job.abort t.internal_job
 
-  let create f =
-    let internal_job, result = Internal_job.create f in
+  let create ~rest f =
+    let internal_job, result = Internal_job.create ~rest f in
     { internal_job; result }
   ;;
 end
 
 let enqueue_internal t f enqueue =
-  let job = Job.create f in
+  let job = Job.create ~rest:t.rest f in
   if t.is_dead
   then Job.abort job
   else (
