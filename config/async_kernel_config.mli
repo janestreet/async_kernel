@@ -71,6 +71,7 @@ module File_descr_watcher : sig
     | Epoll_if_timerfd
     | Epoll
     | Select
+    | Io_uring
   [@@deriving sexp_of]
 end
 
@@ -79,6 +80,7 @@ module Io_uring_mode : sig
     | Disabled
     | Eventfd
     | If_available_eventfd
+    | From_scheduler
   [@@deriving sexp_of]
 end
 

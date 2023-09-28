@@ -1,4 +1,3 @@
-module Inria_sys = Sys
 open Core
 module Time_ns = Core_private.Time_ns_alternate_sexp
 open Poly
@@ -133,13 +132,14 @@ module File_descr_watcher = struct
       | Epoll_if_timerfd
       | Epoll
       | Select
+      | Io_uring
     [@@deriving sexp]
   end
 
   include T
   include Sexpable.To_stringable (T)
 
-  let list = [ Epoll_if_timerfd; Epoll; Select ]
+  let list = [ Epoll_if_timerfd; Epoll; Select; Io_uring ]
 end
 
 module Io_uring_mode = struct
@@ -148,13 +148,14 @@ module Io_uring_mode = struct
       | Disabled
       | Eventfd
       | If_available_eventfd
+      | From_scheduler
     [@@deriving sexp]
   end
 
   include T
   include Sexpable.To_stringable (T)
 
-  let list = [ Disabled; Eventfd; If_available_eventfd ]
+  let list = [ Disabled; Eventfd; If_available_eventfd; From_scheduler ]
 end
 
 type t =
@@ -179,7 +180,39 @@ type t =
   ; thread_pool_cpu_affinity : Thread_pool_cpu_affinity.t option [@sexp.option]
   ; timing_wheel_config : Timing_wheel.Config.t option [@sexp.option]
   }
-[@@deriving fields ~fields ~iterators:fold, sexp]
+[@@deriving fields ~fields ~iterators:(map, fold), sexp]
+
+module Allow_extra_fields = struct
+  type nonrec t = t =
+    { abort_after_thread_pool_stuck_for : Time_ns.Span.t option [@sexp.option]
+    ; check_invariants : bool option [@sexp.option]
+    ; detect_invalid_access_from_thread : bool option [@sexp.option]
+    ; dump_core_on_job_delay : Dump_core_on_job_delay.t option [@sexp.option]
+    ; epoll_max_ready_events : Epoll_max_ready_events.t option [@sexp.option]
+    ; io_uring_max_submission_entries : Io_uring_max_submission_entries.t option
+         [@sexp.option]
+    ; io_uring_mode : Io_uring_mode.t option [@sexp.option]
+    ; file_descr_watcher : File_descr_watcher.t option [@sexp.option]
+    ; max_inter_cycle_timeout : Max_inter_cycle_timeout.t option [@sexp.option]
+    ; max_num_open_file_descrs : Max_num_open_file_descrs.t option [@sexp.option]
+    ; max_num_threads : Max_num_threads.t option [@sexp.option]
+    ; max_num_jobs_per_priority_per_cycle : Max_num_jobs_per_priority_per_cycle.t option
+         [@sexp.option]
+    ; min_inter_cycle_timeout : Min_inter_cycle_timeout.t option [@sexp.option]
+    ; print_debug_messages_for : Debug_tag.t list option [@sexp.option]
+    ; record_backtraces : bool option [@sexp.option]
+    ; report_thread_pool_stuck_for : Time_ns.Span.t option [@sexp.option]
+    ; thread_pool_cpu_affinity : Thread_pool_cpu_affinity.t option [@sexp.option]
+    ; timing_wheel_config : Timing_wheel.Config.t option [@sexp.option]
+    }
+  [@@sexp.allow_extra_fields] [@@deriving sexp]
+end
+
+let t_of_sexp ~allow_extra_fields sexp =
+  match allow_extra_fields with
+  | true -> Allow_extra_fields.t_of_sexp sexp
+  | false -> t_of_sexp sexp
+;;
 
 let empty =
   { abort_after_thread_pool_stuck_for = None
@@ -300,7 +333,32 @@ let example =
   }
 ;;
 
+let merge t1 t2 =
+  let override field = Option.first_some (Field.get field t1) (Field.get field t2) in
+  Fields.map
+    ~abort_after_thread_pool_stuck_for:override
+    ~check_invariants:override
+    ~detect_invalid_access_from_thread:override
+    ~dump_core_on_job_delay:override
+    ~epoll_max_ready_events:override
+    ~io_uring_max_submission_entries:override
+    ~io_uring_mode:override
+    ~file_descr_watcher:override
+    ~max_inter_cycle_timeout:override
+    ~max_num_open_file_descrs:override
+    ~max_num_threads:override
+    ~max_num_jobs_per_priority_per_cycle:override
+    ~min_inter_cycle_timeout:override
+    ~print_debug_messages_for:override
+    ~record_backtraces:override
+    ~report_thread_pool_stuck_for:override
+    ~thread_pool_cpu_affinity:override
+    ~timing_wheel_config:override
+;;
+
+let reduce ts = List.fold_right ~init:empty ~f:merge ts
 let environment_variable = "ASYNC_CONFIG"
+let environment_variable_allow_extra_fields = "ASYNC_CONFIG_ALLOW_EXTRA_FIELDS"
 
 let field_descriptions () : string =
   let field to_sexp description ac field =
@@ -547,25 +605,28 @@ let usage () =
   exit 1
 ;;
 
-let t =
-  match Option.try_with (fun () -> Inria_sys.getenv environment_variable) with
+let parse_variable env_var ~allow_extra_fields =
+  match Sys.getenv env_var with
   | None -> empty
   | Some "" -> usage ()
   | Some string ->
-    (match Result.try_with (fun () -> t_of_sexp (Sexp.of_string string)) with
-     | Ok t -> t
-     | Error exn ->
+    (match Parsexp.Conv_many.parse_string string (t_of_sexp ~allow_extra_fields) with
+     | Ok ts -> reduce ts
+     | Error error ->
        eprintf
          "%s\n\n"
          (Sexp.to_string_hum
-            (Error.sexp_of_t
-               (Error.create
-                  (sprintf
-                     "invalid value for %s environment variable"
-                     environment_variable)
-                  exn
-                  [%sexp_of: exn])));
+            [%sexp
+              (sprintf "invalid value for %s environment variable" env_var : string)
+              , (error : Parsexp.Conv_error.t)]);
        usage ())
+;;
+
+let t =
+  reduce
+    [ parse_variable environment_variable ~allow_extra_fields:false
+    ; parse_variable environment_variable_allow_extra_fields ~allow_extra_fields:true
+    ]
 ;;
 
 module Print_debug_messages_for = struct
