@@ -264,6 +264,24 @@ val length : (_, _) t -> int
 (** [is_empty t] is true iff there are no values in the pipe. *)
 val is_empty : (_, _) t -> bool
 
+(** [num_values_read] keeps track of the total number of values that have been read from
+    the pipe.
+
+    It can only continue to increase as long as the read end of the pipe remains open.
+    It can never decrease.
+
+    At any given time, [num_values_read = num_values_written - length]. *)
+val num_values_read : (_, _) t -> int
+
+(** [num_values_written] keeps track of the total number of values that have been written
+    to the pipe.
+
+    It can only continue to increase as long as the write end of the pipe remains open.
+    It can never decrease.
+
+    At any given time, [num_values_written = num_values_read + length]. *)
+val num_values_written : (_, _) t -> int
+
 (** {2 Writing} *)
 
 (** The write operations return a deferred value that is determined when either (1) it is

@@ -201,9 +201,9 @@ let send_exn t ?(backtrace = `Get) exn =
       Monitor_exn { Monitor_exn.exn; backtrace; backtrace_history; monitor = t }
   in
   if Debug.monitor_send_exn then Debug.log "Monitor.send_exn" (t, exn) [%sexp_of: t * exn];
-  t.has_seen_error <- true;
   let scheduler = Scheduler.t () in
   let rec loop t =
+    t.has_seen_error <- true;
     Ivar.fill_exn t.next_error exn;
     t.next_error <- Ivar.create ();
     match t.forwarding with

@@ -39,10 +39,10 @@ val read_only : [> read ] T1.t -> t
 
 type callback = unit -> unit
 
-(** [create ~now ()] creates a new time source.  The default [timing_wheel_config] has 100
-    microsecond precision, with levels of >1s, >1m, >1h, >1d.  The [timing_wheel_config]
-    is used to tune performance; configuration does not affect the fact that alarms fire
-    in non-decreasing time order. *)
+(** [create ~now ()] creates a new simulated time source. The default
+    [timing_wheel_config] has 100 microsecond precision, with levels of >1s, >1m, >1h,
+    >1d. The [timing_wheel_config] is used to tune performance; configuration does not
+    affect the fact that alarms fire in non-decreasing time order. *)
 val create
   :  ?timing_wheel_config:Timing_wheel.Config.t
   -> now:Time_ns.t

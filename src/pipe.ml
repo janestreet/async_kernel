@@ -253,6 +253,7 @@ let closed t = Ivar.read t.closed
 let pushback t = Ivar.read t.pushback
 let length t = Queue.length t.buffer
 let is_empty t = length t = 0
+let num_values_written t = length t + num_values_read t
 let update_num_values_read t ~delta = t.num_values_read <- t.num_values_read + delta
 
 let invariant t : unit =

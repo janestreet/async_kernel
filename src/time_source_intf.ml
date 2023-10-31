@@ -39,6 +39,7 @@ module type Time_source = sig
   val invariant_with_jobs : job:Job.t Invariant.t -> t Invariant.t
   val read_only : [> read ] T1.t -> t
 
+  (** Creates a new simulated time source. *)
   val create
     :  ?timing_wheel_config:Timing_wheel.Config.t
     -> now:Time_ns.t
