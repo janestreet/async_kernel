@@ -8,3 +8,4 @@ module Or_error = Deferred_or_error
 module Queue = Deferred_queue
 module Result = Deferred_result
 module Sequence = Deferred_sequence
+module Set = Deferred_set

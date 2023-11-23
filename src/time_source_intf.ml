@@ -157,6 +157,13 @@ module type Time_source = sig
     -> 'a Deferred.t
     -> [ `Timeout | `Result of 'a ] Deferred.t
 
+  val with_timeout_exn
+    :  [> read ] T1.t
+    -> Time_ns.Span.t
+    -> 'a Deferred.t
+    -> error:Error.t
+    -> 'a Deferred.t
+
   val duration_of
     :  [> read ] T1.t
     -> (unit -> 'a Deferred.t)

@@ -49,6 +49,7 @@ let schedule' = Scheduler.schedule'
 let try_with = Monitor.try_with
 let upon = Deferred.upon
 let with_timeout = Clock_ns.with_timeout
+let with_timeout_exn = Clock_ns.with_timeout_exn
 let within = Scheduler.within
 let within' = Scheduler.within'
 

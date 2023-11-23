@@ -204,6 +204,7 @@ module Map = Deferred_map
 module Memo = Deferred_memo
 module Queue = Deferred_queue
 module Sequence = Deferred_sequence
+module Set = Deferred_set
 
 (** {2 Error-carrying deferreds}
 

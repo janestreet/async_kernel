@@ -180,3 +180,16 @@ let find_map t ~f = find_mapi t ~f:(fun _ a -> f a)
 let exists t ~f = existsi t ~f:(fun _ a -> f a)
 let for_all t ~f = for_alli t ~f:(fun _ a -> f a)
 let init ~how n ~f = map ~how (Sequence.init n ~f:Fn.id) ~f
+
+let count ?how t ~f =
+  fold_mapi
+    ?how
+    t
+    ~mapi_f:(fun _i a -> f a)
+    ~init:0
+    ~fold_f:(fun acc c -> acc + Bool.to_int c)
+;;
+
+let sum (type a) (module M : Base.Container.Summable with type t = a) ?how t ~f =
+  fold_mapi ?how t ~mapi_f:(fun _i a -> f a) ~init:M.zero ~fold_f:M.( + )
+;;

@@ -51,6 +51,12 @@ module type Clock = sig
       preference. *)
   val with_timeout : Time.Span.t -> 'a Deferred.t -> 'a Or_timeout.t Deferred.t
 
+  (** [with_timeout_exn span d ~error] is like [with_timeout], but raises if the timeout
+      occurs. You should be careful with the [Error.t] you pass because its easy to
+      allocate a large value that will be unused. To avoid this, you should use one of the
+      lazy-creation functions in the [Error] module. *)
+  val with_timeout_exn : Time.Span.t -> 'a Deferred.t -> error:Error.t -> 'a Deferred.t
+
   (** Events provide variants of [run_at] and [run_after] with the ability to abort or
       reschedule an event that hasn't yet happened.  Once an event happens or is aborted,
       Async doesn't use any space for tracking it. *)
@@ -306,6 +312,9 @@ module type Clock_deprecated = sig
 
   val with_timeout : Time.Span.t -> 'a Deferred.t -> 'a Or_timeout.t Deferred.t
     [@@deprecated "[since 2016-02] Use [Time_source]"]
+
+  val with_timeout_exn : Time.Span.t -> 'a Deferred.t -> error:Error.t -> 'a Deferred.t
+    [@@deprecated "[since 2023-11] Use [Time_source]"]
 
   module Event : sig
     type ('a, 'h) t [@@deriving sexp_of]

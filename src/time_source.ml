@@ -585,6 +585,12 @@ let with_timeout t span d =
     ]
 ;;
 
+let with_timeout_exn t span d ~error =
+  Deferred.map (with_timeout t span d) ~f:(function
+    | `Result result -> result
+    | `Timeout -> Error.raise error)
+;;
+
 let duration_of t f =
   let start = now t in
   (* Eager map to provide more accurate timings when [f] is synchronous. *)

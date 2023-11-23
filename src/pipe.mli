@@ -700,12 +700,25 @@ val filter : 'a Reader.t -> f:('a -> bool) -> 'a Reader.t
     of values from that input to [output], using [transfer_id].  Each input is transferred
     to [output] independently.  So, batches of values from different inputs can be in
     flight to [output] simultaneously, but at most one batch at a time from any particular
-    input.  The operation is complete when either all the [inputs] produce EOF, or when
-    [output] is closed by the downstream consumer (in which case [interleave] closes all
-    the [inputs]). *)
-val interleave : 'a Reader.t list -> 'a Reader.t
+    input.
 
-val interleave_pipe : 'a Reader.t Reader.t -> 'a Reader.t
+    When [output] is closed by the downstream consumer, [interleave] closes
+    all the [inputs].
+
+    [close_on] defines the conditions under which the output pipe will close:
+    - [`All_inputs_closed] will only close the output if all inputs have closed
+    - [`Any_input_closed] closes the output once any input has closed *)
+val interleave
+  :  ?close_on:[ `All_inputs_closed | `Any_input_closed ]
+       (** default: [`All_inputs_closed] *)
+  -> 'a Reader.t list
+  -> 'a Reader.t
+
+val interleave_pipe
+  :  ?close_on:[ `All_inputs_closed | `Any_input_closed ]
+       (** default: [`All_inputs_closed] *)
+  -> 'a Reader.t Reader.t
+  -> 'a Reader.t
 
 (** [merge inputs ~compare] returns a reader, [output], that merges all the inputs.
     Assuming that for each input, values are sorted according to the comparison function

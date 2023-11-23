@@ -1188,15 +1188,20 @@ let to_sequence t =
     | `Nothing_available -> Some (Wait_for (values_available t), ()))
 ;;
 
-let interleave_pipe inputs =
+let interleave_pipe ?(close_on = `All_inputs_closed) inputs =
   let output, output_writer = create ~info:[%sexp "Pipe.interleave"] () in
   (* We keep a reference count of all the pipes that [interleave_pipe] is managing;
      [inputs] counts as one.  When the reference count drops to zero, we know that all
      pipes are closed and we can close [output_writer]. *)
   let num_pipes_remaining = ref 1 in
-  let decr_num_pipes_remaining () =
+  let close_one_pipe () =
     decr num_pipes_remaining;
-    if !num_pipes_remaining = 0 then close output_writer
+    let should_close =
+      match close_on with
+      | `Any_input_closed -> true
+      | `All_inputs_closed -> !num_pipes_remaining = 0
+    in
+    if should_close then close output_writer
   in
   don't_wait_for
     (let%map () =
@@ -1204,16 +1209,16 @@ let interleave_pipe inputs =
          incr num_pipes_remaining;
          don't_wait_for
            (let%map () = transfer_id input output_writer in
-            decr_num_pipes_remaining ()))
+            close_one_pipe ()))
      in
-     decr_num_pipes_remaining ());
+     close_one_pipe ());
   (* for [inputs] *)
   output
 ;;
 
-let interleave inputs =
+let interleave ?close_on inputs =
   if !check_invariant then List.iter inputs ~f:invariant;
-  interleave_pipe (of_list inputs)
+  interleave_pipe ?close_on (of_list inputs)
 ;;
 
 let merge inputs ~compare =
