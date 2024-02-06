@@ -1194,12 +1194,14 @@ let interleave_pipe ?(close_on = `All_inputs_closed) inputs =
      [inputs] counts as one.  When the reference count drops to zero, we know that all
      pipes are closed and we can close [output_writer]. *)
   let num_pipes_remaining = ref 1 in
-  let close_one_pipe () =
+  let close_one_pipe closed_pipe_kind =
     decr num_pipes_remaining;
     let should_close =
-      match close_on with
-      | `Any_input_closed -> true
-      | `All_inputs_closed -> !num_pipes_remaining = 0
+      match close_on, closed_pipe_kind with
+      | `Any_input_closed, `Input_pipe -> true
+      | `Any_input_closed, `Pipe_of_input_pipes
+      | `All_inputs_closed, (`Input_pipe | `Pipe_of_input_pipes) ->
+        !num_pipes_remaining = 0
     in
     if should_close then close output_writer
   in
@@ -1209,9 +1211,9 @@ let interleave_pipe ?(close_on = `All_inputs_closed) inputs =
          incr num_pipes_remaining;
          don't_wait_for
            (let%map () = transfer_id input output_writer in
-            close_one_pipe ()))
+            close_one_pipe `Input_pipe))
      in
-     close_one_pipe ());
+     close_one_pipe `Pipe_of_input_pipes);
   (* for [inputs] *)
   output
 ;;

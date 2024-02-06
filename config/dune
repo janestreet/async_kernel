@@ -1,4 +1,7 @@
-(library (name async_kernel_config)
+(library
+ (name async_kernel_config)
  (libraries core core_kernel.thread_pool_cpu_affinity
-  core_kernel.timing_wheel)
- (public_name async_kernel.config) (preprocess (pps ppx_jane)))
+   core_kernel.timing_wheel)
+ (public_name async_kernel.config)
+ (preprocess
+  (pps ppx_jane)))

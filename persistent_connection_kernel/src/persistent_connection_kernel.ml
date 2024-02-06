@@ -5,9 +5,9 @@ include Persistent_connection_kernel_intf
 module Event = Event
 
 module Event_handler = struct
-  type ('conn, 'address) t =
+  type ('conn, 'conn_error, 'address) t =
     { server_name : string
-    ; on_event : ('conn, 'address) Event.t -> unit Deferred.t
+    ; on_event : ('conn, 'conn_error, 'address) Event.t -> unit Deferred.t
     }
   [@@deriving sexp_of]
 
@@ -18,7 +18,7 @@ end
    here in a place that is unlikely to change very often *)
 let dummy_src_pos_that_shows_up_in_tests = [%here]
 
-module Make (Conn : Closable) = struct
+module Make' (Conn_err : Connection_error) (Conn : Closable) = struct
   module Conn = struct
     include Conn
 
@@ -26,21 +26,66 @@ module Make (Conn : Closable) = struct
   end
 
   type conn = Conn.t
+  type conn_error = Conn_err.t [@@deriving sexp_of]
 
   module Event = struct
-    type 'address t = (Conn.t, 'address) Event.t [@@deriving sexp_of]
+    type 'address t = (Conn.t, Conn_err.t, 'address) Event.t [@@deriving sexp_of]
+  end
+
+  (* We use this helper type instead of calling [Conn_err.of_exception_error] so that we
+     can reliably call [same_error] on exceptions raised in [connect]: If
+     [Conn_err.to_error (Conn_err.of_exception_error err)] doesn't roundtrip then
+     [same_error] may not correctly discard the backtrace and we could have noisy logs *)
+  module Conn_error_or_exception = struct
+    type t =
+      | Conn_error of conn_error
+      | Exception of Error.t
+    [@@deriving sexp_of]
+
+    (* This function focuses in on the the error itself, discarding information about which
+       monitor caught the error, if any.
+
+       If we don't do this, we sometimes end up with noisy logs which report the same error
+       again and again, differing only as to what monitor caught them. *)
+    let same_error e1 e2 =
+      let to_sexp e = Exn.sexp_of_t (Monitor.extract_exn (Error.to_exn e)) in
+      Sexp.equal (to_sexp e1) (to_sexp e2)
+    ;;
+
+    let equal e1 e2 =
+      match e1, e2 with
+      | Conn_error e1, Conn_error e2 -> Conn_err.equal e1 e2
+      | Exception e1, Exception e2 -> same_error e1 e2
+      | _ -> false
+    ;;
+
+    let join = function
+      | Ok (Ok result) -> Ok result
+      | Ok (Error conn_error) -> Error (Conn_error conn_error)
+      | Error exn -> Error (Exception exn)
+    ;;
+
+    let to_conn_error = function
+      | Conn_error conn_error -> conn_error
+      | Exception err -> Conn_err.of_exception_error err
+    ;;
+
+    let to_error = function
+      | Conn_error conn_error -> Conn_err.to_error conn_error
+      | Exception err -> err
+    ;;
   end
 
   (* A persistent connection that is polymorphic in the address type.  We hide away this
      type later since it only appears in the type of [create]. *)
   module Poly = struct
     type 'address t =
-      { get_address : unit -> 'address Or_error.t Deferred.t
-      ; connect : 'address -> Conn.t Or_error.t Deferred.t
+      { get_address : unit -> ('address, conn_error) Result.t Deferred.t
+      ; connect : 'address -> (Conn.t, conn_error) Result.t Deferred.t
       ; retry_delay : unit -> unit Deferred.t
       ; mutable conn : [ `Ok of Conn.t | `Close_started ] Ivar.t
-      ; mutable next_connect_result : Conn.t Or_error.t Ivar.t
-      ; event_handler : (Conn.t, 'address) Event_handler.t
+      ; mutable next_connect_result : (Conn.t, Conn_error_or_exception.t) Result.t Ivar.t
+      ; event_handler : (Conn.t, conn_error, 'address) Event_handler.t
       ; event_bus : (unit Event.t -> unit, read_write) Bus.t
       ; close_started : unit Ivar.t
       ; close_finished : unit Ivar.t
@@ -62,16 +107,6 @@ module Make (Conn : Closable) = struct
          | Connected conn -> Connected conn
          | Disconnected -> Disconnected);
       Event_handler.handle event t.event_handler
-    ;;
-
-    (* This function focuses in on the the error itself, discarding information about which
-       monitor caught the error, if any.
-
-       If we don't do this, we sometimes end up with noisy logs which report the same error
-       again and again, differing only as to what monitor caught them. *)
-    let same_error e1 e2 =
-      let to_sexp e = Exn.sexp_of_t (Monitor.extract_exn (Error.to_exn e)) in
-      Sexp.equal (to_sexp e1) (to_sexp e2)
     ;;
 
     (* Continue trying to connect until we are able to do so, in which case we return both
@@ -100,7 +135,8 @@ module Make (Conn : Closable) = struct
       in
       let connect () =
         (* Catch exceptions raised by the user-provided [t.get_address] or [t.connect] *)
-        Deferred.Or_error.try_with_join ~extract_exn:am_running_test connect
+        Deferred.Or_error.try_with ~extract_exn:am_running_test connect
+        >>| Conn_error_or_exception.join
       in
       let rec loop () =
         if Ivar.is_full t.close_started
@@ -122,12 +158,14 @@ module Make (Conn : Closable) = struct
             let same_as_previous_error =
               match !previous_error with
               | None -> false
-              | Some previous_err -> same_error err previous_err
+              | Some previous_err -> Conn_error_or_exception.equal err previous_err
             in
             previous_error := Some err;
             (if same_as_previous_error
              then Deferred.unit
-             else handle_event t (Failed_to_connect err))
+             else (
+               let err = Conn_error_or_exception.to_conn_error err in
+               handle_event t (Failed_to_connect err)))
             >>= fun () ->
             Deferred.any
               [ ready_to_retry_connecting
@@ -310,7 +348,9 @@ module Make (Conn : Closable) = struct
           Deferred.choose
             [ choice (Ivar.read t.close_started) (fun () ->
                 connected_or_failed_to_connect_connection_closed)
-            ; choice (Ivar.read t.next_connect_result) Fn.id
+            ; choice
+                (Ivar.read t.next_connect_result)
+                (Result.map_error ~f:Conn_error_or_exception.to_error)
             ])
     ;;
 
@@ -358,3 +398,13 @@ module Make (Conn : Closable) = struct
          get_address)
   ;;
 end
+
+module Make (Conn : Closable) =
+  Make'
+    (struct
+      type t = Error.t [@@deriving equal, sexp_of]
+
+      let of_exception_error e = e
+      let to_error e = e
+    end)
+    (Conn)

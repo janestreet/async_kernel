@@ -749,7 +749,9 @@ val concat_pipe : 'a Reader.t Reader.t -> 'a Reader.t
     faster one, but [fork] could be forced to buffer arbitrarily many elements.  Beware of
     unbounded resource usage in downstream code where one reader might fall behind.
 
-    Note that {!upstream_flushed} will not work with the pipes returned by [fork]. *)
+    Note that {!downstream_flushed} will only mark elements flushed once they've been
+    flushed by both returned pipes, regardless of the value used for [pushback_uses].
+    Additionally, {!upstream_flushed} will not work with the pipes returned by [fork]. *)
 val fork
   :  'a Reader.t
   -> pushback_uses:[ `Both_consumers | `Fast_consumer_only ]

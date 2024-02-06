@@ -67,8 +67,8 @@ val write_only : ('a, [> write ]) t -> ('a, write) t
 val value_available : (_, [> read ]) t -> unit Deferred.t
 
 (** [take t] returns a deferred that, when [t] is filled, becomes determined with the
-    value of [t] and and clears [t].  If there are multiple concurrent calls to [take]
-    then only one of them will be fulfilled and the others will continue waiting on future
+    value of [t] and clears [t].  If there are multiple concurrent calls to [take] then
+    only one of them will be fulfilled and the others will continue waiting on future
     values.  There is no ordering guarantee for which [take] call will be filled first. *)
 val take : ('a, [> read ]) t -> 'a Deferred.t
 

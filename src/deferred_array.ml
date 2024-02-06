@@ -15,8 +15,18 @@ let foldi t ~init ~f =
 let fold t ~init ~f = foldi t ~init ~f:(fun _ a x -> f a x)
 
 let seqmapi t ~f =
-  let%map bs = foldi t ~init:[] ~f:(fun i bs a -> f i a >>| fun b -> b :: bs) in
-  Array.of_list (Core.List.rev bs)
+  Deferred.create (fun result ->
+    let rec loop i output =
+      if i = Array.length t
+      then Ivar.fill_exn result output
+      else
+        f i (Array.get t i)
+        >>> fun b ->
+        let output = if i = 0 then Array.create ~len:(Array.length t) b else output in
+        Array.set output i b;
+        loop (i + 1) output
+    in
+    loop 0 [||])
 ;;
 
 let all ds = seqmapi ds ~f:(fun _ x -> x)

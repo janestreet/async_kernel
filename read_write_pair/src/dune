@@ -1,2 +1,6 @@
-(library (name read_write_pair) (public_name async_kernel.read_write_pair)
- (libraries core) (preprocess (pps ppx_jane)))
+(library
+ (name read_write_pair)
+ (public_name async_kernel.read_write_pair)
+ (libraries core)
+ (preprocess
+  (pps ppx_jane)))

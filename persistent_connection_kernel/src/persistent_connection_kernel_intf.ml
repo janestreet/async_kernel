@@ -34,14 +34,27 @@ module type Closable = sig
   val close_finished : t -> unit Deferred.t
 end
 
-module type S = sig
+module type Connection_error = sig
+  type t [@@deriving equal, sexp_of]
+
+  (** Used to convert uncaught exceptions raised in [connect] to a [t] *)
+  val of_exception_error : Error.t -> t
+
+  val to_error : t -> Error.t
+end
+
+module type S' = sig
   type t [@@deriving sexp_of]
 
   (** A connection, perhaps embellished with additional information upon connection. *)
   type conn
 
+  (** The error type of the provided [connect] function. Use [S] if this is going to be
+      [Error.t] *)
+  type conn_error
+
   module Event : sig
-    type 'address t = (conn, 'address) Event.t [@@deriving sexp_of]
+    type 'address t = (conn, conn_error, 'address) Event.t [@@deriving sexp_of]
   end
 
   (** [create ~server_name ~on_event ~retry_delay get_address] returns a persistent
@@ -80,9 +93,9 @@ module type S = sig
     -> ?retry_delay:(unit -> Time_ns.Span.t)
     -> ?random_state:[ `Non_random | `State of Random.State.t ]
     -> ?time_source:Time_source.t
-    -> connect:('address -> conn Or_error.t Deferred.t)
+    -> connect:('address -> (conn, conn_error) Result.t Deferred.t)
     -> address:(module Address with type t = 'address)
-    -> (unit -> 'address Or_error.t Deferred.t)
+    -> (unit -> ('address, conn_error) Result.t Deferred.t)
     -> t
 
   (** [connected] returns the first available connection from the time it is called. When
@@ -120,11 +133,19 @@ module type S = sig
   val close_when_current_connection_is_closed : t -> unit
 end
 
+module type S = S' with type conn_error := Error.t
+
 module type Persistent_connection_kernel = sig
   module type Address = Address
   module type Closable = Closable
+  module type Connection_error = Connection_error
   module type S = S
+  module type S' = S'
 
   module Event = Event
+
+  module Make' (Conn_err : Connection_error) (Conn : Closable) :
+    S' with type conn = Conn.t and type conn_error = Conn_err.t
+
   module Make (Conn : Closable) : S with type conn = Conn.t
 end

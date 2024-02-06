@@ -1,2 +1,5 @@
-(library (name weak_hashtbl_async_test) (libraries async weak_hashtbl_async)
- (preprocess (pps ppx_jane)))
+(library
+ (name weak_hashtbl_async_test)
+ (libraries async weak_hashtbl_async)
+ (preprocess
+  (pps ppx_jane)))
