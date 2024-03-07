@@ -92,6 +92,11 @@ module type Eager_deferred1 = sig
     -> 'result t
 
   module List : Monad_sequence.S with type 'a monad := 'a t with type 'a t := 'a list
+
+  (** Similar to {Deferred.Queue} but eager when passing ~how:`Sequential. The functions
+      in [Queue] raise if the queue is mutated during execution. *)
+  module Queue : Monad_sequence.S with type 'a monad := 'a t with type 'a t := 'a Queue.t
+
   module Or_error : Eager_deferred_or_error with type 'a deferred := 'a t
   module Memo : Deferred.Memo.S with type 'a deferred := 'a t
 

@@ -1,2 +1,2 @@
-include Async_kernel.Deferred.Memo.S with type 'a deferred := 'a Eager_deferred0.t
+include Async_kernel.Deferred.Memo.S with type 'a deferred := 'a Async_kernel.Deferred.t
 (** @inline *)

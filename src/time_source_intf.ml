@@ -1,5 +1,5 @@
 (** A time source holds a time (possibly wall-clock time, possibly simulated time) and
-    gives the ability to schedule Async jobs to run when that time advances.
+    gives the ability to schedule Async jobs (alarms) to run when that time advances.
 
     There is a single wall-clock time source (returned by [wall_clock ()]) that the Async
     scheduler drives and uses for the [Clock_ns] module.  One can also create a
@@ -98,7 +98,11 @@ module type Time_source = sig
 
       [advance_by_alarms] is useful in simulation when one wants to efficiently advance to
       a time in the future while giving periodic timers (e.g., resulting from [every]) a
-      chance to fire with approximately the same timing as they would live. *)
+      chance to fire with approximately the same timing as they would live.
+
+      Note: an alarm is anything that's scheduled to happen at a particular time using
+      this time source, so e.g. any scheduled [Event], something scheduled by [run_*], or
+      any deferred returned by [at]/[after]. *)
   val advance_by_alarms
     :  ?wait_for:(unit -> unit Deferred.t)
     -> [> write ] T1.t

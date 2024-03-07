@@ -231,7 +231,7 @@ module Exported_for_scheduler = struct
       | Ok x -> Ok x
       | Error exn ->
         send_exn (Execution_context.monitor context) exn ~backtrace:`Get;
-        Error ())
+        Error ()) [@nontail]
   ;;
 
   let within_gen ?monitor ?priority f =

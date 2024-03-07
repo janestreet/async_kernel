@@ -20,21 +20,25 @@ let fold_mapi
   ~(fold_f : c -> b -> c)
   : c Deferred.t
   =
+  let%tydi (Sequence { state; next }) = Sequence.Expert.view t in
   match how with
   | `Sequential ->
     let result = Ivar.create () in
-    let rec loop i t (c : c) =
-      match Sequence.next t with
-      | None -> Ivar.fill_exn result c
-      | Some (a, t) -> upon (mapi_f i a) (fun b -> loop (i + 1) t (fold_f c b))
+    let rec loop i state (c : c) =
+      match next state with
+      | Done -> Ivar.fill_exn result c
+      | Skip { state } -> loop i state (c : c)
+      | Yield { state; value = a } ->
+        upon (mapi_f i a) (fun b -> loop (i + 1) state (fold_f c b))
     in
-    loop 0 t init;
+    loop 0 state init;
     Ivar.read result
   | `Parallel ->
     let rec loop i t (c : c Deferred.t) =
-      match Sequence.next t with
-      | None -> c
-      | Some (a, t) ->
+      match next t with
+      | Done -> c
+      | Skip { state } -> loop i state c
+      | Yield { value = a; state = t } ->
         loop
           (i + 1)
           t
@@ -42,16 +46,17 @@ let fold_mapi
            let%map c = c in
            fold_f c b)
     in
-    loop 0 t (return init)
+    loop 0 state (return init)
   | `Max_concurrent_jobs max_concurrent_jobs ->
     let throttle = Throttle.create ~max_concurrent_jobs ~continue_on_error:false in
     (* [loop] forces the input sequence and enqueues a throttle job only if there is
        capacity available. *)
     let rec loop i t (c : c Deferred.t) =
       let%bind () = Throttle.capacity_available throttle in
-      match Sequence.next t with
-      | None -> c
-      | Some (a, t) ->
+      match next t with
+      | Done -> c
+      | Skip { state } -> loop i state c
+      | Yield { value = a; state = t } ->
         loop
           (i + 1)
           t
@@ -59,7 +64,7 @@ let fold_mapi
            let%map c = c in
            fold_f c b)
     in
-    loop 0 t (return init)
+    loop 0 state (return init)
 ;;
 
 let foldi t ~init ~f =

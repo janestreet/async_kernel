@@ -33,9 +33,7 @@ module type S = sig
   val all : 'a monad t -> 'a t monad
   val all_unit : unit monad t -> unit monad
 
-  (** {2 Deferred iterators}
-
-      In the following, the default [how] is [`Sequential] *)
+  (** {2 Deferred iterators} *)
 
   val init : how:how -> int -> f:(int -> 'a monad) -> 'a t monad
   val iter : how:how -> 'a t -> f:('a -> unit monad) -> unit monad
