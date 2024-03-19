@@ -75,9 +75,18 @@ val run_at : [> read ] T1.t -> Time_ns.t -> callback -> unit
 (** [run_after t span f] is [run_at t (now t + span) f]. *)
 val run_after : [> read ] T1.t -> Time_ns.Span.t -> callback -> unit
 
-(** [run_at_intervals t span f] schedules [f] to run at intervals [now t + k * span], for
-    k = 0, 1, 2, etc.  [run_at_intervals] raises if [span < alarm_precision t]. *)
-val run_at_intervals : [> read ] T1.t -> Time_ns.Span.t -> callback -> unit
+(** [run_at_intervals t span f] schedules [f] to run at intervals [start + k * span], for
+    k = 0, 1, 2, etc.  [run_at_intervals] raises if [span < alarm_precision t].
+
+    If [start] is earlier than [now t], the first call to [f] run on the next call to
+    [advance_by_alarms]. This differs from the behaviour of
+    [Time_source.run_at_intervals]. *)
+val run_at_intervals
+  :  ?start:Time_ns.t (** default is [now t] *)
+  -> [> read ] T1.t
+  -> Time_ns.Span.t
+  -> callback
+  -> unit
 
 (** [max_allowed_alarm_time t] returns the greatest [at] that can be supplied to [add].
     [max_allowed_alarm_time] is not constant; its value increases as [now t] increases. *)
@@ -122,14 +131,7 @@ module Event : sig
   val at : [> read ] T1.t -> Time_ns.t -> callback -> t
 
   val after : [> read ] T1.t -> Time_ns.Span.t -> callback -> t
-  val at_intervals : [> read ] T1.t -> Time_ns.Span.t -> callback -> t
-
-  val at_intervals'
-    :  [> read ] T1.t
-    -> Time_ns.Span.t
-    -> starting_at:Time_ns.t
-    -> callback
-    -> t
+  val at_intervals : ?start:Time_ns.t -> [> read ] T1.t -> Time_ns.Span.t -> callback -> t
 
   module Abort_result : sig
     type t =

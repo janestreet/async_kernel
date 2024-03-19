@@ -524,12 +524,15 @@ module Event = struct
             (alarm_precision : Time_ns.Span.t)]
   ;;
 
-  let at_intervals' t span ~starting_at callback =
+  let at_intervals ?start t span callback =
+    let at =
+      match start with
+      | None -> now t
+      | Some at -> at
+    in
     require_span_at_least_alarm_precision t span;
-    create_and_add t ~at:starting_at ~interval:(Some span) ~callback
+    create_and_add t ~at ~interval:(Some span) ~callback
   ;;
-
-  let at_intervals t span callback = at_intervals' t span ~starting_at:(now t) callback
 
   module Abort_result = struct
     type t =
@@ -631,8 +634,8 @@ end
 let run_after t span callback = ignore (Event.after t span callback : Event.t)
 let run_at t at callback = ignore (Event.at t at callback : Event.t)
 
-let run_at_intervals t span callback =
-  ignore (Event.at_intervals t span callback : Event.t)
+let run_at_intervals ?start t span callback =
+  ignore (Event.at_intervals ?start t span callback : Event.t)
 ;;
 
 type send_exn = Monitor0.t -> ?backtrace:[ `Get | `This of Backtrace.t ] -> exn -> unit

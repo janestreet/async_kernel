@@ -22,7 +22,8 @@ let%expect_test "Simple [of_eager] test" =
   print_s [%sexp (Deferred.peek result2 : test)];
   [%expect {|
     (Ok foo)
-    (Ok foo) |}];
+    (Ok foo)
+    |}];
   return ()
 ;;
 
@@ -38,7 +39,8 @@ let%expect_test "Simple [of_lazy] test" =
   print_s [%sexp (Deferred.peek result2 : test)];
   [%expect {|
     (Ok foo)
-    (Ok foo) |}];
+    (Ok foo)
+    |}];
   return ()
 ;;
 
@@ -117,7 +119,8 @@ let%expect_test "[weak_run] stops when it encounters unforced lazy values" =
     (sum 3)
     "*** Forcing [prod] ***"
     (prod 2)
-    Done! |}]
+    Done!
+    |}]
 ;;
 
 let%expect_test "[force] forces lazy values it encounters" =
@@ -131,7 +134,8 @@ let%expect_test "[force] forces lazy values it encounters" =
     (prod 2)
     Done!
     "*** Forcing [y] ***"
-    "*** Forcing [prod] ***" |}]
+    "*** Forcing [prod] ***"
+    |}]
 ;;
 
 (* This test ensures that the type of run in progress isn't cached. *)
@@ -169,7 +173,8 @@ let%expect_test "When binding, if [f] raises, the error is joined" =
   [%expect
     {|
     (Error
-     (Laziness_preserving_deferred_test__Test_laziness_preserving_deferred.E_for_test)) |}];
+     (Laziness_preserving_deferred_test__Test_laziness_preserving_deferred.E_for_test))
+    |}];
   return ()
 ;;
 
@@ -185,7 +190,8 @@ let%expect_test "When binding, if [f] returns a deferred that raises, the error 
   [%expect
     {|
     (Error
-     (Laziness_preserving_deferred_test__Test_laziness_preserving_deferred.E_for_test)) |}];
+     (Laziness_preserving_deferred_test__Test_laziness_preserving_deferred.E_for_test))
+    |}];
   return ()
 ;;
 

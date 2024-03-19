@@ -161,7 +161,7 @@ module Flushed_result : sig
     [ `Ok
     | `Reader_closed
     ]
-  [@@deriving compare, sexp_of]
+  [@@deriving compare, equal, sexp_of]
 end
 
 (** Deferreds returned by [upstream_flushed] and [downstream_flushed] become determined
@@ -241,10 +241,11 @@ module Consumer : sig
 end
 
 (** [add_consumer reader ~downstream_flushed] creates a new consumer of [reader], and
-    causes future calls to [flushed_downstream reader] to take this consumer into account.
-    Thereafter, [Pipe.flushed_downstream reader] will first ensure that values previously
-    written to [reader] have been read, then that they have been sent downstream by the
-    consumer that read them, and finally that they have been flushed downstream.
+    causes future calls to [Pipe.downstream_flushed reader] to take this consumer into
+    account. Thereafter, [Pipe.downstream_flushed reader] will first ensure that values
+    previously written to [reader] have been read, then that they have been sent
+    downstream by the consumer that read them, and finally that they have been flushed
+    downstream.
 
     One should only supply the resulting consumer to read operations on [reader].  Using
     a consumer created from one reader with another reader will raise an exception. *)

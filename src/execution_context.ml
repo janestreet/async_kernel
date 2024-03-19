@@ -38,7 +38,9 @@ let create_like ?monitor ?priority ?local_storage t =
 let find_local t key = Univ_map.find t.local_storage key
 
 let with_local t key data =
-  { t with local_storage = Univ_map.change t.local_storage key ~f:(fun _ -> data) }
+  match data with
+  | Some data -> { t with local_storage = Univ_map.set t.local_storage ~key ~data }
+  | None -> { t with local_storage = Univ_map.remove t.local_storage key }
 ;;
 
 let record_backtrace t =

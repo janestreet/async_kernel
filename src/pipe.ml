@@ -16,10 +16,13 @@ module Flushed_result = struct
   let equal = [%compare.equal: t]
 
   let combine (l : t Deferred.t list) =
-    let%map l = Deferred.all l in
-    match List.mem l `Reader_closed ~equal with
-    | true -> `Reader_closed
-    | false -> `Ok
+    match l with
+    | [ x ] -> x
+    | l ->
+      let%map l = Deferred.all l in
+      (match List.mem l `Reader_closed ~equal with
+       | true -> `Reader_closed
+       | false -> `Ok)
   ;;
 end
 
@@ -427,24 +430,29 @@ let create_writer ?size_budget f =
   w
 ;;
 
+let consumed_values_sent_downstream_and_flushed t =
+  if List.is_empty t.consumers
+  then return `Ok
+  else
+    Flushed_result.combine
+      (List.map t.consumers ~f:Consumer.values_sent_downstream_and_flushed)
+;;
+
+let eager_upon d f =
+  match Deferred.peek d with
+  | Some v -> f v
+  | None -> upon d f
+;;
+
 let values_were_read t consumer =
   Option.iter consumer ~f:Consumer.start;
-  let rec loop () =
-    match Queue.peek t.blocked_flushes with
-    | None -> ()
-    | Some flush ->
-      if t.num_values_read >= flush.fill_when_num_values_read
-      then (
-        ignore (Queue.dequeue_exn t.blocked_flushes : Blocked_flush.t);
-        (match consumer with
-         | None -> Blocked_flush.fill flush `Ok
-         | Some consumer ->
-           upon
-             (Consumer.values_sent_downstream_and_flushed consumer)
-             (fun flush_result -> Blocked_flush.fill flush flush_result));
-        loop ())
-  in
-  loop ()
+  let values_flushed = lazy (consumed_values_sent_downstream_and_flushed t) in
+  Queue.drain
+    t.blocked_flushes
+    ~while_:(fun flush -> t.num_values_read >= flush.fill_when_num_values_read)
+    ~f:(fun flush ->
+      eager_upon (force values_flushed) (fun flush_result ->
+        Blocked_flush.fill flush flush_result))
 ;;
 
 (* [consume_all t] reads all the elements in [t]. *)
@@ -713,12 +721,7 @@ let read_exactly ?consumer t ~num_values =
 
 let downstream_flushed t =
   if is_empty t
-  then
-    if List.is_empty t.consumers
-    then return `Ok
-    else
-      Flushed_result.combine
-        (List.map t.consumers ~f:Consumer.values_sent_downstream_and_flushed)
+  then consumed_values_sent_downstream_and_flushed t
   else
     (* [t] might be closed.  But the read end can't be closed, because if it were, then
        [t] would be empty.  If the write end is closed but not the read end, then we want

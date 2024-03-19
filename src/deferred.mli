@@ -217,7 +217,7 @@ module Or_error = Deferred_or_error
 module Result = Deferred_result
 
 module For_tests : sig
-  (** An implementaiton of [choose] that is not tuned for performance based on the length
+  (** An implementation of [choose] that is not tuned for performance based on the length
       of the input list *)
   val generic_choose : 'b Choice.t list -> 'b t
 end
