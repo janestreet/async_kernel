@@ -1,3 +1,20 @@
+- Optimize `Async_kernel.Execution_context.with_local` by manually case matching whether
+  to remove or add key. This seems to have a minor but significant enough impact on the
+  speed of adding a new key to the context using `with_local`.
+
+- Add tests for bugs in interaction between `Pipe.close_read` and
+  `Pipe.downstream_flushed`.
+
+- Fix the behaviour of `Pipe.downstream_flushed` in the presence of multiple consumers
+
+- Added Queue functions to Eager_deferred.
+
+- Add `start` arg to `Synchronous_time_source.Event.at_intervals` and
+  `Synchronous_time_source.run_at_intervals`
+- Merge `Synchronous_time_source.Event.at_intervals'` into `Event.at_intervals`
+
+- Add a test for the behaviour of `Pipe.downstream_flushed` with multiple consumers
+
 ## Release v0.16.0
 
 - In `Deferred_or_error` (also `Eager_deferred_or_error`):
@@ -13,7 +30,7 @@
   * `Async_kernel_scheduler.with_options`
   * `Monitor.with_optional_monitor_name`
 
-- Update function signatures of deferred mapping functions to make `how` 
+- Update function signatures of deferred mapping functions to make `how`
 parameter non-optional (the original default is `` `Sequential``):
   * `Deferred_map.iter_keys`
   * `Deferred_map.iter`
@@ -29,9 +46,9 @@ parameter non-optional (the original default is `` `Sequential``):
 
 - Add a function `Deferred_memo.recursive`
   * Facilitates memoization of recursivive functions
-  
+
 - Update `Lazy_deferred.create` and `Lazy_deferred.create_or_error`:
-  *  Add an optional `rest_exn` parameter, to specify handling of exceptions 
+  *  Add an optional `rest_exn` parameter, to specify handling of exceptions
   raised by `f` after its result is determined (previous default: `` `Log``).
 
 - Add new function `Pipe.of_queue`:
@@ -49,7 +66,7 @@ parameter non-optional (the original default is `` `Sequential``):
 
 - Add a module `Async_kernel.Throttled`: an applicative type for concurrent computations with limited concurrency.
   * Used to implement some `List` and `Map` traversals.
-  
+
 - Add new function: `Time_source.advance_directly_if_quiescent`
   * Advances time only if no alarms are scheduled up to and including the specified time point and no jobs are runnable
 
