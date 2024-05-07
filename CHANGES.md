@@ -1,19 +1,35 @@
-- Optimize `Async_kernel.Execution_context.with_local` by manually case matching whether
-  to remove or add key. This seems to have a minor but significant enough impact on the
-  speed of adding a new key to the context using `with_local`.
+## Release v0.17.0
 
-- Add tests for bugs in interaction between `Pipe.close_read` and
-  `Pipe.downstream_flushed`.
+- New additions:
+  * `Io_uring` support in the `Async_kernel_config`, see the `Async_unix` library.
+  * `Scheduler.{recording_backtraces,set_execution_context}`
+  * `Deferred.Set` module.
+  * `Deferred_sequence.{fold_mapi,count,sum}`.
+  * `Eager_deferred.Queue` module.
+  * `Pipe.{num_values_read,read_now_exn}`.
+  * `Synchronous_time_source.Event.schedule_at_intervals'` with an `starting_at` parameter.
+  * `Throttle.enqueue_front`.
 
-- Fix the behaviour of `Pipe.downstream_flushed` in the presence of multiple consumers
+- Changes:
+  * Minor `ASYNC_CONFIG` improvements
+  * Double the limit on the number of open file descriptors.
+  * Allow custom connection error types using `Connection_error` in `Persistent_connection`.
+  * Make `Persistent_connection.Event` a single type.
+  * `Pipe.interleave` accepts an optional `close_at` parameter.
+  * `Synchronous_time_source.{run_,}at_intervals` accept an optional `start` parameter.
+  * `Throttle.create'` and `Throttle.create_with'` accept an optional `rest` parameter.
 
-- Added Queue functions to Eager_deferred.
+- Bug fixes:
+  * Set `has_seen_error` to true to monitors that receive forwarded exceptions.
+  * Buggy behaviour of `Pipe.downstream_flushed` in the presence of multiple consumers.
+  * A bug in ``Any_input_closed` variant of `Pipe.interleave{,_pipe}`.
+  * Ensure that Async does not sleep when `Scheduler.yield_until_no_jobs_remain` is waiting.
 
-- Add `start` arg to `Synchronous_time_source.Event.at_intervals` and
-  `Synchronous_time_source.run_at_intervals`
-- Merge `Synchronous_time_source.Event.at_intervals'` into `Event.at_intervals`
-
-- Add a test for the behaviour of `Pipe.downstream_flushed` with multiple consumers
+- Optimizations:
+  * `Deferred.Array.seqmapi`.
+  * `Eager_deferred.List.map`.
+  * `Execution_context.with_local`.
+  * Alarms in `Synchronous_time_source`.
 
 ## Release v0.16.0
 
