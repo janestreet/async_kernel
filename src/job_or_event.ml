@@ -25,8 +25,8 @@ end
 
 module _ : sig end = struct
   module Ensure_private_int (M : sig
-    type t = private int
-  end) =
+      type t = private int
+    end) =
   struct
     type _t = M.t
   end

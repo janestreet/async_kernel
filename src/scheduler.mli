@@ -8,6 +8,13 @@ type t = Types.Scheduler.t [@@deriving sexp_of]
 
 val t : unit -> t
 
+(** [t_without_checking_access] bypasses checks like [make_async_unusable] and the invalid
+    thread access checks. This should only be used in cases where we intentionally need to
+    bypass one of those checks, like [thread_safe_enqueue_external_job]. It's a bit
+    unfortunate that these different checks are tied together, but that seems like an
+    acceptable tradeoff. *)
+val t_without_checking_access : unit -> t
+
 include Invariant.S with type t := t
 
 val current_execution_context : t -> Execution_context.t

@@ -28,9 +28,13 @@ let can_run_a_job t =
   || Bvar.has_any_waiters t.yield_until_no_jobs_remain
 ;;
 
-let has_upcoming_event t = not (Timing_wheel.is_empty (events t))
-let next_upcoming_event t = Timing_wheel.next_alarm_fires_at (events t)
-let next_upcoming_event_exn t = Timing_wheel.next_alarm_fires_at_exn (events t)
+let has_upcoming_event t = Synchronous_time_source.has_next_alarm t.time_source
+let next_upcoming_event t = Synchronous_time_source.next_alarm_runs_at t.time_source
+
+let next_upcoming_event_exn t =
+  Synchronous_time_source.next_alarm_runs_at_exn t.time_source
+;;
+
 let event_precision t = Timing_wheel.alarm_precision (events t)
 let cycle_start t = t.cycle_start
 
@@ -120,7 +124,7 @@ let cycle_count t = t.cycle_count
 
 let set_max_num_jobs_per_priority_per_cycle t int =
   t.max_num_jobs_per_priority_per_cycle
-    <- Max_num_jobs_per_priority_per_cycle.create_exn int
+  <- Max_num_jobs_per_priority_per_cycle.create_exn int
 ;;
 
 let max_num_jobs_per_priority_per_cycle t =
@@ -275,9 +279,9 @@ let run_cycles_until_no_jobs_remain () =
 let make_async_unusable () =
   let t = !t_ref in
   t.check_access
-    <- Some
-         (fun () ->
-           raise_s [%sexp "Async scheduler is unusable due to [make_async_unusable]"])
+  <- Some
+       (fun () ->
+         raise_s [%sexp "Async scheduler is unusable due to [make_async_unusable]"])
 ;;
 
 let reset_in_forked_process () =

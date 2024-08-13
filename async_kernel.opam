@@ -13,7 +13,9 @@ depends: [
   "ocaml" {>= "5.1.0"}
   "core"
   "core_kernel"
+  "parsexp"
   "ppx_jane"
+  "sexplib"
   "dune"        {>= "3.11.0"}
 ]
 available: arch != "arm32" & arch != "x86_32"

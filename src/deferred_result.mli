@@ -16,3 +16,8 @@ val combine
   -> ok:('ok1 -> 'ok2 -> 'ok3)
   -> err:('err -> 'err -> 'err)
   -> ('ok3, 'err) t
+
+module List :
+  Monad_sequence.S2_result
+  with type ('a, 'e) monad := ('a, 'e) t
+  with type 'a t := 'a list

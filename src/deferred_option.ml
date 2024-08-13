@@ -8,16 +8,16 @@ end
 include T
 
 include Monad.Make (struct
-  include T
+    include T
 
-  let return a = Deferred.return (Some a)
+    let return a = Deferred.return (Some a)
 
-  let bind t ~f =
-    Deferred.bind t ~f:(function
-      | Some a -> f a
-      | None -> Deferred.return None)
-  ;;
+    let bind t ~f =
+      Deferred.bind t ~f:(function
+        | Some a -> f a
+        | None -> Deferred.return None)
+    ;;
 
-  let map t ~f = Deferred.map t ~f:(fun r -> Option.map r ~f)
-  let map = `Custom map
-end)
+    let map t ~f = Deferred.map t ~f:(fun r -> Option.map r ~f)
+    let map = `Custom map
+  end)

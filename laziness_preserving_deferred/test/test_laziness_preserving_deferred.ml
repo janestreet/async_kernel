@@ -20,7 +20,8 @@ let%expect_test "Simple [of_eager] test" =
   let%bind () = Scheduler.yield_until_no_jobs_remain () in
   print_s [%sexp (Deferred.peek result1 : test)];
   print_s [%sexp (Deferred.peek result2 : test)];
-  [%expect {|
+  [%expect
+    {|
     (Ok foo)
     (Ok foo)
     |}];
@@ -37,7 +38,8 @@ let%expect_test "Simple [of_lazy] test" =
   let%bind () = Scheduler.yield_until_no_jobs_remain () in
   print_s [%sexp (Deferred.peek result1 : test)];
   print_s [%sexp (Deferred.peek result2 : test)];
-  [%expect {|
+  [%expect
+    {|
     (Ok foo)
     (Ok foo)
     |}];
@@ -309,7 +311,7 @@ module Monad_laws_test = struct
               ~cases:
                 ([%message
                    "" ~m:(m_case : Case.t) ~f:(f_case : Case.t) ~g:(g_case : Case.t)]
-                  : Sexp.t)
+                 : Sexp.t)
               (m >>= f >>= g : result1)
               (m >>= fun x -> f x >>= g : result2)]
     in

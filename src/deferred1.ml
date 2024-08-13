@@ -8,18 +8,18 @@ include Deferred0
 let never () = Ivar.read (Ivar.create ())
 
 module M = Monad.Make (struct
-  include Deferred0
+    include Deferred0
 
-  let map t ~f =
-    (* We manually inline [Deferred.create] here, because the non-flambda compiler isn't
+    let map t ~f =
+      (* We manually inline [Deferred.create] here, because the non-flambda compiler isn't
          able to optimize away the closure that would be be created. *)
-    let result = Ivar.create () in
-    upon t (fun a -> Ivar.fill_exn result (f a));
-    of_ivar result
-  ;;
+      let result = Ivar.create () in
+      upon t (fun a -> Ivar.fill_exn result (f a));
+      of_ivar result
+    ;;
 
-  let map = `Custom map
-end)
+    let map = `Custom map
+  end)
 
 include M
 
@@ -111,8 +111,8 @@ let enabled choices =
   in
   let execution_context = Scheduler.(current_execution_context (t ())) in
   unregisters
-    := List.fold choices ~init:Unregister.Nil ~f:(fun acc (Choice.T (t, f)) ->
-         Cons (t, f, Deferred0.add_handler t ready execution_context, acc));
+  := List.fold choices ~init:Unregister.Nil ~f:(fun acc (Choice.T (t, f)) ->
+       Cons (t, f, Deferred0.add_handler t ready execution_context, acc));
   Ivar.read result
 ;;
 

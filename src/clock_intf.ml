@@ -300,31 +300,31 @@ module type Clock_deprecated = sig
   end
 
   val run_at : Time.t -> ('a -> unit) -> 'a -> unit
-    [@@deprecated "[since 2016-02] Use [Time_source]"]
+  [@@deprecated "[since 2016-02] Use [Time_source]"]
 
   val run_after : Time.Span.t -> ('a -> unit) -> 'a -> unit
-    [@@deprecated "[since 2016-02] Use [Time_source]"]
+  [@@deprecated "[since 2016-02] Use [Time_source]"]
 
   val at : Time.t -> unit Deferred.t [@@deprecated "[since 2016-02] Use [Time_source]"]
 
   val after : Time.Span.t -> unit Deferred.t
-    [@@deprecated "[since 2016-02] Use [Time_source]"]
+  [@@deprecated "[since 2016-02] Use [Time_source]"]
 
   val with_timeout : Time.Span.t -> 'a Deferred.t -> 'a Or_timeout.t Deferred.t
-    [@@deprecated "[since 2016-02] Use [Time_source]"]
+  [@@deprecated "[since 2016-02] Use [Time_source]"]
 
   val with_timeout_exn : Time.Span.t -> 'a Deferred.t -> error:Error.t -> 'a Deferred.t
-    [@@deprecated "[since 2023-11] Use [Time_source]"]
+  [@@deprecated "[since 2023-11] Use [Time_source]"]
 
   module Event : sig
     type ('a, 'h) t [@@deriving sexp_of]
     type t_unit = (unit, unit) t [@@deriving sexp_of]
 
     val invariant : 'a Invariant.t -> 'b Invariant.t -> ('a, 'b) t Invariant.t
-      [@@deprecated "[since 2016-02] Use [Time_source]"]
+    [@@deprecated "[since 2016-02] Use [Time_source]"]
 
     val scheduled_at : (_, _) t -> Time.t
-      [@@deprecated "[since 2016-02] Use [Time_source]"]
+    [@@deprecated "[since 2016-02] Use [Time_source]"]
 
     module Status : sig
       type ('a, 'h) t =
@@ -335,56 +335,56 @@ module type Clock_deprecated = sig
     end
 
     val status : ('a, 'h) t -> ('a, 'h) Status.t
-      [@@deprecated "[since 2016-02] Use [Time_source]"]
+    [@@deprecated "[since 2016-02] Use [Time_source]"]
 
     val run_at : Time.t -> ('z -> 'h) -> 'z -> (_, 'h) t
-      [@@deprecated "[since 2016-02] Use [Time_source]"]
+    [@@deprecated "[since 2016-02] Use [Time_source]"]
 
     val run_after : Time.Span.t -> ('z -> 'h) -> 'z -> (_, 'h) t
-      [@@deprecated "[since 2016-02] Use [Time_source]"]
+    [@@deprecated "[since 2016-02] Use [Time_source]"]
 
     module Abort_result = Time_source.Event.Abort_result
 
     val abort : ('a, 'h) t -> 'a -> ('a, 'h) Abort_result.t
-      [@@deprecated "[since 2016-02] Use [Time_source]"]
+    [@@deprecated "[since 2016-02] Use [Time_source]"]
 
     val abort_exn : ('a, 'h) t -> 'a -> unit
-      [@@deprecated "[since 2016-02] Use [Time_source]"]
+    [@@deprecated "[since 2016-02] Use [Time_source]"]
 
     val abort_if_possible : ('a, _) t -> 'a -> unit
-      [@@deprecated "[since 2016-02] Use [Time_source]"]
+    [@@deprecated "[since 2016-02] Use [Time_source]"]
 
     module Fired = Time_source.Event.Fired
 
     val fired : ('a, 'h) t -> ('a, 'h) Fired.t Deferred.t
-      [@@deprecated "[since 2016-02] Use [Time_source]"]
+    [@@deprecated "[since 2016-02] Use [Time_source]"]
 
     module Reschedule_result = Time_source.Event.Reschedule_result
 
     val reschedule_at : ('a, 'h) t -> Time.t -> ('a, 'h) Reschedule_result.t
-      [@@deprecated "[since 2016-02] Use [Time_source]"]
+    [@@deprecated "[since 2016-02] Use [Time_source]"]
 
     val reschedule_after : ('a, 'h) t -> Time.Span.t -> ('a, 'h) Reschedule_result.t
-      [@@deprecated "[since 2016-02] Use [Time_source]"]
+    [@@deprecated "[since 2016-02] Use [Time_source]"]
 
     val at : Time.t -> (_, unit) t [@@deprecated "[since 2016-02] Use [Time_source]"]
 
     val after : Time.Span.t -> (_, unit) t
-      [@@deprecated "[since 2016-02] Use [Time_source]"]
+    [@@deprecated "[since 2016-02] Use [Time_source]"]
   end
 
   val at_varying_intervals
     :  ?stop:unit Deferred.t
     -> (unit -> Time.Span.t)
     -> unit Async_stream.t
-    [@@deprecated "[since 2016-02] Use [Time_source]"]
+  [@@deprecated "[since 2016-02] Use [Time_source]"]
 
   val at_intervals
     :  ?start:Time.t
     -> ?stop:unit Deferred.t
     -> Time.Span.t
     -> unit Async_stream.t
-    [@@deprecated "[since 2016-02] Use [Time_source]"]
+  [@@deprecated "[since 2016-02] Use [Time_source]"]
 
   val every'
     :  ?start:unit Deferred.t (** default is [return ()] *)
@@ -394,7 +394,7 @@ module type Clock_deprecated = sig
     -> Time.Span.t
     -> (unit -> unit Deferred.t)
     -> unit
-    [@@deprecated "[since 2016-02] Use [Time_source]"]
+  [@@deprecated "[since 2016-02] Use [Time_source]"]
 
   val every
     :  ?start:unit Deferred.t (** default is [return ()] *)
@@ -403,7 +403,7 @@ module type Clock_deprecated = sig
     -> Time.Span.t
     -> (unit -> unit)
     -> unit
-    [@@deprecated "[since 2016-02] Use [Time_source]"]
+  [@@deprecated "[since 2016-02] Use [Time_source]"]
 
   val run_at_intervals'
     :  ?start:Time.t (** default is [Time.now ()] *)
@@ -412,7 +412,7 @@ module type Clock_deprecated = sig
     -> Time.Span.t
     -> (unit -> unit Deferred.t)
     -> unit
-    [@@deprecated "[since 2016-02] Use [Time_source]"]
+  [@@deprecated "[since 2016-02] Use [Time_source]"]
 
   val run_at_intervals
     :  ?start:Time.t (** default is [Time.now ()] *)
@@ -421,18 +421,18 @@ module type Clock_deprecated = sig
     -> Time.Span.t
     -> (unit -> unit)
     -> unit
-    [@@deprecated "[since 2016-02] Use [Time_source]"]
+  [@@deprecated "[since 2016-02] Use [Time_source]"]
 
   val duration_of : (unit -> 'a Deferred.t) -> ('a * Time.Span.t) Deferred.t
-    [@@deprecated "[since 2016-02] Use [Time_source]"]
+  [@@deprecated "[since 2016-02] Use [Time_source]"]
 end
 
 (** @inline *)
 include (
-  struct
-    [@@@warning "-3"]
+struct
+  [@@@warning "-3"]
 
-    module _ (C : Clock) : Clock_deprecated = C
-    module _ (C : Clock_deprecated) : Clock = C
-  end :
-    sig end)
+  module _ (C : Clock) : Clock_deprecated = C
+  module _ (C : Clock_deprecated) : Clock = C
+end :
+sig end)

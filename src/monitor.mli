@@ -45,7 +45,7 @@ type t = Monitor0.t [@@deriving sexp_of]
 include Invariant.S with type t := t
 
 type 'a with_optional_monitor_name :=
-  ?here:Source_code_position.t -> ?info:Info.t -> ?name:string -> 'a
+  ?here:Stdlib.Lexing.position -> ?info:Info.t -> ?name:string -> 'a
 
 (** [create ()] returns a new monitor whose parent is the current monitor. *)
 val create : (unit -> t) with_optional_monitor_name
@@ -92,11 +92,11 @@ val get_next_error : t -> exn Deferred.t
 module Monitor_exn : sig
   type t
 
-  (** Extract the exception as it was originally received by an async monitor. *)
+  (** Extract the exception as it was originally received by a monitor. *)
   val extract_exn : t -> exn
 
   (** Extract the backtrace originally captured at the point the exception was received
-      by an async monitor. *)
+      by a monitor. *)
   val backtrace : t -> Backtrace.t option
 end
 
@@ -139,7 +139,15 @@ val try_with
      -> ?rest:[ `Log | `Raise | `Call of exn -> unit ] (** default is [`Raise] *)
      -> (unit -> 'a Deferred.t)
      -> ('a, exn) Result.t Deferred.t)
-    with_optional_monitor_name
+      with_optional_monitor_name
+
+(** [try_with_local] is like [try_with] but always runs [f] now, so [f] can be local. *)
+val try_with_local
+  : (?extract_exn:bool (** default is [false] *)
+     -> ?rest:[ `Log | `Raise | `Call of exn -> unit ] (** default is [`Raise] *)
+     -> (unit -> 'a Deferred.t)
+     -> ('a, exn) Result.t Deferred.t)
+      with_optional_monitor_name
 
 (** [try_with_or_error] is like [try_with] but returns ['a Or_error.t Deferred.t]
     instead of [('a,exn) Result.t Deferred.t].  More precisely:
@@ -152,7 +160,7 @@ val try_with_or_error
      -> ?rest:[ `Log | `Raise | `Call of exn -> unit ] (** default is [`Raise] *)
      -> (unit -> 'a Deferred.t)
      -> 'a Or_error.t Deferred.t)
-    with_optional_monitor_name
+      with_optional_monitor_name
 
 (** [try_with_join_or_error f = try_with_or_error f >>| Or_error.join]. *)
 val try_with_join_or_error
@@ -160,7 +168,7 @@ val try_with_join_or_error
      -> ?rest:[ `Log | `Raise | `Call of exn -> unit ] (** default is [`Raise] *)
      -> (unit -> 'a Or_error.t Deferred.t)
      -> 'a Or_error.t Deferred.t)
-    with_optional_monitor_name
+      with_optional_monitor_name
 
 (** [handle_errors ?name f handler] runs [f ()] inside a new monitor with the optionally
     supplied name, and calls [handler error] on every error raised to that monitor.  Any
@@ -197,7 +205,7 @@ val protect
      -> (unit -> 'a Deferred.t)
      -> finally:(unit -> unit Deferred.t)
      -> 'a Deferred.t)
-    with_optional_monitor_name
+      with_optional_monitor_name
 
 (** This is the initial monitor and is the root of the monitor tree.  Unhandled exceptions
     are raised to this monitor. *)

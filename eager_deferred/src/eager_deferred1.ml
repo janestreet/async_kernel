@@ -1,4 +1,5 @@
 include Eager_deferred0
+module Array = Eager_deferred_array.Array
 module List = Eager_deferred_list.List
 module Queue = Eager_deferred_queue.Queue
 

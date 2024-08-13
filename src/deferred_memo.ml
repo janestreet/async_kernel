@@ -11,10 +11,9 @@ module Make (M : Monad.Infix with type 'a t = 'a Deferred1.t) :
     | Error exn -> Exn.reraise exn "caught exception in memoized function"
   ;;
 
-  let general' (type a) ~run (hashable : (module Hashable.S_plain with type t = a)) f =
-    let module Hashable = (val hashable) in
+  let general' (type a) ~run (key : (module Hashtbl.Key_plain with type t = a)) f =
     let f =
-      Memo.general ~hashable:Hashable.hashable (fun a ->
+      Memo.general ~hashable:(Base.Hashable.of_key key) (fun a ->
         Monitor.try_with ~rest:`Log ~run (fun () -> f a))
     in
     Staged.stage (fun a -> f a >>| reraise)
@@ -22,7 +21,8 @@ module Make (M : Monad.Infix with type 'a t = 'a Deferred1.t) :
 
   let general hashable f = general' ~run:`Now hashable f
 
-  let recursive (type a) (hashable : (module Hashable.S_plain with type t = a)) f_onestep =
+  let recursive (type a) (hashable : (module Hashtbl.Key_plain with type t = a)) f_onestep
+    =
     let rec memoized =
       lazy
         (general'

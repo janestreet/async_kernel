@@ -86,7 +86,7 @@ val try_with
   :  ?extract_exn:bool (** default is [false] *)
   -> ?run:[ `Now | `Schedule ] (** default is [`Now] *)
   -> ?rest:[ `Log | `Raise | `Call of exn -> unit ] (** default is [`Raise] *)
-  -> ?here:Lexing.position
+  -> ?here:Stdlib.Lexing.position
   -> ?name:string
   -> (unit -> 'a Deferred.t)
   -> 'a t
@@ -95,17 +95,18 @@ val try_with_join
   :  ?extract_exn:bool (** default is [false] *)
   -> ?run:[ `Now | `Schedule ] (** default is [`Now] *)
   -> ?rest:[ `Log | `Raise | `Call of exn -> unit ] (** default is [`Raise] *)
-  -> ?here:Lexing.position
+  -> ?here:Stdlib.Lexing.position
   -> ?name:string
   -> (unit -> 'a t)
   -> 'a t
 
-(** All of the [List] functions that take a [how] argument treat it the following way:
+(** All of the [Array] and [List] functions that take a [how] argument treat it the
+    following way:
 
     [`Sequential] indicates both sequential evaluation of the deferreds, and
     sequential combination of the results.  This means that if [f] returns an
     [Error] on an element, that [Error] will be returned and [f] won't be
-    called on the remaining elements of the [List].
+    called on the remaining elements of the [Array] or [List].
 
     [`Parallel] indicates parallel evaluation of the deferreds (in the sense that they are
     all in the scheduler at the same time), and parallel combination of the results. For
@@ -115,6 +116,8 @@ val try_with_join
 
     [`Max_concurrent_jobs n] acts like [`Parallel] in the way it combines the results, but
     only evaluates [n] of the deferreds at a time. *)
+
+module Array : Monad_sequence.S with type 'a monad := 'a t with type 'a t := 'a array
 module List : Monad_sequence.S with type 'a monad := 'a t with type 'a t := 'a list
 
 (** [repeat_until_finished initial_state f] works just like

@@ -239,36 +239,36 @@ module Make' (Conn_err : Connection_error) (Conn : Closable) = struct
          leave [t.conn] filled with [`Close_started]. *)
       don't_wait_for
       @@ Deferred.repeat_until_finished () (fun () ->
-           let%bind () = handle_event t Attempting_to_connect in
-           match%bind try_connecting_until_successful t with
-           | `Close_started -> return (`Finished ())
-           | `Don't_reconnect ->
-             abort_reconnecting_with_no_active_connection t;
-             return (`Finished ())
-           | `Ok (conn, ready_to_retry_connecting) ->
-             let%bind () = handle_event t (Connected conn) in
-             let%bind () = Conn.close_finished conn in
-             t.conn <- Ivar.create ();
-             let%bind () = handle_event t Disconnected in
-             (* waits until [retry_delay ()] time has passed since the time just before we last
+        let%bind () = handle_event t Attempting_to_connect in
+        match%bind try_connecting_until_successful t with
+        | `Close_started -> return (`Finished ())
+        | `Don't_reconnect ->
+          abort_reconnecting_with_no_active_connection t;
+          return (`Finished ())
+        | `Ok (conn, ready_to_retry_connecting) ->
+          let%bind () = handle_event t (Connected conn) in
+          let%bind () = Conn.close_finished conn in
+          t.conn <- Ivar.create ();
+          let%bind () = handle_event t Disconnected in
+          (* waits until [retry_delay ()] time has passed since the time just before we last
              tried to connect rather than the time we noticed being disconnected, so that if
              a long-lived connection dies, we will attempt to reconnect immediately. *)
-             let%map () =
-               Deferred.any
-                 [ ready_to_retry_connecting
-                 ; Ivar.read t.close_started
-                 ; Ivar.read t.don't_reconnect
-                 ]
-             in
-             if Ivar.is_full t.close_started
-             then (
-               Ivar.fill_exn t.conn `Close_started;
-               `Finished ())
-             else if Ivar.is_full t.don't_reconnect
-             then (
-               abort_reconnecting_with_no_active_connection t;
-               `Finished ())
-             else `Repeat ());
+          let%map () =
+            Deferred.any
+              [ ready_to_retry_connecting
+              ; Ivar.read t.close_started
+              ; Ivar.read t.don't_reconnect
+              ]
+          in
+          if Ivar.is_full t.close_started
+          then (
+            Ivar.fill_exn t.conn `Close_started;
+            `Finished ())
+          else if Ivar.is_full t.don't_reconnect
+          then (
+            abort_reconnecting_with_no_active_connection t;
+            `Finished ())
+          else `Repeat ());
       t
     ;;
 
@@ -297,8 +297,8 @@ module Make' (Conn_err : Connection_error) (Conn : Closable) = struct
         | None ->
           d
           >>= (function
-          | `Close_started -> Deferred.never ()
-          | `Ok conn -> return conn)
+           | `Close_started -> Deferred.never ()
+           | `Ok conn -> return conn)
         | Some `Close_started -> Deferred.never ()
         | Some (`Ok conn) ->
           if Conn.is_closed conn

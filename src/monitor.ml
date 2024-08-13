@@ -52,7 +52,7 @@ let detach_and_iter_errors t ~f =
          raise inner_exn)
   in
   handler_state_ref
-    := Running (Bag.add t.handlers_for_all_errors (execution_context, run_f))
+  := Running (Bag.add t.handlers_for_all_errors (execution_context, run_f))
 ;;
 
 let detach_and_get_error_stream t =
@@ -69,9 +69,9 @@ let detach_and_get_next_error t =
   get_next_error t
 ;;
 
-let create ?here ?info ?name () =
+let create ?(here = Stdlib.Lexing.dummy_pos) ?info ?name () =
   let parent = current () in
-  create_with_parent ?here ?info ?name (Some parent)
+  create_with_parent ~here ?info ?name (Some parent)
 ;;
 
 module Monitor_exn = struct
@@ -116,9 +116,14 @@ module Monitor_exn = struct
         | s -> Some s
       in
       let pos =
-        match monitor.here with
-        | None -> None
-        | Some here ->
+        match
+          Source_code_position.is_dummy monitor.here
+          || !Backtrace.elide
+          || not (Backtrace.Exn.am_recording ())
+        with
+        | true -> None
+        | false ->
+          let here = monitor.here in
           (* We display the full filename, whereas backtraces only have basenames, but
              perhaps that's what should change. *)
           let column = here.pos_cnum - here.pos_bol in
@@ -190,7 +195,10 @@ let extract_exn exn =
 let send_exn t ?(backtrace = `Get) exn =
   let exn =
     match exn with
-    | Monitor_exn _ -> exn
+    | Monitor_exn _ ->
+      (* [backtrace] is dropped here, on the assumption that the backtrace recorded
+         originally is the more useful one. It'd be better to keep both backtraces. *)
+      exn
     | _ ->
       let backtrace =
         match backtrace with
@@ -322,12 +330,17 @@ module Ok_and_exns = struct
     }
   [@@deriving sexp_of]
 
-  let create ?here ?info ?name ~run f =
+  let monitor_and_exns ?(here = Stdlib.Lexing.dummy_pos) ?info ?name () =
     (* We call [create_with_parent None] because [monitor] does not need a parent.  It
        does not because we call [detach_and_get_error_stream monitor] and deal with the
        errors explicitly, thus [send_exn] would never propagate an exn past [monitor]. *)
-    let monitor = create_with_parent ?here ?info ?name None in
+    let monitor = create_with_parent ~here ?info ?name None in
     let exns = detach_and_get_error_stream monitor in
+    monitor, exns
+  ;;
+
+  let create ?(here = Stdlib.Lexing.dummy_pos) ?info ?name ~run f =
+    let monitor, exns = monitor_and_exns ~here ?info ?name () in
     let ok =
       match run with
       | `Now -> within' ~monitor f
@@ -335,19 +348,13 @@ module Ok_and_exns = struct
     in
     { ok; exns }
   ;;
-end
 
-let fill_result_and_handle_background_errors
-  result_filler
-  result
-  exns
-  handle_exns_after_result
-  =
-  if Ivar_filler.is_empty result_filler
-  then (
-    Ivar_filler.fill result_filler result;
-    handle_exns_after_result exns)
-;;
+  let create_local ?(here = Stdlib.Lexing.dummy_pos) ?info ?name f =
+    let monitor, exns = monitor_and_exns ~here ?info ?name () in
+    let ok = within' ~monitor f in
+    { ok; exns }
+  ;;
+end
 
 module Expert = struct
   let try_with_log_exn : (exn -> unit) ref =
@@ -369,16 +376,23 @@ let make_handle_exn rest =
     fun exn -> within ~monitor:parent (fun () -> f exn)
 ;;
 
-let try_with
-  ?here
-  ?info
-  ?(name = "")
-  ?extract_exn:(do_extract_exn = false)
-  ?(run = `Now)
-  ?(rest = `Raise)
-  f
+let fill_result_and_handle_background_errors
+  result_filler
+  result
+  exns
+  handle_exns_after_result
   =
-  let { Ok_and_exns.ok; exns } = Ok_and_exns.create ?here ?info ~name ~run f in
+  if Ivar_filler.is_empty result_filler
+  then (
+    Ivar_filler.fill result_filler result;
+    handle_exns_after_result exns)
+;;
+
+let try_with_aux
+  ?extract_exn:(do_extract_exn = false)
+  ?(rest = `Raise)
+  { Ok_and_exns.ok; exns }
+  =
   let handle_exn = make_handle_exn rest in
   let handle_exns_after_result exns = stream_iter exns ~f:handle_exn in
   (* We run [within' ~monitor:main] to avoid holding on to references to the evaluation
@@ -398,39 +412,83 @@ let try_with
           (Ok res)
           exns
           handle_exns_after_result);
-      upon (Stream.next exns) (function
-        | Nil -> assert false
+      let handle_next_exn = function
+        | Stream.Nil -> assert false
         | Cons (exn, exns) ->
           let exn = if do_extract_exn then extract_exn exn else exn in
           fill_result_and_handle_background_errors
             result_filler
             (Error exn)
             exns
-            handle_exns_after_result);
+            handle_exns_after_result
+      in
+      let next_exn = Stream.next exns in
+      if Deferred.is_determined next_exn
+      then handle_next_exn (Deferred.value_exn next_exn)
+      else upon next_exn handle_next_exn;
       result))
 ;;
 
-let try_with_or_error ?here ?info ?(name = "try_with_or_error") ?extract_exn ?rest f =
-  try_with f ?here ?info ~name ?extract_exn ~run:`Now ?rest >>| Or_error.of_exn_result
+let try_with
+  ?(here = Stdlib.Lexing.dummy_pos)
+  ?info
+  ?(name = "")
+  ?extract_exn
+  ?(run = `Now)
+  ?rest
+  f
+  =
+  Ok_and_exns.create ~here ?info ~name ~run f |> try_with_aux ?extract_exn ?rest
+;;
+
+let try_with_local
+  ?(here = Stdlib.Lexing.dummy_pos)
+  ?info
+  ?(name = "")
+  ?extract_exn
+  ?rest
+  f
+  =
+  Ok_and_exns.create_local ~here ?info ~name f |> try_with_aux ?extract_exn ?rest
+;;
+
+let try_with_or_error
+  ?(here = Stdlib.Lexing.dummy_pos)
+  ?info
+  ?(name = "try_with_or_error")
+  ?extract_exn
+  ?rest
+  f
+  =
+  try_with f ~here ?info ~name ?extract_exn ~run:`Now ?rest >>| Or_error.of_exn_result
 ;;
 
 let try_with_join_or_error
-  ?here
+  ?(here = Stdlib.Lexing.dummy_pos)
   ?info
   ?(name = "try_with_join_or_error")
   ?extract_exn
   ?rest
   f
   =
-  try_with_or_error f ?here ?info ~name ?extract_exn ?rest >>| Or_error.join
+  try_with_or_error f ~here ?info ~name ?extract_exn ?rest >>| Or_error.join
 ;;
 
-let protect ?here ?info ?(name = "Monitor.protect") ?extract_exn ?run ?rest f ~finally =
-  let%bind r = try_with ?extract_exn ?here ?info ?run ?rest ~name f in
+let protect
+  ?(here = Stdlib.Lexing.dummy_pos)
+  ?info
+  ?(name = "Monitor.protect")
+  ?extract_exn
+  ?run
+  ?rest
+  f
+  ~finally
+  =
+  let%bind r = try_with ?extract_exn ~here ?info ?run ?rest ~name f in
   let%map fr =
     try_with
       ~extract_exn:false
-      ?here
+      ~here
       ?info
       ~run:`Schedule (* consider [~run:`Now] *)
       ?rest
@@ -444,28 +502,30 @@ let protect ?here ?info ?(name = "Monitor.protect") ?extract_exn ?run ?rest f ~f
   | Ok r, Ok () -> r
 ;;
 
-let handle_errors ?here ?info ?name f handler =
-  let { Ok_and_exns.ok; exns } = Ok_and_exns.create ?here ?info ?name ~run:`Now f in
+let handle_errors ?(here = Stdlib.Lexing.dummy_pos) ?info ?name f handler =
+  let { Ok_and_exns.ok; exns } = Ok_and_exns.create ~here ?info ?name ~run:`Now f in
   stream_iter exns ~f:handler;
   ok
 ;;
 
-let catch_stream ?here ?info ?name f =
+let catch_stream ?(here = Stdlib.Lexing.dummy_pos) ?info ?name f =
   let { Ok_and_exns.exns; _ } =
-    Ok_and_exns.create ?here ?info ?name ~run:`Now (fun () ->
+    Ok_and_exns.create ~here ?info ?name ~run:`Now (fun () ->
       f ();
       return ())
   in
   exns
 ;;
 
-let catch ?here ?info ?name f =
-  match%map Stream.next (catch_stream ?here ?info ?name f) with
+let catch ?(here = Stdlib.Lexing.dummy_pos) ?info ?name f =
+  match%map Stream.next (catch_stream ~here ?info ?name f) with
   | Cons (x, _) -> x
   | Nil -> raise_s [%message "Monitor.catch got unexpected empty stream"]
 ;;
 
-let catch_error ?here ?info ?name f = catch ?here ?info ?name f >>| Error.of_exn
+let catch_error ?(here = Stdlib.Lexing.dummy_pos) ?info ?name f =
+  catch ~here ?info ?name f >>| Error.of_exn
+;;
 
 module For_tests = struct
   let parent t =

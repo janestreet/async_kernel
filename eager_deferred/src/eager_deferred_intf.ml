@@ -34,7 +34,7 @@ module type Eager_deferred_or_error = sig
     :  ?extract_exn:bool
     -> ?run:[ `Now | `Schedule ]
     -> ?rest:[ `Log | `Raise | `Call of exn -> unit ] (** default is [`Raise] *)
-    -> ?here:Lexing.position
+    -> ?here:Stdlib.Lexing.position
     -> ?name:string
     -> (unit -> 'a deferred)
     -> 'a t
@@ -44,7 +44,7 @@ module type Eager_deferred_or_error = sig
     :  ?extract_exn:bool
     -> ?run:[ `Now | `Schedule ]
     -> ?rest:[ `Log | `Raise | `Call of exn -> unit ] (** default is [`Raise] *)
-    -> ?here:Lexing.position
+    -> ?here:Stdlib.Lexing.position
     -> ?name:string
     -> (unit -> 'a t)
     -> 'a t
@@ -53,6 +53,7 @@ module type Eager_deferred_or_error = sig
   val combine_errors_unit : unit t list -> unit t
   val filter_ok_at_least_one : 'a t list -> 'a list t
 
+  module Array : Monad_sequence.S with type 'a monad := 'a t with type 'a t := 'a array
   module List : Monad_sequence.S with type 'a monad := 'a t with type 'a t := 'a list
 
   val repeat_until_finished
@@ -91,6 +92,7 @@ module type Eager_deferred1 = sig
     -> ('state -> [ `Repeat of 'state | `Finished of 'result ] t)
     -> 'result t
 
+  module Array : Monad_sequence.S with type 'a monad := 'a t with type 'a t := 'a array
   module List : Monad_sequence.S with type 'a monad := 'a t with type 'a t := 'a list
 
   (** Similar to {Deferred.Queue} but eager when passing ~how:`Sequential. The functions
@@ -117,6 +119,11 @@ module type Eager_deferred1 = sig
       -> ok:('ok1 -> 'ok2 -> 'ok3)
       -> err:('err -> 'err -> 'err)
       -> ('ok3, 'err) t
+
+    module List :
+      Monad_sequence.S2_result
+      with type ('a, 'e) monad := ('a, 'e) t
+      with type 'a t := 'a list
   end
 end
 

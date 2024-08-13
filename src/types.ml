@@ -76,7 +76,7 @@ end =
 and Monitor : sig
   type t =
     { name : Info.t
-    ; here : Source_code_position.t option
+    ; here : Source_code_position.t
     ; id : int
     ; mutable next_error : exn Ivar.t
     ; mutable handlers_for_all_errors : (Execution_context.t * (exn -> unit)) Bag.t

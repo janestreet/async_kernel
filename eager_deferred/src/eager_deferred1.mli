@@ -24,4 +24,4 @@ include
   Eager_deferred_intf.Eager_deferred1
   (*_ We do not expose [Eager_deferred.t] so that type-error messages refer to
     [Deferred.t], not [Eager_deferred.t]. *)
-    with type 'a t := 'a Deferred.t
+  with type 'a t := 'a Deferred.t

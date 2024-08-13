@@ -214,10 +214,10 @@ let take_until t d =
       upon
         (choose [ choice d (fun () -> `Stop); choice (next t) (fun z -> `Next z) ])
         (function
-         | `Stop | `Next Nil -> Tail.close_exn tail
-         | `Next (Cons (x, t)) ->
-           Tail.extend tail x;
-           loop t)
+          | `Stop | `Next Nil -> Tail.close_exn tail
+          | `Next (Cons (x, t)) ->
+            Tail.extend tail x;
+            loop t)
     in
     loop t)
 ;;

@@ -313,7 +313,7 @@ module T1 = struct
       [%message "" (now : Time_ns.t) (events : Job_or_event.t list)])
   ;;
 
-  let timing_wheel_now t = Timing_wheel.now t.events
+  let[@zero_alloc] timing_wheel_now t = Timing_wheel.now t.events
 
   let is_in_fired_events =
     let rec search current ~target_event =
@@ -441,15 +441,23 @@ let fire t (event : Event.t) =
 
 let alarm_precision t = Timing_wheel.alarm_precision t.events
 let next_alarm_fires_at t = Timing_wheel.next_alarm_fires_at t.events
+let has_events_to_run t = Event.Option.is_some t.fired_events
+let has_next_alarm t = has_events_to_run t || not (Timing_wheel.is_empty t.events)
 
 let next_alarm_runs_at t =
-  if Event.Option.is_some t.fired_events
+  if has_events_to_run t
   then Some (timing_wheel_now t)
   else Timing_wheel.next_alarm_fires_at t.events
 ;;
 
+let next_alarm_runs_at_exn t =
+  if has_events_to_run t
+  then timing_wheel_now t
+  else Timing_wheel.next_alarm_fires_at_exn t.events
+;;
+
 let now t = if t.is_wall_clock then Time_ns.now () else timing_wheel_now t
-let timing_wheel_now = timing_wheel_now
+let[@zero_alloc] timing_wheel_now t = timing_wheel_now t
 
 let schedule t (event : Event.t) =
   Event.set_status event Scheduled;
@@ -670,10 +678,13 @@ let run_fired_events t ~(send_exn : send_exn option) =
             a periodic event if its callback raises. *)
          (match event.callback () with
           | exception exn ->
+            let backtrace = Backtrace.Exn.most_recent () in
             (match send_exn with
-             | None -> t.advance_errors <- Error.of_exn exn :: t.advance_errors
+             | None ->
+               t.advance_errors
+               <- Error.of_exn ~backtrace:(`This (Backtrace.to_string backtrace)) exn
+                  :: t.advance_errors
              | Some send_exn ->
-               let backtrace = Backtrace.Exn.most_recent () in
                send_exn event.execution_context.monitor exn ~backtrace:(`This backtrace));
             Event.set_status_if ~is:Happening_periodic_event event Unscheduled
           | () ->
@@ -685,11 +696,11 @@ let run_fired_events t ~(send_exn : send_exn option) =
                  (* The event's callback did not reschedule the event. So reschedule the
                     repeating timer based on the last [at] time. *)
                  event.at
-                   <- Time_ns.next_multiple
-                        ()
-                        ~base:event.at
-                        ~after:(timing_wheel_now t)
-                        ~interval;
+                 <- Time_ns.next_multiple
+                      ()
+                      ~base:event.at
+                      ~after:(timing_wheel_now t)
+                      ~interval;
                  schedule t event)));
          true)
   do
@@ -799,5 +810,3 @@ let duration_of t f =
 let max_alarm_time_in_min_timing_wheel_interval t =
   Timing_wheel.max_alarm_time_in_min_interval t.events
 ;;
-
-let has_events_to_run t = Event.Option.is_some t.fired_events

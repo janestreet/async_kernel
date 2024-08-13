@@ -35,7 +35,7 @@ val within_v : ((unit -> 'a) -> 'a option) with_options
 val with_local : 'a Univ_map.Key.t -> 'a option -> f:(unit -> 'b) -> 'b
 
 (** [find_local key] returns the value associated to [key] in the current execution
-    context. *)
+    context, if one exists. *)
 val find_local : 'a Univ_map.Key.t -> 'a option
 
 (** Just like [within'], but instead of running the thunk right now, adds

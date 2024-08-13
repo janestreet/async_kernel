@@ -2,6 +2,8 @@ open! Core
 open! Async_kernel
 open! Import
 module Deferred = Eager_deferred0
+module Deferred_array = Eager_deferred_array.Array
+module Deferred_list = Eager_deferred_list.List
 module Deferred_result = Eager_deferred_result
 
 module Monitor = struct
@@ -15,20 +17,20 @@ include (Deferred_result : Monad.S2 with type ('a, 'b) t := ('a, 'b) Deferred_re
 type 'a t = 'a Or_error.t Deferred.t
 
 include Applicative.Make (struct
-  type nonrec 'a t = 'a t
+    type nonrec 'a t = 'a t
 
-  let return = return
+    let return = return
 
-  let apply f x =
-    Deferred_result.combine
-      f
-      x
-      ~ok:(fun f x -> f x)
-      ~err:(fun e1 e2 -> Error.of_list [ e1; e2 ])
-  ;;
+    let apply f x =
+      Deferred_result.combine
+        f
+        x
+        ~ok:(fun f x -> f x)
+        ~err:(fun e1 e2 -> Error.of_list [ e1; e2 ])
+    ;;
 
-  let map = `Custom map
-end)
+    let map = `Custom map
+  end)
 
 module Let_syntax = struct
   let return = return
@@ -86,72 +88,100 @@ let find_map_ok l ~f =
 
 let ok_unit = return ()
 
-let try_with ?extract_exn ?run ?rest ?here ?name f =
-  Deferred.map (Monitor.try_with ?extract_exn ?run ?rest ?here ?name f) ~f:(function
+let try_with ?extract_exn ?run ?rest ?(here = Stdlib.Lexing.dummy_pos) ?name f =
+  Deferred.map (Monitor.try_with ?extract_exn ?run ?rest ~here ?name f) ~f:(function
     | Error exn -> Error (Error.of_exn exn)
     | Ok _ as ok -> ok)
 ;;
 
-let try_with_join ?extract_exn ?run ?rest ?here ?name f =
-  Deferred.map (try_with ?extract_exn ?run ?rest ?here ?name f) ~f:Or_error.join
+let try_with_join ?extract_exn ?run ?rest ?(here = Stdlib.Lexing.dummy_pos) ?name f =
+  Deferred.map (try_with ?extract_exn ?run ?rest ~here ?name f) ~f:Or_error.join
 ;;
 
-module List = struct
-  let foldi list ~init:acc ~f =
-    let rec loop i acc = function
-      | [] -> return acc
-      | hd :: tl ->
-        let%bind acc = f i acc hd in
-        loop (i + 1) acc tl
-    in
-    loop 0 acc list
-  ;;
+module type Extras = sig
+  type 'a deferred_or_error := 'a t
+  type 'a t
+
+  val seqmapi : 'a t -> f:(int -> 'a -> 'b deferred_or_error) -> 'b t deferred_or_error
+
+  val find_mapi
+    :  'a t
+    -> f:(int -> 'a -> 'b option deferred_or_error)
+    -> 'b option deferred_or_error
+
+  (* We could define [foldi] in terms of [Container.foldi], but we use a custom definition
+     in order to preserve legacy binding pattern of [Deferred.List.foldi]. *)
+  val foldi
+    :  'a t
+    -> init:'acc
+    -> f:(int -> 'acc -> 'a -> 'acc deferred_or_error)
+    -> 'acc deferred_or_error
+end
+
+module Make_indexed_container
+    (Container : sig
+       type 'a t
+
+       include
+         Base.Indexed_container.Generic_with_creators
+         with type ('a, _, _) t := 'a t
+          and type ('a, _, _) concat := 'a list
+          and type 'a elt := 'a
+     end)
+    (Monadic_container : Monad_sequence.S
+                         with type 'a t := 'a Container.t
+                          and type 'a monad := 'a Deferred.t)
+    (Extras : Extras with type 'a t := 'a Container.t) :
+  Monad_sequence.S with type 'a t := 'a Container.t and type 'a monad := 'a t = struct
+  include Extras
 
   let fold t ~init ~f = foldi t ~init ~f:(fun _ a x -> f a x)
 
-  let seqmapi t ~f =
-    foldi t ~init:[] ~f:(fun i bs a ->
-      let%map b = f i a in
-      b :: bs)
-    >>| List.rev
+  let all t =
+    match%map.Deferred
+      Monadic_container.all t
+      |> Deferred.map ~f:(Container.partition_map ~f:Result.to_either)
+    with
+    | ok, errors when Container.is_empty errors -> Ok ok
+    | _, errors -> Error (errors |> Container.to_list |> Error.of_list)
   ;;
 
-  let all = all
-  let all_unit = all_unit
+  let all_unit ts =
+    Monadic_container.all ts
+    |> Deferred.map ~f:(fun xs -> Container.to_list xs |> Or_error.all_unit)
+  ;;
 
   let iteri ~how t ~f =
     match how with
     | (`Parallel | `Max_concurrent_jobs _) as how ->
-      all_unit (List.mapi t ~f:(unstage (Throttle.monad_sequence_how2 ~how ~f)))
+      all_unit
+        (Container.mapi
+           t
+           ~f:
+             (unstage
+                (Throttle.monad_sequence_how2 ~on_error:(`Abort `Never_return) ~how ~f)))
     | `Sequential -> foldi t ~init:() ~f:(fun i () x -> f i x)
   ;;
 
   let mapi ~how t ~f =
     match how with
     | (`Parallel | `Max_concurrent_jobs _) as how ->
-      all (List.mapi t ~f:(unstage (Throttle.monad_sequence_how2 ~how ~f)))
+      all
+        (Container.mapi
+           t
+           ~f:
+             (unstage
+                (Throttle.monad_sequence_how2 ~on_error:(`Abort `Never_return) ~how ~f)))
     | `Sequential -> seqmapi t ~f
   ;;
 
-  let filter_mapi ~how t ~f = mapi t ~how ~f >>| List.filter_opt
-  let concat_mapi ~how t ~f = mapi t ~how ~f >>| List.concat
+  let filter_mapi ~how t ~f = mapi t ~how ~f >>| Container.filter_map ~f:Fn.id
+  let concat_mapi ~how t ~f = mapi t ~how ~f >>| Container.concat_map ~f:Fn.id
 
   let filteri ~how t ~f =
     filter_mapi ~how t ~f:(fun i x ->
       let%map b = f i x in
       if b then Some x else None)
-  ;;
-
-  let find_mapi t ~f =
-    let rec find_mapi t ~f i =
-      match t with
-      | [] -> return None
-      | hd :: tl ->
-        (match%bind f i hd with
-         | None -> find_mapi tl ~f (i + 1)
-         | Some _ as some -> return some)
-    in
-    find_mapi t ~f 0
   ;;
 
   let find_map t ~f = find_mapi t ~f:(fun _ a -> f a)
@@ -196,8 +226,81 @@ module List = struct
   let find_map t ~f = find_mapi t ~f:(fun _ a -> f a)
   let exists t ~f = existsi t ~f:(fun _ a -> f a)
   let for_all t ~f = for_alli t ~f:(fun _ a -> f a)
-  let init ~how n ~f = map ~how (List.init n ~f:Fn.id) ~f
+  let init ~how n ~f = map ~how (Container.init n ~f:Fn.id) ~f
 end
+
+module Array =
+  Make_indexed_container (Array) (Deferred_array)
+    (struct
+      let seqmapi t ~f =
+        if Array.is_empty t
+        then return [||]
+        else (
+          let%bind x0 = f 0 (Array.unsafe_get t 0) in
+          let a = Array.create ~len:(Array.length t) x0 in
+          let rec loop i =
+            if i = Array.length t
+            then return ()
+            else (
+              let%bind x = f i (Array.unsafe_get t i) in
+              Array.unsafe_set a i x;
+              loop (i + 1))
+          in
+          let%bind () = loop 1 in
+          return a)
+      ;;
+
+      let find_mapi t ~f =
+        let rec loop i =
+          if i = Array.length t
+          then return None
+          else (
+            match%bind f i (Array.unsafe_get t i) with
+            | None -> loop (i + 1)
+            | Some _ as some -> return some)
+        in
+        loop 0
+      ;;
+
+      let foldi t ~init ~f =
+        Array.foldi t ~init:(return init) ~f:(fun n acc elt ->
+          let%bind acc = acc in
+          f n acc elt)
+      ;;
+    end)
+
+module List =
+  Make_indexed_container (List) (Deferred_list)
+    (struct
+      let find_mapi t ~f =
+        let rec find_mapi t ~f i =
+          match t with
+          | [] -> return None
+          | hd :: tl ->
+            (match%bind f i hd with
+             | None -> find_mapi tl ~f (i + 1)
+             | Some _ as some -> return some)
+        in
+        find_mapi t ~f 0
+      ;;
+
+      let foldi t ~init ~f =
+        let rec loop i acc = function
+          | [] -> return acc
+          | hd :: tl ->
+            let%bind acc = f i acc hd in
+            loop (i + 1) acc tl
+        in
+        loop 0 init t
+      ;;
+
+      let seqmapi t ~f =
+        foldi t ~init:[] ~f:(fun i bs a ->
+          let%map b = f i a in
+          b :: bs)
+        >>| List.rev
+      ;;
+    end)
 
 let rec repeat_until_finished state f =
   match%bind f state with

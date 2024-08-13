@@ -196,6 +196,11 @@ val wall_clock : unit -> t
 (** [length t] returns the number of alarms in the underlying [Timing_wheel]. *)
 val length : [> write ] T1.t -> int
 
+(** [has_next_alarm t] returns true if there are any alarms in the time source, either
+    that have already fired and are waiting to run, or that are scheduled in the future.
+*)
+val has_next_alarm : t -> bool
+
 (** [next_alarm_runs_at t] returns a time to which the clock can be advanced
     such that an alarm will fire, or [None] if [t] has no alarms that can ever fire.
 
@@ -208,8 +213,11 @@ val length : [> write ] T1.t -> int
 *)
 val next_alarm_runs_at : [> write ] T1.t -> Time_ns.t option
 
+(** Like [next_alarm_runs_at], but raises if [has_next_alarm t] is false. *)
+val next_alarm_runs_at_exn : [> write ] T1.t -> Time_ns.t
+
 val next_alarm_fires_at : [> write ] T1.t -> Time_ns.t option
-  [@@deprecated "[since 2021-06] Use [next_alarm_runs_at]"]
+[@@deprecated "[since 2021-06] Use [next_alarm_runs_at]"]
 
 (** [advance_by_alarms t ~to_] advances [t]'s time to [to_], running callbacks for all
     alarms in [t] whose [at <= to_].  Callbacks run in nondecreasing order of [at].  If

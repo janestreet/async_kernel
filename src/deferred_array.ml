@@ -35,14 +35,24 @@ let all_unit ds = Deferred.ignore_m (fold ds ~init:() ~f:(fun () d -> d))
 let iteri ~how t ~f =
   match how with
   | (`Parallel | `Max_concurrent_jobs _) as how ->
-    all_unit (Array.mapi t ~f:(unstage (Throttle.monad_sequence_how2 ~how ~f)))
+    all_unit
+      (Array.mapi
+         t
+         ~f:
+           (unstage
+              (Throttle.monad_sequence_how2 ~on_error:(`Abort `Never_return) ~how ~f)))
   | `Sequential -> foldi t ~init:() ~f:(fun i () x -> f i x)
 ;;
 
 let mapi ~how t ~f =
   match how with
   | (`Parallel | `Max_concurrent_jobs _) as how ->
-    all (Array.mapi t ~f:(unstage (Throttle.monad_sequence_how2 ~how ~f)))
+    all
+      (Array.mapi
+         t
+         ~f:
+           (unstage
+              (Throttle.monad_sequence_how2 ~on_error:(`Abort `Never_return) ~how ~f)))
   | `Sequential -> seqmapi t ~f
 ;;
 

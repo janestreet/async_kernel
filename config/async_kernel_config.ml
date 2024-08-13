@@ -6,58 +6,58 @@ let sec = Time_ns.Span.of_sec
 let concat = String.concat
 
 module Epoll_max_ready_events = Validated.Make (struct
-  include Int
-
-  let here = [%here]
-  let validate = Int.validate_positive
-end)
-
-module Io_uring_max_submission_entries = Validated.Make (struct
-  include Int
-
-  let here = [%here]
-  let validate = Int.validate_positive
-end)
-
-module Max_inter_cycle_timeout = Validated.Make (struct
-  include Time_ns.Span
-
-  let here = [%here]
-  let validate = Time_ns.Span.validate_non_negative
-end)
-
-module Min_inter_cycle_timeout = Validated.Make (struct
-  include Time_ns.Span
-
-  let here = [%here]
-  let validate = Time_ns.Span.validate_non_negative
-end)
-
-module Max_num_open_file_descrs = struct
-  include Validated.Make (struct
     include Int
 
     let here = [%here]
     let validate = Int.validate_positive
   end)
 
+module Io_uring_max_submission_entries = Validated.Make (struct
+    include Int
+
+    let here = [%here]
+    let validate = Int.validate_positive
+  end)
+
+module Max_inter_cycle_timeout = Validated.Make (struct
+    include Time_ns.Span
+
+    let here = [%here]
+    let validate = Time_ns.Span.validate_non_negative
+  end)
+
+module Min_inter_cycle_timeout = Validated.Make (struct
+    include Time_ns.Span
+
+    let here = [%here]
+    let validate = Time_ns.Span.validate_non_negative
+  end)
+
+module Max_num_open_file_descrs = struct
+  include Validated.Make (struct
+      include Int
+
+      let here = [%here]
+      let validate = Int.validate_positive
+    end)
+
   let default = create_exn (1 lsl 17)
   let equal (t1 : t) t2 = t1 = t2
 end
 
 module Max_num_threads = Validated.Make (struct
-  include Int
+    include Int
 
-  let here = [%here]
-  let validate = Int.validate_positive
-end)
+    let here = [%here]
+    let validate = Int.validate_positive
+  end)
 
 module Max_num_jobs_per_priority_per_cycle = Validated.Make (struct
-  include Int
+    include Int
 
-  let here = [%here]
-  let validate = Int.validate_positive
-end)
+    let here = [%here]
+    let validate = Int.validate_positive
+  end)
 
 module Dump_core_on_job_delay = struct
   module How_to_dump = struct
@@ -465,9 +465,10 @@ Allowed values are:|}
                       ; default |> Max_num_open_file_descrs.raw |> Int.to_string_hum
                       ; " [ulimit -n -H]"
                       ]
-                     : string)])
+                    : string)])
            [ {|
-  The maximum number of open file descriptors allowed at any one time.|} ])
+  The maximum number of open file descriptors allowed at any one time.|}
+           ])
       ~max_num_threads:
         (field
            [%sexp_of: Max_num_threads.t]

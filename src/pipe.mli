@@ -142,8 +142,9 @@ val close : _ Writer.t -> unit
 (** [close_read t] closes both the read and write ends of the pipe.  It does everything
     [close] does, and in addition:
 
-    - all pending flushes become determined with [`Reader_closed].
     - the pipe buffer is cleared.
+    - all flushes pending on data that was still in the pipe will wait for all previously
+      read values to become flushed and then become determined with [`Reader_closed]
     - all subsequent reads will get [`Eof]. *)
 val close_read : _ Reader.t -> unit
 
@@ -355,7 +356,8 @@ val write_when_ready
       if not (is_closed w) then (write w x) else (return ()) ]}
 
     Note the difference in allocation and potential side effects when [w] is closed and
-    [e] is a complex expression.
+    [e] is a complex expression. Additionally, note that due to this equivalency, if [w]
+    is closed, [downstream_flushed] may still return [`Ok] even if [e] was dropped.
 
     [write_without_pushback_if_open] is the same as [write_if_open], except it calls
     [write_without_pushback] instead of [write]. *)
@@ -420,7 +422,7 @@ val read_exactly
      | `Fewer of 'a Queue.t (** [0 < Q.length q < num_values] *)
      | `Exactly of 'a Queue.t (** [Q.length q = num_values] *)
      ]
-     Deferred.t
+       Deferred.t
 
 (** [read_now' reader] reads values from [reader] that are immediately available.  If
     [reader] is empty, [read_now'] returns [`Eof] if [reader] is closed and
@@ -506,7 +508,8 @@ module Flushed : sig
   [@@deriving sexp_of]
 end
 
-(** Issues: {ul
+(** Issues:
+    {ul
     {- Scalar & batch sequence processing:
 
     Each of the sequence functions ([fold], [iter], [transfer], [map]) comes in two
@@ -633,8 +636,15 @@ val map'
   -> f:('a Queue.t -> 'b Queue.t Deferred.t)
   -> 'b Reader.t
 
-(** [map] is like [map'], except that it processes one element at a time. *)
-val map : 'a Reader.t -> f:('a -> 'b) -> 'b Reader.t
+(** [map] is like [map'], except that it processes one element at a time. [max_batch_size]
+    controls the maximum number of elements that can be processed in sequence before
+    yielding to the async scheduler. Increasing this parameter may improve performance
+    when there are many elements in the pipe and the mapping function is cheap. *)
+val map
+  :  ?max_batch_size:int (** default is 1 *)
+  -> 'a Reader.t
+  -> f:('a -> 'b)
+  -> 'b Reader.t
 
 (** [concat_map_list] is like [List.concat_map].  It produces the same result as
     [map' ~f:(fun q -> return (Queue.concat_map q ~f))] *)

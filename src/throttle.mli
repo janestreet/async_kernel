@@ -61,6 +61,17 @@ val create'
     [create' ~rest:`Log ~continue_on_error ~max_concurrent_jobs] *)
 val create : continue_on_error:bool -> max_concurrent_jobs:int -> unit t
 
+(** [create''] expands the options for [continue_on_error:false]. If [on_error:(`Abort
+    how)] is provided, an exception in a job will kill the throttle. Any remaining jobs
+    that haven't started yet will be dropped. If [how] is [`Raise], an exception will be
+    raised to the monitor in effect when [enqueue] was called for each job. If [how] is
+    [`Never_return], the jobs will be silently dropped. *)
+val create''
+  :  rest:[ `Log | `Raise | `Call of exn -> unit ]
+  -> on_error:[ `Continue | `Abort of [ `Raise | `Never_return ] ]
+  -> max_concurrent_jobs:int
+  -> unit t
+
 (** [create_with ~continue_on_error job_resources] returns a throttle that will run up to
     [List.length job_resources] concurrently, and will ensure that all running jobs are
     supplied distinct elements of [job_resources]. *)
@@ -107,11 +118,13 @@ val enqueue_exclusive : ('a, _) T2.t -> (unit -> 'b Deferred.t) -> 'b Deferred.t
     simultaneously.  The throttle has [continue_on_error = false]. *)
 val monad_sequence_how
   :  how:Monad_sequence.how
+  -> on_error:[ `Continue | `Abort of [ `Raise | `Never_return ] ]
   -> f:('a -> 'b Deferred.t)
   -> ('a -> 'b Deferred.t) Staged.t
 
 val monad_sequence_how2
   :  how:Monad_sequence.how
+  -> on_error:[ `Continue | `Abort of [ `Raise | `Never_return ] ]
   -> f:('a1 -> 'a2 -> 'b Deferred.t)
   -> ('a1 -> 'a2 -> 'b Deferred.t) Staged.t
 

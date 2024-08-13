@@ -76,16 +76,15 @@ module type Time_source = sig
   val advance_directly : [> write ] T1.t -> to_:Time_ns.t -> unit
 
   val advance : [> write ] T1.t -> to_:Time_ns.t -> unit
-    [@@deprecated
-      "[since 2019-06] Use [advance_directly] (to preserve behavior) or \
-       [advance_by_alarms]"]
+  [@@deprecated
+    "[since 2019-06] Use [advance_directly] (to preserve behavior) or [advance_by_alarms]"]
 
   val advance_directly_by : [> write ] T1.t -> Time_ns.Span.t -> unit
 
   val advance_by : [> write ] T1.t -> Time_ns.Span.t -> unit
-    [@@deprecated
-      "[since 2019-06] Use [advance_directly_by] (to preserve behavior) or \
-       [advance_by_alarms_by]"]
+  [@@deprecated
+    "[since 2019-06] Use [advance_directly_by] (to preserve behavior) or \
+     [advance_by_alarms_by]"]
 
   val fire_past_alarms : [> write ] T1.t -> unit
 
@@ -114,9 +113,9 @@ module type Time_source = sig
     -> [> write ] T1.t
     -> to_:Time_ns.t
     -> unit Deferred.t
-    [@@deprecated
-      "[since 2021-12] This is the old implementation of [advance_by_alarms], kept in \
-       case the new implementation causes problems."]
+  [@@deprecated
+    "[since 2021-12] This is the old implementation of [advance_by_alarms], kept in case \
+     the new implementation causes problems."]
 
   (** [advance_by_alarms_by ?wait_for t by] is equivalent to:
       [advance_by_alarms ?wait_for t ~to_:(Time_ns.add (now t) by)] *)

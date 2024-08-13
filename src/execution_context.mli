@@ -22,6 +22,8 @@ val create_like
   -> t
   -> t
 
+val has_local : t -> 'a Univ_map.Key.t -> bool
 val find_local : t -> 'a Univ_map.Key.t -> 'a option
+val find_local_exn : t -> 'a Univ_map.Key.t -> 'a
 val with_local : t -> 'a Univ_map.Key.t -> 'a option -> t
 val record_backtrace : t -> t

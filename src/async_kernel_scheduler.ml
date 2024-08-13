@@ -5,7 +5,7 @@ include Scheduler
 let enqueue_job execution_context f a = enqueue (t ()) execution_context f a
 
 let thread_safe_enqueue_job execution_context f a =
-  thread_safe_enqueue_external_job (t ()) execution_context f a
+  thread_safe_enqueue_external_job (t_without_checking_access ()) execution_context f a
 ;;
 
 let current_execution_context () = current_execution_context (t ())

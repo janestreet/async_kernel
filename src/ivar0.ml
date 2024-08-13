@@ -387,7 +387,7 @@ let upon t run =
   | Empty -> t.cell <- Empty_one_handler (run, execution_context)
   | Empty_one_handler (run', execution_context') ->
     t.cell
-      <- cell_of_handler (Handler.create2 run execution_context run' execution_context')
+    <- cell_of_handler (Handler.create2 run execution_context run' execution_context')
   | Empty_one_or_more_handlers _ as handler ->
     ignore (Handler.add handler run execution_context : _ Handler.t)
 ;;

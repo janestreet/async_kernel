@@ -35,7 +35,9 @@ let create_like ?monitor ?priority ?local_storage t =
     }
 ;;
 
+let has_local t key = Univ_map.mem t.local_storage key
 let find_local t key = Univ_map.find t.local_storage key
+let find_local_exn t key = Univ_map.find_exn t.local_storage key
 
 let with_local t key data =
   match data with

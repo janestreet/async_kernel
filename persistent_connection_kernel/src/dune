@@ -1,6 +1,6 @@
 (library
  (name persistent_connection_kernel)
  (public_name async_kernel.persistent_connection_kernel)
- (libraries async_kernel core_kernel.bus)
+ (libraries async_kernel core_kernel.bus core)
  (preprocess
   (pps ppx_jane)))

@@ -60,7 +60,7 @@ end = struct
 end
 
 type 'a t =
-  { continue_on_error : bool
+  { on_error : [ `Continue | `Abort of [ `Raise | `Never_return ] ]
   ; rest : [ `Log | `Raise | `Call of exn -> unit ]
   ; max_concurrent_jobs : int
   ; (* [job_resources_not_in_use] holds resources that are not currently in use by a
@@ -75,9 +75,9 @@ type 'a t =
        [maybe_start_job] will fill [ivar] when capacity becomes available, i.e. when
        [jobs_waiting_to_start] is empty and [num_jobs_running < max_concurrent_jobs]. *)
     mutable capacity_available : unit Ivar.t option
-  ; (* [is_dead] is true if [t] was killed due to a job raising an exception or [kill t]
+  ; (* [is_dead] is Some if [t] was killed due to a job raising an exception or [kill t]
        being called. *)
-    mutable is_dead : bool
+    mutable is_dead : [ `Raise | `Never_return ] option
   ; (* [cleans] holds functions that will be called to clean each resource when [t] is
        killed. *)
     mutable cleans : ('a -> unit Deferred.t) list
@@ -96,7 +96,7 @@ let invariant invariant_a t : unit =
   try
     let check f field = f (Field.get field t) in
     Fields.iter
-      ~continue_on_error:ignore
+      ~on_error:ignore
       ~rest:ignore
       ~max_concurrent_jobs:
         (check (fun max_concurrent_jobs -> assert (max_concurrent_jobs > 0)))
@@ -105,10 +105,13 @@ let invariant invariant_a t : unit =
            Stack_or_counter.iter job_resources_not_in_use ~f:invariant_a;
            assert (
              Stack_or_counter.length job_resources_not_in_use
-             = if t.is_dead then 0 else t.max_concurrent_jobs - t.num_jobs_running)))
+             =
+             if Option.is_some t.is_dead
+             then 0
+             else t.max_concurrent_jobs - t.num_jobs_running)))
       ~jobs_waiting_to_start:
         (check (function jobs_waiting_to_start ->
-           if t.is_dead then assert (Queue.is_empty jobs_waiting_to_start)))
+           if Option.is_some t.is_dead then assert (Queue.is_empty jobs_waiting_to_start)))
       ~num_jobs_running:
         (check (fun num_jobs_running ->
            assert (num_jobs_running >= 0);
@@ -125,7 +128,8 @@ let invariant invariant_a t : unit =
         (check (fun num_resources_not_cleaned ->
            assert (num_resources_not_cleaned >= 0);
            assert (num_resources_not_cleaned <= t.max_concurrent_jobs);
-           if num_resources_not_cleaned < t.max_concurrent_jobs then assert t.is_dead))
+           if num_resources_not_cleaned < t.max_concurrent_jobs
+           then assert (Option.is_some t.is_dead)))
       ~cleaned:
         (check (fun cleaned ->
            if Ivar.is_full cleaned then assert (t.num_resources_not_cleaned = 0)))
@@ -148,15 +152,19 @@ let clean_resource t a =
   if t.num_resources_not_cleaned = 0 then Ivar.fill_exn t.cleaned ()
 ;;
 
-let kill t =
-  if not t.is_dead
+let kill_internal t how =
+  if Option.is_none t.is_dead
   then (
-    t.is_dead <- true;
-    Queue.iter t.jobs_waiting_to_start ~f:Internal_job.abort;
+    t.is_dead <- Some how;
+    (match how with
+     | `Never_return -> ()
+     | `Raise -> Queue.iter t.jobs_waiting_to_start ~f:Internal_job.abort);
     Queue.clear t.jobs_waiting_to_start;
     Stack_or_counter.iter t.job_resources_not_in_use ~f:(fun a -> clean_resource t a);
     Stack_or_counter.clear t.job_resources_not_in_use)
 ;;
+
+let kill t = kill_internal t `Raise
 
 let at_kill t f =
   (* We preserve the execution context so that exceptions raised by [f] go to the monitor
@@ -168,7 +176,7 @@ let at_kill t f =
 let cleaned t = Ivar.read t.cleaned
 
 let rec start_job t =
-  assert (not t.is_dead);
+  assert (Option.is_none t.is_dead);
   assert (t.num_jobs_running < t.max_concurrent_jobs);
   assert (not (Queue.is_empty t.jobs_waiting_to_start));
   let job = Queue.dequeue_exn t.jobs_waiting_to_start in
@@ -179,8 +187,11 @@ let rec start_job t =
   t.num_jobs_running <- t.num_jobs_running - 1;
   (match res with
    | `Ok -> ()
-   | `Raised -> if not t.continue_on_error then kill t);
-  if t.is_dead
+   | `Raised ->
+     (match t.on_error with
+      | `Continue -> ()
+      | `Abort how -> kill_internal t how));
+  if Option.is_some t.is_dead
   then clean_resource t job_resource
   else (
     Stack_or_counter.push t.job_resources_not_in_use job_resource;
@@ -194,24 +205,29 @@ let rec start_job t =
         t.capacity_available <- None))
 ;;
 
-let create_internal ~continue_on_error ~rest job_resources =
+let create_internal ~on_error ~rest job_resources =
   let max_concurrent_jobs = Stack_or_counter.length job_resources in
-  { continue_on_error
+  { on_error
   ; rest
   ; max_concurrent_jobs
   ; job_resources_not_in_use = job_resources
   ; jobs_waiting_to_start = Queue.create ()
   ; num_jobs_running = 0
   ; capacity_available = None
-  ; is_dead = false
+  ; is_dead = None
   ; cleans = []
   ; num_resources_not_cleaned = max_concurrent_jobs
   ; cleaned = Ivar.create ()
   }
 ;;
 
+let on_error_old ~continue_on_error =
+  if continue_on_error then `Continue else `Abort `Raise
+;;
+
 let create_with' ~rest ~continue_on_error job_resources =
-  create_internal ~rest ~continue_on_error (Stack_or_counter.of_list job_resources)
+  let on_error = on_error_old ~continue_on_error in
+  create_internal ~rest ~on_error (Stack_or_counter.of_list job_resources)
 ;;
 
 let create_with ~continue_on_error job_resources =
@@ -233,9 +249,23 @@ let create' ~rest ~continue_on_error ~max_concurrent_jobs =
       [%message
         "Throttle.create requires positive max_concurrent_jobs, but got"
           (max_concurrent_jobs : int)];
+  let on_error = on_error_old ~continue_on_error in
   create_internal
     ~rest
-    ~continue_on_error
+    ~on_error
+    (Stack_or_counter.create_counter ~length:max_concurrent_jobs)
+;;
+
+let create'' ~rest ~on_error ~max_concurrent_jobs =
+  if max_concurrent_jobs <= 0
+  then
+    raise_s
+      [%message
+        "Throttle.create requires positive max_concurrent_jobs, but got"
+          (max_concurrent_jobs : int)];
+  create_internal
+    ~rest
+    ~on_error
     (Stack_or_counter.create_counter ~length:max_concurrent_jobs)
 ;;
 
@@ -260,11 +290,12 @@ end
 
 let enqueue_internal t f enqueue =
   let job = Job.create ~rest:t.rest f in
-  if t.is_dead
-  then Job.abort job
-  else (
-    enqueue t.jobs_waiting_to_start job.internal_job;
-    if t.num_jobs_running < t.max_concurrent_jobs then start_job t);
+  (match t.is_dead with
+   | Some `Never_return -> ()
+   | Some `Raise -> Job.abort job
+   | None ->
+     enqueue t.jobs_waiting_to_start job.internal_job;
+     if t.num_jobs_running < t.max_concurrent_jobs then start_job t);
   Job.result job
 ;;
 
@@ -299,7 +330,7 @@ let enqueue_exclusive t f =
   handle_enqueue_result result
 ;;
 
-let monad_sequence_how ~how ~f =
+let monad_sequence_how ~how ~on_error ~f =
   stage
     (match how with
      | `Parallel -> f
@@ -309,11 +340,11 @@ let monad_sequence_how ~how ~f =
          | `Sequential -> 1
          | `Max_concurrent_jobs max_concurrent_jobs -> max_concurrent_jobs
        in
-       let t = create ~continue_on_error:false ~max_concurrent_jobs in
+       let t = create'' ~rest:`Log ~on_error ~max_concurrent_jobs in
        fun a -> enqueue t (fun () -> f a))
 ;;
 
-let monad_sequence_how2 ~how ~f =
+let monad_sequence_how2 ~how ~on_error ~f =
   stage
     (match how with
      | `Parallel -> f
@@ -323,7 +354,7 @@ let monad_sequence_how2 ~how ~f =
          | `Sequential -> 1
          | `Max_concurrent_jobs max_concurrent_jobs -> max_concurrent_jobs
        in
-       let t = create ~continue_on_error:false ~max_concurrent_jobs in
+       let t = create'' ~rest:`Log ~on_error ~max_concurrent_jobs in
        fun a1 a2 -> enqueue t (fun () -> f a1 a2))
 ;;
 
@@ -351,3 +382,5 @@ let capacity_available t =
     | Some ivar -> Ivar.read ivar
     | None -> Deferred.create (fun ivar -> t.capacity_available <- Some ivar))
 ;;
+
+let is_dead t = Option.is_some t.is_dead

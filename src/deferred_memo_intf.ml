@@ -21,7 +21,7 @@ module type S = sig
       Unlike [Core.Memo.general], this [general] takes a required [Hashable]
       module argument, to avoid unintentional use of polymorphic comparison. *)
   val general
-    :  (module Hashable.S_plain with type t = 'a)
+    :  (module Hashtbl.Key_plain with type t = 'a)
     -> ('a -> 'b deferred)
     -> ('a -> 'b deferred) Staged.t
 
@@ -29,7 +29,7 @@ module type S = sig
       We do not implement Async-aware dependency cycle detection, so if recursion is not
       well-founded then the computation will just deadlock. *)
   val recursive
-    :  (module Hashable.S_plain with type t = 'a)
+    :  (module Hashtbl.Key_plain with type t = 'a)
     -> (('a -> 'b deferred) -> 'a -> 'b deferred)
     -> ('a -> 'b deferred) Staged.t
 

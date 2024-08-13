@@ -27,7 +27,12 @@ let all_unit ds = Deferred.ignore_m (fold ds ~init:() ~f:(fun () d -> d))
 let iteri ~how t ~f =
   match how with
   | `Parallel as how ->
-    all_unit (List.mapi t ~f:(unstage (Throttle.monad_sequence_how2 ~how ~f)))
+    all_unit
+      (List.mapi
+         t
+         ~f:
+           (unstage
+              (Throttle.monad_sequence_how2 ~on_error:(`Abort `Never_return) ~how ~f)))
   | `Max_concurrent_jobs job_count ->
     let rec gen_computation idx = function
       | x :: xs ->
@@ -44,7 +49,12 @@ let iteri ~how t ~f =
 let mapi ~how t ~f =
   match how with
   | `Parallel as how ->
-    all (List.mapi t ~f:(unstage (Throttle.monad_sequence_how2 ~how ~f)))
+    all
+      (List.mapi
+         t
+         ~f:
+           (unstage
+              (Throttle.monad_sequence_how2 ~on_error:(`Abort `Never_return) ~how ~f)))
   | `Max_concurrent_jobs job_count ->
     let rec gen_computation idx = function
       | x :: xs ->

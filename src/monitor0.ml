@@ -7,7 +7,7 @@ module Forwarding = Types.Forwarding
 
 type t = Types.Monitor.t =
   { name : Info.t
-  ; here : Source_code_position.t option
+  ; here : Source_code_position.t
   ; id : int
   ; mutable next_error : exn Types.Ivar.t
   ; (* [Monitor.send_exn] schedules a job for each element of [handlers_for_all_errors]. *)
@@ -20,9 +20,13 @@ type t = Types.Monitor.t =
 [@@deriving fields ~getters ~iterators:iter]
 
 let description t =
-  match t.here with
-  | None -> [%sexp (t.name : Info.t)]
-  | Some here -> [%sexp (t.name : Info.t), (here : Source_code_position.t)]
+  match
+    Source_code_position.is_dummy t.here
+    || !Backtrace.elide
+    || not (Backtrace.Exn.am_recording ())
+  with
+  | true -> [%sexp (t.name : Info.t)]
+  | false -> [%sexp (t.name : Info.t), (t.here : Source_code_position.t)]
 ;;
 
 let descriptions =
@@ -44,7 +48,7 @@ let next_id =
     !r
 ;;
 
-let create_with_parent ?here ?info ?name parent =
+let create_with_parent ?(here = Stdlib.Lexing.dummy_pos) ?info ?name parent =
   let id = next_id () in
   let name =
     match info, name with
