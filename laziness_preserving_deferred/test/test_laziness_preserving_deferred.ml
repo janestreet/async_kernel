@@ -153,7 +153,7 @@ let%expect_test "[force] is able to complete even if a [weak_run] has already st
   let%bind results =
     with_timeout
       (Time_float.Span.of_int_sec 3)
-      (let%map result1 = result1
+      (let%map result1
        and result2 = L.force t in
        Or_error.all_unit [ result1; result2 ])
   in

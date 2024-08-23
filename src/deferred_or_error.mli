@@ -86,7 +86,7 @@ val try_with
   :  ?extract_exn:bool (** default is [false] *)
   -> ?run:[ `Now | `Schedule ] (** default is [`Now] *)
   -> ?rest:[ `Log | `Raise | `Call of exn -> unit ] (** default is [`Raise] *)
-  -> ?here:Stdlib.Lexing.position
+  -> here:[%call_pos]
   -> ?name:string
   -> (unit -> 'a Deferred.t)
   -> 'a t
@@ -95,7 +95,7 @@ val try_with_join
   :  ?extract_exn:bool (** default is [false] *)
   -> ?run:[ `Now | `Schedule ] (** default is [`Now] *)
   -> ?rest:[ `Log | `Raise | `Call of exn -> unit ] (** default is [`Raise] *)
-  -> ?here:Stdlib.Lexing.position
+  -> here:[%call_pos]
   -> ?name:string
   -> (unit -> 'a t)
   -> 'a t

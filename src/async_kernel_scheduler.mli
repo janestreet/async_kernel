@@ -13,26 +13,26 @@ val current_execution_context : unit -> Execution_context.t
 (** [within_context context f] runs [f ()] right now with the specified execution
     context.  If [f] raises, then the exception is sent to the monitor of [context], and
     [Error ()] is returned. *)
-val within_context : Execution_context.t -> (unit -> 'a) -> ('a, unit) Result.t
+val within_context : Execution_context.t -> local_ (unit -> 'a) -> ('a, unit) Result.t
 
 (** [within' f ~monitor ~priority] runs [f ()] right now, with the specified
     block group, monitor, and priority set as specified.  They will be reset to their
     original values when [f] returns.  If [f] raises, then the result of [within'] will
     never become determined, but the exception will end up in the specified monitor. *)
-val within' : ((unit -> 'a Deferred.t) -> 'a Deferred.t) with_options
+val within' : (local_ (unit -> 'a Deferred.t) -> 'a Deferred.t) with_options
 
 (** [within] is like [within'], but doesn't require the thunk to return a deferred. *)
-val within : ((unit -> unit) -> unit) with_options
+val within : (local_ (unit -> unit) -> unit) with_options
 
 (** [within_v] is like [within], but allows a value to be returned by [f]. *)
-val within_v : ((unit -> 'a) -> 'a option) with_options
+val within_v : (local_ (unit -> 'a) -> 'a option) with_options
 
 (** [with_local key value ~f], when run in the current execution context, [e], runs [f]
     right now in a new execution context, [e'], that is identical to [e] except that
     [find_local key = value].  As usual, [e'] will be in effect in asynchronous
     computations started by [f].  When [with_local] returns, the execution context is
     restored to [e]. *)
-val with_local : 'a Univ_map.Key.t -> 'a option -> f:(unit -> 'b) -> 'b
+val with_local : 'a Univ_map.Key.t -> 'a option -> f:local_ (unit -> 'b) -> 'b
 
 (** [find_local key] returns the value associated to [key] in the current execution
     context, if one exists. *)
@@ -164,8 +164,8 @@ module Expert : sig
   val add_every_cycle_end_hook : f:Cycle_hook.t -> Cycle_hook.Handle.t
   val remove_every_cycle_start_hook_exn : Cycle_hook.Handle.t -> unit
   val remove_every_cycle_end_hook_exn : Cycle_hook.Handle.t -> unit
-  val with_execution_context : Execution_context.t -> (unit -> unit) -> unit
-  val with_execution_context1 : Execution_context.t -> f:('a -> unit) -> 'a -> unit
+  val with_execution_context : Execution_context.t -> local_ (unit -> unit) -> unit
+  val with_execution_context1 : Execution_context.t -> f:local_ ('a -> unit) -> 'a -> unit
 end
 
 module Private = Scheduler

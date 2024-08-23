@@ -88,13 +88,13 @@ let find_map_ok l ~f =
 
 let ok_unit = return ()
 
-let try_with ?extract_exn ?run ?rest ?(here = Stdlib.Lexing.dummy_pos) ?name f =
+let try_with ?extract_exn ?run ?rest ~(here : [%call_pos]) ?name f =
   Deferred.map (Monitor.try_with ?extract_exn ?run ?rest ~here ?name f) ~f:(function
     | Error exn -> Error (Error.of_exn exn)
     | Ok _ as ok -> ok)
 ;;
 
-let try_with_join ?extract_exn ?run ?rest ?(here = Stdlib.Lexing.dummy_pos) ?name f =
+let try_with_join ?extract_exn ?run ?rest ~(here : [%call_pos]) ?name f =
   Deferred.map (try_with ?extract_exn ?run ?rest ~here ?name f) ~f:Or_error.join
 ;;
 
@@ -264,7 +264,7 @@ module Array =
 
       let foldi t ~init ~f =
         Array.foldi t ~init:(return init) ~f:(fun n acc elt ->
-          let%bind acc = acc in
+          let%bind acc in
           f n acc elt)
       ;;
     end)

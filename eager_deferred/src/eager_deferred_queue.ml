@@ -95,9 +95,13 @@ module Queue = struct
 
   type 'a filter_map_generic_helper =
     | Filtered_out
-    | Enqueue of 'a
+    | Enqueue of global_ 'a
 
-  let filter_mapi_generic q ~f ~(of_result : 'a -> 'b -> 'c filter_map_generic_helper) =
+  let filter_mapi_generic
+    q
+    ~f
+    ~(of_result : 'a -> 'b -> local_ 'c filter_map_generic_helper)
+    =
     let iter = Queue.Iteration.start q in
     let len = Queue.length q in
     let result = Queue.create () in
@@ -129,14 +133,14 @@ module Queue = struct
     filter_mapi_generic
       q
       ~f:(fun _ x -> f x)
-      ~of_result:(fun x keep -> if keep then Enqueue x else Filtered_out)
+      ~of_result:(fun x keep -> exclave_ if keep then Enqueue x else Filtered_out)
   ;;
 
   let filter ~how q ~f = with_how ~how ~seq:filter ~general:Deferred.Queue.filter q ~f
 
   let filteri q ~f =
     filter_mapi_generic q ~f ~of_result:(fun x keep ->
-      if keep then Enqueue x else Filtered_out)
+      exclave_ if keep then Enqueue x else Filtered_out)
   ;;
 
   let filteri ~how q ~f = with_how ~how ~seq:filteri ~general:Deferred.Queue.filteri q ~f
@@ -146,6 +150,7 @@ module Queue = struct
       q
       ~f:(fun _ x -> f x)
       ~of_result:(fun _ x ->
+        exclave_
         match x with
         | None -> Filtered_out
         | Some x -> Enqueue x)
@@ -157,6 +162,7 @@ module Queue = struct
 
   let filter_mapi q ~f =
     filter_mapi_generic q ~f ~of_result:(fun _ x ->
+      exclave_
       match x with
       | None -> Filtered_out
       | Some x -> Enqueue x)
@@ -168,9 +174,9 @@ module Queue = struct
 
   type 'a fold_result_helper =
     | Continue
-    | Finish of 'a
+    | Finish of global_ 'a
 
-  let iter_result q ~f ~(consider : _ -> _ -> _ fold_result_helper) ~finish =
+  let iter_result q ~f ~(consider : _ -> _ -> local_ _ fold_result_helper) ~finish =
     let iter = Queue.Iteration.start q in
     let len = Queue.length q in
     let iref = ref 0 in
@@ -198,7 +204,7 @@ module Queue = struct
       q
       ~f
       ~consider:(fun i keep ->
-        if keep then Finish (Some (i, Queue.get q i)) else Continue)
+        exclave_ if keep then Finish (Some (i, Queue.get q i)) else Continue)
       ~finish:(fun () -> None)
   ;;
 
@@ -211,6 +217,7 @@ module Queue = struct
       q
       ~f
       ~consider:(fun _ r ->
+        exclave_
         match r with
         | None -> Continue
         | Some _ -> Finish r)
@@ -223,7 +230,7 @@ module Queue = struct
     iter_result
       q
       ~f
-      ~consider:(fun _ r -> if r then Finish true else Continue)
+      ~consider:(fun _ r -> exclave_ if r then Finish true else Continue)
       ~finish:(fun () -> false)
   ;;
 
@@ -233,7 +240,7 @@ module Queue = struct
     iter_result
       q
       ~f
-      ~consider:(fun _ r -> if r then Continue else Finish false)
+      ~consider:(fun _ r -> exclave_ if r then Continue else Finish false)
       ~finish:(fun () -> true)
   ;;
 

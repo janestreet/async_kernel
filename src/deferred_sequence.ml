@@ -43,7 +43,7 @@ let fold_mapi
           (i + 1)
           t
           (let%bind b = mapi_f i a in
-           let%map c = c in
+           let%map c in
            fold_f c b)
     in
     loop 0 state (return init)
@@ -61,7 +61,7 @@ let fold_mapi
           (i + 1)
           t
           (let%bind b = Throttle.enqueue throttle (fun () -> mapi_f i a) in
-           let%map c = c in
+           let%map c in
            fold_f c b)
     in
     loop 0 state (return init)

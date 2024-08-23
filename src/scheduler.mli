@@ -18,8 +18,8 @@ val t_without_checking_access : unit -> t
 include Invariant.S with type t := t
 
 val current_execution_context : t -> Execution_context.t
-val with_execution_context : t -> Execution_context.t -> f:(unit -> 'a) -> 'a
-val with_execution_context1 : t -> Execution_context.t -> f:('a -> 'b) -> 'a -> 'b
+val with_execution_context : t -> Execution_context.t -> f:local_ (unit -> 'a) -> 'a
+val with_execution_context1 : t -> Execution_context.t -> f:local_ ('a -> 'b) -> 'a -> 'b
 val set_execution_context : t -> Execution_context.t -> unit
 val enqueue : t -> Execution_context.t -> ('a -> unit) -> 'a -> unit
 val create_job : t -> Execution_context.t -> ('a -> unit) -> 'a -> Job.t
@@ -80,16 +80,16 @@ val force_current_cycle_to_end : t -> unit
 
 type 'a with_options := ?monitor:Monitor.t -> ?priority:Priority.t -> 'a
 
-val within' : ((unit -> 'a Deferred.t) -> 'a Deferred.t) with_options
-val within : ((unit -> unit) -> unit) with_options
-val within_v : ((unit -> 'a) -> 'a option) with_options
+val within' : (local_ (unit -> 'a Deferred.t) -> 'a Deferred.t) with_options
+val within : (local_ (unit -> unit) -> unit) with_options
+val within_v : (local_ (unit -> 'a) -> 'a option) with_options
 val schedule' : ((unit -> 'a Deferred.t) -> 'a Deferred.t) with_options
 val schedule : ((unit -> unit) -> unit) with_options
 val preserve_execution_context : ('a -> unit) -> ('a -> unit) Staged.t
 val preserve_execution_context' : ('a -> 'b Deferred.t) -> ('a -> 'b Deferred.t) Staged.t
-val within_context : Execution_context.t -> (unit -> 'a) -> ('a, unit) Result.t
+val within_context : Execution_context.t -> local_ (unit -> 'a) -> ('a, unit) Result.t
 val find_local : 'a Univ_map.Key.t -> 'a option
-val with_local : 'a Univ_map.Key.t -> 'a option -> f:(unit -> 'b) -> 'b
+val with_local : 'a Univ_map.Key.t -> 'a option -> f:local_ (unit -> 'b) -> 'b
 val make_async_unusable : unit -> unit
 val reset_in_forked_process : unit -> unit
 val yield : t -> unit Deferred.t

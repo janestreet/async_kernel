@@ -325,13 +325,15 @@ let current_execution_context t =
   else t.current_execution_context
 ;;
 
-let with_execution_context1 t tmp_context ~f x =
+let with_execution_context1 t tmp_context ~(local_ f) x =
   let old_context = current_execution_context t in
   set_execution_context t tmp_context;
   protectx ~f x ~finally:(fun _ -> set_execution_context t old_context)
 ;;
 
-let with_execution_context t tmp_context ~f = with_execution_context1 t tmp_context ~f ()
+let with_execution_context t tmp_context ~(local_ f) =
+  with_execution_context1 t tmp_context ~f ()
+;;
 
 let create_job (type a) t execution_context f a =
   if Pool.is_full t.job_pool then t.job_pool <- Pool.grow t.job_pool;

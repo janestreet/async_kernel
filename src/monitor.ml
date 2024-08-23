@@ -69,7 +69,7 @@ let detach_and_get_next_error t =
   get_next_error t
 ;;
 
-let create ?(here = Stdlib.Lexing.dummy_pos) ?info ?name () =
+let create ~(here : [%call_pos]) ?info ?name () =
   let parent = current () in
   create_with_parent ~here ?info ?name (Some parent)
 ;;
@@ -330,7 +330,7 @@ module Ok_and_exns = struct
     }
   [@@deriving sexp_of]
 
-  let monitor_and_exns ?(here = Stdlib.Lexing.dummy_pos) ?info ?name () =
+  let monitor_and_exns ~(here : [%call_pos]) ?info ?name () =
     (* We call [create_with_parent None] because [monitor] does not need a parent.  It
        does not because we call [detach_and_get_error_stream monitor] and deal with the
        errors explicitly, thus [send_exn] would never propagate an exn past [monitor]. *)
@@ -339,7 +339,7 @@ module Ok_and_exns = struct
     monitor, exns
   ;;
 
-  let create ?(here = Stdlib.Lexing.dummy_pos) ?info ?name ~run f =
+  let create ~(here : [%call_pos]) ?info ?name ~run f =
     let monitor, exns = monitor_and_exns ~here ?info ?name () in
     let ok =
       match run with
@@ -349,7 +349,7 @@ module Ok_and_exns = struct
     { ok; exns }
   ;;
 
-  let create_local ?(here = Stdlib.Lexing.dummy_pos) ?info ?name f =
+  let create_local ~(here : [%call_pos]) ?info ?name (local_ f) =
     let monitor, exns = monitor_and_exns ~here ?info ?name () in
     let ok = within' ~monitor f in
     { ok; exns }
@@ -429,31 +429,16 @@ let try_with_aux
       result))
 ;;
 
-let try_with
-  ?(here = Stdlib.Lexing.dummy_pos)
-  ?info
-  ?(name = "")
-  ?extract_exn
-  ?(run = `Now)
-  ?rest
-  f
-  =
+let try_with ~(here : [%call_pos]) ?info ?(name = "") ?extract_exn ?(run = `Now) ?rest f =
   Ok_and_exns.create ~here ?info ~name ~run f |> try_with_aux ?extract_exn ?rest
 ;;
 
-let try_with_local
-  ?(here = Stdlib.Lexing.dummy_pos)
-  ?info
-  ?(name = "")
-  ?extract_exn
-  ?rest
-  f
-  =
+let try_with_local ~(here : [%call_pos]) ?info ?(name = "") ?extract_exn ?rest (local_ f) =
   Ok_and_exns.create_local ~here ?info ~name f |> try_with_aux ?extract_exn ?rest
 ;;
 
 let try_with_or_error
-  ?(here = Stdlib.Lexing.dummy_pos)
+  ~(here : [%call_pos])
   ?info
   ?(name = "try_with_or_error")
   ?extract_exn
@@ -464,7 +449,7 @@ let try_with_or_error
 ;;
 
 let try_with_join_or_error
-  ?(here = Stdlib.Lexing.dummy_pos)
+  ~(here : [%call_pos])
   ?info
   ?(name = "try_with_join_or_error")
   ?extract_exn
@@ -475,7 +460,7 @@ let try_with_join_or_error
 ;;
 
 let protect
-  ?(here = Stdlib.Lexing.dummy_pos)
+  ~(here : [%call_pos])
   ?info
   ?(name = "Monitor.protect")
   ?extract_exn
@@ -502,13 +487,13 @@ let protect
   | Ok r, Ok () -> r
 ;;
 
-let handle_errors ?(here = Stdlib.Lexing.dummy_pos) ?info ?name f handler =
+let handle_errors ~(here : [%call_pos]) ?info ?name f handler =
   let { Ok_and_exns.ok; exns } = Ok_and_exns.create ~here ?info ?name ~run:`Now f in
   stream_iter exns ~f:handler;
   ok
 ;;
 
-let catch_stream ?(here = Stdlib.Lexing.dummy_pos) ?info ?name f =
+let catch_stream ~(here : [%call_pos]) ?info ?name f =
   let { Ok_and_exns.exns; _ } =
     Ok_and_exns.create ~here ?info ?name ~run:`Now (fun () ->
       f ();
@@ -517,13 +502,13 @@ let catch_stream ?(here = Stdlib.Lexing.dummy_pos) ?info ?name f =
   exns
 ;;
 
-let catch ?(here = Stdlib.Lexing.dummy_pos) ?info ?name f =
+let catch ~(here : [%call_pos]) ?info ?name f =
   match%map Stream.next (catch_stream ~here ?info ?name f) with
   | Cons (x, _) -> x
   | Nil -> raise_s [%message "Monitor.catch got unexpected empty stream"]
 ;;
 
-let catch_error ?(here = Stdlib.Lexing.dummy_pos) ?info ?name f =
+let catch_error ~(here : [%call_pos]) ?info ?name f =
   catch ~here ?info ?name f >>| Error.of_exn
 ;;
 

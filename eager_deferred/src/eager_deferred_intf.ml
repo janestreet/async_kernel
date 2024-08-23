@@ -34,7 +34,7 @@ module type Eager_deferred_or_error = sig
     :  ?extract_exn:bool
     -> ?run:[ `Now | `Schedule ]
     -> ?rest:[ `Log | `Raise | `Call of exn -> unit ] (** default is [`Raise] *)
-    -> ?here:Stdlib.Lexing.position
+    -> here:[%call_pos]
     -> ?name:string
     -> (unit -> 'a deferred)
     -> 'a t
@@ -44,7 +44,7 @@ module type Eager_deferred_or_error = sig
     :  ?extract_exn:bool
     -> ?run:[ `Now | `Schedule ]
     -> ?rest:[ `Log | `Raise | `Call of exn -> unit ] (** default is [`Raise] *)
-    -> ?here:Stdlib.Lexing.position
+    -> here:[%call_pos]
     -> ?name:string
     -> (unit -> 'a t)
     -> 'a t

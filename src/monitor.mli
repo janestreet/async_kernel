@@ -45,7 +45,7 @@ type t = Monitor0.t [@@deriving sexp_of]
 include Invariant.S with type t := t
 
 type 'a with_optional_monitor_name :=
-  ?here:Stdlib.Lexing.position -> ?info:Info.t -> ?name:string -> 'a
+  here:[%call_pos] -> ?info:Info.t -> ?name:string -> 'a
 
 (** [create ()] returns a new monitor whose parent is the current monitor. *)
 val create : (unit -> t) with_optional_monitor_name
@@ -145,7 +145,7 @@ val try_with
 val try_with_local
   : (?extract_exn:bool (** default is [false] *)
      -> ?rest:[ `Log | `Raise | `Call of exn -> unit ] (** default is [`Raise] *)
-     -> (unit -> 'a Deferred.t)
+     -> local_ (unit -> 'a Deferred.t)
      -> ('a, exn) Result.t Deferred.t)
       with_optional_monitor_name
 
@@ -220,12 +220,12 @@ end
 module Exported_for_scheduler : sig
   type 'a with_options := ?monitor:t -> ?priority:Priority.t -> 'a
 
-  val within' : ((unit -> 'a Deferred.t) -> 'a Deferred.t) with_options
-  val within : ((unit -> unit) -> unit) with_options
-  val within_v : ((unit -> 'a) -> 'a option) with_options
+  val within' : (local_ (unit -> 'a Deferred.t) -> 'a Deferred.t) with_options
+  val within : (local_ (unit -> unit) -> unit) with_options
+  val within_v : (local_ (unit -> 'a) -> 'a option) with_options
   val schedule' : ((unit -> 'a Deferred.t) -> 'a Deferred.t) with_options
   val schedule : ((unit -> unit) -> unit) with_options
-  val within_context : Execution_context.t -> (unit -> 'a) -> ('a, unit) Result.t
+  val within_context : Execution_context.t -> local_ (unit -> 'a) -> ('a, unit) Result.t
   val preserve_execution_context : ('a -> unit) -> ('a -> unit) Staged.t
 
   val preserve_execution_context'

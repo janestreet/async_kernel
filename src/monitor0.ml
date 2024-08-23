@@ -48,7 +48,7 @@ let next_id =
     !r
 ;;
 
-let create_with_parent ?(here = Stdlib.Lexing.dummy_pos) ?info ?name parent =
+let create_with_parent ~(here : [%call_pos]) ?info ?name parent =
   let id = next_id () in
   let name =
     match info, name with
