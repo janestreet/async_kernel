@@ -143,9 +143,11 @@ module type Persistent_connection_kernel = sig
   module type S' = S'
 
   module Event = Event
+  module Default_connection_error : Connection_error with type t = Error.t
 
   module Make' (Conn_err : Connection_error) (Conn : Closable) :
     S' with type conn = Conn.t and type conn_error = Conn_err.t
 
-  module Make (Conn : Closable) : S with type conn = Conn.t
+  module Make (Conn : Closable) :
+    S with type conn = Conn.t and type t = Make'(Default_connection_error)(Conn).t
 end

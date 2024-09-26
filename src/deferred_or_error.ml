@@ -260,7 +260,7 @@ module Array =
 
       let foldi t ~init ~f =
         Array.foldi t ~init:(return init) ~f:(fun n acc elt ->
-          let%bind acc = acc in
+          let%bind acc in
           f n acc elt)
       ;;
     end)

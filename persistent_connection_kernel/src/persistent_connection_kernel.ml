@@ -399,12 +399,11 @@ module Make' (Conn_err : Connection_error) (Conn : Closable) = struct
   ;;
 end
 
-module Make (Conn : Closable) =
-  Make'
-    (struct
-      type t = Error.t [@@deriving equal, sexp_of]
+module Default_connection_error = struct
+  type t = Error.t [@@deriving equal, sexp_of]
 
-      let of_exception_error e = e
-      let to_error e = e
-    end)
-    (Conn)
+  let of_exception_error e = e
+  let to_error e = e
+end
+
+module Make (Conn : Closable) = Make' (Default_connection_error) (Conn)

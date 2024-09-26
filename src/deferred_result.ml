@@ -9,8 +9,7 @@ end
 include T
 
 let combine t1 t2 ~ok ~err =
-  let%map t1 = t1
-  and t2 = t2 in
+  let%map t1 and t2 in
   Result.combine t1 t2 ~ok ~err
 ;;
 

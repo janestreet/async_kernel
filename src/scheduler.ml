@@ -167,6 +167,9 @@ let add_finalizer t heap_block f =
     thread_safe_enqueue_external_job t execution_context f heap_block
   in
   if Debug.finalizers then Debug.log_string "adding finalizer";
+  let finalizer =
+    Core.Gc.Expert.With_leak_protection.protect_finalizer heap_block finalizer
+  in
   (* We use [Caml.Gc.finalise] instead of [Core.Gc.add_finalizer] because the latter
      has its own wrapper around [Caml.Gc.finalise] to run finalizers synchronously. *)
   try Stdlib.Gc.finalise finalizer heap_block with
