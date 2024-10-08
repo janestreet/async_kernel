@@ -63,7 +63,7 @@ type t = Scheduler0.t =
   ; normal_priority_jobs : Job_queue.t
   ; low_priority_jobs : Job_queue.t
   ; very_low_priority_workers : Very_low_priority_worker.t Deque.t
-  ; mutable main_execution_context : Execution_context.t
+  ; main_execution_context : Execution_context.t
   ; mutable current_execution_context : Execution_context.t
       (* The scheduler calls [got_uncaught_exn] when an exception bubbles to the top of the
      monitor tree without being handled.  This function guarantees to never run another

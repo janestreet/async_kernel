@@ -412,19 +412,13 @@ let consumed_values_sent_downstream_and_flushed t =
        @ List.map t.consumers ~f:Consumer.values_sent_downstream_and_flushed)
 ;;
 
-let eager_upon def f =
-  match Deferred.peek def with
-  | None -> upon def f
-  | Some value -> f value
-;;
-
 let fill_blocked_flushes_on_read_closed t =
   if not (Queue.is_empty t.blocked_flushes)
   then (
     let blocked_flushes = Queue.copy t.blocked_flushes in
     Queue.clear t.blocked_flushes;
     let values_flushed = consumed_values_sent_downstream_and_flushed t in
-    eager_upon values_flushed (fun (_ : Flushed_result.t) ->
+    Eager_deferred0.upon values_flushed (fun (_ : Flushed_result.t) ->
       Queue.iter blocked_flushes ~f:(fun flush -> Blocked_flush.fill flush `Reader_closed)))
 ;;
 
@@ -483,7 +477,7 @@ let values_were_read t consumer =
     t.blocked_flushes
     ~while_:(fun flush -> t.num_values_read >= flush.fill_when_num_values_read)
     ~f:(fun flush ->
-      eager_upon (force values_flushed) (fun flush_result ->
+      Eager_deferred0.upon (force values_flushed) (fun flush_result ->
         Blocked_flush.fill flush flush_result))
 ;;
 

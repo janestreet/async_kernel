@@ -40,3 +40,14 @@ let count ~how t ~f = Set.to_sequence t |> Sequence.count ~how ~f
 let sum (type a) (module M : Base.Container.Summable with type t = a) ~how t ~f =
   Set.to_sequence t |> Sequence.sum (module M) ~how ~f
 ;;
+
+let to_map ~how t ~f =
+  Set.to_sequence t
+  |> Sequence.fold_mapi
+       ~init:(Map.Using_comparator.empty ~comparator:(Set.comparator t))
+       ~how
+       ~mapi_f:(fun _i k ->
+         let%map v = f k in
+         k, v)
+       ~fold_f:(fun acc (k, v) -> Map.add_exn acc ~key:k ~data:v)
+;;
