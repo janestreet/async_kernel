@@ -62,3 +62,9 @@ val iter
   -> ('a, _) t
   -> f:('a -> unit Deferred.t)
   -> unit Deferred.t
+
+val to_map
+  :  how:Monad_sequence.how
+  -> ('a, 'cmp) t
+  -> f:('a -> 'b Deferred.t)
+  -> ('a, 'b, 'cmp) Map.t Deferred.t

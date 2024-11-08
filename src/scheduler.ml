@@ -226,6 +226,7 @@ let run_cycle t =
   t.cycle_count <- t.cycle_count + 1;
   t.cycle_start <- now;
   t.in_cycle <- true;
+  let old_context = current_execution_context t in
   Bvar.broadcast t.yield ();
   let num_jobs_run_at_start_of_cycle = num_jobs_run t in
   Array.iter t.run_every_cycle_start ~f:(fun f -> f ());
@@ -248,6 +249,7 @@ let run_cycle t =
   if Bvar.has_any_waiters t.yield_until_no_jobs_remain && num_pending_jobs t = 0
   then Bvar.broadcast t.yield_until_no_jobs_remain ();
   Array.iter t.run_every_cycle_end ~f:(fun f -> f ());
+  set_execution_context t old_context;
   t.in_cycle <- false;
   if debug
   then
@@ -272,9 +274,6 @@ let run_cycles_until_no_jobs_remain () =
     if can_run_a_job t then loop ()
   in
   loop ();
-  (* Reset the current execution context to maintain the invariant that when we're not in
-     a job, [current_execution_context = main_execution_context]. *)
-  set_execution_context t t.main_execution_context;
   if debug then Debug.log_string "run_cycles_until_no_jobs_remain finished";
   Option.iter (uncaught_exn t) ~f:Error.raise
 ;;

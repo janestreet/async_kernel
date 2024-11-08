@@ -85,7 +85,13 @@ let set t v =
   Ivar.fill_if_empty t.value_available ()
 ;;
 
-let update t ~f = set t (f (peek t))
+let update_and_return t ~f =
+  let v = f (peek t) in
+  set t v;
+  v
+;;
+
+let update t ~f = ignore (update_and_return t ~f : _)
 let update_exn t ~f = set t (f (peek_exn t))
 let taken t = Bvar.wait t.taken
 

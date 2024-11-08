@@ -55,6 +55,10 @@ val update : ('a, read_write) t -> f:('a option -> 'a) -> unit
 (** [update_exn] is like [update], except it raises if [is_empty t]. *)
 val update_exn : ('a, read_write) t -> f:('a -> 'a) -> unit
 
+(** [update_and_return t ~f] applies [f] to the value in [t] and [set]s [t] to the result
+    and then also returns the result. *)
+val update_and_return : ('a, read_write) t -> f:('a option -> 'a) -> 'a
+
 val read_only : ('a, [> read ]) t -> ('a, read) t
 val write_only : ('a, [> write ]) t -> ('a, write) t
 

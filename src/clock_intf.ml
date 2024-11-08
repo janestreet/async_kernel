@@ -48,7 +48,15 @@ module type Clock = sig
       [span] elapses or [d] is determined, returning either [`Timeout] or [`Result]
       depending on which one succeeded first.  At the time the returned deferred becomes
       determined, both things may have happened, in which case [`Result] is given
-      preference. *)
+      preference.
+
+      Note that any computation involved in computing [d] will continue running
+      in the background after the timeout is hit. Worse still, if the computation raises
+      an exception before the timeout is hit, then the timer will keep running and
+      the result will be determined with [`Timeout] eventually, leading to
+      return-after-exception from this function (or double exception if [with_timeout_exn]
+      is used).
+  *)
   val with_timeout : Time.Span.t -> 'a Deferred.t -> 'a Or_timeout.t Deferred.t
 
   (** [with_timeout_exn span d ~error] is like [with_timeout], but raises if the timeout

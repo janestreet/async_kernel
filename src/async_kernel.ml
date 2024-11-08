@@ -74,6 +74,7 @@ include Deferred.Let_syntax
     should not otherwise be used. *)
 module Async_kernel_private = struct
   module Debug = Debug
+  module Eager_deferred0 = Eager_deferred0
   module Ivar0 = Ivar0
   module Ivar_filler = Ivar_filler
   module Job = Job

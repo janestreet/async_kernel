@@ -16,6 +16,7 @@ depends: [
   "parsexp"
   "ppx_jane"
   "sexplib"
+  "time_now"
   "dune"        {>= "3.11.0"}
 ]
 available: arch != "arm32" & arch != "x86_32"

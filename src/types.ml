@@ -205,7 +205,7 @@ and Scheduler : sig
     ; normal_priority_jobs : Job_queue.t
     ; low_priority_jobs : Job_queue.t
     ; very_low_priority_workers : Very_low_priority_worker.t Deque.t
-    ; mutable main_execution_context : Execution_context.t
+    ; main_execution_context : Execution_context.t
     ; mutable current_execution_context : Execution_context.t
     ; mutable uncaught_exn : (Exn.t * Sexp.t) option
     ; mutable cycle_count : int

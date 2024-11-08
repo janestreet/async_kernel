@@ -106,6 +106,17 @@ val enqueue_front' : ('a, _) T2.t -> ('a -> 'b Deferred.t) -> 'b outcome Deferre
 
 val enqueue_front : ('a, _) T2.t -> ('a -> 'b Deferred.t) -> 'b Deferred.t
 
+(** [enqueue_eager t job] is like [enqueue], but if there's capacity available in the
+    throttle, [job] will be run immediately. If it completes immediately, the result of
+    [enqueue_eager] will be immediately determined, and the slot in the throttle will be
+    immediately freed up.
+
+    Note that unlike [enqueue], this necessarily means that [job] may be started before
+    [enqueue] is done executing. *)
+val enqueue_eager' : ('a, _) T2.t -> ('a -> 'b Deferred.t) -> 'b outcome Deferred.t
+
+val enqueue_eager : ('a, _) T2.t -> ('a -> 'b Deferred.t) -> 'b Deferred.t
+
 (** [enqueue_exclusive] schedules a job that occupies all slots of the throttle, so it
     won't run concurrently with any other job.  The job counts as being enqueued normally,
     so it runs after the jobs enqueued previously and before the jobs enqueued later.
