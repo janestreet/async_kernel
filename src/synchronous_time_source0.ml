@@ -4,14 +4,7 @@ open! Import
 module Time_ns = struct
   include Time_ns
 
-  external format : float -> string -> string = "core_time_ns_format"
-
-  (* We use a more pleasant format than [Core.Time_ns.sexp_of_t],
-     which has to be messier for round trippability. *)
-  let sexp_of_t t =
-    [%sexp
-      (format (t |> to_span_since_epoch |> Span.to_sec) "%Y-%m-%dT%H:%M:%S%z" : string)]
-  ;;
+  let sexp_of_t = Core.Time_ns.sexp_of_t
 end
 
 module Alarm = struct
@@ -456,7 +449,7 @@ let next_alarm_runs_at_exn t =
   else Timing_wheel.next_alarm_fires_at_exn t.events
 ;;
 
-let now t = if t.is_wall_clock then Time_ns.now () else timing_wheel_now t
+let[@zero_alloc] now t = if t.is_wall_clock then Time_ns.now () else timing_wheel_now t
 let[@zero_alloc] timing_wheel_now t = timing_wheel_now t
 
 let schedule t (event : Event.t) =

@@ -58,11 +58,13 @@ val is_wall_clock : [> read ] T1.t -> bool
 (** The behavior of [now] is special for [wall_clock ()]; it always calls [Time_ns.now
     ()], so it can return times that the time source has not yet been advanced to. *)
 val now : [> read ] T1.t -> Time_ns.t
+[@@zero_alloc]
 
 (** Removes the special behavior of [now] for [wall_clock ()]; it always returns the
     timing wheel's notion of now, which means that the following inequality always holds:
     [timing_wheel_now () <= now ()]. *)
 val timing_wheel_now : [> read ] T1.t -> Time_ns.t
+[@@zero_alloc]
 
 (** [run_at t at f] schedules an alarm that will run [f] during the next subsequent
     [advance_by_alarms t ~to_] that causes [now t >= at].  If [at <= now t], then [f] will
