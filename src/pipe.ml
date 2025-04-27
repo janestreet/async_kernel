@@ -429,7 +429,6 @@ let close_read t =
   then (
     Set_once.set_exn
       t.read_closed
-      [%here]
       (if is_empty t then `Closed_while_empty else `Closed_while_not_empty);
     fill_blocked_flushes_on_read_closed t;
     Queue.clear t.buffer;
@@ -824,6 +823,7 @@ module Flushed = struct
 end
 
 let fold_gen
+  ?(send_values_downstream = true)
   (read_now : ?consumer:Consumer.t -> _ Reader.t -> _)
   ?(flushed = Flushed.When_value_read)
   t
@@ -856,7 +856,8 @@ let fold_gen
       | `Ok v -> f b v continue
       | `Nothing_available -> values_available t >>> fun _ -> loop b
     and continue b =
-      Option.iter consumer ~f:Consumer.values_sent_downstream;
+      if send_values_downstream
+      then Option.iter consumer ~f:Consumer.values_sent_downstream;
       loop b
     in
     loop init)
@@ -955,6 +956,45 @@ let iter_without_pushback
 
 let drain t = iter' t ~f:(fun _ -> return ())
 let drain_and_count t = fold' t ~init:0 ~f:(fun sum q -> return (sum + Queue.length q))
+
+let iter_parallel ?(continue_on_error = false) ?(rest = `Raise) t ~max_concurrent_jobs ~f =
+  if max_concurrent_jobs <= 0
+  then
+    raise_s [%message "max_concurrent_jobs must be positive" (max_concurrent_jobs : int)];
+  let active_jobs = Bag.create () in
+  let wait_for_all_currently_active_jobs () =
+    Bag.to_list active_jobs |> Deferred.all |> Deferred.ignore_m
+  in
+  let consumer =
+    add_consumer t ~downstream_flushed:(fun () ->
+      let%map () = wait_for_all_currently_active_jobs () in
+      `Ok)
+  in
+  let throttle = Throttle.create' ~rest ~continue_on_error ~max_concurrent_jobs in
+  let f () a loop =
+    let complete = Throttle.enqueue' throttle (fun () -> f a) in
+    let elt = Bag.add active_jobs complete in
+    Consumer.values_sent_downstream consumer;
+    upon complete (fun result ->
+      Bag.remove active_jobs elt;
+      match result with
+      | `Ok () -> ()
+      | `Aborted -> (* This case should be unreachable, we don't kill the throttle *) ()
+      | `Raised exn -> raise exn);
+    Eager_deferred0.upon (Throttle.capacity_available throttle) loop
+  in
+  let%bind () =
+    fold_gen
+      ~send_values_downstream:false
+      read_now
+      ~flushed:(Consumer consumer)
+      t
+      ~init:()
+      ~f
+  in
+  (* By this point all remaining jobs must be in the [active_jobs] bag. *)
+  wait_for_all_currently_active_jobs ()
+;;
 
 let read_all input =
   let result = Queue.create () in

@@ -34,11 +34,12 @@ let run_at_intervals ?start ?stop ?continue_on_error interval f =
   Time_source.run_at_intervals ?start ?stop ?continue_on_error (time_source ()) interval f
 ;;
 
-let run_at_intervals' ?start ?stop ?continue_on_error interval f =
+let run_at_intervals' ?start ?stop ?continue_on_error ?finished interval f =
   Time_source.run_at_intervals'
     ?start
     ?stop
     ?continue_on_error
+    ?finished
     (time_source ())
     interval
     f

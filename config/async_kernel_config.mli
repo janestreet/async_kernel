@@ -1,14 +1,19 @@
 (** Settings that globally affect the behavior of Async.
 
     These can be set by setting an environment variable, [ASYNC_CONFIG], to a sexp
-    representation of the config.  Also, setting [ASYNC_CONFIG] to an invalid sexp
-    (e.g. the empty string), will cause your program to print to stderr a usage message
-    describing how to configure [ASYNC_CONFIG], and exit nonzero.  For example, the
+    representation of the config. Also, setting [ASYNC_CONFIG] to an invalid sexp (e.g.
+    the empty string), will cause your program to print to stderr a usage message
+    describing how to configure [ASYNC_CONFIG], and exit nonzero. For example, the
     following shell command should print the usage message:
 
     {v
       ASYNC_CONFIG= foo.exe
-    v} *)
+    v}
+
+    There are also some settings that can be configured using
+    {{:https://github.com/janestreet/ocaml-probes} probes}:
+    - [async_record_job_times] records start and end times for each async job in the
+      scheduler (this state is reset each cycle) *)
 
 open! Core
 module Epoll_max_ready_events : Validated.S with type raw := int
@@ -148,8 +153,8 @@ module Print_debug_messages_for : sig
   val writer : bool
 end
 
-(** Documentation on these is in strings in config.ml, so it can be output in the
-    help message. *)
+(** Documentation on these is in strings in config.ml, so it can be output in the help
+    message. *)
 val abort_after_thread_pool_stuck_for : Time_ns.Span.t
 
 val check_invariants : bool
@@ -170,6 +175,6 @@ val report_thread_pool_stuck_for : Time_ns.Span.t
 val timing_wheel_config : Timing_wheel.Config.t
 val default_timing_wheel_config_for_word_size : Word_size.t -> Timing_wheel.Config.t
 
-(** [!task_id] is used in debug messages.  It is is set in [Async_unix] to include
-    the thread and pid. *)
+(** [!task_id] is used in debug messages. It is is set in [Async_unix] to include the
+    thread and pid. *)
 val task_id : (unit -> Sexp.t) ref

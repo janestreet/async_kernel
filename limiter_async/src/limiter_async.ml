@@ -254,7 +254,7 @@ module type Common = sig
   type _ t
 
   (** kills [t], which aborts all enqueued jobs that haven't started and all jobs enqueued
-      in the future.  If [t] has already been killed, then calling [kill t] has no effect.
+      in the future. If [t] has already been killed, then calling [kill t] has no effect.
       Note that kill does not effect currently running jobs in any way. *)
   val kill : _ t -> unit
 

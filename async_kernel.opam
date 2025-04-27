@@ -13,11 +13,11 @@ depends: [
   "ocaml" {>= "5.1.0"}
   "core"
   "core_kernel"
+  "core_unix"
   "parsexp"
   "ppx_jane"
   "sexplib"
-  "time_now"
-  "dune"        {>= "3.11.0"}
+  "dune"        {>= "3.17.0"}
 ]
 available: arch != "arm32" & arch != "x86_32"
 synopsis: "Monadic concurrency library"

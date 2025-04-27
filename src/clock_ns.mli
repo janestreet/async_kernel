@@ -1,4 +1,4 @@
-(** Provides a {{!Async_kernel.Clock_intf.Clock}[Clock]} with [Time_ns] as the unit. *)
+(** Provides a {{!Async_kernel.Clock_intf.Clock} [Clock]} with [Time_ns] as the unit. *)
 
 open! Core
 open! Import

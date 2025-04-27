@@ -6,8 +6,7 @@ open! Core
 open! Async_kernel
 
 (** The address of a service to which one can connect. E.g. [Host_and_port.t] is a
-    reasonable choice when making a TCP connection.
-*)
+    reasonable choice when making a TCP connection. *)
 module type Address = sig
   type t [@@deriving equal, sexp_of]
 end
@@ -66,27 +65,26 @@ module type S' = sig
 
       All connection events (see the type above) are passed to the [on_event] callback, if
       given. When this callback becomes determined, we move on to the next step in our
-      connection attempt (e.g. we won't actually attempt to connect until [on_event
-      Attempting_to_connect] is finished). Note that [on_event Disconnected] will only be
-      called once [on_event (Connected conn)] finishes even if the connection goes down
-      during that callback.
+      connection attempt (e.g. we won't actually attempt to connect until
+      [on_event Attempting_to_connect] is finished). Note that [on_event Disconnected]
+      will only be called once [on_event (Connected conn)] finishes even if the connection
+      goes down during that callback.
 
       [`Failed_to_connect error] and [`Obtained_address addr] events are only reported if
       they are distinct from the most recent event of the same type that has taken place
       since the most recent [`Attempting_to_connect] event.
 
-      Connection is by default retried after [Time.Span.randomize
-      ~percent:(Percent.of_mult 0.3) (retry_delay ())]. The default for [retry_delay] is
-      [const (sec 10.)]. Note that what this retry delay actually throttles is the delay
-      between two connection attempts, so when a long-lived connection dies, connection is
-      usually immediately retried, and if that failed, wait for another retry delay and
-      retry.
+      Connection is by default retried after
+      [Time.Span.randomize ~percent:(Percent.of_mult 0.3) (retry_delay ())]. The default
+      for [retry_delay] is [const (sec 10.)]. Note that what this retry delay actually
+      throttles is the delay between two connection attempts, so when a long-lived
+      connection dies, connection is usually immediately retried, and if that failed, wait
+      for another retry delay and retry.
 
       The [random_state] and [time_source] arguments are there to make persistent
       connection code more deterministically testable. They default to
-      [`State Random.State.default] and [Time_source.wall_clock ()], respectively.
-      If random_state is set to [`Non_random], retry_delay will be used directly.
-  *)
+      [`State Random.State.default] and [Time_source.wall_clock ()], respectively. If
+      random_state is set to [`Non_random], retry_delay will be used directly. *)
   val create
     :  server_name:string
     -> ?on_event:('address Event.t -> unit Deferred.t)
@@ -103,9 +101,9 @@ module type S' = sig
       been called, then the returned deferred is never determined. *)
   val connected : t -> conn Deferred.t
 
-  (** [event] returns a bus which is written to whenever an event happens.
-      Since the ['address] used in create is not exposed as a parameter of the
-      [t] type, we replace it with (). *)
+  (** [event] returns a bus which is written to whenever an event happens. Since the
+      ['address] used in create is not exposed as a parameter of the [t] type, we replace
+      it with (). *)
   val event_bus : t -> (unit Event.t -> unit) Bus.Read_only.t
 
   (** [connected_or_failed_to_connect] is immediately determined as [Ok _] if [t] is
@@ -123,14 +121,28 @@ module type S' = sig
       no others will be attempted.
 
       Note: no [close] calls are ever generated internally in response to the connection
-      being closed by the other side.
-  *)
+      being closed by the other side. *)
   include Closable with type t := t
 
   (** [close_when_current_connection_is_closed t] causes the persistent connection to not
       reconnect if the current connection closes or if it is not currently connected. It
       does not close any active connection. *)
   val close_when_current_connection_is_closed : t -> unit
+
+  module Expert : sig
+    (** Provides direct access to the connection state. Compared to calling [connected]
+        from the non-[Expert] API, this:
+
+        - Avoids attaching a new handler with each call.
+        - Becomes determined if the persistent connection is closed (rather than never
+          doing so).
+        - Doesn't attempt to prevent a race condition by checking [Conn.is_closed conn]
+          and retrying if [false].
+
+        This makes it more suitable for use in a loop calling [Deferred.choose] or
+        similar. *)
+    val connection : t -> [ `Close_started | `Ok of conn ] Deferred.t
+  end
 end
 
 module type S = S' with type conn_error := Error.t

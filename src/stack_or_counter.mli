@@ -1,5 +1,5 @@
-(** An ['a Stack_or_counter.t] is like an ['a Stack.t], except for ['a = unit],
-    it can be implemented with a counter. *)
+(** An ['a Stack_or_counter.t] is like an ['a Stack.t], except for ['a = unit], it can be
+    implemented with a counter. *)
 
 open! Base
 

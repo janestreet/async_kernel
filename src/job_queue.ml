@@ -37,7 +37,7 @@ let offset t i = (t.front + i) land t.mask * slots_per_elt
 let capacity t = t.mask + 1
 
 let invariant t : unit =
-  Invariant.invariant [%here] t [%sexp_of: t] (fun () ->
+  Invariant.invariant t [%sexp_of: t] (fun () ->
     let check f = Invariant.check_field t f in
     Fields.iter
       ~num_jobs_run:(check (fun num_jobs_run -> assert (num_jobs_run >= 0)))
@@ -138,13 +138,16 @@ let can_run_a_job t = t.length > 0 && t.jobs_left_this_cycle > 0
 let run_job t (scheduler : Scheduler.t) execution_context f a =
   t.num_jobs_run <- t.num_jobs_run + 1;
   Scheduler.set_execution_context scheduler execution_context;
+  Job_infos_for_cycle.Private.before_job_run scheduler.job_infos_for_cycle;
   (* Note: If you are here because you have hit a segmentation fault on the following
      line, the most likely reason for this is that some part of the program is enqueueing
      jobs onto the async job queue (including e.g. by filling an ivar) in a non-thread
      safe way. If using the [Async_unix] scheduler, running the program with
      [ASYNC_CONFIG='((detect_invalid_access_from_thread true))'] will validate
      accesses and show where the invalid access is coming from if there is one. *)
-  f a
+  let result = f a in
+  Job_infos_for_cycle.Private.after_job_finished scheduler.job_infos_for_cycle;
+  result
 ;;
 
 let run_external_jobs t (scheduler : Scheduler.t) =
@@ -190,6 +193,7 @@ let run_jobs (type a) t scheduler =
     Ok ()
   with
   | exn ->
+    Job_infos_for_cycle.Private.on_exception_in_run_jobs scheduler.job_infos_for_cycle;
     (* We call [Exn.backtrace] immediately after catching an unhandled exception, to
        ensure there is no intervening code that interferes with the global backtrace
        state. *)

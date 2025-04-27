@@ -107,8 +107,8 @@ module Bvar : sig
   type ('a, -'permission) t
 
   (** [repr] exists so that we may hide the implementation of a [Bvar.t], and then add a
-      phantom type to it upstream.  Without this, the phantom type variable would allow
-      for anything to be coerced in and out, since it is unused. *)
+      phantom type to it upstream. Without this, the phantom type variable would allow for
+      anything to be coerced in and out, since it is unused. *)
   type 'a repr =
     { mutable has_any_waiters : bool
     ; mutable ivar : 'a Ivar.t
@@ -217,6 +217,7 @@ and Scheduler : sig
     ; run_every_cycle_end_state : (Cycle_hook_handle.t, Cycle_hook.t) Hashtbl.t
     ; mutable last_cycle_time : Time_ns.Span.t
     ; mutable last_cycle_num_jobs : int
+    ; job_infos_for_cycle : Job_infos_for_cycle.t
     ; mutable total_cycle_time : Time_ns.Span.t
     ; mutable time_source : read_write Time_source.t1
     ; external_jobs : External_job.t Thread_safe_queue.t

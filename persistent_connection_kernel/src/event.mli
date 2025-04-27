@@ -6,6 +6,6 @@ type ('conn, 'conn_error, 'address) t =
   | Failed_to_connect of 'conn_error
   | Connected of 'conn
   | Disconnected
-[@@deriving sexp_of]
+[@@deriving sexp_of, variants]
 
 val log_level : _ t -> [ `Info | `Debug | `Error ]

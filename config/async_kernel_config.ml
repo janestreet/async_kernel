@@ -295,7 +295,7 @@ let default_timing_wheel_config =
   default_timing_wheel_config_for_word_size Word_size.word_size
 ;;
 
-let default =
+let hardcoded_default =
   (* For [file_descr_watcher] and [max_num_open_file_descrs] we choose the default for the
      common case that [epoll] is available.  There is some additional code in
      [Async_unix.Config] that checks whether [epoll] is actually available, and if not,
@@ -306,7 +306,15 @@ let default =
   ; dump_core_on_job_delay = Some Do_not_watch
   ; epoll_max_ready_events = Some (Epoll_max_ready_events.create_exn 256)
   ; io_uring_max_submission_entries =
-      Some (Io_uring_max_submission_entries.create_exn 1024)
+      Some
+        (Io_uring_max_submission_entries.create_exn
+           (* The default of 512 is motivated by a kernel bug/limitation where
+              the io_uring queue needed to be contiguous in physical memory. When using
+              1024 as the queue size, in conditions of fragmented free memory the
+              allocation would crash with OOM sometimes. The smaller queue size makes the
+              issue pretty much disappear.
+           *)
+           512)
   ; io_uring_mode = Some Disabled
   ; file_descr_watcher = Some Epoll_if_timerfd
   ; max_inter_cycle_timeout = Some (Max_inter_cycle_timeout.create_exn (sec 0.05))
@@ -324,7 +332,7 @@ let default =
 ;;
 
 let example =
-  { default with
+  { hardcoded_default with
     print_debug_messages_for = Some Debug_tag.[ Fd; Scheduler ]
   ; thread_pool_cpu_affinity =
       Some
@@ -360,9 +368,27 @@ let reduce ts = List.fold_right ~init:empty ~f:merge ts
 let environment_variable = "ASYNC_CONFIG"
 let environment_variable_allow_extra_fields = "ASYNC_CONFIG_ALLOW_EXTRA_FIELDS"
 
+let build_time_config =
+  let config_str = Build_time_default_config.config in
+  match
+    Parsexp.Conv_many.parse_string config_str (t_of_sexp ~allow_extra_fields:false)
+  with
+  | Ok ts -> reduce ts
+  | Error error ->
+    raise_s
+      [%sexp
+        "invalid value for build-time DEFAULT_ASYNC_CONFIG variable"
+        , (config_str : string)
+        , (error : Parsexp.Conv_error.t)]
+;;
+
+let build_time_default = lazy (reduce [ build_time_config; hardcoded_default ])
+
 let field_descriptions () : string =
   let field to_sexp description ac field =
-    (Field.name field, to_sexp (Option.value_exn (Field.get field default)), description)
+    ( Field.name field
+    , to_sexp (Option.value_exn (Field.get field (force build_time_default)))
+    , description )
     :: ac
   in
   let fields =
@@ -625,7 +651,8 @@ let parse_variable env_var ~allow_extra_fields =
 
 let t =
   reduce
-    [ parse_variable environment_variable ~allow_extra_fields:false
+    [ build_time_config
+    ; parse_variable environment_variable ~allow_extra_fields:false
     ; parse_variable environment_variable_allow_extra_fields ~allow_extra_fields:true
     ]
 ;;
@@ -656,7 +683,9 @@ module Print_debug_messages_for = struct
 end
 
 let ( !! ) field =
-  Option.value (Field.get field t) ~default:(Option.value_exn (Field.get field default))
+  Option.value
+    (Field.get field t)
+    ~default:(Option.value_exn (Field.get field (force build_time_default)))
 ;;
 
 let abort_after_thread_pool_stuck_for = !!Fields.abort_after_thread_pool_stuck_for

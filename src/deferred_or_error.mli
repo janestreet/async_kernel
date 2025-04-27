@@ -1,17 +1,17 @@
-(** The deferred analog of [Core.Or_error].  It is exposed in std.ml as
+(** The deferred analog of [Core.Or_error]. It is exposed in std.ml as
     [Deferred.Or_error].
 
     The mental model for a function returning an ['a Deferred.Or_error.t] is that the
-    function never raises.  All error cases are caught and expressed as an [Error _]
-    result.  This module preserves that property.
+    function never raises. All error cases are caught and expressed as an [Error _]
+    result. This module preserves that property.
 
     Unfortunately, there is no way to enforce this property using the type system, so it
-    is more like a convention, or idiom.  A function whose type ends with [... -> 'a
-    Deferred.Or_error.t] and still raises should be considered broken, and be fixed.  With
-    that property in mind, [Deferred.Or_error.List.iter], for example, does not wrap the
-    execution of the given iter function [f] inside a monitor.  If one of these
-    application raises, the whole function [Deferred.Or_error.List.iter] will raise as a
-    way to try to alert the developer that the function is broken and needs attention
+    is more like a convention, or idiom. A function whose type ends with
+    [... -> 'a Deferred.Or_error.t] and still raises should be considered broken, and be
+    fixed. With that property in mind, [Deferred.Or_error.List.iter], for example, does
+    not wrap the execution of the given iter function [f] inside a monitor. If one of
+    these application raises, the whole function [Deferred.Or_error.List.iter] will raise
+    as a way to try to alert the developer that the function is broken and needs attention
     and fixing, rather than silently catching the error and converting it to
     [Or_error.Error].
 
@@ -28,7 +28,7 @@ module Deferred = Deferred1
 type 'a t = 'a Or_error.t Deferred.t
 
 (** The applicative operations match the behavior of the applicative operations in
-    [Or_error].  This means that [all] and [all_unit] are equivalent to [combine_errors]
+    [Or_error]. This means that [all] and [all_unit] are equivalent to [combine_errors]
     and [combine_errors_unit] respectively. *)
 include Applicative.S with type 'a t := 'a t
 
@@ -69,7 +69,7 @@ val find_map_ok : 'a list -> f:('a -> 'b t) -> 'b t
 val ok_unit : unit t
 
 (** [try_with f] catches exceptions thrown by [f] and returns them in the Result.t as an
-    Error.t.  [try_with_join] is like [try_with], except that [f] can throw exceptions or
+    Error.t. [try_with_join] is like [try_with], except that [f] can throw exceptions or
     return an [Error] directly, without ending up with a nested error; it is equivalent to
     [try_with f >>| Result.join].
 
@@ -103,10 +103,10 @@ val try_with_join
 (** All of the [Array] and [List] functions that take a [how] argument treat it the
     following way:
 
-    [`Sequential] indicates both sequential evaluation of the deferreds, and
-    sequential combination of the results.  This means that if [f] returns an
-    [Error] on an element, that [Error] will be returned and [f] won't be
-    called on the remaining elements of the [Array] or [List].
+    [`Sequential] indicates both sequential evaluation of the deferreds, and sequential
+    combination of the results. This means that if [f] returns an [Error] on an element,
+    that [Error] will be returned and [f] won't be called on the remaining elements of the
+    [Array] or [List].
 
     [`Parallel] indicates parallel evaluation of the deferreds (in the sense that they are
     all in the scheduler at the same time), and parallel combination of the results. For
@@ -118,11 +118,12 @@ val try_with_join
     only evaluates [n] of the deferreds at a time. *)
 
 module Array : Monad_sequence.S with type 'a monad := 'a t with type 'a t := 'a array
+module Iarray : Monad_sequence.S with type 'a monad := 'a t with type 'a t := 'a iarray
 module List : Monad_sequence.S with type 'a monad := 'a t with type 'a t := 'a list
 
 (** [repeat_until_finished initial_state f] works just like
-    {!Deferred.repeat_until_finished} but with the [Deferred.Or_error] monad.
-    If [f] returns an [Or_error.Error] the loop terminates and returns. *)
+    {!Deferred.repeat_until_finished} but with the [Deferred.Or_error] monad. If [f]
+    returns an [Or_error.Error] the loop terminates and returns. *)
 val repeat_until_finished
   :  'state
   -> ('state -> [ `Repeat of 'state | `Finished of 'result ] t)

@@ -2,7 +2,7 @@ open Core
 open Async
 module L = Laziness_preserving_deferred
 
-let () = Backtrace.elide := true
+let () = Dynamic.set_root Backtrace.elide true
 let value = "foo"
 
 let sexp_of_test = function
@@ -202,7 +202,7 @@ let%expect_test "When binding, [f] is only invoked once across multiple readers"
   let t =
     let open L.Let_syntax in
     let%bind () = L.of_lazy (Lazy_deferred.create Deferred.return) in
-    Set_once.set_exn called_f [%here] ();
+    Set_once.set_exn called_f ();
     return ()
   in
   let%bind result1 = L.weak_run t

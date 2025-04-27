@@ -22,7 +22,7 @@ type t = Types.Monitor.t =
 let description t =
   match
     Source_code_position.is_dummy t.here
-    || !Backtrace.elide
+    || Dynamic.get Backtrace.elide
     || not (Backtrace.Exn.am_recording ())
   with
   | true -> [%sexp (t.name : Info.t)]

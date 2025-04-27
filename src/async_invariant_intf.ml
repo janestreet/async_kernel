@@ -1,5 +1,5 @@
-(** This module defines signatures that extend [Core.Invariant] with an [Async]
-    submodule for invariants that use async computation and return [unit Deferred.t]. *)
+(** This module defines signatures that extend [Core.Invariant] with an [Async] submodule
+    for invariants that use async computation and return [unit Deferred.t]. *)
 
 open! Core
 open! Import
@@ -65,10 +65,11 @@ module type Async_invariant = sig
               let check inv = Invariant.Async.check_field t inv in
               Fields.fold ~init:(return ())
                 ~foo: (check Foo.invariant)
-                ~bar: (check Bar.invariant) ]}
+                ~bar: (check Bar.invariant)
+        ]}
 
-        When some fields have synchronous invariants, or do not need to be checked, it
-        may be useful to define a second wrapper around [check_field]:
+        When some fields have synchronous invariants, or do not need to be checked, it may
+        be useful to define a second wrapper around [check_field]:
 
         {[
           type t = { foo : Foo.t ; bar : Bar.t ; quux : Quux.t }
@@ -81,7 +82,8 @@ module type Async_invariant = sig
               Fields.fold ~init:(return ())
                 ~foo:  (check' Foo.invariant)
                 ~bar:  (check  Bar.invariant)
-                ~quux: (check  ignore) ]} *)
+                ~quux: (check  ignore)
+        ]} *)
     val check_field : 'a -> 'b t -> unit Deferred.t -> ('a, 'b) Field.t -> unit Deferred.t
   end
 end

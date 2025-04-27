@@ -1,12 +1,11 @@
 (** Implements an async aware throttling rate limiter on top of [Limiter].
 
-    All forms of [enqueue_exn] and [enqueue'] below will raise if the requested job
-    is not possible to run within the resource limitations given to the related
-    [create_exn].
+    All forms of [enqueue_exn] and [enqueue'] below will raise if the requested job is not
+    possible to run within the resource limitations given to the related [create_exn].
 
     If any enqueued job raises then the exception will be raised to the monitor in scope
-    when [enqueue_exn] is called.  Deferred jobs passed to [enqueue'] return [Raised]
-    (in a deferred manner) instead.
+    when [enqueue_exn] is called. Deferred jobs passed to [enqueue'] return [Raised] (in a
+    deferred manner) instead.
 
     Jobs are always executed in FIFO order. *)
 
@@ -34,7 +33,7 @@ module type Common = sig
   type _ t
 
   (** kills [t], which aborts all enqueued jobs that haven't started and all jobs enqueued
-      in the future.  If [t] has already been killed, then calling [kill t] has no effect.
+      in the future. If [t] has already been killed, then calling [kill t] has no effect.
       Note that kill does not affect currently running jobs in any way. *)
   val kill : _ t -> unit
 
@@ -42,7 +41,7 @@ module type Common = sig
       exception in a job. *)
   val is_dead : _ t -> bool
 
-  (** Convert to a limiter  *)
+  (** Convert to a limiter *)
   val to_limiter : _ t -> limiter
 end
 
@@ -57,11 +56,10 @@ module Token_bucket : sig
     :  burst_size:int
     -> sustained_rate_per_sec:float
     -> continue_on_error:bool
-         (** If false, then the token bucket is [kill]ed if there's
-        an unhandled exception in any job *)
+         (** If false, then the token bucket is [kill]ed if there's an unhandled exception
+             in any job *)
     -> ?in_flight_limit:int
-         (** default to infinite. This can be used for concurrency
-        control *)
+         (** default to infinite. This can be used for concurrency control *)
     -> ?initial_burst_size:int (** Defaults to zero *)
     -> unit
     -> t
@@ -71,18 +69,18 @@ module Token_bucket : sig
 
       if [allow_immediate_run] is true then [f] is allowed to run within the same async
       job as [enqueue_exn] iff there are enough tokens available to fully run the job and
-      there are no other previously enqueued jobs that have not run.  If this is the case,
-      it is run before [enqueue_exn] returns.  Otherwise no part of [f] is run before
+      there are no other previously enqueued jobs that have not run. If this is the case,
+      it is run before [enqueue_exn] returns. Otherwise no part of [f] is run before
       [enqueue_exn] returns.
 
       If there is a failure associated with this job then the exception will be raised to
-      the monitor in scope when [enqueue_exn] is called.  Note that it may fail for a
+      the monitor in scope when [enqueue_exn] is called. Note that it may fail for a
       number of reasons, including [f] throws an exception, the limiter is killed, or the
       number of tokens requested is larger than the burst size. *)
   val enqueue_exn : t -> ?allow_immediate_run:bool -> int -> ('a -> unit) -> 'a -> unit
 
   (** [enqueue' t x f a] enqueues a deferred job consuming [x] tokens, running [f] on
-      input [a].  No part of f is run before [enqueue'] returns. *)
+      input [a]. No part of f is run before [enqueue'] returns. *)
   val enqueue' : t -> int -> ('a -> 'b Deferred.t) -> 'a -> 'b Outcome.t Deferred.t
 
   include Common with type 'a t := 'a u
@@ -90,18 +88,18 @@ end
 
 (** [Throttle], [Sequencer], and [Resource_throttle] re-implement the functionality
     available in the core Async.Throttle module with the hope that these implementations
-    can eventually supplant that code.  It is helpful to use these modules in systems that
+    can eventually supplant that code. It is helpful to use these modules in systems that
     can afford to do a bit more testing so that we can get feedback on the behavior of the
-    new implementation.  They are intended to be mostly drop-in replacements. *)
+    new implementation. They are intended to be mostly drop-in replacements. *)
 
 (** Implements a basic throttle meant to bound the number of jobs that can concurrently
-    run.  Additionally the [~burst_size] and [~sustained_rate_per_sec] arguments can be
+    run. Additionally the [~burst_size] and [~sustained_rate_per_sec] arguments can be
     used to control how many jobs can be spawned in a burst, and how quickly jobs can be
-    spawned over time.  If these options are not given to [create_exn] they are unbounded.
+    spawned over time. If these options are not given to [create_exn] they are unbounded.
 
-    [concurrent_jobs_target] is the desired maximum number of concurrent jobs.  If the
-    value is never changed, then this is in fact a hard upper bound.  The value is
-    mutable, however, and so may be violated temporarily if the value is reduced. *)
+    [concurrent_jobs_target] is the desired maximum number of concurrent jobs. If the
+    value is never changed, then this is in fact a hard upper bound. The value is mutable,
+    however, and so may be violated temporarily if the value is reduced. *)
 module Throttle : sig
   type t [@@deriving sexp_of]
   type _ u = t
@@ -150,9 +148,9 @@ module Sequencer : sig
 end
 
 (** A resource throttle holds a static list of [n] resources that are handed out in a
-    round-robin fashion to up to [n] concurrent jobs.  A resource given to [create]
-    may be re-used many times in the lifetime of [t] but will never be used by more
-    than one job at a time. *)
+    round-robin fashion to up to [n] concurrent jobs. A resource given to [create] may be
+    re-used many times in the lifetime of [t] but will never be used by more than one job
+    at a time. *)
 module Resource_throttle : sig
   type 'a t [@@deriving sexp_of]
 
@@ -173,7 +171,7 @@ end
 
 module Expert : sig
   (** kills [t], which aborts all enqueued jobs that haven't started and all jobs enqueued
-      in the future.  If [t] has already been killed, then calling [kill t] has no effect.
+      in the future. If [t] has already been killed, then calling [kill t] has no effect.
       Note that kill does not affect currently running jobs in any way. *)
   val kill : t -> unit
 
@@ -181,11 +179,10 @@ module Expert : sig
       exception in a job. *)
   val is_dead : t -> bool
 
-  (** returns the total cost of all jobs that have been enqueued but have not yet
-      started. *)
+  (** returns the total cost of all jobs that have been enqueued but have not yet started. *)
   val cost_of_jobs_waiting_to_start : t -> int
 
-  (** returns the underlying limiter.  It is an error to do anything with the limiter that
+  (** returns the underlying limiter. It is an error to do anything with the limiter that
       isn't a read-only operation. *)
   val to_jane_limiter : t -> Limiter.t
 end

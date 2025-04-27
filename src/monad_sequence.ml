@@ -1,7 +1,7 @@
 (** [Monad_sequence.S] is a generic interface specifying functions that deal with a
-    container and a monad.  It is specialized to the [Deferred] monad and used with
-    various containers in modules [Deferred.Array], [Deferred.List], [Deferred.Queue], and
-    [Deferred.Sequence].  The [Monad_sequence.how] type specifies the parallelism of
+    container and a monad. It is specialized to the [Deferred] monad and used with various
+    containers in modules [Deferred.Array], [Deferred.List], [Deferred.Queue], and
+    [Deferred.Sequence]. The [Monad_sequence.how] type specifies the parallelism of
     container iterators. *)
 
 open! Core
@@ -10,8 +10,8 @@ open! Import
 type how =
   [ `Parallel (** like [`Max_concurrent_jobs Int.max_value] *)
   | `Sequential
-    (** [`Sequential] is often but not always the same as [`Max_concurrent_jobs 1]
-      (for example, they differ in the [Or_error] monad). *)
+    (** [`Sequential] is often but not always the same as [`Max_concurrent_jobs 1] (for
+        example, they differ in the [Or_error] monad). *)
   | `Max_concurrent_jobs of int
   ]
 [@@deriving sexp_of]
@@ -50,8 +50,8 @@ end
 
 (** [Monad_sequence.S2_result] is a generic interface specifying functions that deal with
     a container and a monad similar to Result.t or Result.t Deferred.t that contains both
-    a value and an error. Unlike [Monad_sequence.S], it does not support the parallelism in
-    container iterators, and they will always return the first error encountered. *)
+    a value and an error. Unlike [Monad_sequence.S], it does not support the parallelism
+    in container iterators, and they will always return the first error encountered. *)
 
 module type S2_result = sig
   type ('a, 'e) monad

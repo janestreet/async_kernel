@@ -54,6 +54,7 @@ module type Eager_deferred_or_error = sig
   val filter_ok_at_least_one : 'a t list -> 'a list t
 
   module Array : Monad_sequence.S with type 'a monad := 'a t with type 'a t := 'a array
+  module Iarray : Monad_sequence.S with type 'a monad := 'a t with type 'a t := 'a iarray
   module List : Monad_sequence.S with type 'a monad := 'a t with type 'a t := 'a list
 
   val repeat_until_finished
@@ -93,9 +94,10 @@ module type Eager_deferred1 = sig
     -> 'result t
 
   module Array : Monad_sequence.S with type 'a monad := 'a t with type 'a t := 'a array
+  module Iarray : Monad_sequence.S with type 'a monad := 'a t with type 'a t := 'a iarray
   module List : Monad_sequence.S with type 'a monad := 'a t with type 'a t := 'a list
 
-  (** Similar to {Deferred.Queue} but eager when passing ~how:`Sequential. The functions
+  (** Similar to [{Deferred.Queue}] but eager when passing ~how:`Sequential. The functions
       in [Queue] raise if the queue is mutated during execution. *)
   module Queue : Monad_sequence.S with type 'a monad := 'a t with type 'a t := 'a Queue.t
 

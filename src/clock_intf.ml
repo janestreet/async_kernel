@@ -1,7 +1,7 @@
 (** Schedule jobs to run at a time in the future.
 
     The underlying implementation uses a heap of events, one for each job that needs to
-    run in the future.  The Async scheduler is responsible for waking up at the right time
+    run in the future. The Async scheduler is responsible for waking up at the right time
     to run the jobs. *)
 
 open Core
@@ -26,9 +26,9 @@ module type Clock = sig
     type t
   end
 
-  (** [run_at time f a] runs [f a] as soon as possible after [time].  If [time] is in the
-      past, then [run_at] will immediately schedule a job [t] that will run [f a].  In no
-      situation will [run_at] actually call [f] itself.  The call to [f] will always be in
+  (** [run_at time f a] runs [f a] as soon as possible after [time]. If [time] is in the
+      past, then [run_at] will immediately schedule a job [t] that will run [f a]. In no
+      situation will [run_at] actually call [f] itself. The call to [f] will always be in
       another job. *)
   val run_at : Time.t -> ('a -> unit) -> 'a -> unit
 
@@ -46,17 +46,15 @@ module type Clock = sig
 
   (** [with_timeout span d] returns a deferred that will become determined after either
       [span] elapses or [d] is determined, returning either [`Timeout] or [`Result]
-      depending on which one succeeded first.  At the time the returned deferred becomes
+      depending on which one succeeded first. At the time the returned deferred becomes
       determined, both things may have happened, in which case [`Result] is given
       preference.
 
-      Note that any computation involved in computing [d] will continue running
-      in the background after the timeout is hit. Worse still, if the computation raises
-      an exception before the timeout is hit, then the timer will keep running and
-      the result will be determined with [`Timeout] eventually, leading to
-      return-after-exception from this function (or double exception if [with_timeout_exn]
-      is used).
-  *)
+      Note that any computation involved in computing [d] will continue running in the
+      background after the timeout is hit. Worse still, if the computation raises an
+      exception before the timeout is hit, then the timer will keep running and the result
+      will be determined with [`Timeout] eventually, leading to return-after-exception
+      from this function (or double exception if [with_timeout_exn] is used). *)
   val with_timeout : Time.Span.t -> 'a Deferred.t -> 'a Or_timeout.t Deferred.t
 
   (** [with_timeout_exn span d ~error] is like [with_timeout], but raises if the timeout
@@ -66,7 +64,7 @@ module type Clock = sig
   val with_timeout_exn : Time.Span.t -> 'a Deferred.t -> error:Error.t -> 'a Deferred.t
 
   (** Events provide variants of [run_at] and [run_after] with the ability to abort or
-      reschedule an event that hasn't yet happened.  Once an event happens or is aborted,
+      reschedule an event that hasn't yet happened. Once an event happens or is aborted,
       Async doesn't use any space for tracking it. *)
   module Event : sig
     type ('a, 'h) t [@@deriving sexp_of]
@@ -89,26 +87,26 @@ module type Clock = sig
         to user jobs running. *)
     val status : ('a, 'h) t -> ('a, 'h) Status.t
 
-    (** Let [t = run_at time f z].  At [time], this runs [f z] and transitions [status t]
+    (** Let [t = run_at time f z]. At [time], this runs [f z] and transitions [status t]
         to [Happened h], where [h] is result of [f z].
 
         More precisely, at [time], provided [abort t a] has not previously been called,
-        this will call [f z], with the guarantee that [status t = Scheduled_at time].  If
-        [f z] returns [h] and did not call [abort t a], then [status t] becomes [Happened
-        h].  If [f z] calls [abort t a], then the result of [f] is ignored, and [status t]
-        is [Aborted a].
+        this will call [f z], with the guarantee that [status t = Scheduled_at time]. If
+        [f z] returns [h] and did not call [abort t a], then [status t] becomes
+        [Happened h]. If [f z] calls [abort t a], then the result of [f] is ignored, and
+        [status t] is [Aborted a].
 
-        If [f z] raises, then [status t] does not transition and remains [Scheduled_at
-        time], and the exception is sent to the monitor in effect when [run_at] was
-        called. *)
+        If [f z] raises, then [status t] does not transition and remains
+        [Scheduled_at time], and the exception is sent to the monitor in effect when
+        [run_at] was called. *)
     val run_at : Time.t -> ('z -> 'h) -> 'z -> (_, 'h) t
 
     val run_after : Time.Span.t -> ('z -> 'h) -> 'z -> (_, 'h) t
 
     module Abort_result = Time_source.Event.Abort_result
 
-    (** [abort t] changes [status t] to [Aborted] and returns [Ok], unless [t]
-        previously happened or was previously aborted. *)
+    (** [abort t] changes [status t] to [Aborted] and returns [Ok], unless [t] previously
+        happened or was previously aborted. *)
     val abort : ('a, 'h) t -> 'a -> ('a, 'h) Abort_result.t
 
     (** [abort_exn t a] returns [unit] if [abort t a = `Ok], and otherwise raises. *)
@@ -124,14 +122,15 @@ module type Clock = sig
     module Reschedule_result = Time_source.Event.Reschedule_result
 
     (** [reschedule_at t] and [reschedule_after t] change the time that [t] will fire, if
-        possible, and if not, give a reason why.  Like [run_at], if the requested time is
-        in the past, the event will be scheduled to run immediately.  If [reschedule_at t
-        time = Ok], then subsequently [scheduled_at t = time].  *)
+        possible, and if not, give a reason why. Like [run_at], if the requested time is
+        in the past, the event will be scheduled to run immediately. If
+        [reschedule_at t time = Ok], then subsequently [scheduled_at t = time]. *)
     val reschedule_at : ('a, 'h) t -> Time.t -> ('a, 'h) Reschedule_result.t
 
     val reschedule_after : ('a, 'h) t -> Time.Span.t -> ('a, 'h) Reschedule_result.t
 
-    (** [at time]    is [run_at    time ignore ()].
+    (** {v
+ [at time]    is [run_at    time ignore ()].
         [after time] is [run_after time ignore ()].
 
         You should generally prefer to use the [run_*] functions, which allow you to
@@ -176,7 +175,8 @@ module type Clock = sig
 
         In both snippets, if [Event.abort] returns [Ok], "Timer fired" is never printed.
         However, the first snippet might print "Event occurred after timer fired" and then
-        "Timer fired".  This confused ordering cannot happen with [Event.run_after]. *)
+        "Timer fired".  This confused ordering cannot happen with [Event.run_after].
+        v} *)
     val at : Time.t -> (_, unit) t
 
     val after : Time.Span.t -> (_, unit) t
@@ -184,7 +184,7 @@ module type Clock = sig
 
   (** [at_varying_intervals f ?stop] returns a stream whose next element becomes
       determined by calling [f ()] and waiting for that amount of time, and then looping
-      to determine subsequent elements.  The stream will end after [stop] becomes
+      to determine subsequent elements. The stream will end after [stop] becomes
       determined. *)
   val at_varying_intervals
     :  ?stop:unit Deferred.t
@@ -203,9 +203,9 @@ module type Clock = sig
         ...
       v}
 
-      Note that only elements that are strictly in the future ever become determined.
-      In particular, if [start] is not in the future, or [start] is not provided,
-      then there will be no element before the [interval] has passed.
+      Note that only elements that are strictly in the future ever become determined. In
+      particular, if [start] is not in the future, or [start] is not provided, then there
+      will be no element before the [interval] has passed.
 
       If the interval is too small or the CPU is too loaded, [at_intervals] will skip
       until the next upcoming multiple of [interval] after [start]. *)
@@ -216,7 +216,7 @@ module type Clock = sig
     -> unit Async_stream.t
 
   (** [every' ?start ?stop span f] runs [f ()] every [span] amount of time starting when
-      [start] becomes determined and stopping when [stop] becomes determined.  [every']
+      [start] becomes determined and stopping when [stop] becomes determined. [every']
       waits until the outcome of [f ()] becomes determined before waiting for the next
       [span].
 
@@ -225,12 +225,12 @@ module type Clock = sig
 
       It is an error for [span] to be nonpositive.
 
-      [continue_on_error] controls what should happen if [f] raises an exception.
-      With [~continue_on_error:false], iteration only continues if [f] successfully
-      returns a deferred and that deferred is determined.
-      With [~continue_on_error:true], iteration also continues if [f] raises an exception.
-      If [f] raises an exception asynchronously, this may cause us to proceed with the
-      next iteration while the previous call to [f] is still running.
+      [continue_on_error] controls what should happen if [f] raises an exception. With
+      [~continue_on_error:false], iteration only continues if [f] successfully returns a
+      deferred and that deferred is determined. With [~continue_on_error:true], iteration
+      also continues if [f] raises an exception. If [f] raises an exception
+      asynchronously, this may cause us to proceed with the next iteration while the
+      previous call to [f] is still running.
 
       Exceptions raised by [f] are always sent to the monitor in effect when [every'] was
       called, even with [~continue_on_error:true].
@@ -256,11 +256,10 @@ module type Clock = sig
     -> (unit -> unit)
     -> unit
 
-  (** [run_at_intervals' ?start ?stop span f] runs [f()] at increments of [start + i *
-      span] for nonnegative integers [i], until [stop] becomes determined.
-      If the result of [f] is not determined fast enough then the next interval(s)
-      are skipped so that there are never multiple concurrent invocations of [f] in
-      flight.
+  (** [run_at_intervals' ?start ?stop span f] runs [f()] at increments of
+      [start + i * span] for nonnegative integers [i], until [stop] becomes determined. If
+      the result of [f] is not determined fast enough then the next interval(s) are
+      skipped so that there are never multiple concurrent invocations of [f] in flight.
 
       Exceptions raised by [f] are always sent to monitor in effect when
       [run_at_intervals'] was called, even with [~continue_on_error:true]. *)
@@ -268,6 +267,7 @@ module type Clock = sig
     :  ?start:Time.t (** default is [Time.now ()] *)
     -> ?stop:unit Deferred.t (** default is [Deferred.never ()] *)
     -> ?continue_on_error:bool (** default is [true] *)
+    -> ?finished:unit Ivar.t
     -> Time.Span.t
     -> (unit -> unit Deferred.t)
     -> unit
@@ -275,8 +275,10 @@ module type Clock = sig
   (** [run_at_intervals ?start ?stop ?continue_on_error span f] is equivalent to:
 
       {[
-        run_at_intervals' ?start ?stop ?continue_on_error span
-          (fun () -> f (); return ()) ]} *)
+        run_at_intervals' ?start ?stop ?continue_on_error span (fun () ->
+          f ();
+          return ())
+      ]} *)
   val run_at_intervals
     :  ?start:Time.t (** default is [Time.now ()] *)
     -> ?stop:unit Deferred.t (** default is [Deferred.never ()] *)
@@ -285,8 +287,8 @@ module type Clock = sig
     -> (unit -> unit)
     -> unit
 
-  (** [duration_of f] invokes [f ()] and measures how long it takes from the invocation
-      to after the deferred is determined.
+  (** [duration_of f] invokes [f ()] and measures how long it takes from the invocation to
+      after the deferred is determined.
 
       Note that the measurement is not exact; because it involves an additional map on the
       deferred, the timing also includes the duration of jobs in the job queue when [f ()]
@@ -294,8 +296,8 @@ module type Clock = sig
   val duration_of : (unit -> 'a Deferred.t) -> ('a * Time.Span.t) Deferred.t
 end
 
-(** [Clock_deprecated] is used in [Require_explicit_time_source] to create a clock
-    module in which all functions are deprecated. *)
+(** [Clock_deprecated] is used in [Require_explicit_time_source] to create a clock module
+    in which all functions are deprecated. *)
 module type Clock_deprecated = sig
   module Or_timeout = Or_timeout
 
@@ -417,6 +419,7 @@ module type Clock_deprecated = sig
     :  ?start:Time.t (** default is [Time.now ()] *)
     -> ?stop:unit Deferred.t (** default is [Deferred.never ()] *)
     -> ?continue_on_error:bool (** default is [true] *)
+    -> ?finished:unit Ivar.t
     -> Time.Span.t
     -> (unit -> unit Deferred.t)
     -> unit
