@@ -8,16 +8,15 @@ type 'a t = 'a Types.Tail.t [@@deriving sexp_of]
 (** [create ()] returns a new tail. *)
 val create : unit -> _ t
 
-(** [extend t v] extends the stream, and will raise an exception if [t] has been
-    closed. *)
+(** [extend t v] extends the stream, and will raise an exception if [t] has been closed. *)
 val extend : 'a t -> 'a -> unit
 
-(** [close_exn t] closes [t].  Subsequent calls to [close_exn] or [extend]
-    will raise an exception. *)
+(** [close_exn t] closes [t]. Subsequent calls to [close_exn] or [extend] will raise an
+    exception. *)
 val close_exn : _ t -> unit
 
-(** [close_if_open t] closes [t], if it's not already closed.  If [t] is already
-    closed, then this is a no-op. *)
+(** [close_if_open t] closes [t], if it's not already closed. If [t] is already closed,
+    then this is a no-op. *)
 val close_if_open : _ t -> unit
 
 (** [is_closed t] returns true iff the stream [t] is closed. *)

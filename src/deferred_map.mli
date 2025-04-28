@@ -131,3 +131,9 @@ val all : ('k, 'v Deferred.t, 'comparator) t -> ('k, 'v, 'comparator) t Deferred
       :  ('k * 'v) list
       -> f:('v -> 'v -> 'v Deferred.t)
       -> ('k, 'v, 'comparator) t ]} *)
+
+val of_key_set
+  :  how:Monad_sequence.how
+  -> ('k, 'c) Set.t
+  -> f:('k -> 'v Deferred.t)
+  -> ('k, 'v, 'c) t Deferred.t

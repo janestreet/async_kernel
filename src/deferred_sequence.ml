@@ -68,19 +68,34 @@ let fold_mapi
 ;;
 
 let foldi t ~init ~f =
-  Sequence.delayed_fold
-    t
-    ~init:(0, init)
-    ~f:(fun (i, b) a ~k ->
-      let%bind b = f i b a in
-      k (i + 1, b))
-    ~finish:(fun (_, b) -> return b)
+  let%tydi (Sequence { state; next }) = Sequence.Expert.view t in
+  let result = Ivar.create () in
+  let rec loop i state acc =
+    match next state with
+    | Done -> Ivar.fill_exn result acc
+    | Skip { state } -> loop i state acc
+    | Yield { state; value } -> upon (f i acc value) (fun acc -> loop (i + 1) state acc)
+  in
+  loop 0 state init;
+  Ivar.read result
 ;;
 
 (* [fold] is not implemented in terms of [foldi] to save the intermediate closure
-   allocation. *)
+   allocation.
+   (maybe the reduction in the size of the [loop] closure is also relevant
+   because we see significant performance wins even for long folds)
+*)
 let fold t ~init ~f =
-  Sequence.delayed_fold t ~init ~f:(fun b a ~k -> f b a >>= k) ~finish:return
+  let%tydi (Sequence { state; next }) = Sequence.Expert.view t in
+  let result = Ivar.create () in
+  let rec loop state acc =
+    match next state with
+    | Done -> Ivar.fill_exn result acc
+    | Skip { state } -> loop state acc
+    | Yield { state; value } -> upon (f acc value) (fun acc -> loop state acc)
+  in
+  loop state init;
+  Ivar.read result
 ;;
 
 let all t =

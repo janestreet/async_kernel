@@ -1,6 +1,6 @@
 (** A delayed computation that can produce a deferred.
 
-    Nothing happens with a lazy deferred unless one [force]s it.  Forcing a lazy deferred
+    Nothing happens with a lazy deferred unless one [force]s it. Forcing a lazy deferred
     starts the computation, which will eventually cause the deferred to become determined.
     As usual with laziness, multiply forcing a lazy deferred is no different than forcing
     it a single time.
@@ -9,11 +9,11 @@
     returned by [force] ([wait], [peek], etc.), or will be raised to the monitor in effect
     when [force_exn] ([wait_exn], [peek_exn], etc.) was called.
 
-    The type is not exposed nor defined as ['a Deferred.t Lazy.t] or ['a Or_error.t
-    Deferred.t Lazy.t], because there is a difference in power with these types.  Any
-    value of type ['a Deferred.t Lazy.t] would mishandle asynchronous exceptions in the
-    computation of ['a].  For instance, the following code blocks forever regardless of
-    how [v] is defined:
+    The type is not exposed nor defined as ['a Deferred.t Lazy.t] or
+    ['a Or_error.t Deferred.t Lazy.t], because there is a difference in power with these
+    types. Any value of type ['a Deferred.t Lazy.t] would mishandle asynchronous
+    exceptions in the computation of ['a]. For instance, the following code blocks forever
+    regardless of how [v] is defined:
 
     {[
       let v : Nothing.t Deferred.t Lazy.t = lazy (return "" >>| failwith) in
@@ -21,8 +21,8 @@
       let%bind _ = try_with (fun () -> force v) in
     ]}
 
-    There is no [val of_lazy : 'a Deferred.t Lazy.t -> 'a t] because of the difference
-    in power.
+    There is no [val of_lazy : 'a Deferred.t Lazy.t -> 'a t] because of the difference in
+    power.
 
     See also [Deferred.Memo.unit], if you only are interested in [create] and [force]. *)
 
@@ -39,9 +39,8 @@ val create
   -> (unit -> 'a Deferred.t)
   -> 'a t
 
-(** Same as {!create} but allows [f] to explicitly return errors as well as
-    raise. The two cases are joined and not distingused in the result of
-    {!force}.
+(** Same as {!create} but allows [f] to explicitly return errors as well as raise. The two
+    cases are joined and not distinguished in the result of {!force}.
 
     If an exception is raised by [f] asynchronously after its result is determined,
     [rest_exn] specifies how to handle the exception. *)
@@ -50,14 +49,14 @@ val create_or_error
   -> (unit -> 'a Deferred.Or_error.t)
   -> 'a t
 
-(** [force t] forces evaluation of [t] and returns a deferred that becomes determined
-    when the deferred computation becomes determined or raises. *)
+(** [force t] forces evaluation of [t] and returns a deferred that becomes determined when
+    the deferred computation becomes determined or raises. *)
 val force : 'a t -> 'a Or_error.t Deferred.t
 
 val force_exn : 'a t -> 'a Deferred.t
 
-(** [wait t] and [wait_exn t] waits for [t] to be forced.  If no one ever calls
-    [force t], they will wait forever. *)
+(** [wait t] and [wait_exn t] waits for [t] to be forced. If no one ever calls [force t],
+    they will wait forever. *)
 val wait : 'a t -> 'a Or_error.t Deferred.t
 
 val wait_exn : 'a t -> 'a Deferred.t

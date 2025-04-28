@@ -108,8 +108,8 @@ module Very_low_priority_work : sig
     [@@deriving sexp_of]
   end
 
-  (** Enqueue some low-priority work to be done.  The work will happen at some point, but
-      Async will choose when is the best time to do it.  [f] will be called until it
+  (** Enqueue some low-priority work to be done. The work will happen at some point, but
+      Async will choose when is the best time to do it. [f] will be called until it
       returns [Finished]. *)
   val enqueue : f:(unit -> Worker_result.t) -> unit
 end

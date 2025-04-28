@@ -95,7 +95,7 @@ module Queue = struct
 
   type 'a filter_map_generic_helper =
     | Filtered_out
-    | Enqueue of 'a
+    | Enqueue of ('a[@globalized])
 
   let filter_mapi_generic q ~f ~(of_result : 'a -> 'b -> 'c filter_map_generic_helper) =
     let iter = Queue.Iteration.start q in
@@ -168,7 +168,7 @@ module Queue = struct
 
   type 'a fold_result_helper =
     | Continue
-    | Finish of 'a
+    | Finish of ('a[@globalized])
 
   let iter_result q ~f ~(consider : _ -> _ -> _ fold_result_helper) ~finish =
     let iter = Queue.Iteration.start q in

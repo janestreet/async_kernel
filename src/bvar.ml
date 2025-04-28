@@ -11,7 +11,7 @@ type 'a repr = 'a Types.Bvar.repr =
 
 let invariant invariant_a _ t =
   let repr = Types.Bvar.to_repr t in
-  Invariant.invariant [%here] repr [%sexp_of: _ repr] (fun () ->
+  Invariant.invariant repr [%sexp_of: _ repr] (fun () ->
     let check f = Invariant.check_field repr f in
     Fields_of_repr.iter
       ~has_any_waiters:

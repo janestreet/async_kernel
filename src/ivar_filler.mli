@@ -1,5 +1,5 @@
 (** [Ivar_filler] is a reference to an ivar that allows one to [fill] the ivar, but not to
-    read it.  This allows the implementation to drop the reference to the ivar once it is
+    read it. This allows the implementation to drop the reference to the ivar once it is
     full, which can be useful to avoid holding onto unused memory. *)
 
 open! Core

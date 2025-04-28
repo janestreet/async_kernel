@@ -7,8 +7,7 @@
 
     Neither priority can starve out the other entirely. If there are more [Normal]
     priority jobs than can run in a single cycle, then the rest will be delayed until
-    after (some) [Low] priority jobs run.
-*)
+    after (some) [Low] priority jobs run. *)
 
 open! Core
 open! Import

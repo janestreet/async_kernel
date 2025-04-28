@@ -278,7 +278,7 @@ module Event = struct
   let fired t = Ivar.read t.fired
 
   let invariant invariant_a invariant_h t =
-    Invariant.invariant [%here] t [%sexp_of: (_, _) t] (fun () ->
+    Invariant.invariant t [%sexp_of: (_, _) t] (fun () ->
       let events = t.time_source.events in
       let check f = Invariant.check_field t f in
       Fields.iter
@@ -530,7 +530,7 @@ let every ?start ?stop ?continue_on_error t span f =
     return ())
 ;;
 
-let run_at_intervals' ?start ?stop ?continue_on_error t interval f =
+let run_at_intervals' ?start ?stop ?continue_on_error ?finished t interval f =
   let now = now t in
   let base, start =
     match start with
@@ -552,6 +552,7 @@ let run_at_intervals' ?start ?stop ?continue_on_error t interval f =
     ?start
     ?stop
     ?continue_on_error
+    ?finished
     ~f
     ~continue:(Next_multiple (base, interval))
 ;;
@@ -603,15 +604,24 @@ let of_synchronous t = t
 let to_synchronous t = t
 
 let timing_wheel_has_event_at_or_before wheel time =
-  if Timing_wheel.is_empty wheel
-  then false
-  else (
-    let next_alarm = Timing_wheel.next_alarm_fires_at_exn wheel in
-    Time_ns_in_this_directory.(next_alarm <= time))
+  match Timing_wheel.min_alarm_interval_num wheel with
+  | None -> false
+  (* We avoid computing min_alarm_time_in_min_interval_exn when the target time is outside
+     the current minimum interval. min_alarm_time_in_min_interval_exn requires scanning
+     through all alarms in the min_interval which can be expensive when many alarms are
+     present. *)
+  | Some min_interval_num ->
+    let time_interval_num = Timing_wheel.interval_num wheel time in
+    let cmp = Timing_wheel.Interval_num.compare time_interval_num min_interval_num in
+    if cmp < 0
+    then false
+    else if cmp > 0
+    then true
+    else Time_ns.( <= ) (Timing_wheel.min_alarm_time_in_min_interval_exn wheel) time
 ;;
 
 let advance_directly_if_quiescent t ~to_ =
-  let is_quescent =
+  let is_quiescent =
     (* Since this function is intended to be just a fast case of [advance_by_alarms],
        we want to make sure that the call to [Scheduler.yield ()] can be elided,
        hence the [can_run_a_job] check.
@@ -624,7 +634,7 @@ let advance_directly_if_quiescent t ~to_ =
     || Synchronous_time_source0.has_events_to_run t
     || timing_wheel_has_event_at_or_before t.events to_
   in
-  if is_quescent
+  if is_quiescent
   then false
   else (
     advance_directly t ~to_;

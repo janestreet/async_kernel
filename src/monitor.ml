@@ -10,7 +10,7 @@ include Monitor
 type monitor = t [@@deriving sexp_of]
 
 let invariant t =
-  Invariant.invariant [%here] t [%sexp_of: t] (fun () ->
+  Invariant.invariant t [%sexp_of: t] (fun () ->
     let check f = Invariant.check_field t f in
     Fields.iter
       ~name:ignore
@@ -118,7 +118,7 @@ module Monitor_exn = struct
       let pos =
         match
           Source_code_position.is_dummy monitor.here
-          || !Backtrace.elide
+          || Dynamic.get Backtrace.elide
           || not (Backtrace.Exn.am_recording ())
         with
         | true -> None
@@ -239,7 +239,8 @@ module Exported_for_scheduler = struct
       | Ok x -> Ok x
       | Error exn ->
         send_exn (Execution_context.monitor context) exn ~backtrace:`Get;
-        Error ()) [@nontail]
+        Error ())
+    [@nontail]
   ;;
 
   let within_gen ?monitor ?priority f =

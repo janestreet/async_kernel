@@ -1,7 +1,7 @@
 (** A write-once cell that can be empty or full (i.e., hold a single value).
 
     One can [read] an ivar to obtain a deferred that becomes determined when the ivar is
-    filled.  An ivar is similar to an ['a option ref], except it is an error to fill an
+    filled. An ivar is similar to an ['a option ref], except it is an error to fill an
     already full ivar. *)
 
 open! Core
@@ -21,15 +21,15 @@ val create : unit -> 'a t
 (** [create_full v] returns an ivar filled with [v]. *)
 val create_full : 'a -> 'a t
 
-(** [fill_exn t v] fills [t] with value [v] if [t] was empty.  If [t] was full, [fill_exn]
-    raises an exception.  It is guaranteed that immediately after calling [fill_exn t],
+(** [fill_exn t v] fills [t] with value [v] if [t] was empty. If [t] was full, [fill_exn]
+    raises an exception. It is guaranteed that immediately after calling [fill_exn t],
     [is_some (Deferred.peek (read t))]. *)
 val fill_exn : 'a t -> 'a -> unit
 
 val fill : 'a t -> 'a -> unit [@@deprecated "[since 2023-04] Use [fill_exn]"]
 
-(** [fill_if_empty t v] fills [t] with [v] if [t] is currently empty.  If [t] is full,
-    then [fill_if_empty] does nothing.  *)
+(** [fill_if_empty t v] fills [t] with [v] if [t] is currently empty. If [t] is full, then
+    [fill_if_empty] does nothing. *)
 val fill_if_empty : 'a t -> 'a -> unit
 
 (** [is_empty t] returns true if [t] is empty. *)

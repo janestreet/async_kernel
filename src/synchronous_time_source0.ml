@@ -174,7 +174,7 @@ module T1 = struct
     let sexp_of_t = [%sexp_of: event]
 
     let invariant t =
-      Invariant.invariant [%here] t [%sexp_of: t] (fun () ->
+      Invariant.invariant t [%sexp_of: t] (fun () ->
         let check f = Invariant.check_field t f in
         Fields.iter
           ~alarm:
@@ -319,7 +319,7 @@ module T1 = struct
   ;;
 
   let invariant_with_jobs (type rw) ~job:(job_invariant : Job.t -> unit) (t : rw t) =
-    Invariant.invariant [%here] t [%sexp_of: _ t] (fun () ->
+    Invariant.invariant t [%sexp_of: _ t] (fun () ->
       let check f = Invariant.check_field t f in
       Fields.iter
         ~id:ignore
@@ -379,11 +379,11 @@ module Read_write = struct
   let invariant_with_jobs = invariant_with_jobs
 end
 
-let id t = t.id
-let is_wall_clock t = t.is_wall_clock
-let length t = Timing_wheel.length t.events
-let max_allowed_alarm_time t = Timing_wheel.max_allowed_alarm_time t.events
-let read_only (t : [> read ] T1.t) = (t :> t)
+let[@zero_alloc] id t = t.id
+let[@zero_alloc] is_wall_clock t = t.is_wall_clock
+let[@zero_alloc] length t = Timing_wheel.length t.events
+let[@zero_alloc] max_allowed_alarm_time t = Timing_wheel.max_allowed_alarm_time t.events
+let[@zero_alloc] read_only (t : [> read ] T1.t) = (t :> t)
 
 (* [fire t event] sets [event.status = Fired] and inserts [event] into
    [t.fired_events] in sorted time order. *)
@@ -435,7 +435,10 @@ let fire t (event : Event.t) =
 let alarm_precision t = Timing_wheel.alarm_precision t.events
 let next_alarm_fires_at t = Timing_wheel.next_alarm_fires_at t.events
 let has_events_to_run t = Event.Option.is_some t.fired_events
-let has_next_alarm t = has_events_to_run t || not (Timing_wheel.is_empty t.events)
+
+let[@zero_alloc] has_next_alarm t =
+  has_events_to_run t || not (Timing_wheel.is_empty t.events)
+;;
 
 let next_alarm_runs_at t =
   if has_events_to_run t
@@ -443,7 +446,7 @@ let next_alarm_runs_at t =
   else Timing_wheel.next_alarm_fires_at t.events
 ;;
 
-let next_alarm_runs_at_exn t =
+let[@zero_alloc] next_alarm_runs_at_exn t =
   if has_events_to_run t
   then timing_wheel_now t
   else Timing_wheel.next_alarm_fires_at_exn t.events

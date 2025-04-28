@@ -219,7 +219,8 @@ module Make' (Conn_err : Connection_error) (Conn : Closable) = struct
         { event_handler
         ; event_bus =
             Bus.create_exn
-              (if am_running_test then dummy_src_pos_that_shows_up_in_tests else [%here])
+              ~here:
+                (if am_running_test then dummy_src_pos_that_shows_up_in_tests else [%here])
               Arity1
               ~on_subscription_after_first_write:Allow_and_send_last_value
               ~on_callback_raise:ignore
@@ -357,6 +358,10 @@ module Make' (Conn_err : Connection_error) (Conn : Closable) = struct
     let close_when_current_connection_is_closed t =
       Ivar.fill_if_empty t.don't_reconnect ()
     ;;
+
+    module Expert = struct
+      let connection t = Ivar.read t.conn
+    end
   end
 
   type t = T : 'address Poly.t -> t [@@unboxed]
@@ -397,6 +402,10 @@ module Make' (Conn_err : Connection_error) (Conn : Closable) = struct
          ~address
          get_address)
   ;;
+
+  module Expert = struct
+    let connection (T t) = Poly.Expert.connection t
+  end
 end
 
 module Default_connection_error = struct

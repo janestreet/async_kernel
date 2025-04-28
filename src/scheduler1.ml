@@ -48,7 +48,7 @@ module Very_low_priority_worker = struct
   [@@deriving fields ~iterators:iter, sexp_of]
 
   let invariant t =
-    Invariant.invariant [%here] t [%sexp_of: t] (fun () ->
+    Invariant.invariant t [%sexp_of: t] (fun () ->
       let check f = Invariant.check_field t f in
       Fields.iter ~execution_context:(check Execution_context.invariant) ~exec:ignore)
   ;;
@@ -81,6 +81,7 @@ type t = Scheduler0.t =
       (Types.Cycle_hook_handle.t, (Types.Cycle_hook.t[@sexp.opaque])) Hashtbl.t
   ; mutable last_cycle_time : Time_ns.Span.t
   ; mutable last_cycle_num_jobs : int
+  ; job_infos_for_cycle : Job_infos_for_cycle.t
   ; mutable total_cycle_time : Time_ns.Span.t
   ; mutable time_source : read_write Synchronous_time_source.T1.t
       (* [external_jobs] is a queue of actions sent from outside of async.  This is for the
@@ -184,6 +185,7 @@ let invariant t : unit =
       ~total_cycle_time:ignore
       ~last_cycle_num_jobs:
         (check (fun last_cycle_num_jobs -> assert (last_cycle_num_jobs >= 0)))
+      ~job_infos_for_cycle:ignore
       ~time_source:
         (check
            (Synchronous_time_source.Read_write.invariant_with_jobs ~job:(fun job ->
@@ -258,6 +260,7 @@ let create () =
     ; run_every_cycle_end_state = Hashtbl.create (module Types.Cycle_hook_handle)
     ; last_cycle_time = sec 0.
     ; last_cycle_num_jobs = 0
+    ; job_infos_for_cycle = Job_infos_for_cycle.create ()
     ; total_cycle_time = sec 0.
     ; time_source
     ; external_jobs = Thread_safe_queue.create ()

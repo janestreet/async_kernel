@@ -157,11 +157,27 @@ end
 
 let num_jobs_waiting_to_start t = Queue.length t.jobs_waiting_to_start
 
+let resources_just_cleaned t n =
+  t.num_resources_not_cleaned <- t.num_resources_not_cleaned - n;
+  assert (t.num_resources_not_cleaned >= 0);
+  if t.num_resources_not_cleaned = 0 then Ivar.fill_exn t.cleaned ()
+;;
+
 let clean_resource t a =
   Deferred.all_unit (List.map t.cleans ~f:(fun f -> f a))
-  >>> fun () ->
-  t.num_resources_not_cleaned <- t.num_resources_not_cleaned - 1;
-  if t.num_resources_not_cleaned = 0 then Ivar.fill_exn t.cleaned ()
+  >>> fun () -> resources_just_cleaned t 1
+;;
+
+let clean_resources_not_in_use t =
+  match t.cleans with
+  | [] ->
+    (* This special case helps a lot if resources are "units", so [job_resources_not_in_use]
+       is a potentially very large counter. *)
+    resources_just_cleaned t (Stack_or_counter.length t.job_resources_not_in_use);
+    Stack_or_counter.clear t.job_resources_not_in_use
+  | _ :: _ ->
+    Stack_or_counter.iter t.job_resources_not_in_use ~f:(fun a -> clean_resource t a);
+    Stack_or_counter.clear t.job_resources_not_in_use
 ;;
 
 let kill_internal t how =
@@ -172,8 +188,7 @@ let kill_internal t how =
      | `Never_return -> ()
      | `Raise -> Queue.iter t.jobs_waiting_to_start ~f:Internal_job.abort);
     Queue.clear t.jobs_waiting_to_start;
-    Stack_or_counter.iter t.job_resources_not_in_use ~f:(fun a -> clean_resource t a);
-    Stack_or_counter.clear t.job_resources_not_in_use)
+    clean_resources_not_in_use t)
 ;;
 
 let kill t = kill_internal t `Raise

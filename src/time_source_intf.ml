@@ -2,8 +2,8 @@
     gives the ability to schedule Async jobs (alarms) to run when that time advances.
 
     There is a single wall-clock time source (returned by [wall_clock ()]) that the Async
-    scheduler drives and uses for the [Clock_ns] module.  One can also create a
-    user-controlled time source via [create], and advance its clock as desired.  This is
+    scheduler drives and uses for the [Clock_ns] module. One can also create a
+    user-controlled time source via [create], and advance its clock as desired. This is
     useful so that state machines can depend on a notion of time that is distinct from
     wall-clock time. *)
 
@@ -48,13 +48,13 @@ module type Time_source = sig
 
   (** A time source with [now t] given by wall-clock time (i.e., [Time_ns.now]) and that
       is advanced automatically as time passes (specifically, at the start of each Async
-      cycle).  There is only one wall-clock time source; every call to [wall_clock ()]
-      returns the same value.  The behavior of [now] is special for [wall_clock ()]; it
+      cycle). There is only one wall-clock time source; every call to [wall_clock ()]
+      returns the same value. The behavior of [now] is special for [wall_clock ()]; it
       always calls [Time_ns.now ()], so it can return times that the time source has not
       yet been advanced to. *)
   val wall_clock : unit -> t
 
-  (** Accessors.  [now (wall_clock ())] behaves specially; see [wall_clock] above. *)
+  (** Accessors. [now (wall_clock ())] behaves specially; see [wall_clock] above. *)
 
   val alarm_precision : [> read ] T1.t -> Time_ns.Span.t
   val is_wall_clock : [> read ] T1.t -> bool
@@ -70,7 +70,7 @@ module type Time_source = sig
       [advance_by_alarms] advances the clock in steps, to each intervening alarm.
       [advance_directly] approximately determines the set of events to fire, up to
       timing-wheel alarm precision, whereas [advance_by_alarms] fires all alarms whose
-      time is [<= to_].  With [advance_directly], you must call [fire_past_alarms] if you
+      time is [<= to_]. With [advance_directly], you must call [fire_past_alarms] if you
       want that behavior (see docs for [Timing_wheel.advance_clock] vs.
       [Timing_wheel.fire_past_alarms]). *)
   val advance_directly : [> write ] T1.t -> to_:Time_ns.t -> unit
@@ -146,7 +146,7 @@ module type Time_source = sig
     -> unit
 
   (** The functions below here are the same as in clock_intf.ml, except they take an
-      explicit [t] argument.  See {{!Async_kernel.Clock_intf}[Clock_intf]} for
+      explicit [t] argument. See {{!Async_kernel.Clock_intf} [Clock_intf]} for
       documentation. *)
 
   val run_at : [> read ] T1.t -> Time_ns.t -> ('a -> unit) -> 'a -> unit
@@ -264,6 +264,7 @@ module type Time_source = sig
     :  ?start:Time_ns.t (** default is [now t] *)
     -> ?stop:unit Deferred.t (** default is [Deferred.never ()] *)
     -> ?continue_on_error:bool (** default is [true] *)
+    -> ?finished:unit Ivar.t
     -> [> read ] T1.t
     -> Time_ns.Span.t
     -> (unit -> unit Deferred.t)
@@ -279,7 +280,7 @@ module type Time_source = sig
     -> unit
 
   (** [Time_source] and [Synchronous_time_source] are the same data structure and use the
-      same underlying timing wheel.  The types are freely interchangeable. *)
+      same underlying timing wheel. The types are freely interchangeable. *)
   val of_synchronous : 'a Synchronous_time_source0.T1.t -> 'a T1.t
 
   val to_synchronous : 'a T1.t -> 'a Synchronous_time_source0.T1.t
@@ -290,8 +291,7 @@ module type Time_source = sig
 
       Returns true if we advanced, false if we were unable to.
 
-      This is an optimisation relative to (for instance) [Time_source.advance_by_alarms] or
-      other methods that will rely on running async cycles to produce quiescence.
-  *)
+      This is an optimisation relative to (for instance) [Time_source.advance_by_alarms]
+      or other methods that will rely on running async cycles to produce quiescence. *)
   val advance_directly_if_quiescent : [> write ] T1.t -> to_:Time_ns.t -> bool
 end

@@ -1,7 +1,7 @@
 open Core
 open Deferred_std
 module Deferred = Deferred1
-module List = Deferred_list
+module Sequence = Deferred_sequence
 module Throttled_map = Map.Make_applicative_traversals (Throttled)
 
 type ('a, 'b, 'c) t = ('a, 'b, 'c) Map.t
@@ -16,22 +16,24 @@ let update t k ~f =
   Map.set t ~key:k ~data
 ;;
 
-let iter_keys ~how t ~f = List.iter ~how (Map.keys t) ~f
-let iter ~how t ~f = List.iter ~how (Map.data t) ~f
-let iteri ~how t ~f = List.iter ~how (Map.to_alist t) ~f:(fun (key, data) -> f ~key ~data)
+let iter_keys ~how t ~f =
+  Map.to_sequence t |> Sequence.iter ~how ~f:(fun (key, _) -> f key)
+;;
+
+let iter ~how t ~f = Map.to_sequence t |> Sequence.iter ~how ~f:(fun (_, data) -> f data)
+
+let iteri ~how t ~f =
+  Map.to_sequence t |> Sequence.iter ~how ~f:(fun (key, data) -> f ~key ~data)
+;;
 
 let fold t ~init ~f =
-  let alist_in_increasing_key_order =
-    Map.fold_right t ~init:[] ~f:(fun ~key ~data alist -> (key, data) :: alist)
-  in
-  List.fold alist_in_increasing_key_order ~init ~f:(fun ac (key, data) -> f ~key ~data ac)
+  Map.to_sequence ~order:`Increasing_key t
+  |> Sequence.fold ~init ~f:(fun ac (key, data) -> f ~key ~data ac)
 ;;
 
 let fold_right t ~init ~f =
-  let alist_in_decreasing_key_order =
-    Map.fold t ~init:[] ~f:(fun ~key ~data alist -> (key, data) :: alist)
-  in
-  List.fold alist_in_decreasing_key_order ~init ~f:(fun ac (key, data) -> f ~key ~data ac)
+  Map.to_sequence ~order:`Decreasing_key t
+  |> Sequence.fold ~init ~f:(fun ac (key, data) -> f ~key ~data ac)
 ;;
 
 module Job = struct
@@ -47,7 +49,7 @@ let filter_mapi_sequential t ~f =
   let comparator = Map.comparator t in
   let sequence = Map.to_sequence ~order:`Increasing_key t in
   Deferred.create (fun ivar ->
-    Sequence.delayed_fold
+    Base.Sequence.delayed_fold
       sequence
       ~init:Base.Map.Using_comparator.Tree.Build_increasing.empty
       ~f:(fun s (key, data) ~k ->
@@ -92,7 +94,7 @@ let filter_mapi ~how t ~f =
         job)
     in
     let%map () =
-      List.iter ~how (Base.List.rev !jobs) ~f:(function
+      Deferred_list.iter ~how (Base.List.rev !jobs) ~f:(function
         | { Job.key; data; result = _ } as job ->
         let%map x = f ~key ~data in
         job.result <- x)
@@ -147,3 +149,8 @@ let merge ~how t1 t2 ~f =
 ;;
 
 let all t = map t ~f:Fn.id ~how:`Sequential
+
+(* It's important that [f] is applied in [map] and not in [Map.of_key_set], since
+   [Deferred.t]s created in [map] will respect [how], those created in [Map.of_key_set]
+   they wouldn't *)
+let of_key_set ~how s ~f = Map.of_key_set s ~f:Fn.id |> map ~f ~how

@@ -207,7 +207,7 @@ let add_finalizer_last t heap_block f =
 let add_finalizer_last_exn t x f = add_finalizer_last t (Heap_block.create_exn x) f
 
 (** [force_current_cycle_to_end] sets the number of normal jobs allowed to run in this
-    cycle to zero.  Thus, after the currently running job completes, the scheduler will
+    cycle to zero. Thus, after the currently running job completes, the scheduler will
     switch to low priority jobs and then end the current cycle. *)
 let force_current_cycle_to_end t =
   Job_queue.set_jobs_left_this_cycle t.normal_priority_jobs 0
@@ -226,6 +226,7 @@ let run_cycle t =
   t.cycle_count <- t.cycle_count + 1;
   t.cycle_start <- now;
   t.in_cycle <- true;
+  Job_infos_for_cycle.Private.on_cycle_start t.job_infos_for_cycle;
   let old_context = current_execution_context t in
   Bvar.broadcast t.yield ();
   let num_jobs_run_at_start_of_cycle = num_jobs_run t in

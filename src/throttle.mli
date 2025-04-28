@@ -3,32 +3,31 @@
     A throttle is essentially a pipe to which one can feed jobs.
 
     A throttle schedules asynchronous jobs so that at any point in time no more than
-    [max_concurrent_jobs] jobs are running.  A job [f] is considered to be running from
-    the time [f ()] is executed until the deferred returned by [f ()] becomes determined,
-    or [f ()] raises.  The throttle initiates jobs on a first-come first-served basis.
+    [max_concurrent_jobs] jobs are running. A job [f] is considered to be running from the
+    time [f ()] is executed until the deferred returned by [f ()] becomes determined, or
+    [f ()] raises. The throttle initiates jobs on a first-come first-served basis.
 
-    One can use [create_with] to create a throttle with "resources" that one would
-    like to make available to concurrent jobs and to guarantee that different jobs
-    access different resources.
+    One can use [create_with] to create a throttle with "resources" that one would like to
+    make available to concurrent jobs and to guarantee that different jobs access
+    different resources.
 
     A throttle is killed if one of its jobs throws an exception, and the throttle has
-    [continue_on_error = false].  A throttle can also be explicitly [kill]ed.  If a
-    throttle is killed, then all jobs in it that haven't yet started are aborted, i.e.,
-    they will not start and will become determined with [`Aborted].  Jobs that had already
-    started will continue, and return [`Ok] or [`Raised] as usual when they finish.  Jobs
-    enqueued into a killed throttle will be immediately aborted.
+    [continue_on_error = false]. A throttle can also be explicitly [kill]ed. If a throttle
+    is killed, then all jobs in it that haven't yet started are aborted, i.e., they will
+    not start and will become determined with [`Aborted]. Jobs that had already started
+    will continue, and return [`Ok] or [`Raised] as usual when they finish. Jobs enqueued
+    into a killed throttle will be immediately aborted.
 
     [rest] controls what happens to exceptions raised by the throttle jobs after they have
     finished (see [Monitor.try_with]). Exceptions forwarded through [rest] do not affect
-    the throttle or any other jobs (since the original job has already succesfully run).
-*)
+    the throttle or any other jobs (since the original job has already succesfully run). *)
 
 open! Core
 module Deferred := Deferred1
 
 (** We use a phantom type to distinguish between throttles, which have
-    [max_concurrent_jobs >= 1], and sequencers, which have [max_concurrent_jobs = 1].  All
-    operations are available on both.  We make the distinction because it is sometimes
+    [max_concurrent_jobs >= 1], and sequencers, which have [max_concurrent_jobs = 1]. All
+    operations are available on both. We make the distinction because it is sometimes
     useful to know from the type of a throttle that it is a sequencer and that at most one
     job can be running at a time. *)
 module T2 : sig
@@ -45,14 +44,13 @@ include Invariant.S1 with type 'a t := 'a t
     run up to [max_concurrent_jobs] concurrently.
 
     If some job raises an exception, then the throttle will be killed, unless
-    [continue_on_error] is true.
-*)
+    [continue_on_error] is true. *)
 val create'
   :  rest:[ `Log | `Raise | `Call of exn -> unit ]
        (** What to do on exceptions raised from enqueued jobs after the job has already
-      completed (either from the result becoming determined or raising an exception). If
-      [`Raise] is provided, the exceptions will be raised to the monitor that [enqueue]
-      for that job was invoked from within. *)
+           completed (either from the result becoming determined or raising an exception).
+           If [`Raise] is provided, the exceptions will be raised to the monitor that
+           [enqueue] for that job was invoked from within. *)
   -> continue_on_error:bool
   -> max_concurrent_jobs:int
   -> unit t
@@ -61,11 +59,11 @@ val create'
     [create' ~rest:`Log ~continue_on_error ~max_concurrent_jobs] *)
 val create : continue_on_error:bool -> max_concurrent_jobs:int -> unit t
 
-(** [create''] expands the options for [continue_on_error:false]. If [on_error:(`Abort
-    how)] is provided, an exception in a job will kill the throttle. Any remaining jobs
-    that haven't started yet will be dropped. If [how] is [`Raise], an exception will be
-    raised to the monitor in effect when [enqueue] was called for each job. If [how] is
-    [`Never_return], the jobs will be silently dropped. *)
+(** [create''] expands the options for [continue_on_error:false]. If
+    [on_error:(`Abort how)] is provided, an exception in a job will kill the throttle. Any
+    remaining jobs that haven't started yet will be dropped. If [how] is [`Raise], an
+    exception will be raised to the monitor in effect when [enqueue] was called for each
+    job. If [how] is [`Never_return], the jobs will be silently dropped. *)
 val create''
   :  rest:[ `Log | `Raise | `Call of exn -> unit ]
   -> on_error:[ `Continue | `Abort of [ `Raise | `Never_return ] ]
@@ -92,10 +90,10 @@ type 'a outcome =
   ]
 [@@deriving sexp_of]
 
-(** [enqueue t job] schedules [job] to be run as soon as possible.  Jobs are guaranteed to
+(** [enqueue t job] schedules [job] to be run as soon as possible. Jobs are guaranteed to
     be started in the order they are [enqueue]d and to not be started during the call to
-    [enqueue].  If [t] is dead, then [job] will be immediately aborted (for [enqueue],
-    this will send an exception to the monitor in effect). *)
+    [enqueue]. If [t] is dead, then [job] will be immediately aborted (for [enqueue], this
+    will send an exception to the monitor in effect). *)
 val enqueue' : ('a, _) T2.t -> ('a -> 'b Deferred.t) -> 'b outcome Deferred.t
 
 val enqueue : ('a, _) T2.t -> ('a -> 'b Deferred.t) -> 'b Deferred.t
@@ -118,7 +116,7 @@ val enqueue_eager' : ('a, _) T2.t -> ('a -> 'b Deferred.t) -> 'b outcome Deferre
 val enqueue_eager : ('a, _) T2.t -> ('a -> 'b Deferred.t) -> 'b Deferred.t
 
 (** [enqueue_exclusive] schedules a job that occupies all slots of the throttle, so it
-    won't run concurrently with any other job.  The job counts as being enqueued normally,
+    won't run concurrently with any other job. The job counts as being enqueued normally,
     so it runs after the jobs enqueued previously and before the jobs enqueued later.
     [enqueue_exclusive] takes O(max_concurrent_jobs) time, so you should not use it when
     [max_concurrent_jobs = Int.max_value]. *)
@@ -126,7 +124,7 @@ val enqueue_exclusive : ('a, _) T2.t -> (unit -> 'b Deferred.t) -> 'b Deferred.t
 
 (** [monad_sequence_how ~how ~f] returns a function that behaves like [f], except that it
     uses a throttle to limit the number of concurrent invocations that can be running
-    simultaneously.  The throttle has [continue_on_error = false]. *)
+    simultaneously. The throttle has [continue_on_error = false]. *)
 val monad_sequence_how
   :  how:Monad_sequence.how
   -> on_error:[ `Continue | `Abort of [ `Raise | `Never_return ] ]
@@ -147,9 +145,9 @@ val prior_jobs_done : (_, _) T2.t -> unit Deferred.t
     concurrently. *)
 val max_concurrent_jobs : (_, _) T2.t -> int
 
-(** [num_jobs_running t] returns the number of jobs that [t] is currently running.  It
-    is guaranteed that if [num_jobs_running t < max_concurrent_jobs t] then
-    [num_jobs_waiting_to_start t = 0].  That is, the throttle always uses its maximum
+(** [num_jobs_running t] returns the number of jobs that [t] is currently running. It is
+    guaranteed that if [num_jobs_running t < max_concurrent_jobs t] then
+    [num_jobs_waiting_to_start t = 0]. That is, the throttle always uses its maximum
     concurrency if possible. *)
 val num_jobs_running : (_, _) T2.t -> int
 
@@ -158,12 +156,11 @@ val num_jobs_running : (_, _) T2.t -> int
 val num_jobs_waiting_to_start : (_, _) T2.t -> int
 
 (** [capacity_available t] becomes determined the next time that [t] has fewer than
-    [max_concurrent_jobs t] running, and hence an [enqueue]d job would start
-    immediately. *)
+    [max_concurrent_jobs t] running, and hence an [enqueue]d job would start immediately. *)
 val capacity_available : (_, _) T2.t -> unit Deferred.t
 
 (** [kill t] kills [t], which aborts all enqueued jobs that haven't started and all jobs
-    enqueued in the future.  [kill] also initiates the [at_kill] clean functions.
+    enqueued in the future. [kill] also initiates the [at_kill] clean functions.
 
     If [t] has already been killed, then calling [kill t] has no effect. *)
 val kill : (_, _) T2.t -> unit
@@ -173,9 +170,9 @@ val kill : (_, _) T2.t -> unit
 val is_dead : (_, _) T2.t -> bool
 
 (** [at_kill t clean] runs [clean] on each resource when [t] is killed, either by [kill]
-    or by an unhandled exception.  [clean] is called on each resource as it becomes
+    or by an unhandled exception. [clean] is called on each resource as it becomes
     available, i.e., immediately if the resource isn't currently in use, otherwise when
-    the job currently using the resource finishes.  If a call to [clean] fails, the
+    the job currently using the resource finishes. If a call to [clean] fails, the
     exception is raised to the monitor in effect when [at_kill] was called. *)
 val at_kill : ('a, _) T2.t -> ('a -> unit Deferred.t) -> unit
 
