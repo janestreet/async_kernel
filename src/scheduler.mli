@@ -15,6 +15,13 @@ val t : unit -> t
     acceptable tradeoff. *)
 val t_without_checking_access : unit -> t
 
+(** Like [t_without_checking_access], gets [t] without checking access. However, [t] is
+    encapsulated, and [encapsulated_t_without_checking_access] can be called from any
+    domain. *)
+val encapsulated_t_without_checking_access
+  :  unit
+  -> (t, Capsule.Expert.initial) Capsule.Data.t
+
 include Invariant.S with type t := t
 
 val current_execution_context : t -> Execution_context.t
@@ -74,6 +81,14 @@ val thread_safe_enqueue_external_job
   -> Execution_context.t
   -> ('a -> unit)
   -> 'a
+  -> unit
+
+val portable_enqueue_external_job
+  :  (t, Capsule.Expert.initial) Capsule.Data.t
+  -> (Execution_context.t, Capsule.Expert.initial) Capsule.Data.t
+  -> ( Capsule.Expert.initial Capsule.Expert.Access.t -> unit
+       , Capsule.Expert.initial )
+       Capsule.Data.t
   -> unit
 
 val force_current_cycle_to_end : t -> unit

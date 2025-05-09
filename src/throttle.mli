@@ -163,7 +163,7 @@ val capacity_available : (_, _) T2.t -> unit Deferred.t
     enqueued in the future. [kill] also initiates the [at_kill] clean functions.
 
     If [t] has already been killed, then calling [kill t] has no effect. *)
-val kill : (_, _) T2.t -> unit
+val kill : ?here:Stdlib.Lexing.position -> (_, _) T2.t -> unit
 
 (** [is_dead t] returns [true] if [t] was killed, either by [kill] or by an unhandled
     exception in a job. *)

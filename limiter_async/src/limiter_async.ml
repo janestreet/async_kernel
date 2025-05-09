@@ -26,11 +26,18 @@ module Expert = struct
     ; mutable hopper_filled : unit Ivar.t option
     ; limiter : Limiter.t
     ; throttle_queue : ((int * Job.t) Queue.t[@sexp.opaque])
+    ; time_source : Time_source.t
     }
   [@@deriving sexp_of]
 
   let to_jane_limiter t = t.limiter
-  let cycle_start () = Async_kernel_scheduler.cycle_start_ns ()
+
+  (* This computes the the current time according to the time-source, and is also the way
+     that the async scheduler computes cycle_start. Note that this is different from
+     [Time_souce.now], which, when using the [wall_clock], can return the current actual
+     time (from [Time_ns.now], rather than the lastest time to which the timing_wheel has
+     been updated. *)
+  let timing_wheel_now t = Time_source.timing_wheel_now t.time_source
 
   let create_exn
     ~hopper_to_bucket_rate_per_sec
@@ -39,10 +46,12 @@ module Expert = struct
     ~initial_bucket_level
     ~initial_hopper_level
     ~continue_on_error
+    ?(time_source = Time_source.wall_clock ())
+    ()
     =
     let limiter =
       Limiter.Expert.create_exn
-        ~now:(cycle_start ())
+        ~now:(Time_source.timing_wheel_now time_source)
         ~hopper_to_bucket_rate_per_sec
         ~bucket_limit
         ~in_flight_limit
@@ -50,7 +59,13 @@ module Expert = struct
         ~initial_hopper_level
     in
     let throttle_queue = Queue.create () in
-    { continue_on_error; is_dead = false; hopper_filled = None; limiter; throttle_queue }
+    { continue_on_error
+    ; is_dead = false
+    ; hopper_filled = None
+    ; limiter
+    ; throttle_queue
+    ; time_source
+    }
   ;;
 
   let is_dead t = t.is_dead
@@ -79,7 +94,8 @@ module Expert = struct
       Ivar.read i
   ;;
 
-  let return_to_hopper t ~now amount =
+  let return_to_hopper t amount =
+    let now = timing_wheel_now t in
     (match t.hopper_filled with
      | None -> ()
      | Some i ->
@@ -96,11 +112,11 @@ module Expert = struct
       | Job.Immediate (monitor, f, v) ->
         (try f v with
          | e -> Monitor.send_exn monitor ~backtrace:`Get e);
-        return_to_hopper t ~now:(cycle_start ()) return_after
+        return_to_hopper t return_after
       | Job.Deferred (f, v, i) ->
         Monitor.try_with ~run:`Schedule ~rest:`Log (fun () -> f v)
         >>> fun res ->
-        return_to_hopper t ~now:(cycle_start ()) return_after;
+        return_to_hopper t return_after;
         (match res with
          | Error e ->
            Ivar.fill_if_empty i (Raised e);
@@ -128,7 +144,7 @@ module Expert = struct
     then ()
     else (
       let amount, job = Queue.peek_exn t.throttle_queue in
-      let now = cycle_start () in
+      let now = timing_wheel_now t in
       match Limiter.Expert.try_take t.limiter ~now amount with
       | Asked_for_more_than_bucket_limit ->
         fail_job
@@ -158,9 +174,9 @@ module Expert = struct
            wait_for_hopper_fill t >>> fun () -> run_throttled_jobs_until_empty t
          | At expected_fill_time ->
            let min_fill_time =
-             Time_ns.add (cycle_start ()) (Async_kernel_scheduler.event_precision_ns ())
+             Time_ns.add now (Time_source.alarm_precision t.time_source)
            in
-           Clock_ns.at (Time_ns.max expected_fill_time min_fill_time)
+           Time_source.at t.time_source (Time_ns.max expected_fill_time min_fill_time)
            >>> fun () -> run_throttled_jobs_until_empty t))
   ;;
 
@@ -179,7 +195,7 @@ module Expert = struct
     else if Queue.length t.throttle_queue > 0
     then Queue.enqueue t.throttle_queue (amount, job)
     else (
-      let now = cycle_start () in
+      let now = timing_wheel_now t in
       match Limiter.Expert.try_take t.limiter ~now amount with
       | Asked_for_more_than_bucket_limit ->
         fail_job
@@ -275,6 +291,7 @@ module Token_bucket = struct
     ~continue_on_error
     ?in_flight_limit
     ?(initial_burst_size = 0)
+    ?time_source
     ()
     =
     let in_flight_limit =
@@ -283,12 +300,14 @@ module Token_bucket = struct
       | Some limit -> Finite limit
     in
     Expert.create_exn
+      ?time_source
       ~bucket_limit
       ~in_flight_limit
       ~hopper_to_bucket_rate_per_sec:(Finite fill_rate)
       ~initial_bucket_level:initial_burst_size
       ~initial_hopper_level:Infinite
       ~continue_on_error
+      ()
   ;;
 
   let enqueue_exn = Expert.enqueue_exn
@@ -306,6 +325,7 @@ module Throttle = struct
     ~continue_on_error
     ?burst_size
     ?sustained_rate_per_sec
+    ?time_source
     ()
     =
     if concurrent_jobs_target < 1
@@ -333,6 +353,8 @@ module Throttle = struct
       ~initial_bucket_level
       ~initial_hopper_level:(Finite 0)
       ~continue_on_error
+      ?time_source
+      ()
   ;;
 
   let enqueue_exn t ?allow_immediate_run f v =
@@ -343,10 +365,7 @@ module Throttle = struct
   let jlimiter = Expert.to_jane_limiter
   let concurrent_jobs_target t = jlimiter t |> Limiter.bucket_limit
   let num_jobs_waiting_to_start t = Queue.length t.throttle_queue
-
-  let num_jobs_running t =
-    Limiter.in_flight (jlimiter t) ~now:(Async_kernel_scheduler.cycle_start_ns ())
-  ;;
+  let num_jobs_running t = Limiter.in_flight (jlimiter t) ~now:(timing_wheel_now t)
 
   include Common
 end
@@ -354,12 +373,19 @@ end
 module Sequencer = struct
   include Throttle
 
-  let create ?(continue_on_error = false) ?burst_size ?sustained_rate_per_sec () =
+  let create
+    ?(continue_on_error = false)
+    ?burst_size
+    ?sustained_rate_per_sec
+    ?time_source
+    ()
+    =
     create_exn
       ~concurrent_jobs_target:1
       ~continue_on_error
       ?burst_size
       ?sustained_rate_per_sec
+      ?time_source
       ()
   ;;
 
@@ -373,7 +399,14 @@ module Resource_throttle = struct
     }
   [@@deriving sexp_of]
 
-  let create_exn ~resources ~continue_on_error ?burst_size ?sustained_rate_per_sec () =
+  let create_exn
+    ~resources
+    ~continue_on_error
+    ?burst_size
+    ?sustained_rate_per_sec
+    ?time_source
+    ()
+    =
     let resources = Queue.of_list resources in
     let max_concurrent_jobs = Queue.length resources in
     let throttle =
@@ -382,6 +415,7 @@ module Resource_throttle = struct
         ~continue_on_error
         ?burst_size
         ?sustained_rate_per_sec
+        ?time_source
         ()
     in
     { throttle; resources }

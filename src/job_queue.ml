@@ -152,10 +152,13 @@ let run_job t (scheduler : Scheduler.t) execution_context f a =
 
 let run_external_jobs t (scheduler : Scheduler.t) =
   let external_jobs = scheduler.external_jobs in
-  let[@inline] run_external_job (External_job.T (execution_context, f, a)) =
+  let[@inline] run_external_job job =
+    let%tydi (External_job.T { execution_context; f; a }) =
+      Capsule.Expert.Data.unwrap ~access:Capsule.Expert.initial job
+    in
     run_job t scheduler execution_context f a
   in
-  (Thread_safe_queue.dequeue_until_empty [@inlined hint])
+  (Mpsc_queue.dequeue_until_empty [@inlined hint])
     ~f:run_external_job
     external_jobs [@nontail]
 ;;

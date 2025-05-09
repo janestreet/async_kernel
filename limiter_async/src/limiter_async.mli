@@ -61,6 +61,7 @@ module Token_bucket : sig
     -> ?in_flight_limit:int
          (** default to infinite. This can be used for concurrency control *)
     -> ?initial_burst_size:int (** Defaults to zero *)
+    -> ?time_source:Time_source.t (** Defaults to [Time_source.wall_clock ()] *)
     -> unit
     -> t
 
@@ -112,6 +113,7 @@ module Throttle : sig
     -> continue_on_error:bool
     -> ?burst_size:int
     -> ?sustained_rate_per_sec:float
+    -> ?time_source:Time_source.t (** Defaults to [Time_source.wall_clock ()] *)
     -> unit
     -> t
 
@@ -137,6 +139,7 @@ module Sequencer : sig
     :  ?continue_on_error:bool (** default is [false] *)
     -> ?burst_size:int
     -> ?sustained_rate_per_sec:float
+    -> ?time_source:Time_source.t (** Defaults to [Time_source.wall_clock ()] *)
     -> unit
     -> t
 
@@ -159,6 +162,7 @@ module Resource_throttle : sig
     -> continue_on_error:bool
     -> ?burst_size:int
     -> ?sustained_rate_per_sec:float
+    -> ?time_source:Time_source.t (** Defaults to [Time_source.wall_clock ()] *)
     -> unit
     -> 'a t
 

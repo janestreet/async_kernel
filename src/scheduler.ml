@@ -22,6 +22,28 @@ let with_local key value ~f =
 
 let main_execution_context = (t ()).main_execution_context
 
+module Project : sig
+  val external_jobs
+    :  (t, 'k) Capsule.Data.t
+    -> (External_job.t Mpsc_queue.t, 'k) Capsule.Data.t
+
+  val thread_safe_external_job_hook
+    :  (t, 'k) Capsule.Data.t
+    -> ((unit -> unit) Atomic.t, 'k) Capsule.Data.t
+end = struct
+  (* It it always sound to project out an immutable field of a record within a
+     [Capsule.Data.t] into a [Capsule.Data.t] within the same capsule. Soon this will be
+     supported by the language directly, but in the meantime we have to use magic. *)
+
+  external magic_unwrap_capsule : ('a, 'k) Capsule.Data.t -> 'a = "%identity"
+
+  let external_jobs t = Capsule.Expert.Data.inject (magic_unwrap_capsule t).external_jobs
+
+  let thread_safe_external_job_hook t =
+    Capsule.Expert.Data.inject (magic_unwrap_capsule t).thread_safe_external_job_hook
+  ;;
+end
+
 let can_run_a_job t =
   num_pending_jobs t > 0
   || Bvar.has_any_waiters t.yield
@@ -131,11 +153,33 @@ let max_num_jobs_per_priority_per_cycle t =
   Max_num_jobs_per_priority_per_cycle.raw t.max_num_jobs_per_priority_per_cycle
 ;;
 
-let set_thread_safe_external_job_hook t f = t.thread_safe_external_job_hook <- f
+let set_thread_safe_external_job_hook t f = Atomic.set t.thread_safe_external_job_hook f
 
 let thread_safe_enqueue_external_job t execution_context f a =
-  Thread_safe_queue.enqueue t.external_jobs (External_job.T (execution_context, f, a));
-  t.thread_safe_external_job_hook ()
+  let job =
+    Capsule.Expert.Data.wrap
+      ~access:Capsule.Expert.initial
+      (External_job.T { execution_context; f; a } : External_job.t')
+  in
+  Mpsc_queue.enqueue t.external_jobs job;
+  (Atomic.get t.thread_safe_external_job_hook) ()
+;;
+
+let initial_access =
+  Capsule.Expert.Data.wrap ~access:Capsule.Expert.initial Capsule.Expert.initial
+;;
+
+let portable_enqueue_external_job t execution_context f =
+  let external_jobs = t |> Project.external_jobs |> Capsule.Expert.Data.project in
+  let job = External_job.Encapsulated.create ~execution_context ~f ~a:initial_access in
+  Mpsc_queue.enqueue external_jobs job;
+  let thread_safe_external_job_hook =
+    t
+    |> Project.thread_safe_external_job_hook
+    |> Capsule.Expert.Data.project
+    |> Atomic.get
+  in
+  thread_safe_external_job_hook ()
 ;;
 
 let set_event_added_hook t f = t.event_added_hook <- Some f
@@ -280,7 +324,7 @@ let run_cycles_until_no_jobs_remain () =
 ;;
 
 let make_async_unusable () =
-  let t = !t_ref in
+  let t = t_without_checking_access () in
   t.check_access
   <- Some
        (fun () ->
@@ -290,7 +334,8 @@ let make_async_unusable () =
 let reset_in_forked_process () =
   if debug then Debug.log_string "reset_in_forked_process";
   (* There is no need to empty [main_monitor_hole]. *)
-  Scheduler.(t_ref := create ())
+  let t = create () in
+  Atomic.set t_ref (Capsule.Expert.Data.wrap ~access:Capsule.Expert.initial t)
 ;;
 
 let check_invariants t = t.check_invariants

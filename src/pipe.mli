@@ -771,6 +771,14 @@ val concat : 'a Reader.t list -> 'a Reader.t
     closes the input pipe when the output pipe is closed. *)
 val concat_pipe : 'a Reader.t Reader.t -> 'a Reader.t
 
+(** [join_deferred input] produces a reader that waits for [input] to be determined and
+    then reads the elements from [input].
+
+    The flushing semantics of the resulting reader are not well-behaved: its
+    [upstream_flushed] won't take the upstream reader into account until that's been
+    determined (and linked to) (same for [downstream_flushed] of the upstream reader) *)
+val join_deferred : 'a Reader.t Deferred.t -> 'a Reader.t
+
 (** [fork input] returns a pair of readers and transfers each of the values in [input]
     into both of the returned readers. It closes [input] early if both of the readers are
     closed early.

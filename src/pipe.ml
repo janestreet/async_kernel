@@ -1373,6 +1373,12 @@ let concat inputs =
     Deferred.List.iter ~how:`Sequential inputs ~f:(fun input -> transfer_id input w))
 ;;
 
+let join_deferred input =
+  create_reader_not_close_on_exception (fun writer ->
+    let%bind input in
+    transfer' input writer ~f:return)
+;;
+
 let fork t ~pushback_uses =
   let reader0, writer0 = create () in
   let reader1, writer1 = create () in
