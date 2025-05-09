@@ -155,7 +155,14 @@ end =
   Event
 
 and External_job : sig
-  type t = T : Execution_context.t * ('a -> unit) * 'a -> t
+  type 'a inner =
+    { execution_context : Execution_context.t
+    ; f : 'a -> unit
+    ; a : 'a
+    }
+
+  type t' = T : 'a inner -> t' [@@unboxed]
+  type t : value mod contended portable = (t', Capsule.Expert.initial) Capsule.Data.t
 end =
   External_job
 
@@ -220,8 +227,8 @@ and Scheduler : sig
     ; job_infos_for_cycle : Job_infos_for_cycle.t
     ; mutable total_cycle_time : Time_ns.Span.t
     ; mutable time_source : read_write Time_source.t1
-    ; external_jobs : External_job.t Thread_safe_queue.t
-    ; mutable thread_safe_external_job_hook : unit -> unit
+    ; external_jobs : External_job.t Mpsc_queue.t
+    ; thread_safe_external_job_hook : (unit -> unit) Atomic.t
     ; mutable job_queued_hook : (Priority.t -> unit) option
     ; mutable event_added_hook : (Time_ns.t -> unit) option
     ; mutable yield : (unit, read_write) Bvar.t

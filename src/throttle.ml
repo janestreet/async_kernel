@@ -3,6 +3,19 @@ open! Import
 open! Deferred_std
 module Deferred = Deferred1
 
+type abort_reason =
+  [ `Killed of Source_code_position.t
+  | `Other_job_raised of exn
+  ]
+[@@deriving sexp_of]
+
+type 'a internal_outcome =
+  [ `Ok of 'a
+  | `Aborted of abort_reason
+  | `Raised of exn
+  ]
+[@@deriving sexp_of]
+
 type 'a outcome =
   [ `Ok of 'a
   | `Aborted
@@ -10,65 +23,139 @@ type 'a outcome =
   ]
 [@@deriving sexp_of]
 
-module Internal_job : sig
-  type 'a t [@@deriving sexp_of]
+let abort_reason_to_exn (#abort_reason as reason) =
+  Error.to_exn
+    (match reason with
+     | `Killed killed_from ->
+       Error.create_s
+         [%message
+           "throttle aborted job because it was [kill]ed"
+             (killed_from : Source_code_position.t)]
+     | `Other_job_raised exn ->
+       Error.create_s
+         [%message
+           "throttle aborted job because it was closed by another job raising" (exn : exn)])
+;;
 
-  val create
-    :  rest:[ `Log | `Raise | `Call of exn -> unit ]
-    -> run:[ `Now | `Schedule ]
-    -> ('a -> 'b Deferred.t)
-    -> 'a t * 'b outcome Deferred.t
+let downgrade_outcome (outcome : 'a internal_outcome) : 'a outcome =
+  match outcome with
+  | `Aborted _ -> `Aborted
+  | (`Raised _ | `Ok _) as x -> x
+;;
 
-  (* Every internal job will eventually be either [run] or [abort]ed, but not both. *)
+(** [Job_continuation] tells the throttle what should be done when the job is finished.
 
-  val run : 'a t -> 'a -> [ `Ok | `Raised ] Deferred.t
-  val abort : _ t -> unit
-end = struct
-  type 'a t =
-    { go : 'a -> [ `Ok | `Raised ] Deferred.t
-    ; abort : unit -> unit
+    This is de-functionalized for two reasons:
+    - make it easier to maintain the property that [handle_outcome] doesn't raise
+    - make it easier to keep track of what the memory layout of this stuff is *)
+module Job_continuation = struct
+  type 'b t =
+    | Get_outcome_internal of 'b internal_outcome Ivar.t
+    | Get_outcome of 'b outcome Ivar.t
+    | Get_result_or_raise of Monitor.t * 'b Ivar.t
+    | Delay of 'b t
+  [@@deriving sexp_of]
+
+  let get_result_or_raise ivar =
+    let monitor = Monitor.current () in
+    Get_result_or_raise (monitor, ivar)
+  ;;
+
+  let rec handle_outcome t (outcome : _ internal_outcome) =
+    match t with
+    | Get_outcome_internal ivar -> Ivar.fill_exn ivar outcome
+    | Get_outcome ivar -> Ivar.fill_exn ivar (downgrade_outcome outcome)
+    | Get_result_or_raise (monitor, ivar) ->
+      (match outcome with
+       | `Ok a -> Ivar.fill_exn ivar a
+       | `Aborted (#abort_reason as reason) ->
+         Monitor.send_exn monitor (abort_reason_to_exn reason)
+       | `Raised exn -> Monitor.send_exn monitor exn)
+    | Delay t -> upon (return ()) (fun () -> handle_outcome t outcome)
+  ;;
+end
+
+module Job : sig
+  type ('a, 'b) t = private
+    { work : 'a -> 'b Deferred.t
+    ; run : [ `Now | `Schedule ]
+    ; k : 'b Job_continuation.t
+    ; context : Execution_context.t
     }
   [@@deriving sexp_of]
 
-  let create ~rest ~run work =
-    let outcome = Ivar.create () in
+  val create
+    :  run:[ `Now | `Schedule ]
+    -> ('a -> 'b Deferred.t)
+    -> k:'b Job_continuation.t
+    -> ('a, 'b) t
+
+  (* Every internal job will eventually be either [run] or [abort]ed, but not both. *)
+
+  val run
+    :  ('a, _) t
+    -> rest:[ `Log | `Raise | `Call of exn -> unit ]
+    -> 'a
+    -> [ `Ok | `Raised of exn ] Deferred.t
+
+  (* We take [`Aborted of abort_reason] to avoid needing to reallocate the same value many
+      times. *)
+  val abort : _ t -> [ `Aborted of abort_reason ] -> unit
+end = struct
+  type ('a, 'b) t =
+    { work : 'a -> 'b Deferred.t
+    ; run : [ `Now | `Schedule ]
+    ; k : 'b Job_continuation.t
+    ; context : Execution_context.t
+    }
+  [@@deriving sexp_of]
+
+  let create ~run work ~k =
     (* Preserve the execution context so that we don't accidentally inherit the context of
        wherever [Internal_job.run] gets called from. *)
     let context = Scheduler.(current_execution_context (t ())) in
-    let really_go a =
-      Monitor.try_with ~rest ~run (fun () -> work a)
+    let t = { work; run; context; k } in
+    t
+  ;;
+
+  let run =
+    let really_run t ~rest a =
+      Monitor.try_with ~rest ~run:t.run (fun () -> t.work a)
       |> Eager_deferred0.map ~f:(function
         | Ok b ->
-          Ivar.fill_exn outcome (`Ok b);
+          Job_continuation.handle_outcome t.k (`Ok b);
           `Ok
         | Error exn ->
-          Ivar.fill_exn outcome (`Raised exn);
-          `Raised)
+          let this_outcome = `Raised exn in
+          Job_continuation.handle_outcome t.k this_outcome;
+          this_outcome)
     in
-    let go a =
-      Scheduler.with_execution_context1
-        (Scheduler.t ())
-        context
-        ~f:(fun a ->
-          match run with
-          | `Now -> really_go a
-          | `Schedule ->
-            (* A previous version of [Internal_job] had a number of extra [Deferred.map]
+    fun t ~rest a ->
+      Scheduler.with_execution_context (Scheduler.t ()) t.context ~f:(fun () ->
+        match t.run with
+        | `Now -> really_run t ~rest a
+        | `Schedule ->
+          (* A previous version of [Internal_job] had a number of extra [Deferred.map]
                invocations. Refactoring it to make those unnecessary causes externally
                observable changes in how async jobs get scheduled, which breaks many tests
                and has the potential to break programs that were unintentionally relying
                on the previous ordering. *)
-            let%bind () = return () in
-            really_go a >>| Fn.id >>| Fn.id)
-        a
-    in
-    let abort () = Ivar.fill_exn outcome `Aborted in
-    let t = { go; abort } in
-    t, Ivar.read outcome
+          let%bind () = return () in
+          really_run t ~rest a >>| Fn.id >>| Fn.id)
   ;;
 
-  let run t a = t.go a
-  let abort t = t.abort ()
+  let abort t reason = Job_continuation.handle_outcome t.k (reason :> _ internal_outcome)
+end
+
+module Job_packed = struct
+  type 'a t = Job : ('a, 'b) Job.t -> 'a t [@@unboxed]
+
+  let sexp_of_t sexp_of_a (Job job) =
+    Job.sexp_of_t sexp_of_a (fun _ -> Sexp.Atom "<opaque>") job
+  ;;
+
+  let run (Job job) x = Job.run job x
+  let abort (Job job) reason = Job.abort job reason
 end
 
 type 'a t =
@@ -79,7 +166,7 @@ type 'a t =
        running job. *)
     job_resources_not_in_use : 'a Stack_or_counter.t
   ; (* [jobs_waiting_to_start] is the queue of jobs that haven't yet started. *)
-    jobs_waiting_to_start : 'a Internal_job.t Queue.t
+    jobs_waiting_to_start : 'a Job_packed.t Queue.t
   ; (* [0 <= num_jobs_running <= max_concurrent_jobs]. *)
     mutable num_jobs_running : int
   ; (* [capacity_available] is [Some ivar] if user code has called [capacity_available t]
@@ -89,7 +176,7 @@ type 'a t =
     mutable capacity_available : unit Ivar.t option
   ; (* [is_dead] is Some if [t] was killed due to a job raising an exception or [kill t]
        being called. *)
-    mutable is_dead : [ `Raise | `Never_return ] option
+    mutable is_dead : [ `Aborted of abort_reason | `Never_return ] option
   ; (* [cleans] holds functions that will be called to clean each resource when [t] is
        killed. *)
     mutable cleans : ('a -> unit Deferred.t) list
@@ -186,12 +273,14 @@ let kill_internal t how =
     t.is_dead <- Some how;
     (match how with
      | `Never_return -> ()
-     | `Raise -> Queue.iter t.jobs_waiting_to_start ~f:Internal_job.abort);
+     | `Aborted _ as abort_reason ->
+       Queue.iter t.jobs_waiting_to_start ~f:(fun job ->
+         Job_packed.abort job abort_reason));
     Queue.clear t.jobs_waiting_to_start;
     clean_resources_not_in_use t)
 ;;
 
-let kill t = kill_internal t `Raise
+let kill ~(here : [%call_pos]) t = kill_internal t (`Aborted (`Killed here))
 
 let at_kill t f =
   (* We preserve the execution context so that exceptions raised by [f] go to the monitor
@@ -209,15 +298,16 @@ let rec start_job t =
   let job = Queue.dequeue_exn t.jobs_waiting_to_start in
   t.num_jobs_running <- t.num_jobs_running + 1;
   let job_resource = Stack_or_counter.pop_exn t.job_resources_not_in_use in
-  let run_result = Internal_job.run job job_resource in
+  let run_result = Job_packed.run job ~rest:t.rest job_resource in
   Eager_deferred0.upon run_result (fun res ->
     t.num_jobs_running <- t.num_jobs_running - 1;
     (match res with
      | `Ok -> ()
-     | `Raised ->
+     | `Raised exn ->
        (match t.on_error with
         | `Continue -> ()
-        | `Abort how -> kill_internal t how));
+        | `Abort `Never_return -> kill_internal t `Never_return
+        | `Abort `Raise -> kill_internal t (`Aborted (`Other_job_raised exn))));
     if Option.is_some t.is_dead
     then clean_resource t job_resource
     else (
@@ -300,49 +390,60 @@ let create ~continue_on_error ~max_concurrent_jobs =
   create' ~rest:`Log ~continue_on_error ~max_concurrent_jobs
 ;;
 
-module Job = struct
-  type ('a, 'b) t =
-    { internal_job : 'a Internal_job.t
-    ; result : [ `Ok of 'b | `Aborted | `Raised of exn ] Deferred.t
-    }
+let enqueue_job_or_abort t enqueue job =
+  match t.is_dead with
+  | Some `Never_return -> ()
+  | Some (`Aborted _ as reason) -> Job.abort job reason
+  | None ->
+    enqueue t.jobs_waiting_to_start (Job_packed.Job job);
+    if t.num_jobs_running < t.max_concurrent_jobs then start_job t
+;;
 
-  let result t = t.result
-  let abort t = Internal_job.abort t.internal_job
+let create_and_enqueue_job t enqueue ~run f ~k =
+  let job = Job.create ~run f ~k in
+  enqueue_job_or_abort t enqueue job
+;;
 
-  let create ~rest ~run f =
-    let internal_job, result = Internal_job.create ~rest ~run f in
-    { internal_job; result }
-  ;;
-end
-
-let enqueue_internal t f enqueue ~run =
-  let job = Job.create ~rest:t.rest ~run f in
-  (match t.is_dead with
-   | Some `Never_return -> ()
-   | Some `Raise -> Job.abort job
-   | None ->
-     enqueue t.jobs_waiting_to_start job.internal_job;
-     if t.num_jobs_running < t.max_concurrent_jobs then start_job t);
-  Job.result job
+let enqueue_ivar t enqueue ~run f k =
+  let ivar = Ivar.create () in
+  let k = k ivar in
+  create_and_enqueue_job t enqueue ~run f ~k;
+  Ivar.read ivar
 ;;
 
 let handle_enqueue_result result =
   match result with
   | `Ok a -> a
-  | `Aborted -> raise_s [%message "throttle aborted job"]
+  | `Aborted (#abort_reason as reason) -> raise (abort_reason_to_exn reason)
   | `Raised exn -> raise exn
 ;;
 
-let enqueue' t f = (enqueue_internal [@inlined]) t f Queue.enqueue ~run:`Schedule
-let enqueue t f = enqueue' t f >>| handle_enqueue_result
-
-let enqueue_front' t f =
-  (enqueue_internal [@inlined]) t f Queue.enqueue_front ~run:`Schedule
+let enqueue' t f =
+  enqueue_ivar t Queue.enqueue ~run:`Schedule f (fun ivar -> Get_outcome ivar)
 ;;
 
-let enqueue_front t f = enqueue_front' t f >>| handle_enqueue_result
-let enqueue_eager' t f = (enqueue_internal [@inlined]) t f Queue.enqueue ~run:`Now
-let enqueue_eager t f = enqueue_eager' t f |> Eager_deferred0.map ~f:handle_enqueue_result
+let enqueue t f =
+  enqueue_ivar t Queue.enqueue ~run:`Schedule f (fun ivar ->
+    Delay (Job_continuation.get_result_or_raise ivar))
+;;
+
+let enqueue_front' t f =
+  enqueue_ivar t Queue.enqueue_front ~run:`Schedule f (fun ivar -> Get_outcome ivar)
+;;
+
+let enqueue_front t f =
+  enqueue_ivar t Queue.enqueue_front ~run:`Schedule f (fun ivar ->
+    Delay (Job_continuation.get_result_or_raise ivar))
+;;
+
+let enqueue_eager' t f =
+  enqueue_ivar t Queue.enqueue ~run:`Now f (fun ivar -> Get_outcome ivar)
+;;
+
+let enqueue_eager t f =
+  enqueue_ivar t Queue.enqueue ~run:`Now f (fun ivar -> Get_outcome_internal ivar)
+  |> Eager_deferred0.map ~f:handle_enqueue_result
+;;
 
 let enqueue_exclusive t f =
   let n = t.max_concurrent_jobs in
@@ -358,7 +459,14 @@ let enqueue_exclusive t f =
   for _ = 1 to n - 1 do
     don't_wait_for (enqueue t f_placeholder)
   done;
-  let%map result = enqueue' t (fun _slot -> f ()) in
+  let%map result =
+    enqueue_ivar
+      t
+      Queue.enqueue
+      ~run:`Schedule
+      (fun _slot -> f ())
+      (fun ivar -> Get_outcome_internal ivar)
+  in
   Ivar.fill_exn done_ ();
   handle_enqueue_result result
 ;;

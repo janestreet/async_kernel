@@ -53,6 +53,16 @@ val enqueue_job : Execution_context.t -> ('a -> unit) -> 'a -> unit
     that doesn't hold the Async lock. *)
 val thread_safe_enqueue_job : Execution_context.t -> ('a -> unit) -> 'a -> unit
 
+(** [portable_enqueue_job] is like [enqueue_job], except it is [portable], meaning it can
+    be called from outside the initial capsule. *)
+val portable_enqueue_job
+  :  (Execution_context.t, Capsule.Expert.initial) Capsule.Data.t
+  -> ( Capsule.Expert.initial Capsule.Expert.Access.t -> unit
+       , Capsule.Expert.initial )
+       Capsule.Data.t
+  -> unit
+  @@ portable
+
 (** [preserve_execution_context t f] saves the current execution context and returns a
     function [g] such that [g a] runs [f a] in the saved execution context. [g a] becomes
     determined when [f a] becomes determined. *)

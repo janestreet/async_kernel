@@ -8,6 +8,13 @@ let thread_safe_enqueue_job execution_context f a =
   thread_safe_enqueue_external_job (t_without_checking_access ()) execution_context f a
 ;;
 
+let portable_enqueue_job execution_context f =
+  portable_enqueue_external_job
+    (encapsulated_t_without_checking_access ())
+    execution_context
+    f
+;;
+
 let current_execution_context () = current_execution_context (t ())
 let cycle_count () = cycle_count (t ())
 let cycle_start_ns () = cycle_start (t ())

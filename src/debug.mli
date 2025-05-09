@@ -1,3 +1,5 @@
+@@ portable
+
 (** Internal Async debugging functions. *)
 
 open! Core

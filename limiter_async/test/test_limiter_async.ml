@@ -107,6 +107,70 @@ module%test _ : module type of Limiter = struct
       assert (!num_jobs_run = 1);
       Deferred.unit
     ;;
+
+    (* This tests edge-case behavior that is arguably surprising. The limiter code uses
+       the async start cycle time as its notion of "now", so during a long async cycle, if
+       we deplete the token bucket, we shouldn't be able to immediately run jobs later in
+       the same async cycle even if enough wall clock time has passed to refill the
+       bucket. *)
+    let%expect_test "don't refill tokens in the middle of async cycles" =
+      let delay = 0.01 in
+      let sustained_rate_per_sec =
+        (* We need to be willing to replenish after short periods of time *)
+        10. /. delay
+      in
+      let t =
+        create_exn
+          ~burst_size:1
+          ~sustained_rate_per_sec
+          ~continue_on_error:false
+          ~initial_burst_size:1
+          ()
+      in
+      let num_jobs_run = ref 0 in
+      let job () = incr num_jobs_run in
+      (* Deplete the limiter *)
+      enqueue_exn t ~allow_immediate_run:true 1 job ();
+      assert (!num_jobs_run = 1);
+      (* Block long enough in the same async cycle that we could run another job if we
+         yielded to the scheduler. *)
+      let (_slept : float) = Core_unix.nanosleep delay in
+      enqueue_exn t ~allow_immediate_run:true 1 job ();
+      assert (!num_jobs_run = 1);
+      (* Verify that the job runs when we yield. *)
+      let%bind () = Clock_ns.after (Time_ns.Span.of_sec delay) in
+      assert (!num_jobs_run = 2);
+      Deferred.unit
+    ;;
+
+    let%expect_test "time_source is honored" =
+      let time_source = Time_source.create ~now:Time_ns.epoch () in
+      let t =
+        create_exn
+          ~burst_size:1
+          ~sustained_rate_per_sec:(1. /. 10.)
+          ~continue_on_error:false
+          ~initial_burst_size:1
+          ~time_source:(Time_source.read_only time_source)
+          ()
+      in
+      let num_jobs_run = ref 0 in
+      let job () = incr num_jobs_run in
+      enqueue_exn t ~allow_immediate_run:true 1 job ();
+      enqueue_exn t ~allow_immediate_run:true 1 job ();
+      enqueue_exn t ~allow_immediate_run:true 1 job ();
+      assert (!num_jobs_run = 1);
+      let%bind () =
+        Time_source.advance_by_alarms_by time_source (Time_ns.Span.of_sec 10.)
+      in
+      assert (!num_jobs_run = 2);
+      assert (to_limiter t |> Expert.cost_of_jobs_waiting_to_start = 1);
+      let%bind () =
+        Time_source.advance_by_alarms_by time_source (Time_ns.Span.of_sec 10.)
+      in
+      assert (!num_jobs_run = 3);
+      Deferred.unit
+    ;;
   end
 
   module Throttle = struct

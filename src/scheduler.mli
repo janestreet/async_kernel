@@ -15,6 +15,14 @@ val t : unit -> t
     acceptable tradeoff. *)
 val t_without_checking_access : unit -> t
 
+(** Like [t_without_checking_access], gets [t] without checking access. However, [t] is
+    encapsulated, and [encapsulated_t_without_checking_access] can be called from any
+    domain. *)
+val encapsulated_t_without_checking_access
+  :  unit
+  -> (t, Capsule.Expert.initial) Capsule.Data.t
+  @@ portable
+
 include Invariant.S with type t := t
 
 val current_execution_context : t -> Execution_context.t
@@ -64,7 +72,7 @@ val add_finalizer : t -> 'a Heap_block.t -> ('a Heap_block.t -> unit) -> unit
 val add_finalizer_exn : t -> 'a -> ('a -> unit) -> unit
 val add_finalizer_last : t -> 'a Heap_block.t -> (unit -> unit) -> unit
 val add_finalizer_last_exn : t -> 'a -> (unit -> unit) -> unit
-val set_thread_safe_external_job_hook : t -> (unit -> unit) -> unit
+val set_thread_safe_external_job_hook : t -> (unit -> unit) @ portable -> unit
 val set_job_queued_hook : t -> (Priority.t -> unit) -> unit
 val set_event_added_hook : t -> (Time_ns.t -> unit) -> unit
 val backtrace_of_first_job : t -> Backtrace.t option
@@ -75,6 +83,15 @@ val thread_safe_enqueue_external_job
   -> ('a -> unit)
   -> 'a
   -> unit
+
+val portable_enqueue_external_job
+  :  (t, Capsule.Expert.initial) Capsule.Data.t
+  -> (Execution_context.t, Capsule.Expert.initial) Capsule.Data.t
+  -> ( Capsule.Expert.initial Capsule.Expert.Access.t -> unit
+       , Capsule.Expert.initial )
+       Capsule.Data.t
+  -> unit
+  @@ portable
 
 val force_current_cycle_to_end : t -> unit
 

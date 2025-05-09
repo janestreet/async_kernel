@@ -66,7 +66,7 @@ let id t = t.id
 
 module Id = Synchronous_time_source0.Id
 
-let now t =
+let[@zero_alloc] now t =
   if t.is_wall_clock
   then
     (* For the wall-clock time-source, we use [Time_ns.now ()] rather than

@@ -11,7 +11,7 @@ type 'a ivar = 'a t
 
 include Invariant.S1 with type 'a t := 'a t
 
-val create : unit -> _ t
+val create : unit -> _ t @@ portable
 val create_full : 'a -> 'a t
 val create_with_cell : ('a, Cell.any) Cell.t -> 'a t
 val peek : 'a t -> 'a option
