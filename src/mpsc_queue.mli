@@ -10,6 +10,8 @@ type 'a t
     sharing. *)
 val create_alone : unit -> 'a t
 
+val is_empty : 'a. 'a t -> bool
+
 (** [enqueue t x] atomically pushes [x] to the front of the queue [t]. *)
 val enqueue : 'a t -> 'a -> unit
 

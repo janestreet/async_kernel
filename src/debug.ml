@@ -8,7 +8,7 @@ include Async_kernel_config.Print_debug_messages_for
    and returns a dummy sexp otherwise *)
 let task_id =
   let async_kernel_config_task_id =
-    Capsule.Expert.Data.wrap ~access:Capsule.Expert.initial Async_kernel_config.task_id
+    Capsule.Initial.Data.wrap Async_kernel_config.task_id
   in
   fun () ->
     Basement.Stdlib_shim.Domain.Safe.DLS.access (fun access ->

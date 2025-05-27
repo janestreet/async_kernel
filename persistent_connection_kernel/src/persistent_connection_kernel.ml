@@ -83,6 +83,7 @@ module Make' (Conn_err : Connection_error) (Conn : Closable) = struct
       { get_address : unit -> ('address, conn_error) Result.t Deferred.t
       ; connect : 'address -> (Conn.t, conn_error) Result.t Deferred.t
       ; retry_delay : unit -> unit Deferred.t
+      ; time_source : Time_source.t
       ; mutable conn : [ `Ok of Conn.t | `Close_started ] Ivar.t
       ; mutable next_connect_result : (Conn.t, Conn_error_or_exception.t) Result.t Ivar.t
       ; event_handler : (Conn.t, conn_error, 'address) Event_handler.t
@@ -228,6 +229,7 @@ module Make' (Conn_err : Connection_error) (Conn : Closable) = struct
         ; connect
         ; next_connect_result = Ivar.create ()
         ; retry_delay
+        ; time_source
         ; conn = Ivar.create ()
         ; close_started = Ivar.create ()
         ; close_finished = Ivar.create ()
@@ -361,6 +363,7 @@ module Make' (Conn_err : Connection_error) (Conn : Closable) = struct
 
     module Expert = struct
       let connection t = Ivar.read t.conn
+      let time_source t = t.time_source
     end
   end
 
@@ -405,6 +408,7 @@ module Make' (Conn_err : Connection_error) (Conn : Closable) = struct
 
   module Expert = struct
     let connection (T t) = Poly.Expert.connection t
+    let time_source (T t) = Poly.Expert.time_source t
   end
 end
 

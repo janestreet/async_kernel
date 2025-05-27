@@ -8,6 +8,7 @@ type 'a t = 'a list Atomic.t
    sharing; the tradeoff here is we use moderately more memory but this is fine since
    there will only ever be one of these per process. *)
 let[@inline] create_alone () = Atomic.make_alone []
+let is_empty (type a) (t : a t) = List.is_empty (Atomic.get t)
 let[@inline] enqueue t x = Atomic.update t ~pure_f:(fun xs -> x :: xs)
 
 let push_front_many (t : 'a t) xs =

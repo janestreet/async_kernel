@@ -18,9 +18,7 @@ val t_without_checking_access : unit -> t
 (** Like [t_without_checking_access], gets [t] without checking access. However, [t] is
     encapsulated, and [encapsulated_t_without_checking_access] can be called from any
     domain. *)
-val encapsulated_t_without_checking_access
-  :  unit
-  -> (t, Capsule.Expert.initial) Capsule.Data.t
+val encapsulated_t_without_checking_access : unit -> t Capsule.Initial.Data.t
 
 include Invariant.S with type t := t
 
@@ -75,6 +73,7 @@ val set_thread_safe_external_job_hook : t -> (unit -> unit) -> unit
 val set_job_queued_hook : t -> (Priority.t -> unit) -> unit
 val set_event_added_hook : t -> (Time_ns.t -> unit) -> unit
 val backtrace_of_first_job : t -> Backtrace.t option
+val has_pending_external_jobs : t -> bool
 
 val thread_safe_enqueue_external_job
   :  t
@@ -84,11 +83,9 @@ val thread_safe_enqueue_external_job
   -> unit
 
 val portable_enqueue_external_job
-  :  (t, Capsule.Expert.initial) Capsule.Data.t
-  -> (Execution_context.t, Capsule.Expert.initial) Capsule.Data.t
-  -> ( Capsule.Expert.initial Capsule.Expert.Access.t -> unit
-       , Capsule.Expert.initial )
-       Capsule.Data.t
+  :  t Capsule.Initial.Data.t
+  -> Execution_context.t Capsule.Initial.Data.t
+  -> (Capsule.Initial.k Capsule.Expert.Access.t -> unit) Capsule.Initial.Data.t
   -> unit
 
 val force_current_cycle_to_end : t -> unit

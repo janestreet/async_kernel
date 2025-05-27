@@ -56,10 +56,8 @@ val thread_safe_enqueue_job : Execution_context.t -> ('a -> unit) -> 'a -> unit
 (** [portable_enqueue_job] is like [enqueue_job], except it is [portable], meaning it can
     be called from outside the initial capsule. *)
 val portable_enqueue_job
-  :  (Execution_context.t, Capsule.Expert.initial) Capsule.Data.t
-  -> ( Capsule.Expert.initial Capsule.Expert.Access.t -> unit
-       , Capsule.Expert.initial )
-       Capsule.Data.t
+  :  Execution_context.t Capsule.Initial.Data.t
+  -> (Capsule.Initial.k Capsule.Expert.Access.t -> unit) Capsule.Initial.Data.t
   -> unit
 
 (** [preserve_execution_context t f] saves the current execution context and returns a

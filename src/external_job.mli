@@ -8,12 +8,12 @@ type 'a inner = 'a Types.External_job.inner =
   }
 
 type t' = Types.External_job.t' = T : 'a inner -> t' [@@unboxed]
-type t = (t', Capsule.Expert.initial) Capsule.Data.t [@@deriving sexp_of]
+type t = t' Capsule.Initial.Data.t [@@deriving sexp_of]
 
 module Encapsulated : sig
   val create
-    :  execution_context:(Execution_context.t, Capsule.Expert.initial) Capsule.Data.t
-    -> f:('a -> unit, Capsule.Expert.initial) Capsule.Data.t
-    -> a:('a, Capsule.Expert.initial) Capsule.Data.t
+    :  execution_context:Execution_context.t Capsule.Initial.Data.t
+    -> f:('a -> unit) Capsule.Initial.Data.t
+    -> a:'a Capsule.Initial.Data.t
     -> t
 end

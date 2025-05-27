@@ -162,7 +162,7 @@ and External_job : sig
     }
 
   type t' = T : 'a inner -> t' [@@unboxed]
-  type t = (t', Capsule.Expert.initial) Capsule.Data.t
+  type t = t' Capsule.Initial.Data.t
 end =
   External_job
 
@@ -236,6 +236,7 @@ and Scheduler : sig
     ; mutable check_invariants : bool
     ; mutable max_num_jobs_per_priority_per_cycle : Max_num_jobs_per_priority_per_cycle.t
     ; mutable record_backtraces : bool
+    ; mutable reset_in_forked_process : bool
     }
 end =
   Scheduler
