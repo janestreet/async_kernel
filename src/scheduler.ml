@@ -154,20 +154,18 @@ let max_num_jobs_per_priority_per_cycle t =
 ;;
 
 let set_thread_safe_external_job_hook t f = Atomic.set t.thread_safe_external_job_hook f
+let has_pending_external_jobs t = not (Mpsc_queue.is_empty t.external_jobs)
 
 let thread_safe_enqueue_external_job t execution_context f a =
   let job =
-    Capsule.Expert.Data.wrap
-      ~access:Capsule.Expert.initial
+    Capsule.Initial.Data.wrap
       (External_job.T { execution_context; f; a } : External_job.t')
   in
   Mpsc_queue.enqueue t.external_jobs job;
   (Atomic.get t.thread_safe_external_job_hook) ()
 ;;
 
-let initial_access =
-  Capsule.Expert.Data.wrap ~access:Capsule.Expert.initial Capsule.Expert.initial
-;;
+let initial_access = Capsule.Initial.Data.wrap Capsule.Expert.initial
 
 let portable_enqueue_external_job t execution_context f =
   let external_jobs = t |> Project.external_jobs |> Capsule.Expert.Data.project in
@@ -188,7 +186,8 @@ let set_job_queued_hook t f = t.job_queued_hook <- Some f
 let create_alarm t f =
   let execution_context = current_execution_context t in
   Gc.Expert.Alarm.create (fun () ->
-    thread_safe_enqueue_external_job t execution_context f ())
+    if not t.reset_in_forked_process
+    then thread_safe_enqueue_external_job t execution_context f ())
 ;;
 
 let add_finalizer t heap_block f =
@@ -207,8 +206,10 @@ let add_finalizer t heap_block f =
        finalizer to run again.  Also, OCaml does not impose any requirement on finalizer
        functions that they need to dispose of the block, so it's fine that we keep
        [heap_block] around until later. *)
-    if Debug.finalizers then Debug.log_string "enqueueing finalizer";
-    thread_safe_enqueue_external_job t execution_context f heap_block
+    if not t.reset_in_forked_process
+    then (
+      if Debug.finalizers then Debug.log_string "enqueueing finalizer";
+      thread_safe_enqueue_external_job t execution_context f heap_block)
   in
   if Debug.finalizers then Debug.log_string "adding finalizer";
   let finalizer =
@@ -233,9 +234,11 @@ let add_finalizer_last t heap_block f =
   let finalizer () =
     (* Here we can be in any thread, and may not be holding the async lock.  So, we can
        only do thread-safe things. *)
-    if Debug.finalizers
-    then Debug.log_string "enqueueing finalizer (using 'last' semantic)";
-    thread_safe_enqueue_external_job t execution_context f ()
+    if not t.reset_in_forked_process
+    then (
+      if Debug.finalizers
+      then Debug.log_string "enqueueing finalizer (using 'last' semantic)";
+      thread_safe_enqueue_external_job t execution_context f ())
   in
   if Debug.finalizers then Debug.log_string "adding finalizer (using 'last' semantic)";
   (* We use [Caml.Gc.finalise_last] instead of [Core.Gc.add_finalizer_last] because
@@ -332,10 +335,11 @@ let make_async_unusable () =
 ;;
 
 let reset_in_forked_process () =
+  (Capsule.Initial.Data.unwrap (Atomic.get t_ref)).reset_in_forked_process <- true;
   if debug then Debug.log_string "reset_in_forked_process";
   (* There is no need to empty [main_monitor_hole]. *)
   let t = create () in
-  Atomic.set t_ref (Capsule.Expert.Data.wrap ~access:Capsule.Expert.initial t)
+  Atomic.set t_ref (Capsule.Initial.Data.wrap t)
 ;;
 
 let check_invariants t = t.check_invariants

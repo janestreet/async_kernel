@@ -13,6 +13,8 @@ type 'a t : value mod contended portable
     sharing. *)
 val create_alone : unit -> 'a t
 
+val is_empty : ('a : value mod contended portable). 'a t -> bool
+
 (** [enqueue t x] atomically pushes [x] to the front of the queue [t]. *)
 val enqueue : 'a t @ contended -> 'a @ portable -> unit
 

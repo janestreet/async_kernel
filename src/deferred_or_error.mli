@@ -62,7 +62,8 @@ val combine_errors_unit : unit t list -> unit t
 val filter_ok_at_least_one : 'a t list -> 'a list t
 
 (** [find_map_ok l ~f] returns the first value in [l] for which [f] returns [Ok],
-    otherwise it returns the same error as [combine_errors (Deferred.List.map l ~f)]. *)
+    otherwise it returns the same error as [combine_errors (Deferred.List.map l ~f)].
+    Returns a bespoke error when passed an empty list. *)
 val find_map_ok : 'a list -> f:('a -> 'b t) -> 'b t
 
 (** [ok_unit = return ()] *)

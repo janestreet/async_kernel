@@ -47,7 +47,7 @@ let invariant t : unit =
         (check (fun jobs ->
            for i = 0 to t.length - 1 do
              Execution_context.invariant
-               (Obj.obj (A.get jobs (offset t i)) : Execution_context.t)
+               (Obj.Expert.obj (A.get jobs (offset t i)) : Execution_context.t)
            done))
       ~mask:
         (check (fun mask ->
@@ -154,7 +154,7 @@ let run_external_jobs t (scheduler : Scheduler.t) =
   let external_jobs = scheduler.external_jobs in
   let[@inline] run_external_job job =
     let%tydi (External_job.T { execution_context; f; a }) =
-      Capsule.Expert.Data.unwrap ~access:Capsule.Expert.initial job
+      Capsule.Initial.Data.unwrap job
     in
     run_job t scheduler execution_context f a
   in
@@ -173,10 +173,10 @@ let run_jobs (type a) t scheduler =
     while can_run_a_job t do
       let this_job = offset t 0 in
       let execution_context : Execution_context.t =
-        Obj.obj (A.unsafe_get t.jobs this_job)
+        Obj.Expert.obj (A.unsafe_get t.jobs this_job)
       in
-      let f : a -> unit = Obj.obj (A.unsafe_get t.jobs (this_job + 1)) in
-      let a : a = Obj.obj (A.unsafe_get t.jobs (this_job + 2)) in
+      let f : a -> unit = Obj.Expert.obj (A.unsafe_get t.jobs (this_job + 1)) in
+      let a : a = Obj.Expert.obj (A.unsafe_get t.jobs (this_job + 2)) in
       (* We clear out the job right now so that it isn't live at the next minor
          collection.  We tried not doing this and saw significant (15% or so) performance
          hits due to spurious promotion. *)

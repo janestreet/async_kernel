@@ -114,6 +114,7 @@ type t = Scheduler0.t =
   ; mutable check_invariants : bool
   ; mutable max_num_jobs_per_priority_per_cycle : Max_num_jobs_per_priority_per_cycle.t
   ; mutable record_backtraces : bool
+  ; mutable reset_in_forked_process : bool
   }
 [@@deriving fields ~getters ~iterators:iter, sexp_of]
 
@@ -199,6 +200,7 @@ let invariant t : unit =
       ~check_invariants:ignore
       ~max_num_jobs_per_priority_per_cycle:ignore
       ~record_backtraces:ignore
+      ~reset_in_forked_process:ignore
   with
   | exn -> raise_s [%message "Scheduler.invariant failed" (exn : exn) (t : t)]
 ;;
@@ -273,6 +275,7 @@ let create () =
     ; max_num_jobs_per_priority_per_cycle =
         Async_kernel_config.max_num_jobs_per_priority_per_cycle
     ; record_backtraces = Async_kernel_config.record_backtraces
+    ; reset_in_forked_process = false
     }
   and events =
     Timing_wheel.create ~config:Async_kernel_config.timing_wheel_config ~start:now
@@ -302,7 +305,7 @@ let backtrace_of_first_job t =
 
 let t_ref =
   match Result.try_with create with
-  | Ok t -> Atomic.make (Capsule.Expert.Data.wrap ~access:Capsule.Expert.initial t)
+  | Ok t -> Atomic.make (Capsule.Initial.Data.wrap t)
   | Error exn ->
     Debug.log "Async cannot create its raw scheduler" exn [%sexp_of: exn];
     exit 1 |> Nothing.unreachable_code
@@ -326,13 +329,12 @@ end :
 sig
   val encapsulated_t_without_checking_access
     :  unit
-    -> (t, Capsule.Expert.initial) Capsule.Data.t
+    -> t Capsule.Initial.Data.t
     @@ portable
 end)
 
 let t_without_checking_access () =
-  encapsulated_t_without_checking_access ()
-  |> Capsule.Expert.Data.unwrap ~access:Capsule.Expert.initial
+  encapsulated_t_without_checking_access () |> Capsule.Initial.Data.unwrap
 ;;
 
 let t () =

@@ -142,6 +142,9 @@ module type S' = sig
         This makes it more suitable for use in a loop calling [Deferred.choose] or
         similar. *)
     val connection : t -> [ `Close_started | `Ok of conn ] Deferred.t
+
+    (** The time source that the connection uses for retry delays *)
+    val time_source : t -> Time_source.t
   end
 end
 

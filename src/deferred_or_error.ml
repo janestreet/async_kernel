@@ -71,15 +71,18 @@ let filter_ok_at_least_one l =
 ;;
 
 let find_map_ok l ~f =
-  Deferred.repeat_until_finished (l, []) (fun (l, errors) ->
-    match l with
-    | [] ->
-      let errors = Error.of_list (List.rev errors) in
-      Deferred.return (`Finished (Error errors))
-    | hd :: tl ->
-      Deferred.map (f hd) ~f:(function
-        | Error current_error -> `Repeat (tl, current_error :: errors)
-        | Ok result -> `Finished (Ok result)))
+  match l with
+  | [] -> Deferred.return (Or_error.error_string "find_map_ok called on empty list")
+  | l ->
+    Deferred.repeat_until_finished (l, []) (fun (l, errors) ->
+      match l with
+      | [] ->
+        let errors = Error.of_list (List.rev errors) in
+        Deferred.return (`Finished (Error errors))
+      | hd :: tl ->
+        Deferred.map (f hd) ~f:(function
+          | Error current_error -> `Repeat (tl, current_error :: errors)
+          | Ok result -> `Finished (Ok result)))
 ;;
 
 let ok_unit = return ()
