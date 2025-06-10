@@ -21,3 +21,11 @@ module List :
   Monad_sequence.S2_result
   with type ('a, 'e) monad := ('a, 'e) t
   with type 'a t := 'a list
+
+(** [repeat_until_finished initial_state f] works just like
+    {!Deferred.repeat_until_finished} but with the [Deferred.Result] monad. If [f] returns
+    an [Result.Error] the loop terminates and returns. *)
+val repeat_until_finished
+  :  'state
+  -> ('state -> ([ `Repeat of 'state | `Finished of 'result ], 'err) t)
+  -> ('result, 'err) t

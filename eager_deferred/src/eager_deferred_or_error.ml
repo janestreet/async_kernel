@@ -352,8 +352,4 @@ module List =
       ;;
     end)
 
-let rec repeat_until_finished state f =
-  match%bind f state with
-  | `Repeat state -> repeat_until_finished state f
-  | `Finished state -> return state
-;;
+let repeat_until_finished = Deferred_result.repeat_until_finished

@@ -322,7 +322,7 @@ let check_access t =
    check *)
 include (
 struct
-  let encapsulated_t_without_checking_access : _ -> _ @@ portable =
+  let encapsulated_t_without_checking_access : _ -> _ @ portable =
     fun () -> Atomic.get t_ref
   ;;
 end :

@@ -139,8 +139,8 @@ module Queue = struct
   let filter ~how q ~f = with_how ~how ~seq:filter ~general:Deferred.Queue.filter q ~f
 
   let filteri q ~f =
-    filter_mapi_generic q ~f ~of_result:(fun x keep ->
-      exclave_ if keep then Enqueue x else Filtered_out)
+    filter_mapi_generic q ~f ~of_result:(fun x keep -> exclave_
+      if keep then Enqueue x else Filtered_out)
   ;;
 
   let filteri ~how q ~f = with_how ~how ~seq:filteri ~general:Deferred.Queue.filteri q ~f
@@ -149,8 +149,7 @@ module Queue = struct
     filter_mapi_generic
       q
       ~f:(fun _ x -> f x)
-      ~of_result:(fun _ x ->
-        exclave_
+      ~of_result:(fun _ x -> exclave_
         match x with
         | None -> Filtered_out
         | Some x -> Enqueue x)
@@ -161,8 +160,7 @@ module Queue = struct
   ;;
 
   let filter_mapi q ~f =
-    filter_mapi_generic q ~f ~of_result:(fun _ x ->
-      exclave_
+    filter_mapi_generic q ~f ~of_result:(fun _ x -> exclave_
       match x with
       | None -> Filtered_out
       | Some x -> Enqueue x)
@@ -203,8 +201,8 @@ module Queue = struct
     iter_result
       q
       ~f
-      ~consider:(fun i keep ->
-        exclave_ if keep then Finish (Some (i, Queue.get q i)) else Continue)
+      ~consider:(fun i keep -> exclave_
+        if keep then Finish (Some (i, Queue.get q i)) else Continue)
       ~finish:(fun () -> None)
   ;;
 
@@ -216,8 +214,7 @@ module Queue = struct
     iter_result
       q
       ~f
-      ~consider:(fun _ r ->
-        exclave_
+      ~consider:(fun _ r -> exclave_
         match r with
         | None -> Continue
         | Some _ -> Finish r)
