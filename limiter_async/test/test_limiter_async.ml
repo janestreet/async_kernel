@@ -9,6 +9,25 @@ let stabilize () =
   Async_kernel_scheduler.yield_until_no_jobs_remain ~may_return_immediately:true ()
 ;;
 
+(** Start all tests at the same time *)
+let start_time = Time_ns.epoch
+
+(** Create a pair of a read_write time_source and a read time_source. *)
+let create_ts_pair () =
+  let rw = (Time_source.create ~now:start_time () : read_write Time_source.T1.t) in
+  let r = (rw :> read Time_source.T1.t) in
+  rw, r
+;;
+
+let seconds s = Time_ns.Span.of_sec s
+
+let advance ts span =
+  let (_ : unit Deferred.t) = Time_source.advance_by_alarms_by ts span in
+  ()
+;;
+
+let after ts span = Time_source.advance_by_alarms_by ts span
+
 module%test _ : module type of Limiter = struct
   open Limiter
   module Outcome = Outcome
@@ -37,26 +56,34 @@ module%test _ : module type of Limiter = struct
     let to_limiter = to_limiter
 
     let%expect_test "rate limit is honored" =
+      (* Put in 500 events at 1000 jobs per second. It should finish in half a second *)
+      let rw_time_source, time_source = create_ts_pair () in
       let rate_per_second = 1000. in
+      let job_count = rate_per_second /. 2. in
       let t =
         create_exn
           ~burst_size:1
           ~sustained_rate_per_sec:rate_per_second
           ~continue_on_error:false
+          ~time_source
           ()
       in
-      let job_count = rate_per_second /. 2. in
-      let start_time = Time_ns.now () in
-      let min_time = Time_ns.add start_time (Time_ns.Span.of_sec 0.5) in
       let jobs_remaining = ref (Float.to_int job_count) in
       let finished = Ivar.create () in
       for _ = 1 to !jobs_remaining do
         enqueue_exn t 1 (fun () -> fill_if_zero jobs_remaining finished) ()
       done;
-      Ivar.read finished >>| fun () -> assert (Time_ns.( >= ) (Time_ns.now ()) min_time)
+      upon (Ivar.read finished) (fun () ->
+        let finished_at = Time_ns.diff (Time_source.now time_source) start_time in
+        Debug.eprint_s [%message "" (finished_at : Time_ns.Span.t)]);
+      advance rw_time_source (seconds 1.);
+      let%bind () = Ivar.read finished in
+      let%map () = Scheduler.yield_until_no_jobs_remain () in
+      [%expect {| (finished_at 500ms) |}]
     ;;
 
     let%expect_test "burst rate is honored" =
+      let rw_time_source, time_source = create_ts_pair () in
       let rate_per_second = 1000. in
       let burst_size = 100 in
       let t =
@@ -65,6 +92,7 @@ module%test _ : module type of Limiter = struct
           ~sustained_rate_per_sec:rate_per_second
           ~continue_on_error:false
           ~initial_burst_size:burst_size
+          ~time_source
           ()
       in
       let job_count = ref (burst_size * 2) in
@@ -79,8 +107,7 @@ module%test _ : module type of Limiter = struct
             incr current_job_count;
             if !current_job_count = burst_size then hit_burst_rate := true;
             assert (!current_job_count <= burst_size);
-            Deferred.unit
-            >>| fun () ->
+            let%map () = Deferred.unit in
             decr current_job_count;
             fill_if_zero job_count finished)
           ()
@@ -88,16 +115,20 @@ module%test _ : module type of Limiter = struct
         | Ok () -> ()
         | Aborted | Raised _ -> assert false
       done;
-      Ivar.read finished >>| fun () -> assert !hit_burst_rate
+      advance rw_time_source (seconds (Float.of_int burst_size /. rate_per_second));
+      let%map () = Ivar.read finished in
+      assert !hit_burst_rate
     ;;
 
     let%expect_test "allow_immediate_run is honored" =
+      let _rw_time_source, time_source = create_ts_pair () in
       let t =
         create_exn
           ~burst_size:1
           ~sustained_rate_per_sec:(1. /. 100.)
           ~continue_on_error:false
           ~initial_burst_size:1
+          ~time_source
           ()
       in
       let num_jobs_run = ref 0 in
@@ -112,7 +143,11 @@ module%test _ : module type of Limiter = struct
        the async start cycle time as its notion of "now", so during a long async cycle, if
        we deplete the token bucket, we shouldn't be able to immediately run jobs later in
        the same async cycle even if enough wall clock time has passed to refill the
-       bucket. *)
+       bucket. 
+
+       NOTE: This as a potentially non-deterministic test, which uses the real async clock
+       and all.  We haven't made it deterministic because it relies very specifically on
+       real-time behavior.  *)
     let%expect_test "don't refill tokens in the middle of async cycles" =
       let delay = 0.01 in
       let sustained_rate_per_sec =
@@ -144,14 +179,14 @@ module%test _ : module type of Limiter = struct
     ;;
 
     let%expect_test "time_source is honored" =
-      let time_source = Time_source.create ~now:Time_ns.epoch () in
+      let rw_time_source, time_source = create_ts_pair () in
       let t =
         create_exn
           ~burst_size:1
           ~sustained_rate_per_sec:(1. /. 10.)
           ~continue_on_error:false
           ~initial_burst_size:1
-          ~time_source:(Time_source.read_only time_source)
+          ~time_source
           ()
       in
       let num_jobs_run = ref 0 in
@@ -160,14 +195,10 @@ module%test _ : module type of Limiter = struct
       enqueue_exn t ~allow_immediate_run:true 1 job ();
       enqueue_exn t ~allow_immediate_run:true 1 job ();
       assert (!num_jobs_run = 1);
-      let%bind () =
-        Time_source.advance_by_alarms_by time_source (Time_ns.Span.of_sec 10.)
-      in
+      let%bind () = after rw_time_source (seconds 10.) in
       assert (!num_jobs_run = 2);
       assert (to_limiter t |> Expert.cost_of_jobs_waiting_to_start = 1);
-      let%bind () =
-        Time_source.advance_by_alarms_by time_source (Time_ns.Span.of_sec 10.)
-      in
+      let%bind () = after rw_time_source (seconds 10.) in
       assert (!num_jobs_run = 3);
       Deferred.unit
     ;;
@@ -189,6 +220,19 @@ module%test _ : module type of Limiter = struct
     let is_dead = is_dead
     let to_limiter = to_limiter
 
+    (** Verifies that a limiter respects its concurrent_jobs_target. Returns a deferred
+        which is determined once the test work is complete. If the invariant fails, then
+        an exception is raised.
+
+        The approach is:
+
+        1. Enqueuing many jobs (default: 3x the max_concurrent_jobs)
+        2. Each job increments a counter when it starts and decrements when it finishes
+        3. Tracking the maximum number of jobs that were running simultaneously
+        4. Asserting this max never exceeded max_concurrent_jobs
+
+        The optional jobs_finished parameter tracks how many jobs completed (used by some
+        tests to check intermediate states). *)
     let assert_concurrent_jobs_target_honored
       (t : t)
       ?jobs_finished
@@ -205,7 +249,8 @@ module%test _ : module type of Limiter = struct
           (fun () ->
             incr num_running;
             max_running_concurrently := Int.max !max_running_concurrently !num_running;
-            Deferred.unit >>| fun () -> decr num_running)
+            let%map () = Deferred.unit in
+            decr num_running)
           ()
         >>> function
         | Ok () ->
@@ -214,8 +259,7 @@ module%test _ : module type of Limiter = struct
         | Aborted -> assert false
         | Raised e -> raise e
       done;
-      Ivar.read finished
-      >>| fun () ->
+      let%map () = Ivar.read finished in
       if !max_running_concurrently <> max_concurrent_jobs
       then
         failwithf
@@ -226,12 +270,16 @@ module%test _ : module type of Limiter = struct
     ;;
 
     let%expect_test "concurrent_jobs_target is honored" =
+      let _rw_time_source, time_source = create_ts_pair () in
       let concurrent_jobs_target = 100 in
-      let t = create_exn ~concurrent_jobs_target ~continue_on_error:false () in
+      let t =
+        create_exn ~concurrent_jobs_target ~continue_on_error:false ~time_source ()
+      in
       assert_concurrent_jobs_target_honored t concurrent_jobs_target
     ;;
 
     let%expect_test "burst_size is honored when smaller than concurrent_jobs_target" =
+      let rw_time_source, time_source = create_ts_pair () in
       let burst_size = 10 in
       let t =
         create_exn
@@ -239,13 +287,17 @@ module%test _ : module type of Limiter = struct
           ~burst_size
           ~sustained_rate_per_sec:1_000_000.
           ~continue_on_error:false
+          ~time_source
           ()
       in
-      Clock_ns.after (Time_ns.Span.of_sec 0.1)
-      >>= fun () -> assert_concurrent_jobs_target_honored t burst_size
+      let%bind () = after rw_time_source (seconds 0.1) in
+      let assert_finished = assert_concurrent_jobs_target_honored t burst_size in
+      advance rw_time_source (seconds 0.001);
+      assert_finished
     ;;
 
     let%expect_test "burst_size is honored when bigger than concurrent_jobs_target" =
+      let rw_time_source, time_source = create_ts_pair () in
       let concurrent_jobs_target = 2 in
       let burst_size = 10 in
       let t =
@@ -254,24 +306,26 @@ module%test _ : module type of Limiter = struct
           ~burst_size
           ~sustained_rate_per_sec:100.
           ~continue_on_error:false
+          ~time_source
           ()
       in
       (* enough time to generate a burst *)
-      Clock_ns.after (Time_ns.Span.of_sec 0.15)
-      >>= fun () ->
+      let%bind () = after rw_time_source (seconds 0.15) in
       let jobs_finished = ref 0 in
-      let assert_job =
+      let assert_finished =
         assert_concurrent_jobs_target_honored
           t
           concurrent_jobs_target
           ~jobs_finished
           ~total_jobs:(burst_size * 2)
       in
-      (* before next job could be moved from hopper to bucket *)
-      Clock_ns.after (Time_ns.Span.of_sec 0.000_1)
-      >>= fun () ->
+      (* Allow jobs to run but not long enough to generate new tokens.
+         With 100 tokens/sec, we need < 0.01 seconds to avoid generating a token *)
+      let%bind () = after rw_time_source (seconds 0.000_1) in
       [%test_eq: int] ~message:"finished jobs in a burst" !jobs_finished burst_size;
-      assert_job
+      (* Now advance time enough for remaining jobs to complete *)
+      advance rw_time_source (seconds 0.1);
+      assert_finished
     ;;
 
     (* tests from the previous Throttle implementation *)

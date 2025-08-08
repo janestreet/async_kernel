@@ -12,7 +12,7 @@ module Or_timeout = struct
     [ `Result of 'a
     | `Timeout
     ]
-  [@@deriving compare, sexp_of]
+  [@@deriving compare ~localize, sexp_of]
 end
 
 module type Clock = sig
@@ -130,15 +130,14 @@ module type Clock = sig
     val reschedule_after : ('a, 'h) t -> Time.Span.t -> ('a, 'h) Reschedule_result.t
 
     (** {v
- [at time]    is [run_at    time ignore ()].
+        [at time]    is [run_at    time ignore ()].
         [after time] is [run_after time ignore ()].
 
         You should generally prefer to use the [run_*] functions, which allow you to
         synchronously update state via a user-supplied function when the event
         transitions to [Happened].  That is, there is an important difference between:
 
-        {[
-          let t = run_at time f () ]}
+        {[ let t = run_at time f () ]}
 
         and:
 

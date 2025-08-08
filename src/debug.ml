@@ -1,5 +1,6 @@
 module Time_ns_in_this_directory = Time_ns
 open Core
+module Time_ns = Time_ns_in_this_directory
 
 (* module Time_ns = Time_ns_in_this_directory *)
 include Async_kernel_config.Print_debug_messages_for
@@ -17,15 +18,6 @@ let task_id =
         !(Capsule.Expert.Data.unwrap ~access async_kernel_config_task_id) ()
       | None -> Sexp.Atom "<not initial domain>")
 ;;
-
-include struct
-  module Time_ns = struct
-    include Time_ns_in_this_directory
-
-    let sexp_of_t = Basement.Stdlib_shim.Obj.magic_portable sexp_of_t
-    let now = Basement.Stdlib_shim.Obj.magic_portable now
-  end
-end
 
 let log message a sexp_of_a =
   prerr_endline

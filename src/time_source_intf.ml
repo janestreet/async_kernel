@@ -223,7 +223,11 @@ module type Time_source = sig
 
     val reschedule_at : ('a, 'h) t -> Time_ns.t -> ('a, 'h) Reschedule_result.t
     val reschedule_after : ('a, 'h) t -> Time_ns.Span.t -> ('a, 'h) Reschedule_result.t
+
+    (** You should generally prefer to use the [run_*] functions over [at] and [after], to
+        avoid races; see {!Clock.Event.at} for details. *)
     val at : [> read ] T1.t -> Time_ns.t -> (_, unit) t
+
     val after : [> read ] T1.t -> Time_ns.Span.t -> (_, unit) t
   end
 

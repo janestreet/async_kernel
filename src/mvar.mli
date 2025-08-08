@@ -37,6 +37,10 @@ module Read_only : sig
 end
 
 val create : unit -> 'a Read_write.t
+
+(** [never ()] creates an MVar that's unset and will never be set. *)
+val never : unit -> 'a Read_only.t
+
 val is_empty : (_, _) t -> bool
 
 (** [put t a] waits until [is_empty t], and then does [set t a]. If there are multiple

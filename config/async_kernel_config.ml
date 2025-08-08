@@ -98,7 +98,7 @@ module Debug_tag = struct
       | Thread_pool
       | Thread_safe
       | Writer
-    [@@deriving compare, sexp]
+    [@@deriving compare ~localize, sexp]
 
     let equal = [%compare.equal: t]
   end
@@ -312,7 +312,7 @@ let hardcoded_default =
               the io_uring queue needed to be contiguous in physical memory. When using
               1024 as the queue size, in conditions of fragmented free memory the
               allocation would crash with OOM sometimes. The smaller queue size makes the
-              issue pretty much disappear.
+              issue pretty much disappear. This is thought to be fixed in kernels >= 6.10
            *)
            512)
   ; io_uring_mode = Some Disabled

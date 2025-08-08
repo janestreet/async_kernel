@@ -56,6 +56,8 @@ let create () =
   }
 ;;
 
+let never = create
+
 let take_nonempty t =
   assert (not (is_empty t));
   let r = Moption.get_some_exn t.current_value in

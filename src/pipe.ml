@@ -11,9 +11,7 @@ module Flushed_result = struct
     [ `Ok
     | `Reader_closed
     ]
-  [@@deriving compare, sexp_of]
-
-  let equal = [%compare.equal: t]
+  [@@deriving compare ~localize, equal ~localize, sexp_of]
 
   let combine (l : t list) =
     match List.mem l `Reader_closed ~equal with

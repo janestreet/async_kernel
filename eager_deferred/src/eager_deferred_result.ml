@@ -36,6 +36,12 @@ let fail x = Deferred.return (Error x)
 let failf format = Printf.ksprintf fail format
 let map_error t ~f = Deferred.map t ~f:(fun r -> Result.map_error r ~f)
 
+let rec repeat_until_finished state f =
+  bind (f state) ~f:(function
+    | `Repeat state -> repeat_until_finished state f
+    | `Finished state -> return state)
+;;
+
 module List = struct
   open Let_syntax
 
