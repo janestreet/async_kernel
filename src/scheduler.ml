@@ -25,7 +25,9 @@ let main_execution_context = (t ()).main_execution_context
 module Project : sig
   val external_jobs
     :  (t, 'k) Capsule.Data.t
-    -> (External_job.t Mpsc_queue.t, 'k) Capsule.Data.t
+    -> ( External_job.t Unique.Lockfree_single_consumer_queue.t Modes.Contended.t
+         , 'k )
+         Capsule.Data.t
 
   val thread_safe_external_job_hook
     :  (t, 'k) Capsule.Data.t
@@ -37,7 +39,9 @@ end = struct
 
   external magic_unwrap_capsule : ('a, 'k) Capsule.Data.t -> 'a = "%identity"
 
-  let external_jobs t = Capsule.Expert.Data.inject (magic_unwrap_capsule t).external_jobs
+  let external_jobs t =
+    Capsule.Expert.Data.inject { contended = (magic_unwrap_capsule t).external_jobs }
+  ;;
 
   let thread_safe_external_job_hook t =
     Capsule.Expert.Data.inject (magic_unwrap_capsule t).thread_safe_external_job_hook
@@ -154,23 +158,15 @@ let max_num_jobs_per_priority_per_cycle t =
 ;;
 
 let set_thread_safe_external_job_hook t f = Atomic.set t.thread_safe_external_job_hook f
-let has_pending_external_jobs t = not (Mpsc_queue.is_empty t.external_jobs)
 
-let thread_safe_enqueue_external_job t execution_context f a =
-  let job =
-    Capsule.Initial.Data.wrap
-      (External_job.T { execution_context; f; a } : External_job.t')
-  in
-  Mpsc_queue.enqueue t.external_jobs job;
-  (Atomic.get t.thread_safe_external_job_hook) ()
+let has_pending_external_jobs t =
+  not (Unique.Lockfree_single_consumer_queue.is_empty t.external_jobs)
 ;;
 
-let initial_access = Capsule.Initial.Data.wrap Capsule.Expert.initial
-
-let portable_enqueue_external_job t execution_context f =
+let portable_enqueue_external_job t execution_context f a =
   let external_jobs = t |> Project.external_jobs |> Capsule.Expert.Data.project in
-  let job = External_job.Encapsulated.create ~execution_context ~f ~a:initial_access in
-  Mpsc_queue.enqueue external_jobs job;
+  let job = External_job.Encapsulated.create ~execution_context ~f ~a in
+  Unique.Lockfree_single_consumer_queue.enqueue external_jobs.contended job;
   let thread_safe_external_job_hook =
     t
     |> Project.thread_safe_external_job_hook
@@ -180,6 +176,13 @@ let portable_enqueue_external_job t execution_context f =
   thread_safe_external_job_hook ()
 ;;
 
+let[@inline] thread_safe_enqueue_external_job t execution_context f a =
+  let execution_context = Capsule.Initial.Data.wrap execution_context in
+  let f = Capsule.Expert.(Data.wrap_once ~access:initial) (fun (_, a) -> f a) in
+  let a = Capsule.Expert.(Data.wrap_unique ~access:initial) a in
+  portable_enqueue_external_job (Capsule.Initial.Data.wrap t) execution_context f a
+;;
+
 let set_event_added_hook t f = t.event_added_hook <- Some f
 let set_job_queued_hook t f = t.job_queued_hook <- Some f
 
@@ -187,12 +190,17 @@ let create_alarm t f =
   let execution_context = current_execution_context t in
   Gc.Expert.Alarm.create (fun () ->
     if not t.reset_in_forked_process
-    then thread_safe_enqueue_external_job t execution_context f ())
+    then
+      thread_safe_enqueue_external_job
+        t
+        execution_context
+        (fun { aliased = f } -> f ())
+        { aliased = f })
 ;;
 
 let add_finalizer t heap_block f =
   let execution_context = current_execution_context t in
-  let finalizer heap_block =
+  let finalizer { aliased = heap_block } =
     (* Here we can be in any thread, and may not be holding the async lock.  So, we can
        only do thread-safe things.
 
@@ -209,11 +217,16 @@ let add_finalizer t heap_block f =
     if not t.reset_in_forked_process
     then (
       if Debug.finalizers then Debug.log_string "enqueueing finalizer";
-      thread_safe_enqueue_external_job t execution_context f heap_block)
+      thread_safe_enqueue_external_job
+        t
+        execution_context
+        (fun { aliased } -> f aliased)
+        { aliased = heap_block })
   in
   if Debug.finalizers then Debug.log_string "adding finalizer";
   let finalizer =
-    Core.Gc.Expert.With_leak_protection.protect_finalizer heap_block finalizer
+    Core.Gc.Expert.With_leak_protection.protect_finalizer heap_block (fun heap_block ->
+      finalizer { aliased = heap_block })
   in
   (* We use [Caml.Gc.finalise] instead of [Core.Gc.add_finalizer] because the latter
      has its own wrapper around [Caml.Gc.finalise] to run finalizers synchronously. *)
@@ -238,7 +251,11 @@ let add_finalizer_last t heap_block f =
     then (
       if Debug.finalizers
       then Debug.log_string "enqueueing finalizer (using 'last' semantic)";
-      thread_safe_enqueue_external_job t execution_context f ())
+      thread_safe_enqueue_external_job
+        t
+        execution_context
+        (fun { aliased = f } -> f ())
+        { aliased = f })
   in
   if Debug.finalizers then Debug.log_string "adding finalizer (using 'last' semantic)";
   (* We use [Caml.Gc.finalise_last] instead of [Core.Gc.add_finalizer_last] because

@@ -12,12 +12,18 @@ module Encapsulated = struct
          capsule containing that record's fields. Soon this will be supported by the
          language directly, but in the meantime we have to use magic.
       *)
+      external magic_unwrap_once_capsule : ('a, 'k) Capsule.Data.t -> 'a = "%identity"
       external magic_unwrap_capsule : ('a, 'k) Capsule.Data.t -> 'a = "%identity"
-      external magic_wrap_capsule : 'a -> ('a, 'k) Capsule.Data.t = "%identity"
+      external magic_unwrap_unique_capsule : ('a, 'k) Capsule.Data.t -> 'a = "%identity"
+
+      external magic_wrap_once_unique_capsule
+        :  'a
+        -> ('a, 'k) Capsule.Data.t
+        = "%identity"
     end in
     let execution_context = magic_unwrap_capsule execution_context in
-    let f = magic_unwrap_capsule f in
-    let a = magic_unwrap_capsule a in
-    magic_wrap_capsule (T ({ execution_context; f; a } : _ inner))
+    let f = magic_unwrap_once_capsule f in
+    let a = magic_unwrap_unique_capsule a in
+    magic_wrap_once_unique_capsule (T ({ execution_context; f; a } : _ inner))
   ;;
 end

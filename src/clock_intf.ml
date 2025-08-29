@@ -293,6 +293,9 @@ module type Clock = sig
       deferred, the timing also includes the duration of jobs in the job queue when [f ()]
       is determined. *)
   val duration_of : (unit -> 'a Deferred.t) -> ('a * Time.Span.t) Deferred.t
+
+  (** [duration_of' f] is the synchronous version of [duration_of f] *)
+  val duration_of' : (unit -> 'a) -> 'a * Time.Span.t
 end
 
 (** [Clock_deprecated] is used in [Require_explicit_time_source] to create a clock module
@@ -434,6 +437,9 @@ module type Clock_deprecated = sig
   [@@deprecated "[since 2016-02] Use [Time_source]"]
 
   val duration_of : (unit -> 'a Deferred.t) -> ('a * Time.Span.t) Deferred.t
+  [@@deprecated "[since 2016-02] Use [Time_source]"]
+
+  val duration_of' : (unit -> 'a) -> 'a * Time.Span.t
   [@@deprecated "[since 2016-02] Use [Time_source]"]
 end
 
