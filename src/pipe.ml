@@ -115,6 +115,34 @@ end = struct
   ;;
 end
 
+module Ivar_or_null : sig
+  type 'a t = 'a Ivar.t Or_null.t
+
+  val is_empty_or_null : 'a t -> bool
+  val fill : 'a t -> 'a -> unit
+  val fill_thunk : 'a t -> f:(unit -> 'a) -> unit
+end = struct
+  type 'a t = 'a Ivar.t Or_null.t
+
+  let is_empty_or_null n =
+    match n with
+    | Null -> true
+    | This n -> Ivar.is_empty n
+  ;;
+
+  let fill ivar v =
+    match ivar with
+    | Null -> ()
+    | This ivar -> Ivar.fill_exn ivar v
+  ;;
+
+  let fill_thunk ivar ~f =
+    match ivar with
+    | Null -> ()
+    | This ivar -> Ivar.fill_exn ivar (f ())
+  ;;
+end
+
 module Blocked_read = struct
   (* A [Blocked_read.t] represents a blocked read attempt.  If someone reads from an empty
      pipe, they enqueue a [Blocked_read.t] in the queue of [blocked_reads].  Later, when
@@ -124,8 +152,11 @@ module Blocked_read = struct
 
      If a pipe is closed, then all blocked reads will be filled with [`Eof]. *)
   type 'a wants =
-    | Zero of [ `Eof | `Ok ] Ivar.t
     | One of [ `Eof | `Ok of 'a ] Ivar.t
+    | Peek of
+        { mutable values_available : [ `Eof | `Ok ] Ivar.t Or_null.t
+        ; mutable peek : [ `Eof | `Ok of 'a ] Ivar.t Or_null.t
+        }
     | At_most of int * [ `Eof | `Ok of 'a Queue.t ] Ivar.t
   [@@deriving sexp_of]
 
@@ -141,7 +172,7 @@ module Blocked_read = struct
       Fields.iter
         ~wants:
           (check (function
-            | Zero _ | One _ -> ()
+            | Peek _ | One _ -> ()
             | At_most (i, _) -> assert (i > 0)))
         ~consumer:
           (check (function
@@ -156,14 +187,17 @@ module Blocked_read = struct
 
   let is_empty t =
     match t.wants with
-    | Zero i -> Ivar.is_empty i
+    | Peek { values_available; peek } ->
+      Ivar_or_null.is_empty_or_null values_available && Ivar_or_null.is_empty_or_null peek
     | One i -> Ivar.is_empty i
     | At_most (_, i) -> Ivar.is_empty i
   ;;
 
   let fill_with_eof t =
     match t.wants with
-    | Zero i -> Ivar.fill_exn i `Eof
+    | Peek { values_available; peek } ->
+      Ivar_or_null.fill values_available `Eof;
+      Ivar_or_null.fill peek `Eof
     | One i -> Ivar.fill_exn i `Eof
     | At_most (_, i) -> Ivar.fill_exn i `Eof
   ;;
@@ -531,7 +565,9 @@ let fill_blocked_reads t =
     let blocked_read = Queue.dequeue_exn t.blocked_reads in
     let consumer = blocked_read.consumer in
     match blocked_read.wants with
-    | Zero ivar -> Ivar.fill_exn ivar `Ok
+    | Peek { values_available; peek } ->
+      Ivar_or_null.fill values_available `Ok;
+      Ivar_or_null.fill_thunk peek ~f:(fun () -> `Ok (Queue.peek_exn t.buffer))
     | One ivar -> Ivar.fill_exn ivar (`Ok (consume_one t consumer))
     | At_most (max_queue_length, ivar) ->
       Ivar.fill_exn ivar (`Ok (consume t ~max_queue_length consumer))
@@ -695,14 +731,57 @@ let values_available t =
   then return `Eof
   else (
     match Queue.last t.blocked_reads with
-    | Some { consumer = None; wants = Zero ivar } ->
+    | Some ({ consumer = None; wants = Peek (_ as v) } : _ Blocked_read.t) ->
       (* This case is an optimization for multiple calls to [values_available] in
          sequence.  It causes them to all share the same ivar, rather than allocate
          an ivar per call. *)
-      Ivar.read ivar
+      Ivar.read
+        (match v.values_available with
+         | This ivar -> ivar
+         | Null ->
+           let ivar = Ivar.create () in
+           v.values_available <- This ivar;
+           ivar)
     | _ ->
       Deferred.create (fun ivar ->
-        Queue.enqueue t.blocked_reads (Blocked_read.(create (Zero ivar)) None)))
+        Queue.enqueue
+          t.blocked_reads
+          (Blocked_read.(create (Peek { values_available = This ivar; peek = Null }))
+             None)))
+;;
+
+let peek' t =
+  start_read t "peek'";
+  if not (is_empty t)
+  then return (`Ok (Queue.peek_exn t.buffer))
+  else if is_closed t
+  then return `Eof
+  else (
+    match Queue.last t.blocked_reads with
+    | Some ({ consumer = None; wants = Peek (_ as v) } : _ Blocked_read.t) ->
+      (* This case is an optimization for multiple calls to [peek'] in
+         sequence.  It causes them to all share the same ivar, rather than allocate
+         an ivar per call. *)
+      Ivar.read
+        (match v.peek with
+         | This ivar -> ivar
+         | Null ->
+           let ivar = Ivar.create () in
+           v.peek <- This ivar;
+           ivar)
+    | _ ->
+      Deferred.create (fun ivar ->
+        Queue.enqueue
+          t.blocked_reads
+          (Blocked_read.(create (Peek { peek = This ivar; values_available = Null }))
+             None)))
+;;
+
+let read_if ?consumer t ~cond =
+  match%map peek' t with
+  | `Eof -> `Eof
+  | `Ok x when cond x -> `True (read_now_exn ?consumer t)
+  | `Ok _ -> `False
 ;;
 
 let read_choice t = choice (values_available t) (fun (_ : [ `Ok | `Eof ]) -> read_now t)
@@ -901,6 +980,15 @@ let iter ?continue_on_error ?flushed t ~f =
     with_error_to_current_monitor ?continue_on_error f a >>> fun () -> loop ())
 ;;
 
+let iter_while t ~cond ~f =
+  Deferred.repeat_until_finished () (fun () ->
+    match%bind read_if t ~cond with
+    | `Eof | `False -> return (`Finished ())
+    | `True x ->
+      let%bind () = f x in
+      return (`Repeat ()))
+;;
+
 (* [iter_without_pushback] is a common case, so we implement it in an optimized manner,
    rather than via [iter].  The implementation reads only one element at a time, so that
    if [f] closes [t] or raises, no more elements will be read. *)
@@ -955,10 +1043,7 @@ let iter_without_pushback
 let drain t = iter' t ~f:(fun _ -> return ())
 let drain_and_count t = fold' t ~init:0 ~f:(fun sum q -> return (sum + Queue.length q))
 
-let iter_parallel ?(continue_on_error = false) ?(rest = `Raise) t ~max_concurrent_jobs ~f =
-  if max_concurrent_jobs <= 0
-  then
-    raise_s [%message "max_concurrent_jobs must be positive" (max_concurrent_jobs : int)];
+let iter_parallel_with_throttle t throttle ~f =
   let active_jobs = Bag.create () in
   let wait_for_all_currently_active_jobs () =
     Bag.to_list active_jobs |> Deferred.all |> Deferred.ignore_m
@@ -968,7 +1053,6 @@ let iter_parallel ?(continue_on_error = false) ?(rest = `Raise) t ~max_concurren
       let%map () = wait_for_all_currently_active_jobs () in
       `Ok)
   in
-  let throttle = Throttle.create' ~rest ~continue_on_error ~max_concurrent_jobs in
   let f () a loop =
     let complete = Throttle.enqueue' throttle (fun () -> f a) in
     let elt = Bag.add active_jobs complete in
@@ -992,6 +1076,14 @@ let iter_parallel ?(continue_on_error = false) ?(rest = `Raise) t ~max_concurren
   in
   (* By this point all remaining jobs must be in the [active_jobs] bag. *)
   wait_for_all_currently_active_jobs ()
+;;
+
+let iter_parallel ?(continue_on_error = false) ?(rest = `Raise) t ~max_concurrent_jobs ~f =
+  if max_concurrent_jobs <= 0
+  then
+    raise_s [%message "max_concurrent_jobs must be positive" (max_concurrent_jobs : int)];
+  let throttle = Throttle.create' ~rest ~continue_on_error ~max_concurrent_jobs in
+  iter_parallel_with_throttle t throttle ~f
 ;;
 
 let read_all input =

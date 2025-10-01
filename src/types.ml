@@ -157,7 +157,7 @@ end =
 and External_job : sig
   type 'a inner =
     { execution_context : Execution_context.t
-    ; f : Capsule.Initial.k Capsule.Access.t Modes.Aliased.t * 'a -> unit
+    ; f : Capsule.Initial.k Capsule.Access.t * 'a -> unit
     ; a : 'a
     }
 

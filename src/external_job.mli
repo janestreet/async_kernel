@@ -3,7 +3,7 @@ open! Import
 
 type 'a inner = 'a Types.External_job.inner =
   { execution_context : Execution_context.t
-  ; f : Capsule.Initial.k Capsule.Access.t Modes.Aliased.t * 'a -> unit
+  ; f : Capsule.Initial.k Capsule.Access.t * 'a -> unit
   ; a : 'a
   }
 
@@ -13,9 +13,7 @@ type t = t' Capsule.Initial.Data.t [@@deriving sexp_of]
 module Encapsulated : sig
   val create
     :  execution_context:Execution_context.t Capsule.Initial.Data.t
-    -> f:
-         (Capsule.Initial.k Capsule.Access.t Modes.Aliased.t * 'a -> unit)
-           Capsule.Initial.Data.t
+    -> f:(Capsule.Initial.k Capsule.Access.t * 'a -> unit) Capsule.Initial.Data.t
     -> a:'a Capsule.Initial.Data.t
     -> t
 end

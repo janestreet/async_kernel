@@ -186,9 +186,15 @@ end
 
     The following [Pipe] functions automatically link their input and output pipes
     together so that [*_flushed] on upstream pipes will propagate to downstream pipes:
-    [transfer*], [map*], [filter_map*], [filter], [interleave], [concat]. There is {e not}
-    automatic linking with [iter*]; however, user code can customize the behavior of flush
-    functions using {{!Consumer} [Consumer]}. *)
+    [transfer*], [map*], [filter_map*], [filter], [interleave], [concat].
+
+    There is {e not} automatic linking with [iter*] and [fold*], as [Pipe] cannot track
+    what happens with the elements once they've been passed to the function. By default
+    these functions mark elements as flushed as soon as they're read from the pipe and
+    passed to the user's function. User code can customize this using {{!Flushed}
+    [Flushed]}, e.g. by passing [~flushed:When_value_processed] to mark elements as
+    flushed once they've been processed by the callback passed to [iter], or using
+    {{!Consumer} [Consumer]} for more expert control. *)
 
 val upstream_flushed : (_, _) t -> Flushed_result.t Deferred.t
 val downstream_flushed : (_, _) t -> Flushed_result.t Deferred.t
@@ -404,6 +410,15 @@ val read'
     meaning of values being flushed (see the [Consumer] module above). *)
 val read : ?consumer:Consumer.t -> 'a Reader.t -> [ `Eof | `Ok of 'a ] Deferred.t
 
+(** [read_if ~cond pipe] waits for a value [ x ], then if and only if [ cond x ] returns
+    true will drain and return [ x ]. The [consumer] is used to extend the meaning of
+    values being flushed (see the [Consumer] module above). *)
+val read_if
+  :  ?consumer:Consumer.t
+  -> 'a Reader.t
+  -> cond:('a -> bool)
+  -> [ `Eof | `True of 'a | `False ] Deferred.t
+
 (** [read_exn] is like [read], except it raises on [`Eof]. *)
 val read_exn : ?consumer:Consumer.t -> 'a Reader.t -> 'a Deferred.t
 
@@ -447,6 +462,9 @@ val read_now
 val read_now_exn : ?consumer:Consumer.t -> 'a Reader.t -> 'a
 
 val peek : 'a Reader.t -> 'a option
+
+(** [ peek' ] is like [ read ] except it does not remove the returned value from the pipe *)
+val peek' : 'a Reader.t -> [ `Eof | `Ok of 'a ] Deferred.t
 
 (** [clear reader] consumes all of the values currently in [reader], and all blocked
     flushes become determined with [`Ok]. *)
@@ -590,6 +608,18 @@ val iter
   -> f:('a -> unit Deferred.t)
   -> unit Deferred.t
 
+(** [iter_while reader ~cond ~f ] repeatedly applies [f] to elements of [reader] for which
+    [cond] returns [true], until either EOF or an element for which [cond] returns [false]
+    is encountered, waiting for each call to [f] to finish before continuing.
+
+    The deferred returned by [iter'] becomes determined when [reader] outputs a value for
+    which [cond] returns false, or EOF is reached. *)
+val iter_while
+  :  'a Reader.t
+  -> cond:('a -> bool)
+  -> f:('a -> unit Deferred.t)
+  -> unit Deferred.t
+
 (** [iter_without_pushback t ~f] applies [f] to each element in [t], without giving [f] a
     chance to pushback on the iteration continuing. If [f] raises on some element of [t],
     [iter_without_pushback] will not consume any further elements. [iter_without_pushback]
@@ -601,6 +631,17 @@ val iter_without_pushback
   -> ?max_iterations_per_job:int (** default is [Int.max_value] *)
   -> 'a Reader.t
   -> f:('a -> unit)
+  -> unit Deferred.t
+
+(** [iter_parallel_with_throttle] is like [iter_parallel] but allows to pass the throttle
+    explicitly to the iteration function, in case it needs to be shared.
+
+    Beware of possible deadlocks in case the throttle is used recursively. If you have
+    nested parallel iteration, only the leaf computations should be using the throttle. *)
+val iter_parallel_with_throttle
+  :  'a Reader.t
+  -> unit Throttle.t
+  -> f:('a -> unit Deferred.t)
   -> unit Deferred.t
 
 (** [iter_parallel t ~max_concurrent_jobs ~f] applies [f] to each element in [t] in order,

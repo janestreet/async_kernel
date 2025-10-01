@@ -178,8 +178,11 @@ let portable_enqueue_external_job t execution_context f a =
 
 let[@inline] thread_safe_enqueue_external_job t execution_context f a =
   let execution_context = Capsule.Initial.Data.wrap execution_context in
-  let f = Capsule.Expert.(Data.wrap_once ~access:initial) (fun (_, a) -> f a) in
-  let a = Capsule.Expert.(Data.wrap_unique ~access:initial) a in
+  let f =
+    Capsule.Expert.(Data.wrap_once ~access:(Capsule.Access.unbox initial)) (fun (_, a) ->
+      f a)
+  in
+  let a = Capsule.Expert.(Data.wrap_unique ~access:(Capsule.Access.unbox initial)) a in
   portable_enqueue_external_job (Capsule.Initial.Data.wrap t) execution_context f a
 ;;
 

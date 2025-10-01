@@ -227,7 +227,9 @@ let send_exn t ?(backtrace = `Get) exn =
       (* Do not change this branch to print the exception or to exit.  Having the
          scheduler raise an uncaught exception is the necessary behavior for programs
          that call [Scheduler.go] and want to handle it. *)
-      Scheduler.(got_uncaught_exn (t ())) exn (!Async_kernel_config.task_id ())
+      Scheduler.(got_uncaught_exn (t ()))
+        exn
+        ((Atomic.get Async_kernel_config.task_id) ())
   in
   loop t
 ;;

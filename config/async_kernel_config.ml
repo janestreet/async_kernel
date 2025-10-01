@@ -728,4 +728,4 @@ let t =
   }
 ;;
 
-let task_id = ref (fun () -> Sexp.Atom "<no task id>")
+let task_id = Atomic.make (fun () -> Sexp.Atom "<no task id>")

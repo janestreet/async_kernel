@@ -85,8 +85,7 @@ val thread_safe_enqueue_external_job
 val portable_enqueue_external_job
   :  t Capsule.Initial.Data.t
   -> Execution_context.t Capsule.Initial.Data.t
-  -> (Capsule.Initial.k Capsule.Access.t Modes.Aliased.t * 'a -> unit)
-       Capsule.Initial.Data.t
+  -> (Capsule.Initial.k Capsule.Access.t * 'a -> unit) Capsule.Initial.Data.t
   -> 'a Capsule.Initial.Data.t
   -> unit
 
