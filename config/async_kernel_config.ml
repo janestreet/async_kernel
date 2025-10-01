@@ -98,7 +98,7 @@ module Debug_tag = struct
       | Thread_pool
       | Thread_safe
       | Writer
-    [@@deriving compare, sexp]
+    [@@deriving compare ~localize, sexp]
 
     let equal = [%compare.equal: t]
   end
@@ -728,4 +728,4 @@ let t =
   }
 ;;
 
-let task_id = ref (fun () -> Sexp.Atom "<no task id>")
+let task_id = Atomic.make (fun () -> Sexp.Atom "<no task id>")

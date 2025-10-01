@@ -156,9 +156,9 @@ end =
 
 and External_job : sig
   type 'a inner =
-    { execution_context : Execution_context.t
-    ; f : 'a -> unit
-    ; a : 'a
+    { execution_context : Execution_context.t @@ aliased many
+    ; f : #(Capsule.Initial.k Capsule.Access.t * 'a) @ unique -> unit
+    ; a : 'a @@ many
     }
 
   type t' = T : 'a inner -> t' [@@unboxed]
@@ -227,7 +227,7 @@ and Scheduler : sig
     ; job_infos_for_cycle : Job_infos_for_cycle.t
     ; mutable total_cycle_time : Time_ns.Span.t
     ; mutable time_source : read_write Time_source.t1
-    ; external_jobs : External_job.t Mpsc_queue.t
+    ; external_jobs : External_job.t Unique.Lockfree_single_consumer_queue.t
     ; thread_safe_external_job_hook : (unit -> unit) Atomic.t
     ; mutable job_queued_hook : (Priority.t -> unit) option
     ; mutable event_added_hook : (Time_ns.t -> unit) option

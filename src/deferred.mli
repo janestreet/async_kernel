@@ -18,7 +18,7 @@ include Invariant.S1 with type 'a t := 'a t
 
 (** [create f] calls [f i], where [i] is an empty ivar. [create] returns a deferred that
     becomes determined when [f] fills [i]. *)
-val create : ('a Ivar.t -> unit) -> 'a t
+val create : ('a Ivar.t -> unit) @ once -> 'a t
 
 (** [upon t f] will run [f v] at some point after [t] becomes determined with value [v]. *)
 val upon : 'a t -> ('a -> unit) -> unit

@@ -34,7 +34,7 @@ module type Closable = sig
 end
 
 module type Connection_error = sig
-  type t [@@deriving equal, sexp_of]
+  type t [@@deriving equal ~localize, sexp_of]
 
   (** Used to convert uncaught exceptions raised in [connect] to a [t] *)
   val of_exception_error : Error.t -> t

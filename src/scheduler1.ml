@@ -101,7 +101,7 @@ type t = Scheduler0.t =
 
          When running a cycle, we pull external actions at every job and perform them
          immediately. *)
-  ; external_jobs : External_job.t Mpsc_queue.t
+  ; external_jobs : (External_job.t Unique.Lockfree_single_consumer_queue.t[@sexp.opaque])
   ; thread_safe_external_job_hook : (unit -> unit) Atomic.t
   ; (* [job_queued_hook] and [event_added_hook] aim to be used by js_of_ocaml. *)
     (* We use [_ option] here because those hooks will not be set in the common case and
@@ -207,7 +207,7 @@ let invariant t : unit =
 
 let free_job t job = Pool.free t.job_pool job
 
-let enqueue t (execution_context : Execution_context.t) f a =
+let enqueue t (execution_context : Execution_context.t) (f @ once) a =
   (* If there's been an uncaught exn, we don't add the job, since we don't want any jobs
      to run once there's been an uncaught exn. *)
   if is_none t.uncaught_exn
@@ -265,7 +265,7 @@ let create () =
     ; job_infos_for_cycle = Job_infos_for_cycle.create ()
     ; total_cycle_time = sec 0.
     ; time_source
-    ; external_jobs = Mpsc_queue.create_alone ()
+    ; external_jobs = Unique.Lockfree_single_consumer_queue.create ()
     ; thread_safe_external_job_hook = Atomic.make ignore
     ; job_queued_hook = None
     ; event_added_hook = None

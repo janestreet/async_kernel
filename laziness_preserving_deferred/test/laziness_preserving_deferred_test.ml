@@ -1,1 +1,0 @@
-module Test_laziness_preserving_deferred = Test_laziness_preserving_deferred

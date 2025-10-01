@@ -12,7 +12,7 @@ module Or_timeout = struct
     [ `Result of 'a
     | `Timeout
     ]
-  [@@deriving compare, sexp_of]
+  [@@deriving compare ~localize, sexp_of]
 end
 
 module type Clock = sig
@@ -130,15 +130,14 @@ module type Clock = sig
     val reschedule_after : ('a, 'h) t -> Time.Span.t -> ('a, 'h) Reschedule_result.t
 
     (** {v
- [at time]    is [run_at    time ignore ()].
+        [at time]    is [run_at    time ignore ()].
         [after time] is [run_after time ignore ()].
 
         You should generally prefer to use the [run_*] functions, which allow you to
         synchronously update state via a user-supplied function when the event
         transitions to [Happened].  That is, there is an important difference between:
 
-        {[
-          let t = run_at time f () ]}
+        {[ let t = run_at time f () ]}
 
         and:
 
@@ -294,6 +293,9 @@ module type Clock = sig
       deferred, the timing also includes the duration of jobs in the job queue when [f ()]
       is determined. *)
   val duration_of : (unit -> 'a Deferred.t) -> ('a * Time.Span.t) Deferred.t
+
+  (** [duration_of' f] is the synchronous version of [duration_of f] *)
+  val duration_of' : (unit -> 'a) -> 'a * Time.Span.t
 end
 
 (** [Clock_deprecated] is used in [Require_explicit_time_source] to create a clock module
@@ -435,6 +437,9 @@ module type Clock_deprecated = sig
   [@@deprecated "[since 2016-02] Use [Time_source]"]
 
   val duration_of : (unit -> 'a Deferred.t) -> ('a * Time.Span.t) Deferred.t
+  [@@deprecated "[since 2016-02] Use [Time_source]"]
+
+  val duration_of' : (unit -> 'a) -> 'a * Time.Span.t
   [@@deprecated "[since 2016-02] Use [Time_source]"]
 end
 

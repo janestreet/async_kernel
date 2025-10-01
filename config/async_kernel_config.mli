@@ -177,4 +177,4 @@ val default_timing_wheel_config_for_word_size : Word_size.t -> Timing_wheel.Conf
 
 (** [!task_id] is used in debug messages. It is is set in [Async_unix] to include the
     thread and pid. *)
-val task_id : (unit -> Sexp.t) ref
+val task_id : (unit -> Sexp.t) Atomic.t

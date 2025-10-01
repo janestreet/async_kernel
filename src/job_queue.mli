@@ -9,7 +9,7 @@ type t = Types.Job_queue.t [@@deriving sexp_of]
 include Invariant.S with type t := t
 
 val create : unit -> t
-val enqueue : t -> Execution_context.t -> ('a -> unit) -> 'a -> unit
+val enqueue : t -> Execution_context.t -> ('a -> unit) @ once -> 'a -> unit
 val clear : t -> unit
 val set_jobs_left_this_cycle : t -> int -> unit
 val can_run_a_job : t -> bool

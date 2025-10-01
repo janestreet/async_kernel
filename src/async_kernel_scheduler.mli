@@ -43,7 +43,7 @@ val find_local : 'a Univ_map.Key.t -> 'a option
 val schedule' : ((unit -> 'a Deferred.t) -> 'a Deferred.t) with_options
 
 (** Just like [schedule'], but doesn't require the thunk to return a deferred. *)
-val schedule : ((unit -> unit) -> unit) with_options
+val schedule : ((unit -> unit) @ once -> unit) with_options
 
 (** [eneque_job execution_context.t f a] enqueues into the scheduler's job queue a job
     that will run [f a] in [execution_context]. *)
@@ -51,13 +51,19 @@ val enqueue_job : Execution_context.t -> ('a -> unit) -> 'a -> unit
 
 (** [thread_safe_enqueue_job] is like [enqueue_job], except it is for use from a thread
     that doesn't hold the Async lock. *)
-val thread_safe_enqueue_job : Execution_context.t -> ('a -> unit) -> 'a -> unit
+val thread_safe_enqueue_job
+  :  Execution_context.t
+  -> ('a @ unique -> unit) @ once
+  -> 'a @ unique
+  -> unit
 
 (** [portable_enqueue_job] is like [enqueue_job], except it is [portable], meaning it can
     be called from outside the initial capsule. *)
 val portable_enqueue_job
   :  Execution_context.t Capsule.Initial.Data.t
-  -> (Capsule.Initial.k Capsule.Expert.Access.t -> unit) Capsule.Initial.Data.t
+  -> (#(Capsule.Initial.k Capsule.Access.t * 'a) @ unique -> unit) Capsule.Initial.Data.t
+     @ once
+  -> 'a Capsule.Initial.Data.t @ unique
   -> unit
   @@ portable
 

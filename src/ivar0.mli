@@ -18,7 +18,7 @@ val peek : 'a t -> 'a option
 val value_exn : 'a t -> 'a
 val value : 'a t -> if_empty_then_failwith:string -> 'a
 val is_empty : _ t -> bool
-val is_full : _ t -> bool
+val is_full : _ t -> bool [@@zero_alloc]
 val equal : 'a t -> 'a t -> bool
 val connect : bind_result:'a t -> bind_rhs:'a t -> unit
 val fill_exn : 'a t -> 'a -> unit

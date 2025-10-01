@@ -226,7 +226,7 @@ module Exported_for_scheduler : sig
   val within : (local_ (unit -> unit) -> unit) with_options
   val within_v : (local_ (unit -> 'a) -> 'a option) with_options
   val schedule' : ((unit -> 'a Deferred.t) -> 'a Deferred.t) with_options
-  val schedule : ((unit -> unit) -> unit) with_options
+  val schedule : ((unit -> unit) @ once -> unit) with_options
   val within_context : Execution_context.t -> local_ (unit -> 'a) -> ('a, unit) Result.t
   val preserve_execution_context : ('a -> unit) -> ('a -> unit) Staged.t
 

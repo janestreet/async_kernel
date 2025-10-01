@@ -52,6 +52,7 @@ let with_timeout_exn span d ~error =
 ;;
 
 let duration_of f = Time_source.duration_of (time_source ()) f
+let duration_of' f = Time_source.duration_of' (time_source ()) f
 
 module Event = struct
   include Time_source.Event

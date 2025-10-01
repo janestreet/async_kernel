@@ -1,5 +1,0 @@
-(library
- (name laziness_preserving_deferred_test)
- (libraries async core laziness_preserving_deferred)
- (preprocess
-  (pps ppx_jane)))

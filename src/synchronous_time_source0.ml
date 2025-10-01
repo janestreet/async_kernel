@@ -39,7 +39,7 @@ module T1 = struct
         (* currently running the callback (for a periodic event) *)
         | Scheduled (* in the timing wheel *)
         | Unscheduled (* not in timing wheel or [fired_events] *)
-      [@@deriving compare, equal, sexp_of]
+      [@@deriving compare ~localize, equal ~localize, sexp_of]
 
       let transition_is_allowed ~from ~to_ =
         match from, to_ with

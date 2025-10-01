@@ -413,7 +413,7 @@ module Make' (Conn_err : Connection_error) (Conn : Closable) = struct
 end
 
 module Default_connection_error = struct
-  type t = Error.t [@@deriving equal, sexp_of]
+  type t = Error.t [@@deriving equal ~localize, sexp_of]
 
   let of_exception_error e = e
   let to_error e = e

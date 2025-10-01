@@ -121,7 +121,10 @@ let set (type a) t i execution_context f a =
 
 let enqueue t execution_context f a =
   if t.length = capacity t then grow t;
-  set t t.length execution_context f a;
+  (* SAFETY: The use of [magic_many] is safe as we only call an enqueued function at most
+     once. This is unfortunately not enforced by the compiler for the low level unboxed
+     queue implementation used here. *)
+  set t t.length execution_context (Obj.magic_many f) a;
   t.length <- t.length + 1
 ;;
 
@@ -135,7 +138,7 @@ let set_jobs_left_this_cycle t n =
 
 let can_run_a_job t = t.length > 0 && t.jobs_left_this_cycle > 0
 
-let run_job t (scheduler : Scheduler.t) execution_context f a =
+let[@inline] run_job t (scheduler : Scheduler.t) execution_context f a =
   t.num_jobs_run <- t.num_jobs_run + 1;
   Scheduler.set_execution_context scheduler execution_context;
   Job_infos_for_cycle.Private.before_job_run scheduler.job_infos_for_cycle;
@@ -150,17 +153,20 @@ let run_job t (scheduler : Scheduler.t) execution_context f a =
   result
 ;;
 
-let run_external_jobs t (scheduler : Scheduler.t) =
-  let external_jobs = scheduler.external_jobs in
-  let[@inline] run_external_job job =
+let[@inline] rec run_external_jobs t (scheduler : Scheduler.t) =
+  match Unique.Lockfree_single_consumer_queue.dequeue_or_null scheduler.external_jobs with
+  | Null -> ()
+  | This job ->
     let%tydi (External_job.T { execution_context; f; a }) =
-      Capsule.Initial.Data.unwrap job
+      Capsule.Expert.(Data.unwrap_once_unique ~access:(Access.unbox initial)) job
     in
-    run_job t scheduler execution_context f a
-  in
-  (Mpsc_queue.dequeue_until_empty [@inlined hint])
-    ~f:run_external_job
-    external_jobs [@nontail]
+    run_job
+      t
+      scheduler
+      execution_context
+      (fun a -> f #(Capsule.Access.unbox Capsule.Initial.access, a))
+      a;
+    run_external_jobs t scheduler
 ;;
 
 let run_jobs (type a) t scheduler =
@@ -169,8 +175,11 @@ let run_jobs (type a) t scheduler =
   (* [run_external_jobs] before entering the loop, since it might enqueue a job,
      changing [t.length]. *)
   try
-    run_external_jobs t scheduler;
-    while can_run_a_job t do
+    (* [run_external_jobs] at each iteration of the [while] loop, for fairness. *)
+    while
+      run_external_jobs t scheduler;
+      can_run_a_job t
+    do
       let this_job = offset t 0 in
       let execution_context : Execution_context.t =
         Obj.Expert.obj (A.unsafe_get t.jobs this_job)
@@ -189,9 +198,7 @@ let run_jobs (type a) t scheduler =
          the job out of the queue and decrement [jobs_left_this_cycle].  [run_job] or
          [run_external_jobs] may side effect [t], either by enqueueing jobs, or by
          clearing [t]. *)
-      run_job t scheduler execution_context f a;
-      (* [run_external_jobs] at each iteration of the [while] loop, for fairness. *)
-      run_external_jobs t scheduler
+      run_job t scheduler execution_context (fun { aliased = a } -> f a) { aliased = a }
     done;
     Ok ()
   with

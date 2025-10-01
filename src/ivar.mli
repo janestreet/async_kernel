@@ -36,7 +36,7 @@ val fill_if_empty : 'a t -> 'a -> unit
 val is_empty : 'a t -> bool
 
 (** [is_full t] returns true if [t] is full. *)
-val is_full : 'a t -> bool
+val is_full : 'a t -> bool [@@zero_alloc]
 
 (** [read t] returns a deferred that becomes enabled with value [v] after the ivar is
     filled with [v]. *)

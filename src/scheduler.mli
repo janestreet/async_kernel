@@ -26,7 +26,7 @@ val current_execution_context : t -> Execution_context.t
 val with_execution_context : t -> Execution_context.t -> f:local_ (unit -> 'a) -> 'a
 val with_execution_context1 : t -> Execution_context.t -> f:local_ ('a -> 'b) -> 'a -> 'b
 val set_execution_context : t -> Execution_context.t -> unit
-val enqueue : t -> Execution_context.t -> ('a -> unit) -> 'a -> unit
+val enqueue : t -> Execution_context.t -> ('a -> unit) @ once -> 'a -> unit
 val create_job : t -> Execution_context.t -> ('a -> unit) -> 'a -> Job.t
 val enqueue_job : t -> Job.t -> free_job:bool -> unit
 val free_job : t -> Job.t -> unit
@@ -78,14 +78,16 @@ val has_pending_external_jobs : t -> bool
 val thread_safe_enqueue_external_job
   :  t
   -> Execution_context.t
-  -> ('a -> unit)
-  -> 'a
+  -> ('a @ unique -> unit) @ once
+  -> 'a @ unique
   -> unit
 
 val portable_enqueue_external_job
   :  t Capsule.Initial.Data.t
   -> Execution_context.t Capsule.Initial.Data.t
-  -> (Capsule.Initial.k Capsule.Expert.Access.t -> unit) Capsule.Initial.Data.t
+  -> (#(Capsule.Initial.k Capsule.Access.t * 'a) @ unique -> unit) Capsule.Initial.Data.t
+     @ once
+  -> 'a Capsule.Initial.Data.t @ unique
   -> unit
   @@ portable
 
@@ -97,7 +99,7 @@ val within' : (local_ (unit -> 'a Deferred.t) -> 'a Deferred.t) with_options
 val within : (local_ (unit -> unit) -> unit) with_options
 val within_v : (local_ (unit -> 'a) -> 'a option) with_options
 val schedule' : ((unit -> 'a Deferred.t) -> 'a Deferred.t) with_options
-val schedule : ((unit -> unit) -> unit) with_options
+val schedule : ((unit -> unit) @ once -> unit) with_options
 val preserve_execution_context : ('a -> unit) -> ('a -> unit) Staged.t
 val preserve_execution_context' : ('a -> 'b Deferred.t) -> ('a -> 'b Deferred.t) Staged.t
 val within_context : Execution_context.t -> local_ (unit -> 'a) -> ('a, unit) Result.t

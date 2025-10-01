@@ -95,7 +95,17 @@ module type Eager_deferred1 = sig
 
   module Array : Monad_sequence.S with type 'a monad := 'a t with type 'a t := 'a array
   module Iarray : Monad_sequence.S with type 'a monad := 'a t with type 'a t := 'a iarray
-  module List : Monad_sequence.S with type 'a monad := 'a t with type 'a t := 'a list
+
+  module List : sig
+    include Monad_sequence.S with type 'a monad := 'a t with type 'a t := 'a list
+
+    val fold_until
+      :  'a list
+      -> init:'acc
+      -> f:('acc -> 'a -> ('acc, 'final) Continue_or_stop.t t)
+      -> finish:('acc -> 'final t)
+      -> 'final t
+  end
 
   (** Similar to [{Deferred.Queue}] but eager when passing ~how:`Sequential. The functions
       in [Queue] raise if the queue is mutated during execution. *)

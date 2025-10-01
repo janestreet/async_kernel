@@ -14,6 +14,20 @@ let foldi t ~init ~f =
 
 let fold t ~init ~f = foldi t ~init ~f:(fun _ a x -> f a x)
 
+let fold_until t ~init ~f ~finish =
+  Deferred.create (fun result ->
+    let rec loop t b =
+      match t with
+      | [] -> finish b >>> fun c -> Ivar.fill_exn result c
+      | x :: xs ->
+        f b x
+        >>> (function
+         | Base.Continue_or_stop.Continue b -> loop xs b
+         | Stop c -> Ivar.fill_exn result c)
+    in
+    loop t init)
+;;
+
 let seqmapi t ~f =
   foldi t ~init:[] ~f:(fun i bs a ->
     let%map b = f i a in
