@@ -9,14 +9,24 @@ open! Import
 module Async_kernel_config = Async_kernel_config
 module Async_kernel_require_explicit_time_source = Require_explicit_time_source
 module Async_kernel_scheduler = Async_kernel_scheduler
-module Bvar = Bvar
+
+module Bvar = struct
+  include Bvar
+  module Portable = Portable_bvar
+end
+
 module Clock_ns = Clock_ns
 module Condition = Async_condition
 module Deferred = Deferred
 module Execution_context = Execution_context
 module Gc = Async_gc
 module Invariant = Async_invariant
-module Ivar = Ivar
+
+module Ivar = struct
+  include Ivar
+  module Portable = Portable_ivar
+end
+
 module Lazy_deferred = Lazy_deferred
 module Monad_sequence = Monad_sequence
 module Monitor = Monitor
