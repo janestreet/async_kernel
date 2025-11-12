@@ -456,8 +456,10 @@ let[@zero_alloc] now t = if t.is_wall_clock then Time_ns.now () else timing_whee
 let[@zero_alloc] timing_wheel_now t = timing_wheel_now t
 
 let schedule t (event : Event.t) =
-  Event.set_status event Scheduled;
-  event.alarm <- Timing_wheel.add t.events ~at:event.at (event |> Job_or_event.of_event)
+  (* [Timing_wheel.add] can raise, so we call [set_status] afterwards, otherwise we could
+     end up in an invalid state. *)
+  event.alarm <- Timing_wheel.add t.events ~at:event.at (event |> Job_or_event.of_event);
+  Event.set_status event Scheduled
 ;;
 
 let remove_from_fired t (event : Event.t) ~new_status =

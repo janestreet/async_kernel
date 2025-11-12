@@ -2,8 +2,7 @@
  (name async_kernel)
  (public_name async_kernel)
  (libraries async_kernel_config core core_kernel.moption
-   core_kernel.nonempty_list core_kernel.pairing_heap
-   core_kernel.sexp_hidden_in_test sexplib
+   core_kernel.pairing_heap core_kernel.sexp_hidden_in_test sexplib
    core_kernel.thread_pool_cpu_affinity core_unix.time_stamp_counter
    core_kernel.timing_wheel core_kernel.tuple_pool unique)
  (preprocess

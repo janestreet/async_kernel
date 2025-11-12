@@ -361,9 +361,14 @@ val write_when_ready
       if not (is_closed w) then write w x else return ()
     ]}
 
-    Note the difference in allocation and potential side effects when [w] is closed and
-    [e] is a complex expression. Additionally, note that due to this equivalency, if [w]
-    is closed, [downstream_flushed] may still return [`Ok] even if [e] was dropped.
+    Note that this is different from [if not (is_closed w) then write w e else return ()]:
+    in that version, [e] is only evaluated if [w] is open. In comparison,
+    [write_if_open w e] will force [e] to be evaluated even if [w] is open. If [e] is side
+    effecting or otherwise expensive (e.g. by allocating), if may be preferable to write
+    the if statement directly.
+
+    Additionally, note that due to this equivalency, if [w] is closed,
+    [downstream_flushed] may still return [`Ok] even if [e] was dropped.
 
     [write_without_pushback_if_open] is the same as [write_if_open], except it calls
     [write_without_pushback] instead of [write]. *)
