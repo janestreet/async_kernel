@@ -42,11 +42,11 @@ module Make' (Conn_err : Connection_error) (Conn : Closable) = struct
       | Exception of Error.t
     [@@deriving sexp_of]
 
-    (* This function focuses in on the the error itself, discarding information about which
-       monitor caught the error, if any.
+    (* This function focuses in on the the error itself, discarding information about
+       which monitor caught the error, if any.
 
-       If we don't do this, we sometimes end up with noisy logs which report the same error
-       again and again, differing only as to what monitor caught them. *)
+       If we don't do this, we sometimes end up with noisy logs which report the same
+       error again and again, differing only as to what monitor caught them. *)
     let same_error e1 e2 =
       let to_sexp e = Exn.sexp_of_t (Monitor.extract_exn (Error.to_exn e)) in
       Sexp.equal (to_sexp e1) (to_sexp e2)
@@ -76,7 +76,7 @@ module Make' (Conn_err : Connection_error) (Conn : Closable) = struct
     ;;
   end
 
-  (* A persistent connection that is polymorphic in the address type.  We hide away this
+  (* A persistent connection that is polymorphic in the address type. We hide away this
      type later since it only appears in the type of [create]. *)
   module Poly = struct
     type 'address t =
@@ -253,9 +253,10 @@ module Make' (Conn_err : Connection_error) (Conn : Closable) = struct
           let%bind () = Conn.close_finished conn in
           t.conn <- Ivar.create ();
           let%bind () = handle_event t Disconnected in
-          (* waits until [retry_delay ()] time has passed since the time just before we last
-             tried to connect rather than the time we noticed being disconnected, so that if
-             a long-lived connection dies, we will attempt to reconnect immediately. *)
+          (* waits until [retry_delay ()] time has passed since the time just before we
+             last tried to connect rather than the time we noticed being disconnected, so
+             that if a long-lived connection dies, we will attempt to reconnect
+             immediately. *)
           let%map () =
             Deferred.any
               [ ready_to_retry_connecting
@@ -277,7 +278,7 @@ module Make' (Conn_err : Connection_error) (Conn : Closable) = struct
 
     let connected t =
       (* Take care not to return a connection that is known to be closed at the time
-         [connected] was called.  This could happen in client code that behaves like
+         [connected] was called. This could happen in client code that behaves like
          {[
            Persistent_connection.Rpc.connected t
            >>= fun c1 ->
@@ -325,7 +326,7 @@ module Make' (Conn_err : Connection_error) (Conn : Closable) = struct
     let close t =
       if Ivar.is_full t.close_started
       then
-        (* Another call to close is already in progress.  Wait for it to finish. *)
+        (* Another call to close is already in progress. Wait for it to finish. *)
         close_finished t
       else (
         Ivar.fill_exn t.close_started ();

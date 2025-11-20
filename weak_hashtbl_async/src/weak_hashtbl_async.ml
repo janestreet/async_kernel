@@ -7,9 +7,9 @@ let create ?growth_allowed ?size hashable =
   let t = create ?growth_allowed ?size hashable in
   (* To avoid having keys around that should be cleaned, we must ensure that after any
      call to [thread_safe_f], there is a call to
-     [reclaim_space_for_keys_with_unused_data].  We do this via [reclaim_will_happen],
+     [reclaim_space_for_keys_with_unused_data]. We do this via [reclaim_will_happen],
      which, if [true], guarantees that a call to [reclaim_space_for_keys_with_unused_data]
-     will happen in the future.  It is OK if we have multiple reclaims extant
+     will happen in the future. It is OK if we have multiple reclaims extant
      simultaneously, since they are async jobs. *)
   let reclaim_will_happen = ref false in
   let reclaim () =

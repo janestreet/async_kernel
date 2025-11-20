@@ -143,11 +143,11 @@ module%test _ : module type of Limiter = struct
        the async start cycle time as its notion of "now", so during a long async cycle, if
        we deplete the token bucket, we shouldn't be able to immediately run jobs later in
        the same async cycle even if enough wall clock time has passed to refill the
-       bucket. 
+       bucket.
 
        NOTE: This as a potentially non-deterministic test, which uses the real async clock
-       and all.  We haven't made it deterministic because it relies very specifically on
-       real-time behavior.  *)
+       and all. We haven't made it deterministic because it relies very specifically on
+       real-time behavior. *)
     let%expect_test "don't refill tokens in the middle of async cycles" =
       let delay = 0.01 in
       let sustained_rate_per_sec =
@@ -319,8 +319,8 @@ module%test _ : module type of Limiter = struct
           ~jobs_finished
           ~total_jobs:(burst_size * 2)
       in
-      (* Allow jobs to run but not long enough to generate new tokens.
-         With 100 tokens/sec, we need < 0.01 seconds to avoid generating a token *)
+      (* Allow jobs to run but not long enough to generate new tokens. With 100
+         tokens/sec, we need < 0.01 seconds to avoid generating a token *)
       let%bind () = after rw_time_source (seconds 0.000_1) in
       [%test_eq: int] ~message:"finished jobs in a burst" !jobs_finished burst_size;
       (* Now advance time enough for remaining jobs to complete *)
@@ -572,9 +572,9 @@ module%test _ : module type of Limiter = struct
 
   let%expect_test "num_jobs_waiting_to_start is accurate" =
     let t = Sequencer.create () in
-    (* enqueue the first job, which won't run until we yield.  We expect to have
-          enqueued a second job by then, and so expect that we will have 1 job
-          waiting to start when this job actually runs. *)
+    (* enqueue the first job, which won't run until we yield. We expect to have enqueued a
+       second job by then, and so expect that we will have 1 job waiting to start when
+       this job actually runs. *)
     let res1 =
       Sequencer.enqueue'
         t
@@ -607,4 +607,4 @@ module%test _ : module type of Limiter = struct
   end
 end
 (* This signature constraint is here to remind us to add a unit test whenever the
-      interface to [Limiter] changes. *)
+   interface to [Limiter] changes. *)

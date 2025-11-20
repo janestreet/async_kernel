@@ -46,7 +46,7 @@ let detach_and_iter_errors t ~f =
        | inner_exn ->
          handler_state_ref := Terminated;
          Bag.remove t.handlers_for_all_errors bag_elt;
-         (* [run_f] always runs in [execution_context].  Hence, [raise inner_exn] sends
+         (* [run_f] always runs in [execution_context]. Hence, [raise inner_exn] sends
             [inner_exn] to [execution_context]'s monitor, i.e. the monitor in effect when
             [detach_and_iter_errors] was called. *)
          raise inner_exn)
@@ -129,17 +129,17 @@ module Monitor_exn = struct
           let column = here.pos_cnum - here.pos_bol in
           Some
             (* We hide line and column numbers when [am_running_test] to make test output
-               more robust.  This saves people manually hiding the numbers or even worse,
-               leaving them in test output.  Hiding in test is different choice for
+               more robust. This saves people manually hiding the numbers or even worse,
+               leaving them in test output. Hiding in test is different choice for
                behavior than our codebase makes for [Backtrace.elide], which has default
-               [false], and thus shows backtraces in test.  There are a couple reasons for
-               this different choice.  First, expect-test machinery has check to prevent
-               backtraces from appearing in test output.  It has no such checks for line
-               and column numbers.  Second, when there is a real error and you want to see
+               [false], and thus shows backtraces in test. There are a couple reasons for
+               this different choice. First, expect-test machinery has check to prevent
+               backtraces from appearing in test output. It has no such checks for line
+               and column numbers. Second, when there is a real error and you want to see
                the backtrace, throwing away the whole backtrace loses a lot of potentially
-               useful information that may be hard to recover.  Whereas we're just
-               throwing a way a line number and column, which are a minor convenience
-               given that the filename has most of the information. *)
+               useful information that may be hard to recover. Whereas we're just throwing
+               a way a line number and column, which are a minor convenience given that
+               the filename has most of the information. *)
             (if am_running_test
              then sprintf "file %S, line LINE, characters C1-C2" here.pos_fname
              else
@@ -224,9 +224,9 @@ let send_exn t ?(backtrace = `Get) exn =
       List.iter t.tails_for_all_errors ~f:(fun tail -> Tail.extend tail exn)
     | Parent parent -> loop parent
     | Report_uncaught_exn ->
-      (* Do not change this branch to print the exception or to exit.  Having the
-         scheduler raise an uncaught exception is the necessary behavior for programs
-         that call [Scheduler.go] and want to handle it. *)
+      (* Do not change this branch to print the exception or to exit. Having the scheduler
+         raise an uncaught exception is the necessary behavior for programs that call
+         [Scheduler.go] and want to handle it. *)
       Scheduler.(got_uncaught_exn (t ()))
         exn
         ((Atomic.get Async_kernel_config.task_id) ())
@@ -334,9 +334,9 @@ module Ok_and_exns = struct
   [@@deriving sexp_of]
 
   let monitor_and_exns ~(here : [%call_pos]) ?info ?name () =
-    (* We call [create_with_parent None] because [monitor] does not need a parent.  It
-       does not because we call [detach_and_get_error_stream monitor] and deal with the
-       errors explicitly, thus [send_exn] would never propagate an exn past [monitor]. *)
+    (* We call [create_with_parent None] because [monitor] does not need a parent. It does
+       not because we call [detach_and_get_error_stream monitor] and deal with the errors
+       explicitly, thus [send_exn] would never propagate an exn past [monitor]. *)
     let monitor = create_with_parent ~here ?info ?name None in
     let exns = detach_and_get_error_stream monitor in
     monitor, exns
@@ -399,8 +399,8 @@ let try_with_aux
   let handle_exn = make_handle_exn rest in
   let handle_exns_after_result exns = stream_iter exns ~f:handle_exn in
   (* We run [within' ~monitor:main] to avoid holding on to references to the evaluation
-     context in which [try_with] was called.  This avoids a space leak when a chain of
-     [try_with]'s are run each nested within the previous one.  Without the [within'], the
+     context in which [try_with] was called. This avoids a space leak when a chain of
+     [try_with]'s are run each nested within the previous one. Without the [within'], the
      error handling for the innermost [try_with] would keep alive the entire chain. *)
   within' ~monitor:main (fun () ->
     if Deferred.is_determined ok

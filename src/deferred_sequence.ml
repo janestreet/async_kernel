@@ -5,12 +5,13 @@ module Deferred = Deferred1
 (* [fold_mapi ~how t ~init ~mapi_f ~fold_f] is a more efficient version of:
 
    {[
-     fold ~init ~f:(fun b a -> return (fold_f b a)) (mapi t ~how ~f:mapi_f) ]}
+     fold ~init ~f:(fun b a -> return (fold_f b a)) (mapi t ~how ~f:mapi_f)
+   ]}
 
-   It avoids creating the intermediate sequence that would result from [mapi], and
-   allows the [fold] to proceed concurrently with the [mapi], so that one can accumulate
-   the result as soon as possible, possibly avoiding creating an intermediate structure
-   (e.g. [iteri] and [filter_map] uses [fold_mapi] to do this). *)
+   It avoids creating the intermediate sequence that would result from [mapi], and allows
+   the [fold] to proceed concurrently with the [mapi], so that one can accumulate the
+   result as soon as possible, possibly avoiding creating an intermediate structure (e.g.
+   [iteri] and [filter_map] uses [fold_mapi] to do this). *)
 let fold_mapi
   (type a b c)
   ?(how = `Sequential)
@@ -81,8 +82,7 @@ let foldi t ~init ~f =
 ;;
 
 (* [fold] is not implemented in terms of [foldi] to save the intermediate closure
-   allocation.
-   (maybe the reduction in the size of the [loop] closure is also relevant
+   allocation. (maybe the reduction in the size of the [loop] closure is also relevant
    because we see significant performance wins even for long folds)
 *)
 let fold t ~init ~f =

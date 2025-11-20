@@ -1,4 +1,4 @@
-(* This file defines the mutually recursive types at the heart of Async.  The functions
+(* This file defines the mutually recursive types at the heart of Async. The functions
    associated with the types are defined in the corresponding file(s) for each module.
    This file should define only types, not functions, since functions defined inside the
    recursive modules are not inlined.

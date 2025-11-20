@@ -37,7 +37,7 @@ end
    It is used in two steps:
 
    1. calling [Consumer.start] at the point where the consumer takes values out of the
-   Pipe via [read] or [read'].
+      Pipe via [read] or [read'].
 
    2. calling [Consumer.values_sent_downstream].
 
@@ -63,8 +63,8 @@ module Consumer : sig
 end = struct
   type t =
     { pipe_id : int
-    ; (* [values_read] reflects whether values the consumer has read from the pipe have been
-         sent downstream or if not, holds an ivar that is to be filled when they are. *)
+    ; (* [values_read] reflects whether values the consumer has read from the pipe have
+         been sent downstream or if not, holds an ivar that is to be filled when they are. *)
       mutable values_read :
         [ `Have_been_sent_downstream | `Have_not_been_sent_downstream of unit Ivar.t ]
     ; (* [downstream_flushed ()] returns when all prior values that the consumer has
@@ -144,10 +144,10 @@ end = struct
 end
 
 module Blocked_read = struct
-  (* A [Blocked_read.t] represents a blocked read attempt.  If someone reads from an empty
-     pipe, they enqueue a [Blocked_read.t] in the queue of [blocked_reads].  Later, when
+  (* A [Blocked_read.t] represents a blocked read attempt. If someone reads from an empty
+     pipe, they enqueue a [Blocked_read.t] in the queue of [blocked_reads]. Later, when
      values are written to a pipe, that will cause some number of blocked reads to be
-     filled, first come first serve.  The blocked-read constructor specifies how many
+     filled, first come first serve. The blocked-read constructor specifies how many
      values a read should consume from the pipe when it gets its turn.
 
      If a pipe is closed, then all blocked reads will be filled with [`Eof]. *)
@@ -205,14 +205,15 @@ end
 
 module Blocked_flush = struct
   (* A [Blocked_flush.t] represents a blocked flush operation, which can be enabled by a
-     future read.  If someone does [flushed p] on a pipe, that blocks until everything
-     that's currently in the pipe at that point has drained out of the pipe.  When we call
+     future read. If someone does [flushed p] on a pipe, that blocks until everything
+     that's currently in the pipe at that point has drained out of the pipe. When we call
      [flushed], it records the total amount of data that has been written so far in
-     [fill_when_num_values_read].  We fill the [Flush.t] with [`Ok] when this amount of
+     [fill_when_num_values_read]. We fill the [Flush.t] with [`Ok] when this amount of
      data has been read from the pipe.
 
      A [Blocked_flush.t] can also be filled with [`Reader_closed], which happens when the
-     reader end of the pipe is closed, and we are thus sure that the unread elements preceding the flush will never be read. *)
+     reader end of the pipe is closed, and we are thus sure that the unread elements
+     preceding the flush will never be read. *)
   type t =
     { fill_when_num_values_read : int
     ; ready : [ `Ok | `Reader_closed ] Ivar.t
@@ -231,10 +232,10 @@ type ('a, 'phantom) t =
     mutable buffer : 'a Queue.t
   ; (* [size_budget] governs pushback on writers to the pipe.
 
-       There is *no* invariant that [Queue.length buffer <= size_budget].
-       There is no hard upper bound on the number of elements that can be stuffed into the
-       [buffer]. This is due to the way we handle writes. When we do a write, all of the
-       values written are immediately enqueued into [buffer]. After the write, if
+       There is *no* invariant that [Queue.length buffer <= size_budget]. There is no hard
+       upper bound on the number of elements that can be stuffed into the [buffer]. This
+       is due to the way we handle writes. When we do a write, all of the values written
+       are immediately enqueued into [buffer]. After the write, if
        [Queue.length buffer <= t.size_budget], then the writer will be notified to
        continue writing. After the write, if [length t > t.size_budget], then the write
        will block until the pipe is under budget. *)
@@ -243,15 +244,15 @@ type ('a, 'phantom) t =
        yet. When it's positive, writes decrement it. *)
     mutable reserved_space : int
   ; (* [pushback] is used to give feedback to writers about whether they should write to
-       the pipe. [pushback] is full iff [length t + reserved_space t <= t.size_budget ||
-       is_closed t]. *)
+       the pipe. [pushback] is full iff
+       [length t + reserved_space t <= t.size_budget || is_closed t]. *)
     mutable pushback : unit Ivar.t
   ; (* [num_values_read] keeps track of the total number of values that have been read
-       from the pipe.  We do not have to worry about overflow in [num_values_read].  You'd
+       from the pipe. We do not have to worry about overflow in [num_values_read]. You'd
        need to write 2^62 elements to the pipe, which would take about 146 years, at a
        flow rate of 1 size-unit/nanosecond. *)
     mutable num_values_read : int
-      (* [blocked_flushes] holds flushes whose preceding elements have not been completely
+      (*=[blocked_flushes] holds flushes whose preceding elements have not been completely
      read.  For each blocked flush, the number of elements that need to be read from the
      pipe in order to fill the flush is                        :
 
@@ -272,7 +273,7 @@ type ('a, 'phantom) t =
     mutable consumers : Consumer.t list
   ; (* [upstream_flusheds] has a function for each pipe immediately upstream of this one.
        That function walks to the head(s) of the upstream pipe, and calls
-       [downstream_flushed] on the head(s).  See the definition of [upstream_flushed]
+       [downstream_flushed] on the head(s). See the definition of [upstream_flushed]
        below. *)
     upstream_flusheds : (unit -> Flushed_result.t Deferred.t) Bag.t
   }
@@ -323,7 +324,7 @@ let invariant t : unit =
            if is_empty t then assert (Queue.is_empty blocked_flushes)))
       ~blocked_reads:
         (check (fun blocked_reads ->
-           (* If data is available, no one is waiting for it.  This would need to change if
+           (* If data is available, no one is waiting for it. This would need to change if
               we ever implement [read_exactly] as an atomic operation. *)
            if not (is_empty t) then assert (Queue.is_empty blocked_reads);
            Queue.iter blocked_reads ~f:(fun read ->
@@ -421,14 +422,13 @@ let close t =
 
 let consumed_values_sent_downstream_and_flushed t =
   let closed_while_not_empty =
-    (* Since we've dropped some values from the pipe without sending them to
-       consumers, the consumers will not be aware of the pipe not having been fully
-       consumed.
-       Hence, we're overriding the result with [`Reader_closed] in that case.
+    (* Since we've dropped some values from the pipe without sending them to consumers,
+       the consumers will not be aware of the pipe not having been fully consumed. Hence,
+       we're overriding the result with [`Reader_closed] in that case.
 
-       An argument can be made that the consumer should always return
-       `Reader_closed if they've closed the reader, but this code makes sure that
-       the less confusing result is returned regardless.
+       An argument can be made that the consumer should always return `Reader_closed if
+       they've closed the reader, but this code makes sure that the less confusing result
+       is returned regardless.
     *)
     Set_once.get t.read_closed
     |> Option.map ~f:(function
@@ -733,8 +733,8 @@ let values_available t =
     match Queue.last t.blocked_reads with
     | Some ({ consumer = None; wants = Peek (_ as v) } : _ Blocked_read.t) ->
       (* This case is an optimization for multiple calls to [values_available] in
-         sequence.  It causes them to all share the same ivar, rather than allocate
-         an ivar per call. *)
+         sequence. It causes them to all share the same ivar, rather than allocate an ivar
+         per call. *)
       Ivar.read
         (match v.values_available with
          | This ivar -> ivar
@@ -759,9 +759,8 @@ let peek' t =
   else (
     match Queue.last t.blocked_reads with
     | Some ({ consumer = None; wants = Peek (_ as v) } : _ Blocked_read.t) ->
-      (* This case is an optimization for multiple calls to [peek'] in
-         sequence.  It causes them to all share the same ivar, rather than allocate
-         an ivar per call. *)
+      (* This case is an optimization for multiple calls to [peek'] in sequence. It causes
+         them to all share the same ivar, rather than allocate an ivar per call. *)
       Ivar.read
         (match v.peek with
          | This ivar -> ivar
@@ -797,8 +796,7 @@ let read_choice_single_consumer_exn t here =
             (here : Source_code_position.t)])
 ;;
 
-(* [read_exactly t ~num_values] loops, getting you all [num_values] items, up
-   to EOF. *)
+(* [read_exactly t ~num_values] loops, getting you all [num_values] items, up to EOF. *)
 let read_exactly ?consumer t ~num_values =
   start_read t "read_exactly" ?consumer;
   if num_values <= 0
@@ -825,9 +823,9 @@ let downstream_flushed t =
   if is_empty t
   then consumed_values_sent_downstream_and_flushed t
   else
-    (* [t] might be closed.  But the read end can't be closed, because if it were, then
-       [t] would be empty.  If the write end is closed but not the read end, then we want
-       to enqueue a blocked flush because the enqueued values may get read. *)
+    (* [t] might be closed. But the read end can't be closed, because if it were, then [t]
+       would be empty. If the write end is closed but not the read end, then we want to
+       enqueue a blocked flush because the enqueued values may get read. *)
     Deferred.create (fun ready ->
       Queue.enqueue
         t.blocked_flushes
@@ -990,8 +988,8 @@ let iter_while t ~cond ~f =
 ;;
 
 (* [iter_without_pushback] is a common case, so we implement it in an optimized manner,
-   rather than via [iter].  The implementation reads only one element at a time, so that
-   if [f] closes [t] or raises, no more elements will be read. *)
+   rather than via [iter]. The implementation reads only one element at a time, so that if
+   [f] closes [t] or raises, no more elements will be read. *)
 let iter_without_pushback
   ?consumer
   ?(continue_on_error = false)
@@ -1164,9 +1162,9 @@ let transfer_gen
     invariant output);
   let link = Link.create ~upstream:input ~downstream:output in
   let consumer = Link.consumer link in
-  (* When we're done with [input], we unlink to remove pointers from
-     [output] to [input], which would cause a space leak if we had single long-lived
-     output into which we transfer lots of short-lived inputs. *)
+  (* When we're done with [input], we unlink to remove pointers from [output] to [input],
+     which would cause a space leak if we had single long-lived output into which we
+     transfer lots of short-lived inputs. *)
   let unlink () = Link.unlink_upstream link in
   Deferred.create (fun result ->
     let input_available_or_output_closed () =
@@ -1230,8 +1228,8 @@ let map ?(max_batch_size = 1) input ~f =
   then map_gen read_now write input ~f:(fun a k -> k (f a))
   else
     map_gen (read_now' ~max_queue_length:max_batch_size) write' input ~f:(fun q k ->
-      (* The implementation is inlined here to avoid allocating a
-         bunch of options to return to filter_map in the happy path. *)
+      (* The implementation is inlined here to avoid allocating a bunch of options to
+         return to filter_map in the happy path. *)
       let result = Queue.create () in
       Queue.iter q ~f:(fun a ->
         if not (is_read_closed input) then Queue.enqueue result (f a));
@@ -1297,7 +1295,7 @@ let singleton x =
 
 let unfold ~init:s ~f =
   (* To get some batching, we run the continuation immediately if the deferred is
-     determined.  However, we always check for pushback.  Because size budget can't be
+     determined. However, we always check for pushback. Because size budget can't be
      infinite, the below loop is guaranteed to eventually yield to the scheduler. *)
   let ( >>=~ ) d f =
     match Deferred.peek d with
@@ -1332,11 +1330,10 @@ let of_sequence sequence =
       if is_closed writer || Sequence.is_empty sequence
       then return ()
       else (
-        (* [size:0] here as we don't know the size of the sequence statically. We'll
-           call [decrease_reserved_space] as we go.
-           (although realistically, it's impossible for the user to reserve space in
-           this pipe because you need a pipe writer for that, but [of_sequence] returns
-           a reader) *)
+        (* [size:0] here as we don't know the size of the sequence statically. We'll call
+           [decrease_reserved_space] as we go. (although realistically, it's impossible
+           for the user to reserve space in this pipe because you need a pipe writer for
+           that, but [of_sequence] returns a reader) *)
         start_write writer ~size:0;
         let sequence = enqueue_n sequence (1 + writer.size_budget - length writer) in
         finish_write writer;
@@ -1361,7 +1358,7 @@ let to_sequence t =
 let interleave_pipe ?(close_on = `All_inputs_closed) inputs =
   let output, output_writer = create ~info:[%sexp "Pipe.interleave"] () in
   (* We keep a reference count of all the pipes that [interleave_pipe] is managing;
-     [inputs] counts as one.  When the reference count drops to zero, we know that all
+     [inputs] counts as one. When the reference count drops to zero, we know that all
      pipes are closed and we can close [output_writer]. *)
   let num_pipes_remaining = ref 1 in
   let close_one_pipe closed_pipe_kind =
@@ -1409,14 +1406,13 @@ let merge inputs ~compare =
     in
     let rec pop_heap_and_loop () =
       (* At this point, all inputs not at Eof occur in [heap] exactly once, so we know
-         what the next output element is.  [pop_heap_and_loop] repeatedly takes elements
-         from the inputs as long as it has one from each input.  This is done
-         synchronously to avoid the cost of a deferred for each element of the output --
-         there's no need to pushback since that is only moving elements from one pipe to
-         another.  As soon as [pop_heap_and_loop] can't get an element from some input, it
-         waits on pushback from the output, since it has to wait on the input anyway.
-         This also prevents [merge] from consuming inputs at a rate faster than its output
-         is consumed. *)
+         what the next output element is. [pop_heap_and_loop] repeatedly takes elements
+         from the inputs as long as it has one from each input. This is done synchronously
+         to avoid the cost of a deferred for each element of the output -- there's no need
+         to pushback since that is only moving elements from one pipe to another. As soon
+         as [pop_heap_and_loop] can't get an element from some input, it waits on pushback
+         from the output, since it has to wait on the input anyway. This also prevents
+         [merge] from consuming inputs at a rate faster than its output is consumed. *)
       match Heap.pop heap with
       | None -> close w
       | Some (v, input) ->

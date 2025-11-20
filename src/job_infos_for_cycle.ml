@@ -38,9 +38,9 @@ let[@inline always] on_exception_in_run_jobs t =
          let end_time = Time_stamp_counter.now () in
          Queue.enqueue t.end_times end_time
        | missing_end_times ->
-         (* <=0 missing end times should never happen. >1 missing end times is only possible if a
-       job calls [Job_queue.run_jobs] (and then a job raises) which we don't expect to
-       happen. *)
+         (* <=0 missing end times should never happen. >1 missing end times is only
+            possible if a job calls [Job_queue.run_jobs] (and then a job raises) which we
+            don't expect to happen. *)
          failwithf
            "Job_queue.add_missing_end_times_for_jobs_that_raised bug: unexpected number \
             of end_times missing: %d"

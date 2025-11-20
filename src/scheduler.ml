@@ -204,17 +204,17 @@ let create_alarm t f =
 let add_finalizer t heap_block f =
   let execution_context = current_execution_context t in
   let finalizer { aliased = heap_block } =
-    (* Here we can be in any thread, and may not be holding the async lock.  So, we can
+    (* Here we can be in any thread, and may not be holding the async lock. So, we can
        only do thread-safe things.
 
        By putting [heap_block] in [external_jobs], we are keeping it alive until the next
-       time the async scheduler gets around to dequeueing it.  Calling
-       [t.thread_safe_external_job_hook] ensures that will happen in short order.  Thus,
-       we are not dramatically increasing the lifetime of [heap_block], since the OCaml
-       runtime already resurrected [heap_block] so that we could refer to it here.  The
+       time the async scheduler gets around to dequeueing it. Calling
+       [t.thread_safe_external_job_hook] ensures that will happen in short order. Thus, we
+       are not dramatically increasing the lifetime of [heap_block], since the OCaml
+       runtime already resurrected [heap_block] so that we could refer to it here. The
        OCaml runtime already removed the finalizer function when it noticed [heap_block]
        could be finalized, so there is no infinite loop in which we are causing the
-       finalizer to run again.  Also, OCaml does not impose any requirement on finalizer
+       finalizer to run again. Also, OCaml does not impose any requirement on finalizer
        functions that they need to dispose of the block, so it's fine that we keep
        [heap_block] around until later. *)
     if not t.reset_in_forked_process
@@ -231,12 +231,12 @@ let add_finalizer t heap_block f =
     Core.Gc.Expert.With_leak_protection.protect_finalizer heap_block (fun heap_block ->
       finalizer { aliased = heap_block })
   in
-  (* We use [Caml.Gc.finalise] instead of [Core.Gc.add_finalizer] because the latter
-     has its own wrapper around [Caml.Gc.finalise] to run finalizers synchronously. *)
+  (* We use [Caml.Gc.finalise] instead of [Core.Gc.add_finalizer] because the latter has
+     its own wrapper around [Caml.Gc.finalise] to run finalizers synchronously. *)
   try Stdlib.Gc.finalise finalizer heap_block with
   | Invalid_argument _ ->
-    (* [Heap_block] ensures that this will only fail for static data, in which case we
-       can drop the finalizer since the block will never be collected.*)
+    (* [Heap_block] ensures that this will only fail for static data, in which case we can
+       drop the finalizer since the block will never be collected. *)
     ()
 ;;
 
@@ -248,7 +248,7 @@ let add_finalizer_exn t x f =
 let add_finalizer_last t heap_block f =
   let execution_context = current_execution_context t in
   let finalizer () =
-    (* Here we can be in any thread, and may not be holding the async lock.  So, we can
+    (* Here we can be in any thread, and may not be holding the async lock. So, we can
        only do thread-safe things. *)
     if not t.reset_in_forked_process
     then (
@@ -261,13 +261,13 @@ let add_finalizer_last t heap_block f =
         { aliased = f })
   in
   if Debug.finalizers then Debug.log_string "adding finalizer (using 'last' semantic)";
-  (* We use [Caml.Gc.finalise_last] instead of [Core.Gc.add_finalizer_last] because
-     the latter has its own wrapper around [Caml.Gc.finalise_last] to run finalizers
+  (* We use [Caml.Gc.finalise_last] instead of [Core.Gc.add_finalizer_last] because the
+     latter has its own wrapper around [Caml.Gc.finalise_last] to run finalizers
      synchronously. *)
   try Stdlib.Gc.finalise_last finalizer heap_block with
   | Invalid_argument _ ->
-    (* [Heap_block] ensures that this will only fail for static data, in which case we
-       can drop the finalizer since the block will never be collected.*)
+    (* [Heap_block] ensures that this will only fail for static data, in which case we can
+       drop the finalizer since the block will never be collected. *)
     ()
 ;;
 
@@ -305,8 +305,8 @@ let run_cycle t =
     | Ok () -> ()
     | Error (exn, backtrace) ->
       Monitor.send_exn (Monitor.current ()) exn ~backtrace:(`This backtrace);
-      (* [run_jobs] stopped due to an exn.  There may still be jobs that could be
-         run this cycle, so [run_jobs] again. *)
+      (* [run_jobs] stopped due to an exn. There may still be jobs that could be run this
+         cycle, so [run_jobs] again. *)
       run_jobs t
   in
   run_jobs t;

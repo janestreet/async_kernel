@@ -17,8 +17,8 @@ module Alarm_precision = Timing_wheel.Alarm_precision
 
 let default_timing_wheel_config =
   (* 1/8th of a millisecond alarm_precision seems sufficient to avoid having many alarms
-     in the same interval, which avoids quadratic insertion sort when firing alarms.  And
-     the level bits give us levels of >1s, >1m, >1h, >1d.  See test in
+     in the same interval, which avoids quadratic insertion sort when firing alarms. And
+     the level bits give us levels of >1s, >1m, >1h, >1d. See test in
      [../test/test_synchronous_time_source.ml]. *)
   Timing_wheel.Config.create
     ~alarm_precision:Alarm_precision.(div about_one_millisecond ~pow2:3)
@@ -49,8 +49,8 @@ module T1 = struct
         | ( Fired
           , Unscheduled
             (* aborted, or started running callback (for a non-periodic event) *) )
-        (* [reschedule_*] goes through an intermediate [Fired, Unscheduled] state,
-           so we never transition from [Fired] directly to [Scheduled]. *)
+        (* [reschedule_*] goes through an intermediate [Fired, Unscheduled] state, so we
+           never transition from [Fired] directly to [Scheduled]. *)
         | ( Happening_periodic_event
           , Scheduled (* scheduled next iteration of a periodic event *) )
         | Happening_periodic_event, Unscheduled (* aborted *)
@@ -84,8 +84,8 @@ module T1 = struct
     ;;
 
     module Option = struct
-      (* This redefinition of [Event] is here so the type checks are right next
-         to [Obj.magic]s. *)
+      (* This redefinition of [Event] is here so the type checks are right next to
+         [Obj.magic]s. *)
       module Event_is_block : sig end = struct
         open Types
         open Event
@@ -106,9 +106,9 @@ module T1 = struct
       type t = Types.Event.Option.t
 
       (* Using an immediate rather than a statically-allocated record here seems to
-         improve performance noticeably ([../bench/bin/bench_time_source.exe] benchmark
-         is faster by ~10ns per alarm), presumably because it avoids the expensive
-         parts of caml_modify. *)
+         improve performance noticeably ([../bench/bin/bench_time_source.exe] benchmark is
+         faster by ~10ns per alarm), presumably because it avoids the expensive parts of
+         caml_modify. *)
       let none = (Obj.magic None : t) (* an arbitrary immediate *)
       let some = (Obj.magic : Types.Event.t -> t)
       let is_none (t @ local) = phys_equal t none
@@ -160,11 +160,11 @@ module T1 = struct
       ; (* [interval] is the period for the periodic events. *)
         mutable interval : Time_ns.Span.t option
       ; (* [next_fired] and [prev_fired] create a doubly-linked (non-circular) list of
-           fired events, linked via these fields. An event is added to the list when
-           it fires, either because it is added with a time in the past, or
-           because time advances. [advance_by_alarms] iterates over the events
-           in [next_fired] and runs them, emptying the list. [none] is used to
-           indicate the end of the linked list of fired events. *)
+           fired events, linked via these fields. An event is added to the list when it
+           fires, either because it is added with a time in the past, or because time
+           advances. [advance_by_alarms] iterates over the events in [next_fired] and runs
+           them, emptying the list. [none] is used to indicate the end of the linked list
+           of fired events. *)
         mutable next_fired : Option.t
       ; mutable prev_fired : Option.t
       ; mutable status : Status.t
@@ -243,31 +243,29 @@ module T1 = struct
       match k, project k t with
       | Event, event -> [%sexp (event : Event.t)]
       | Job, _ ->
-        (* We don't display the [Job.t]s in [events] because those are
-           pool pointers, which are uninformative. *)
+        (* We don't display the [Job.t]s in [events] because those are pool pointers,
+           which are uninformative. *)
         [%message "<Job.t>"]
     ;;
   end
 
   type -'rw t = 'rw Types.Time_source.t1 =
     { id : Id.t
-    ; (* [advance_errors] accumulates errors raised by alarms run by
-         [advance_by_alarms]. *)
+    ; (* [advance_errors] accumulates errors raised by alarms run by [advance_by_alarms]. *)
       mutable advance_errors : Error.t list
     ; (* [am_advancing] is true only during [advance_by_alarms], and is used to cause
          callbacks to raise if they call [advance_by_alarms]. *)
       mutable am_advancing : bool
     ; events : Job_or_event.t Timing_wheel.t
-    ; (* [fired_events] is the front of the doubly-linked list of fired events,
-         which is stored in increasing order of [Event.at]. *)
+    ; (* [fired_events] is the front of the doubly-linked list of fired events, which is
+         stored in increasing order of [Event.at]. *)
       mutable fired_events : Event.Option.t
     ; (* [most_recently_fired] is the event that was most recently inserted into
-         [fired_events]. It is used as an optimization to allow insertion of
-         subsequent events to start later in the list rather than at the beginning.
-         It specifically avoids quadratic behavior when inserting multiple events
-         that have exactly the same time -- the time source fires such events in
-         the order they were added, and we want them to be in that same order in
-         [fired_events]. *)
+         [fired_events]. It is used as an optimization to allow insertion of subsequent
+         events to start later in the list rather than at the beginning. It specifically
+         avoids quadratic behavior when inserting multiple events that have exactly the
+         same time -- the time source fires such events in the order they were added, and
+         we want them to be in that same order in [fired_events]. *)
       mutable most_recently_fired : Event.Option.t
     ; (* We store [handle_fired] in [t] to avoid allocating it every time we call
          [advance_clock]. *)
@@ -385,17 +383,17 @@ let[@zero_alloc] length t = Timing_wheel.length t.events
 let[@zero_alloc] max_allowed_alarm_time t = Timing_wheel.max_allowed_alarm_time t.events
 let[@zero_alloc] read_only (t : [> read ] T1.t) = (t :> t)
 
-(* [fire t event] sets [event.status = Fired] and inserts [event] into
-   [t.fired_events] in sorted time order. *)
+(* [fire t event] sets [event.status = Fired] and inserts [event] into [t.fired_events] in
+   sorted time order. *)
 let fire t (event : Event.t) =
   Event.set_status event Fired;
   event.alarm <- Alarm.null ();
   let () =
-    (* If [event] belongs after [t.most_recently_fired], then we start the
-       insertion there rather than at the front of [t.fired_events]. This works
-       nicely if we're getting the alarms in non-decreasing time order, which is
-       close to what [Timing_wheel] provides (although [Timing_wheel] doesn't
-       guarantee time ordering for times in the same interval). *)
+    (* If [event] belongs after [t.most_recently_fired], then we start the insertion there
+       rather than at the front of [t.fired_events]. This works nicely if we're getting
+       the alarms in non-decreasing time order, which is close to what [Timing_wheel]
+       provides (although [Timing_wheel] doesn't guarantee time ordering for times in the
+       same interval). *)
     match%optional (t.most_recently_fired : Event.Option.t) with
     | Some most_recently_fired when Time_ns.( <= ) most_recently_fired.at event.at ->
       event.prev_fired <- Event.Option.some most_recently_fired;
@@ -405,10 +403,10 @@ let fire t (event : Event.t) =
       event.next_fired <- t.fired_events
   in
   t.most_recently_fired <- Event.Option.some event;
-  (* We use [Time_ns.( <= )] rather than [<] so that [event] is added after other
-     events at the same time. Since [Timing_wheel] fires alarms in a bucket in
-     the order in which they were added, using [<=] keeps events at the same
-     time in the order in which they were added. *)
+  (* We use [Time_ns.( <= )] rather than [<] so that [event] is added after other events
+     at the same time. Since [Timing_wheel] fires alarms in a bucket in the order in which
+     they were added, using [<=] keeps events at the same time in the order in which they
+     were added. *)
   while
     match%optional (event.next_fired : Event.Option.t) with
     | None -> false
@@ -778,8 +776,7 @@ let advance_by_max_alarms_in_each_timing_wheel_interval t ~to_ =
       then continue := false
       else
         (* We use the actual alarm time, rather than [next_alarm_fires_at], so as not to
-           expose (or accumulate errors associated with) the precision of
-           [Timing_wheel]. *)
+           expose (or accumulate errors associated with) the precision of [Timing_wheel]. *)
         advance_internal
           t
           ~to_:(Timing_wheel.max_alarm_time_in_min_interval_exn t.events)

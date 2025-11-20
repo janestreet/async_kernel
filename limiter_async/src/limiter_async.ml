@@ -19,8 +19,8 @@ end
 module Expert = struct
   type t =
     { continue_on_error : bool
-        (* [is_dead] is true if [t] was killed due to a job raising an exception or [kill t]
-       being called. *)
+        (* [is_dead] is true if [t] was killed due to a job raising an exception or
+           [kill t] being called. *)
     ; mutable is_dead : bool
         (* Ivar that is filled the next time return_to_hopper is called. *)
     ; mutable hopper_filled : unit Ivar.t option
@@ -155,8 +155,8 @@ module Expert = struct
           (Limiter.bucket_limit t.limiter);
         run_throttled_jobs_until_empty t
       | Taken ->
-        (* Safe, because we checked the length above.  And, we're guaranteed that
-           dequeue_exn gets out the same job that peek_exn does.  *)
+        (* Safe, because we checked the length above. And, we're guaranteed that
+           dequeue_exn gets out the same job that peek_exn does. *)
         ignore (Queue.dequeue_exn t.throttle_queue : int * Job.t);
         run_job_now t job ~return_after:amount;
         run_throttled_jobs_until_empty t
@@ -205,7 +205,7 @@ module Expert = struct
           amount
           bucket_limit
       | Taken ->
-        (* These semantics are copied from the current Throttle, and it was
+        (*=These semantics are copied from the current Throttle, and it was
            important enough there to add a specific unit test.  If you have
 
            do_f ();

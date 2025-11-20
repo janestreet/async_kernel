@@ -107,10 +107,9 @@ let job f =
 
 let run t ~max_concurrent_jobs =
   let semaphore = Counting_semaphore.create ~max_concurrent_jobs in
-  (* The name is set to the empty string in order to prevent [Monitor.send_exn]
-     from appending information about this monitor to the exceptions we forward.
-     This matters because we want simliar behavior to [Throttle] and not break
-     existing tests. *)
+  (* The name is set to the empty string in order to prevent [Monitor.send_exn] from
+     appending information about this monitor to the exceptions we forward. This matters
+     because we want simliar behavior to [Throttle] and not break existing tests. *)
   let monitor = Monitor.create ~name:"" () in
   let parent_monitor = Monitor.current () in
   Monitor.detach_and_iter_errors monitor ~f:(fun err ->

@@ -3,24 +3,27 @@ open! Import
 module Ivar = Ivar0
 module Handler = Ivar.Handler
 
-(* Deferreds present a covariant view of ivars.  We could actually implement deferreds
+(* Deferreds present a covariant view of ivars. We could actually implement deferreds
    using a record of closures, as in the [essence_of_deferred] record below, for which the
-   OCaml type checker can infer covariance.  However, doing so would make [Ivar.read] very
-   costly, because it would have to allocate lots of closures and a record.  Instead of
+   OCaml type checker can infer covariance. However, doing so would make [Ivar.read] very
+   costly, because it would have to allocate lots of closures and a record. Instead of
    doing this, we make deferreds an abstract covariant type, which concretely is just the
    ivar, and use [Obj.magic] to convert back and forth between a deferred and its concrete
-   representation as an ivar.  This [Obj.magic] is safe because the representation is
+   representation as an ivar. This [Obj.magic] is safe because the representation is
    always just an ivar, and the covariance follows from the fact that all the deferred
    operations are equivalent to those implemented directly on top of the
    [essence_of_deferred].
 
    {[
      type (+'a, 'execution_context) essence_of_deferred =
-       { peek                      : unit -> 'a option
-       ; is_determined             : unit -> bool
-       ; upon                      : ('a -> unit) -> unit
-       ; upon'                     : ('a -> unit) -> Unregister.t
-       ; install_removable_handler : ('a, 'execution_context) Raw_handler.t -> Unregister.t; } ]} *)
+       { peek : unit -> 'a option
+       ; is_determined : unit -> bool
+       ; upon : ('a -> unit) -> unit
+       ; upon' : ('a -> unit) -> Unregister.t
+       ; install_removable_handler :
+           ('a, 'execution_context) Raw_handler.t -> Unregister.t
+       }
+   ]} *)
 
 type +'a t = 'a Types.Deferred.t
 

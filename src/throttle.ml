@@ -99,7 +99,7 @@ module Job : sig
     -> [ `Ok | `Raised of exn ] Deferred.t
 
   (* We take [`Aborted of abort_reason] to avoid needing to reallocate the same value many
-      times. *)
+     times. *)
   val abort : _ t -> [ `Aborted of abort_reason ] -> unit
 end = struct
   type ('a, 'b) t =
@@ -181,12 +181,13 @@ type 'a t =
        killed. *)
     mutable cleans : ('a -> unit Deferred.t) list
   ; (* [num_resources_not_cleaned] is the number of resources whose clean functions have
-       not yet completed.  While [t] is alive, [num_resources_not_cleaned =
-       max_concurrent_jobs].  Once [t] is killed, [num_resources_not_cleaned] decreases to
-       zero over time as the clean functions complete. *)
+       not yet completed. While [t] is alive,
+       [num_resources_not_cleaned = max_concurrent_jobs]. Once [t] is killed,
+       [num_resources_not_cleaned] decreases to zero over time as the clean functions
+       complete. *)
     mutable num_resources_not_cleaned : int
-  ; (* [cleaned] becomes determined when [num_resources_not_cleaned] reaches zero,
-       i.e. after [t] is killed and all its clean functions complete. *)
+  ; (* [cleaned] becomes determined when [num_resources_not_cleaned] reaches zero, i.e.
+       after [t] is killed and all its clean functions complete. *)
     cleaned : unit Ivar.t
   }
 [@@deriving fields ~getters ~iterators:iter, sexp_of]
@@ -258,8 +259,8 @@ let clean_resource t a =
 let clean_resources_not_in_use t =
   match t.cleans with
   | [] ->
-    (* This special case helps a lot if resources are "units", so [job_resources_not_in_use]
-       is a potentially very large counter. *)
+    (* This special case helps a lot if resources are "units", so
+       [job_resources_not_in_use] is a potentially very large counter. *)
     resources_just_cleaned t (Stack_or_counter.length t.job_resources_not_in_use);
     Stack_or_counter.clear t.job_resources_not_in_use
   | _ :: _ ->
@@ -501,7 +502,7 @@ let monad_sequence_how2 ~how ~on_error ~f =
 
 let prior_jobs_done t =
   (* We queue [t.max_concurrent_jobs] dummy jobs and when they are all started we know
-     that all prior jobs finished.  We make sure that all dummy jobs wait for the last one
+     that all prior jobs finished. We make sure that all dummy jobs wait for the last one
      to get started before finishing. *)
   Deferred.create (fun all_dummy_jobs_running ->
     let dummy_jobs_running = ref 0 in

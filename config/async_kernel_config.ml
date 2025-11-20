@@ -297,7 +297,7 @@ let default_timing_wheel_config =
 
 let hardcoded_default =
   (* For [file_descr_watcher] and [max_num_open_file_descrs] we choose the default for the
-     common case that [epoll] is available.  There is some additional code in
+     common case that [epoll] is available. There is some additional code in
      [Async_unix.Config] that checks whether [epoll] is actually available, and if not,
      uses [select] and a smaller number of file descriptors. *)
   { abort_after_thread_pool_stuck_for = Some (sec 60.)

@@ -13,18 +13,18 @@ type any =
 
 type 'a t = 'a Types.Ivar.t = { mutable cell : ('a, any) cell }
 
-(* The ['b] is used to encode the constructor.  This allows us to write functions that
-   take only one of the constructors, with no runtime test.
+(* The ['b] is used to encode the constructor. This allows us to write functions that take
+   only one of the constructors, with no runtime test.
 
    We maintain the invariant that the directed graph with ivars as nodes and [Indir]s as
-   edges is acyclic.  The only functions that create an [Indir] are [squash] and
-   [connect], and for those, the target of the [Indir] is always a non-[Indir].  Thus, the
-   newly added edges are never part of a cycle. *)
+   edges is acyclic. The only functions that create an [Indir] are [squash] and [connect],
+   and for those, the target of the [Indir] is always a non-[Indir]. Thus, the newly added
+   edges are never part of a cycle. *)
 and ('a, 'b) cell = ('a, 'b) Types.Cell.t =
   | Empty_one_or_more_handlers :
-      { (* [run] is mutable so we can set it to [ignore] when the handler is removed.
-           This is used when we install a handler on a full ivar since it is immediately
-           added to the scheduler. *)
+      { (* [run] is mutable so we can set it to [ignore] when the handler is removed. This
+           is used when we install a handler on a full ivar since it is immediately added
+           to the scheduler. *)
         mutable run : 'a -> unit
       ; execution_context : Execution_context.t
       ; (* [prev] and [next] circularly doubly link all handlers of the same ivar. *)
@@ -55,16 +55,13 @@ module Handler = struct
 
        {[
          let rec t =
-           Empty_one_or_more_handlers
-             { run
-             ; execution_context
-             ; prev              = t
-             ; next              = t }
+           Empty_one_or_more_handlers { run; execution_context; prev = t; next = t }
          in
-         h1 ]}
+         h1
+       ]}
 
        However the compilation of recursive value in OCaml is not optimal: the value is
-       allocated twice and copied once (with a loop calling caml_modify).  This is not
+       allocated twice and copied once (with a loop calling caml_modify). This is not
        necessary for simple recursive definitions like this one.
 
        Instead we allocate the value with dummy fields and update them after. *)
@@ -82,17 +79,12 @@ module Handler = struct
 
        {[
          let rec t1 =
-           { run               = run1
-           ; execution_context = execution_context1
-           ; prev              = t2
-           ; next              = t2 }
+           { run = run1; execution_context = execution_context1; prev = t2; next = t2 }
          and t2 =
-           { run               = run2
-           ; execution_context = execution_context2
-           ; prev              = t1
-           ; next              = t1 }
+           { run = run2; execution_context = execution_context2; prev = t1; next = t1 }
          in
-         t1 ]} *)
+         t1
+       ]} *)
     let t1 =
       Empty_one_or_more_handlers
         { run = run1
@@ -322,10 +314,10 @@ let remove_handler t (handler : _ Handler.t) =
   match t.cell with
   | Indir _ -> assert false (* fulfilled by [squash] *)
   | Empty | Empty_one_handler _ ->
-    (* These are only possible if [handler] was already removed.  *)
+    (* These are only possible if [handler] was already removed. *)
     ()
   | Full _ ->
-    (* This is possible if [t] was filled before we try to remove the handler.  E.g.
+    (* This is possible if [t] was filled before we try to remove the handler. E.g.
        [Deferred.choose] will do this. *)
     ()
   | Empty_one_or_more_handlers _ as cell ->
@@ -371,10 +363,11 @@ let upon' t run = add_handler t run Scheduler.(current_execution_context (t ()))
 (* [upon] is conceptually the same as:
 
    {[
-     let upon t f = ignore (upon' t run) ]}
+     let upon t f = ignore (upon' t run)
+   ]}
 
    However, below is a more efficient implementation, which is worth doing because [upon]
-   is very widely used and is so much more common than [upon'].  The below implementation
+   is very widely used and is so much more common than [upon']. The below implementation
    avoids the use of the bag of handlers in the extremely common case of one handler for
    the deferred. *)
 let upon t run =
@@ -392,15 +385,14 @@ let upon t run =
     ignore (Handler.add handler run execution_context : _ Handler.t)
 ;;
 
-(* [connect] takes ivars [bind_result] and [bind_rhs], and makes [bind_rhs]
-   be an [Indir] pointing to the non-indir cell reachable from [bind_result].  On entry
-   to [connect], [bind_result] and [bind_rhs] may be chains, since [bind_rhs] is an
-   arbitrary user-supplied deferred, and [bind_result] is returned to the user prior to
-   being [connect]ed, and may have been converted to an indirection in the case of
-   right-nested binds.
+(* [connect] takes ivars [bind_result] and [bind_rhs], and makes [bind_rhs] be an [Indir]
+   pointing to the non-indir cell reachable from [bind_result]. On entry to [connect],
+   [bind_result] and [bind_rhs] may be chains, since [bind_rhs] is an arbitrary
+   user-supplied deferred, and [bind_result] is returned to the user prior to being
+   [connect]ed, and may have been converted to an indirection in the case of right-nested
+   binds.
 
-   The purpose of [connect] is to make tail-recursive bind loops use constant space.
-   E.g.:
+   The purpose of [connect] is to make tail-recursive bind loops use constant space. E.g.:
 
    {[
      let rec loop i =
@@ -408,7 +400,9 @@ let upon t run =
        then return ()
        else (
          let%bind () = after (sec 1.) in
-         loop (i - 1)) ]}
+         loop (i - 1))
+     ;;
+   ]}
 
    [connect] makes intermediate bind results all be [Indir]s pointing at the outermost
    bind, rather than being a linear-length chain, with each pointing to the previous one.
@@ -420,8 +414,8 @@ let upon t run =
 let connect =
   (* [repoint_indirs ~ivar ~indir ~bind_result] repoints to [indir] all the ivars in the
      chain reachable from [ivar], and returns the non-[Indir] cell at the end of the
-     chain.  After repointing, we will merge the handlers in that cell with the handlers
-     in [bind_result], and put the merged set of handlers in [bind_result]. *)
+     chain. After repointing, we will merge the handlers in that cell with the handlers in
+     [bind_result], and put the merged set of handlers in [bind_result]. *)
   let rec repoint_indirs ~ivar ~indir ~bind_result =
     let cell = ivar.cell in
     match cell with
@@ -442,8 +436,7 @@ let connect =
       let bind_result = squash bind_result in
       let indir = Indir bind_result in
       let bind_rhs_contents = repoint_indirs ~ivar:bind_rhs ~indir ~bind_result in
-      (* update [bind_result] with the union of handlers in [bind_result] and
-         [bind_rhs] *)
+      (* update [bind_result] with the union of handlers in [bind_result] and [bind_rhs] *)
       match bind_result.cell, bind_rhs_contents with
       | Indir _, _ | _, Indir _ -> assert false
       (* fulfilled by [squash] and [repoint_indirs] *)

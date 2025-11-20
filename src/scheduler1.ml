@@ -15,12 +15,12 @@ module Ivar = struct
   let create () = create_with_cell Empty
 
   let create_full (type a) (a : a) =
-    (* We allocate an immutable ivar and then cast it to a mutable ivar.  The immutability
-       allows OCaml to statically allocate the ivar if [a] is constant.  This cast is safe
-       because a full ivar is never mutated.  We also believe that we will not trigger
-       flambda to spuriously repor warning 59, mutation of known immutable data.  All
+    (* We allocate an immutable ivar and then cast it to a mutable ivar. The immutability
+       allows OCaml to statically allocate the ivar if [a] is constant. This cast is safe
+       because a full ivar is never mutated. We also believe that we will not trigger
+       flambda to spuriously repor warning 59, mutation of known immutable data. All
        mutations of an ivar cell, i.e. [foo.cell <- ...], are directly preceded by a
-       [match foo.cell] that prevents the [Full] case from reaching the modification.  So
+       [match foo.cell] that prevents the [Full] case from reaching the modification. So
        flambda should always eliminate the [foo.cell <- ...] of a constant [Full] ivar,
        and not warn. *)
     (Obj.magic : a Immutable.t -> a t) { cell = Full a }
@@ -56,7 +56,7 @@ end
 
 type t = Scheduler0.t =
   { (* [check_access] optionally holds a function to run to check whether access to [t] is
-       currently allowed.  It is used to detect invalid access to the scheduler from a
+       currently allowed. It is used to detect invalid access to the scheduler from a
        thread. *)
     mutable check_access : (unit -> unit) option
   ; mutable job_pool : Job_pool.t
@@ -66,7 +66,7 @@ type t = Scheduler0.t =
   ; main_execution_context : Execution_context.t
   ; mutable current_execution_context : Execution_context.t
       (* The scheduler calls [got_uncaught_exn] when an exception bubbles to the top of
-         the monitor tree without being handled.  This function guarantees to never run
+         the monitor tree without being handled. This function guarantees to never run
          another job after this by calling [clear] and because [enqueue_job] will never
          add another job. *)
   ; mutable uncaught_exn : (Exn.t * Sexp.t) option
@@ -84,10 +84,10 @@ type t = Scheduler0.t =
   ; job_infos_for_cycle : Job_infos_for_cycle.t
   ; mutable total_cycle_time : Time_ns.Span.t
   ; mutable time_source : read_write Synchronous_time_source.T1.t
-      (* [external_jobs] is a queue of actions sent from outside of async.  This is for
-         the case where we want to schedule a job or fill an ivar from a context where it
-         is not safe to run async code, because the async lock isn't held.  For
-         instance: - in an OCaml finalizer, as they can run at any time in any thread.
+      (* [external_jobs] is a queue of actions sent from outside of async. This is for the
+         case where we want to schedule a job or fill an ivar from a context where it is
+         not safe to run async code, because the async lock isn't held. For instance: - in
+         an OCaml finalizer, as they can run at any time in any thread.
 
          The way to do it is to queue a thunk in [external_jobs] and call
          [thread_safe_external_job_hook], which is responsible for notifying the scheduler
@@ -110,7 +110,7 @@ type t = Scheduler0.t =
   ; mutable event_added_hook : (Time_ns.t -> unit) option
   ; mutable yield : ((unit, read_write) Types.Bvar.t[@sexp.opaque])
   ; mutable yield_until_no_jobs_remain :
-      ((unit, read_write) Types.Bvar.t[@sexp.opaque] (* configuration*))
+      ((unit, read_write) Types.Bvar.t[@sexp.opaque] (* configuration *))
   ; mutable check_invariants : bool
   ; mutable max_num_jobs_per_priority_per_cycle : Max_num_jobs_per_priority_per_cycle.t
   ; mutable record_backtraces : bool
@@ -317,9 +317,9 @@ let check_access t =
   | Some f -> f ()
 ;;
 
-(* Since there is no mli file, in order to get encapsulated_t_without_checking_access to be
-   portable in the interface, we must explicitly annotate its type via a module-inclusion
-   check *)
+(* Since there is no mli file, in order to get encapsulated_t_without_checking_access to
+   be portable in the interface, we must explicitly annotate its type via a
+   module-inclusion check *)
 include (
 struct
   let encapsulated_t_without_checking_access : _ -> _ @ portable =
@@ -374,17 +374,17 @@ let got_uncaught_exn t exn sexp =
   t.uncaught_exn <- Some (exn, sexp)
 ;;
 
-(* [start_cycle t ~max_num_jobs_per_priority] enables subsequent calls of [run_jobs]
-   to run up to [max_num_jobs_per_priority] jobs of each priority level. *)
+(* [start_cycle t ~max_num_jobs_per_priority] enables subsequent calls of [run_jobs] to
+   run up to [max_num_jobs_per_priority] jobs of each priority level. *)
 let start_cycle t ~max_num_jobs_per_priority =
   let n = Max_num_jobs_per_priority_per_cycle.raw max_num_jobs_per_priority in
   Job_queue.set_jobs_left_this_cycle t.normal_priority_jobs n;
   Job_queue.set_jobs_left_this_cycle t.low_priority_jobs n
 ;;
 
-(* [run_jobs t] removes jobs from [t] one at a time and runs them, stopping as soon
-   as an unhandled exception is raised, or when no more jobs can be run at any priority,
-   as per [~max_num_jobs_per_priority]. *)
+(* [run_jobs t] removes jobs from [t] one at a time and runs them, stopping as soon as an
+   unhandled exception is raised, or when no more jobs can be run at any priority, as per
+   [~max_num_jobs_per_priority]. *)
 let rec run_jobs t =
   match Job_queue.run_jobs t.normal_priority_jobs t with
   | Error _ as e -> e

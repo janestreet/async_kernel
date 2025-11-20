@@ -4,7 +4,7 @@ open! Import
 module Deferred = Eager_deferred0
 open Deferred.Let_syntax
 
-(* Copied from [deferred_result.ml].  There should be no diffs below this line. *)
+(* Copied from [deferred_result.ml]. There should be no diffs below this line. *)
 
 module T = struct
   type ('a, 'error) t = ('a, 'error) Result.t Deferred.t

@@ -15,17 +15,17 @@ type t = Types.Job_queue.t =
   ; mutable jobs_left_this_cycle : int
   ; (* [jobs] is an array of length [capacity t * slots_per_elt], where each elt has the
        three components of a job ([execution_context], [f], [a]) in consecutive spots in
-       [jobs].  [enqueue] doubles the length of [jobs] if [jobs] is full.  [jobs] never
-       shrinks.  [jobs] is somewhat like a [Core.Pool] specialized to 3-tuples; we
-       don't use [Pool] because that implements a set, where [jobs] is a queue. *)
+       [jobs]. [enqueue] doubles the length of [jobs] if [jobs] is full. [jobs] never
+       shrinks. [jobs] is somewhat like a [Core.Pool] specialized to 3-tuples; we don't
+       use [Pool] because that implements a set, where [jobs] is a queue. *)
     mutable jobs : (Obj.t A.t[@sexp.opaque])
-  ; (* [mask] is [capacity t - 1], and is used for quickly computing [i mod (capacity
-       t)]. A special case when the job queue has capacity 0 is represented
-       with [mask = -1]. This value is not useful as a bit-mask, but we only use
-       the bit-mask when there's capacity in the array, so that is not a problem.
+  ; (* [mask] is [capacity t - 1], and is used for quickly computing [i mod (capacity t)].
+       A special case when the job queue has capacity 0 is represented with [mask = -1].
+       This value is not useful as a bit-mask, but we only use the bit-mask when there's
+       capacity in the array, so that is not a problem.
     *)
     mutable mask : int
-  ; (* [front] is the index of the first job in the queue.  The array index of that job's
+  ; (* [front] is the index of the first job in the queue. The array index of that job's
        execution context is [front * slots_per_elt]. *)
     mutable front : int
   ; mutable length : int
@@ -146,8 +146,8 @@ let[@inline] run_job t (scheduler : Scheduler.t) execution_context f a =
      line, the most likely reason for this is that some part of the program is enqueueing
      jobs onto the async job queue (including e.g. by filling an ivar) in a non-thread
      safe way. If using the [Async_unix] scheduler, running the program with
-     [ASYNC_CONFIG='((detect_invalid_access_from_thread true))'] will validate
-     accesses and show where the invalid access is coming from if there is one. *)
+     [ASYNC_CONFIG='((detect_invalid_access_from_thread true))'] will validate accesses
+     and show where the invalid access is coming from if there is one. *)
   let result = f a in
   Job_infos_for_cycle.Private.after_job_finished scheduler.job_infos_for_cycle;
   result
@@ -187,15 +187,15 @@ let run_jobs (type a) t scheduler =
       let f : a -> unit = Obj.Expert.obj (A.unsafe_get t.jobs (this_job + 1)) in
       let a : a = Obj.Expert.obj (A.unsafe_get t.jobs (this_job + 2)) in
       (* We clear out the job right now so that it isn't live at the next minor
-         collection.  We tried not doing this and saw significant (15% or so) performance
+         collection. We tried not doing this and saw significant (15% or so) performance
          hits due to spurious promotion. *)
       set t 0 dummy_e dummy_f dummy_a;
       t.front <- (t.front + 1) land t.mask;
       t.length <- t.length - 1;
       t.jobs_left_this_cycle <- t.jobs_left_this_cycle - 1;
       (* It is OK if [run_job] or [run_external_jobs] raises, in which case the exn is
-         handled by the outer try-with.  The only side effects we have done are to take
-         the job out of the queue and decrement [jobs_left_this_cycle].  [run_job] or
+         handled by the outer try-with. The only side effects we have done are to take the
+         job out of the queue and decrement [jobs_left_this_cycle]. [run_job] or
          [run_external_jobs] may side effect [t], either by enqueueing jobs, or by
          clearing [t]. *)
       run_job t scheduler execution_context (fun { aliased = a } -> f a) { aliased = a }

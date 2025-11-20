@@ -32,10 +32,10 @@ type 'a t = 'a Or_error.t Deferred.t
     and [combine_errors_unit] respectively. *)
 include Applicative.S with type 'a t := 'a t
 
-(** [return x = Deferred.return (Ok x)] **)
+(** [return x = Deferred.return (Ok x)] *)
 include Monad.S with type 'a t := 'a t
 
-(** [fail error = Deferred.return (Error error)] **)
+(** [fail error = Deferred.return (Error error)] *)
 val fail : Error.t -> _ t
 
 (** These functions are direct analogs of the corresponding [Core.Or_error] functions. *)

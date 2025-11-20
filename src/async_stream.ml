@@ -189,10 +189,9 @@ let ungroup t =
 
 let interleave ts =
   create (fun tail ->
-    (* The interleaved stream should be closed when the outer stream and all of
-       the inner streams have been closed.  Keep a count of the number of open
-       streams and close the interleaved stream when that count becomes
-       zero. *)
+    (* The interleaved stream should be closed when the outer stream and all of the inner
+       streams have been closed. Keep a count of the number of open streams and close the
+       interleaved stream when that count becomes zero. *)
     let num_open = ref 1 in
     (* 1 for the outer stream that is open *)
     let close () =
@@ -246,9 +245,9 @@ let iter_durably_report_end t ~f =
       >>> function
       | Nil -> Ivar.fill_exn result ()
       | Cons (x, t) ->
-        (* We immediately call [loop], thus making the iter durable.  Any exceptions
-           raised by [f] will not prevent the loop from continuing, and will go to the
-           monitor of whomever called [iter_durably_report_end]. *)
+        (* We immediately call [loop], thus making the iter durable. Any exceptions raised
+           by [f] will not prevent the loop from continuing, and will go to the monitor of
+           whomever called [iter_durably_report_end]. *)
         loop t;
         f x
     in
