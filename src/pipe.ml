@@ -920,9 +920,9 @@ let fold_gen
     (* We do [values_available t >>>] to ensure that [f] is only called asynchronously.
        See [1] for more details. *)
     (* [1] For new empty pipes created at top-level we want to avoid immediately
-       scheduling a job on the scheduler (see [Scheduler.raise_if_any_jobs_were_scheduled]).
-       Just [return () >>>] doesn't work: [return ()] creates a full ivar that causes
-       [>>>] to schedule a job. *)
+           scheduling a job on the scheduler (see
+           [Scheduler.raise_if_any_jobs_were_scheduled]). Just [return () >>>] doesn't
+           work: [return ()] creates a full ivar that causes [>>>] to schedule a job. *)
     values_available t
     >>> fun (_ : [ `Ok | `Eof ]) ->
     let rec loop b =
@@ -1102,23 +1102,23 @@ let to_stream_deprecated t =
     >>> fun () -> Tail.close_exn tail)
 ;;
 
-(* The implementation of [of_stream_deprecated] does as much batching as possible.  It
-   grabs as many items as are available into an internal queue.  Once it has grabbed
+(* The implementation of [of_stream_deprecated] does as much batching as possible. It
+   grabs as many items as are available into an internal queue. Once it has grabbed
    everything, it writes it to the pipe and then blocks waiting for the next element from
    the stream.
 
    There's no possibility that we'll starve the pipe reading an endless stream, just
    accumulating the elements into our private queue forever without ever writing them
-   downstream to the pipe.  Why? because while we're running, the stream-producer *isn't*
-   running -- there are no Async block points in the queue-accumulator loop.  So the
+   downstream to the pipe. Why? because while we're running, the stream-producer *isn't*
+   running -- there are no Async block points in the queue-accumulator loop. So the
    queue-accumulator loop will eventually catch up to the current stream tail, at which
    point we'll do the pipe-write and then block on the stream... thus giving the
    stream-producer a chance to make more elements.
 
-   One can't implement [of_stream] using [Stream.iter] or [Stream.iter'] because you
-   need to be able to stop early when the consumer closes the pipe.  Also, using either
-   of those would entail significantly more deferred overhead, whereas the below
-   implementation uses a deferred only when it needs to wait for data from the stream. *)
+   One can't implement [of_stream] using [Stream.iter] or [Stream.iter'] because you need
+   to be able to stop early when the consumer closes the pipe. Also, using either of those
+   would entail significantly more deferred overhead, whereas the below implementation
+   uses a deferred only when it needs to wait for data from the stream. *)
 let of_stream_deprecated s =
   let r, w = create () in
   let q = Queue.create () in

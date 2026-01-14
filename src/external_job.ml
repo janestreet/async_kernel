@@ -8,9 +8,9 @@ module Encapsulated = struct
   let create ~execution_context ~f ~a =
     let open struct
       (* If a record has only immutable fields, it it always sound to construct a
-         [Capsule.Data.t] for that record from [Capsule.Data.t]s within the same
-         capsule containing that record's fields. Soon this will be supported by the
-         language directly, but in the meantime we have to use magic.
+         [Capsule.Data.t] for that record from [Capsule.Data.t]s within the same capsule
+         containing that record's fields. Soon this will be supported by the language
+         directly, but in the meantime we have to use magic.
       *)
       external magic_unwrap_once_capsule
         :  ('a, 'k) Capsule.Data.t @ once

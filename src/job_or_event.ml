@@ -4,8 +4,7 @@ module Event = Types.Event
 module Job = Types.Job
 include Types.Job_or_event
 
-(* This redefinition of [Event] is here so the type checks are right next to
-   [Obj.magic]s. *)
+(* This redefinition of [Event] is here so the type checks are right next to [Obj.magic]s. *)
 module _ : sig end = struct
   open Types
   open Event

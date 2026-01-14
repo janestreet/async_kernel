@@ -179,11 +179,13 @@ end
 exception Monitor_exn of Monitor_exn.t
 
 let () =
-  Sexplib.Conv.Exn_converter.add [%extension_constructor Monitor_exn] (function
-    | Monitor_exn t -> [%sexp "monitor.ml.Error" :: (t : Monitor_exn.t)]
-    | _ ->
-      (* Reaching this branch indicates a bug in sexplib. *)
-      assert false)
+  Sexplib.Conv.Exn_converter.add
+    [%extension_constructor Monitor_exn]
+    (Obj.magic_portable (function
+      | Monitor_exn t -> [%sexp "monitor.ml.Error" :: (t : Monitor_exn.t)]
+      | _ ->
+        (* Reaching this branch indicates a bug in sexplib. *)
+        assert false))
 ;;
 
 let extract_exn exn =

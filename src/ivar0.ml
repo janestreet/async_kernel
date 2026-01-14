@@ -441,7 +441,7 @@ let connect =
       | Indir _, _ | _, Indir _ -> assert false
       (* fulfilled by [squash] and [repoint_indirs] *)
       (* [connect] is only used in bind, whose ivar is only ever exported as a read-only
-         deferred.  Thus, [bind_result] must be empty. *)
+         deferred. Thus, [bind_result] must be empty. *)
       | Full _, _ -> assert false
       | _, Empty -> ()
       | Empty, _ -> bind_result.cell <- bind_rhs_contents

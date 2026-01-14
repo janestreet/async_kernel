@@ -136,10 +136,10 @@ end = struct
         | `Now -> really_run t ~rest a
         | `Schedule ->
           (* A previous version of [Internal_job] had a number of extra [Deferred.map]
-               invocations. Refactoring it to make those unnecessary causes externally
-               observable changes in how async jobs get scheduled, which breaks many tests
-               and has the potential to break programs that were unintentionally relying
-               on the previous ordering. *)
+             invocations. Refactoring it to make those unnecessary causes externally
+             observable changes in how async jobs get scheduled, which breaks many tests
+             and has the potential to break programs that were unintentionally relying on
+             the previous ordering. *)
           let%bind () = return () in
           really_run t ~rest a >>| Fn.id >>| Fn.id)
   ;;
