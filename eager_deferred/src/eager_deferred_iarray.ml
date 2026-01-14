@@ -4,8 +4,9 @@ module Deferred_array = Eager_deferred_array.Array
 open Eager_deferred0
 
 module Iarray = struct
-  (* All uses of [unsafe_to_array] are of the form [unsafe_to_array t |> func <args?> <~f?>]
-     or [unsafe_to_array |> func <args?> <~f?> >>| unsafe_of_array]. In all cases:
+  (* All uses of [unsafe_to_array] are of the form
+     [unsafe_to_array t |> func <args?> <~f?>] or
+     [unsafe_to_array |> func <args?> <~f?> >>| unsafe_of_array]. In all cases:
      1) [func] does not mutate the input [array], nor hold a reference to it;
      2) [func] never gives [f] (if relevant) a reference to the whole [array];
      3) [func] never returns the original [array].
@@ -14,9 +15,9 @@ module Iarray = struct
   let unsafe_to_array = Iarray.unsafe_to_array__promise_no_mutation
 
   (* All uses of [unsafe_of_array] are on [array]s which were just created by a function
-     which does not hold a reference to the [array], nor give [f] (if relevant) a reference
-     to the whole [array]. This means we have a unique reference to the [array], so it's
-     safe to cast it into an [iarray]. *)
+     which does not hold a reference to the [array], nor give [f] (if relevant) a
+     reference to the whole [array]. This means we have a unique reference to the [array],
+     so it's safe to cast it into an [iarray]. *)
   let unsafe_of_array = Iarray.unsafe_of_array__promise_no_mutation
 
   (* All functions have identical behavior to their [Eager_deferred_array] counter-part. *)

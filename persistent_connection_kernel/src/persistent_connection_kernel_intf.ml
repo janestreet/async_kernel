@@ -42,7 +42,9 @@ module type Connection_error = sig
   val to_error : t -> Error.t
 end
 
-module type S' = sig
+(** The subset of [S'] that excludes the [create] functions. Useful for modules that wrap
+    a persistent connection but don't want to expose the create functions. *)
+module type S'_without_create = sig
   type t [@@deriving sexp_of]
 
   (** A connection, perhaps embellished with additional information upon connection. *)
@@ -55,46 +57,6 @@ module type S' = sig
   module Event : sig
     type 'address t = (conn, conn_error, 'address) Event.t [@@deriving sexp_of]
   end
-
-  (** [create ~server_name ~on_event ~retry_delay get_address] returns a persistent
-      connection to a server whose host and port are obtained via [get_address] every time
-      we try to connect. For example, [get_address] might look up a server's host and port
-      in catalog at a particular path to which multiple redundant copies of a service are
-      publishing their location. If one copy dies, we get the address of the another one
-      when looking up the address afterwards.
-
-      All connection events (see the type above) are passed to the [on_event] callback, if
-      given. When this callback becomes determined, we move on to the next step in our
-      connection attempt (e.g. we won't actually attempt to connect until
-      [on_event Attempting_to_connect] is finished). Note that [on_event Disconnected]
-      will only be called once [on_event (Connected conn)] finishes even if the connection
-      goes down during that callback.
-
-      [`Failed_to_connect error] and [`Obtained_address addr] events are only reported if
-      they are distinct from the most recent event of the same type that has taken place
-      since the most recent [`Attempting_to_connect] event.
-
-      Connection is by default retried after
-      [Time.Span.randomize ~percent:(Percent.of_mult 0.3) (retry_delay ())]. The default
-      for [retry_delay] is [const (sec 10.)]. Note that what this retry delay actually
-      throttles is the delay between two connection attempts, so when a long-lived
-      connection dies, connection is usually immediately retried, and if that failed, wait
-      for another retry delay and retry.
-
-      The [random_state] and [time_source] arguments are there to make persistent
-      connection code more deterministically testable. They default to
-      [`State Random.State.default] and [Time_source.wall_clock ()], respectively. If
-      random_state is set to [`Non_random], retry_delay will be used directly. *)
-  val create
-    :  server_name:string
-    -> ?on_event:('address Event.t -> unit Deferred.t)
-    -> ?retry_delay:(unit -> Time_ns.Span.t)
-    -> ?random_state:[ `Non_random | `State of Random.State.t ]
-    -> ?time_source:Time_source.t
-    -> connect:('address -> (conn, conn_error) Result.t Deferred.t)
-    -> address:(module Address with type t = 'address)
-    -> (unit -> ('address, conn_error) Result.t Deferred.t)
-    -> t
 
   (** [connected] returns the first available connection from the time it is called. When
       currently connected, the returned deferred is already determined. If [closed] has
@@ -148,12 +110,77 @@ module type S' = sig
   end
 end
 
+module type S_without_create = S'_without_create with type conn_error := Error.t
+
+module type S' = sig
+  include S'_without_create
+
+  (** [create ~server_name ~on_event ~retry_delay get_address] returns a persistent
+      connection to a server whose host and port are obtained via [get_address] every time
+      we try to connect. For example, [get_address] might look up a server's host and port
+      in catalog at a particular path to which multiple redundant copies of a service are
+      publishing their location. If one copy dies, we get the address of the another one
+      when looking up the address afterwards.
+
+      All connection events (see the type above) are passed to the [on_event] callback, if
+      given. When this callback becomes determined, we move on to the next step in our
+      connection attempt (e.g. we won't actually attempt to connect until
+      [on_event Attempting_to_connect] is finished). Note that [on_event Disconnected]
+      will only be called once [on_event (Connected conn)] finishes even if the connection
+      goes down during that callback.
+
+      [`Failed_to_connect error] and [`Obtained_address addr] events are only reported if
+      they are distinct from the most recent event of the same type that has taken place
+      since the most recent [`Attempting_to_connect] event.
+
+      Connection is by default retried after
+      [Time.Span.randomize ~percent:(Percent.of_mult 0.3) (retry_delay ())]. The default
+      for [retry_delay] is [const (sec 10.)]. Note that what this retry delay actually
+      throttles is the delay between two connection attempts, so when a long-lived
+      connection dies, connection is usually immediately retried, and if that failed, wait
+      for another retry delay and retry.
+
+      The [random_state] and [time_source] arguments are there to make persistent
+      connection code more deterministically testable. They default to
+      [`State Random.State.default] and [Time_source.wall_clock ()], respectively. If
+      random_state is set to [`Non_random], retry_delay will be used directly. *)
+  val create
+    :  server_name:string
+    -> ?on_event:('address Event.t -> unit Deferred.t)
+    -> ?retry_delay:(unit -> Time_ns.Span.t)
+    -> ?random_state:[ `Non_random | `State of Random.State.t ]
+    -> ?time_source:Time_source.t
+    -> connect:('address -> (conn, conn_error) Result.t Deferred.t)
+    -> address:(module Address with type t = 'address)
+    -> (unit -> ('address, conn_error) Result.t Deferred.t)
+    -> t
+
+  (** Like [create], but passes a [Connect_context.t] to the [connect] callback. This
+      allows the callback to abort the persistent connection from within the connect logic
+      (e.g., after repeated failures in post-connection setup). *)
+  val create_with_connect_context
+    :  server_name:string
+    -> ?on_event:('address Event.t -> unit Deferred.t)
+    -> ?retry_delay:(unit -> Time_ns.Span.t)
+    -> ?random_state:[ `Non_random | `State of Random.State.t ]
+    -> ?time_source:Time_source.t
+    -> connect:(Connect_context.t -> 'address -> (conn, conn_error) Result.t Deferred.t)
+    -> address:(module Address with type t = 'address)
+    -> (unit -> ('address, conn_error) Result.t Deferred.t)
+    -> t
+end
+
 module type S = S' with type conn_error := Error.t
 
 module type Persistent_connection_kernel = sig
   module type Address = Address
   module type Closable = Closable
   module type Connection_error = Connection_error
+
+  module Connect_context = Connect_context
+
+  module type S'_without_create = S'_without_create
+  module type S_without_create = S_without_create
   module type S = S
   module type S' = S'
 

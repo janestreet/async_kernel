@@ -3,7 +3,7 @@ module Scheduler = Scheduler1
 include Deferred0
 
 (* To avoid a space leak, it is necessary that [never] allocates a new ivar whenever it is
-   called.  Code can bind on [never ()], so if we re-used the ivar, we could endlessly
+   called. Code can bind on [never ()], so if we re-used the ivar, we could endlessly
    accumulate handlers. *)
 let never () = Ivar.read (Ivar.create ())
 
@@ -23,18 +23,19 @@ module M = Monad.Make (struct
 
 include M
 
-(* We rebind all the various [return]s because the use of the [Monad.Make] functor
-   causes the compiler to not inline [return], and hence makes it impossible to
-   statically allocate constants like [return ()].  By rebinding [return] as
-   [Deferred0.return], the compiler can see that:
+(* We rebind all the various [return]s because the use of the [Monad.Make] functor causes
+   the compiler to not inline [return], and hence makes it impossible to statically
+   allocate constants like [return ()]. By rebinding [return] as [Deferred0.return], the
+   compiler can see that:
 
    {[
-     return a = { Ivar.Immutable. cell = Full a } ]}
+     return a = { Ivar.Immutable.cell = Full a }
+   ]}
 
    And hence, if [a] is constant, then the return is constant and can be statically
-   allocated.  When compiling with flambda, the compiler inlines [return] and this manual
-   rebinding would not help; we've decided to do it anyway so that non-flambda builds
-   get the optimization. *)
+   allocated. When compiling with flambda, the compiler inlines [return] and this manual
+   rebinding would not help; we've decided to do it anyway so that non-flambda builds get
+   the optimization. *)
 let return = Deferred0.return
 
 module Let_syntax = struct
@@ -128,8 +129,8 @@ let rec choose_result choices =
 let generic_choose choices =
   let result = Ivar.create () in
   let execution_context = Scheduler.(current_execution_context (t ())) in
-  (* A back-patched ref could be used here, but using lazy saves some memory
-     because the GC eventually removes the extra indirection. *)
+  (* A back-patched ref could be used here, but using lazy saves some memory because the
+     GC eventually removes the extra indirection. *)
   let rec unregisters =
     lazy
       (List.fold_right choices ~init:Unregister.Nil ~f:(fun (Choice.T (t, f)) acc ->
@@ -146,10 +147,10 @@ let generic_choose choices =
   Ivar.read result
 ;;
 
-(* [choose2] is a specialization of [choose] that has better memory usage.
-   At the time of writing, [choose2] keeps 22 extra words alive
-   for the duration of choice staying undetermined, while the equivalent generic
-   [choose] keeps 27 (see the benchmark in ../bench/bin/bench_choose_memory_usage.ml). *)
+(* [choose2] is a specialization of [choose] that has better memory usage. At the time of
+   writing, [choose2] keeps 22 extra words alive for the duration of choice staying
+   undetermined, while the equivalent generic [choose] keeps 27 (see the benchmark in
+   ../bench/bin/bench_choose_memory_usage.ml). *)
 let choose2 a fa b fb =
   let result = Ivar.create () in
   let execution_context = Scheduler.(current_execution_context (t ())) in
@@ -159,10 +160,9 @@ let choose2 a fa b fb =
     fun _ ->
     if Ivar.is_empty result
     then (
-      (* The order of these operations matters:
-         if we call [fb] or [fa] first and [remove_handler] after, then
-         any exceptions raised will cause the handlers to remain and then
-         the "second choice" gets a chance to run.
+      (* The order of these operations matters: if we call [fb] or [fa] first and
+         [remove_handler] after, then any exceptions raised will cause the handlers to
+         remain and then the "second choice" gets a chance to run.
       *)
       remove_handler a (Lazy.force a_handler);
       remove_handler b (Lazy.force b_handler);

@@ -16,7 +16,7 @@ let eprints = Core.Debug.eprints
 let print_s sexp = printf "%s\n%!" (sexp |> Sexp.to_string_hum)
 let sec = Time_ns.Span.of_sec
 
-(* We don't want to use these modules in Async_kernel, to avoid difficulties with
-   using it on js_of_ocaml. *)
+(* We don't want to use these modules in Async_kernel, to avoid difficulties with using it
+   on js_of_ocaml. *)
 module Thread = struct end
 module Unix = struct end

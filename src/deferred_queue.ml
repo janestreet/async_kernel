@@ -3,12 +3,12 @@ open Deferred_std
 module List = Deferred_list
 
 (* We implement all of the [Queue] operations by converting the queue to a list and then
-   using the corresponding [List] operation.  We use lists rather than arrays because
+   using the corresponding [List] operation. We use lists rather than arrays because
    arrays longer than a certain length are allocated in the major heap, which can cause
-   unnecessary promotion of the elements in the queue.  Also, when one is folding or
-   iterating over an array, the entire array must be kept alive.  When folding or
-   iterating over a list, only the remaining tail of the list is kept alive.  So, using
-   arrays rather than lists would increase the live-space needed by the program. *)
+   unnecessary promotion of the elements in the queue. Also, when one is folding or
+   iterating over an array, the entire array must be kept alive. When folding or iterating
+   over a list, only the remaining tail of the list is kept alive. So, using arrays rather
+   than lists would increase the live-space needed by the program. *)
 
 let foldi t ~init ~f = List.foldi (Queue.to_list t) ~init ~f
 let fold t ~init ~f = List.fold (Queue.to_list t) ~init ~f

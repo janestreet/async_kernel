@@ -93,7 +93,7 @@ end
 
 (**/**)
 
-(* This test must be in this library, because it requires [return] to be inlined.  Moving
+(* This test must be in this library, because it requires [return] to be inlined. Moving
    it to another library will cause it to break with [X_LIBRARY_INLINING=false]. *)
 let%test_unit "[return ()] does not allocate" =
   let w1 = Gc.minor_words () in

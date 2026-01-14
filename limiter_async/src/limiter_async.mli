@@ -49,8 +49,8 @@ module Token_bucket : sig
   type t [@@deriving sexp_of]
   type _ u = t
 
-  (*_ This type synonym is introduced because older versions of OCaml
-    do not support destructive substitutions with `type 'a t1 = t2`. *)
+  (*_ This type synonym is introduced because older versions of OCaml do not support
+      destructive substitutions with `type 'a t1 = t2`. *)
 
   val create_exn
     :  burst_size:int
@@ -105,8 +105,8 @@ module Throttle : sig
   type t [@@deriving sexp_of]
   type _ u = t
 
-  (*_ This type synonym is introduced because older versions of OCaml
-    do not support destructive substitutions with `type 'a t1 = t2`. *)
+  (*_ This type synonym is introduced because older versions of OCaml do not support
+      destructive substitutions with `type 'a t1 = t2`. *)
 
   val create_exn
     :  concurrent_jobs_target:int
@@ -132,8 +132,8 @@ module Sequencer : sig
   type t [@@deriving sexp_of]
   type _ u = t
 
-  (*_ This type synonym is introduced because older versions of OCaml
-    do not support destructive substitutions with `type 'a t1 = t2`. *)
+  (*_ This type synonym is introduced because older versions of OCaml do not support
+      destructive substitutions with `type 'a t1 = t2`. *)
 
   val create
     :  ?continue_on_error:bool (** default is [false] *)

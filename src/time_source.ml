@@ -36,8 +36,8 @@ module T1 = struct
     else
       [%message
         (is_wall_clock : bool)
-          (* We don't display the [Job.t]s in [events] because those are
-             pool pointers, which are uninformative. *)
+          (* We don't display the [Job.t]s in [events] because those are pool pointers,
+             which are uninformative. *)
           (events : _ Timing_wheel.t)]
   ;;
 end
@@ -70,11 +70,10 @@ let[@zero_alloc] now t =
   if t.is_wall_clock
   then
     (* For the wall-clock time-source, we use [Time_ns.now ()] rather than
-       [Timing_wheel.now t.events].  The latter is only updated at the start of each
-       cycle.  There can be substantial difference between the two when people do long
-       running computations or mix blocking code with async.  And humans expect that
-       wall-clock time is based on [Time.now], not some artifact of async
-       implementation. *)
+       [Timing_wheel.now t.events]. The latter is only updated at the start of each cycle.
+       There can be substantial difference between the two when people do long running
+       computations or mix blocking code with async. And humans expect that wall-clock
+       time is based on [Time.now], not some artifact of async implementation. *)
     Time_ns.now ()
   else timing_wheel_now t
 ;;
@@ -114,7 +113,7 @@ let advance_by_alarms ?wait_for t ~to_ =
   let run_queued_alarms () =
     (* Every time we want to run queued alarms we need to yield control back to the
        [Async.Scheduler] and [wait_for] any logic that is supposed to finish at this time
-       before advancing.  If no [wait_for] logic is specified we can simply yield control
+       before advancing. If no [wait_for] logic is specified we can simply yield control
        by invoking [yield t], which enqueues another job at the end of the scheduler job
        queue so alarm jobs have the opportunity to run before we advance. *)
     match wait_for with
@@ -137,7 +136,7 @@ let advance_by_alarms ?wait_for t ~to_ =
       | `continue -> walk_alarms ())
   in
   (* This first [run_queued_alarms] call allows [Clock_ns.every] the opportunity to run
-     its continuation deferreds so that they can reschedule alarms.  This is particularly
+     its continuation deferreds so that they can reschedule alarms. This is particularly
      useful in our "advance hits intermediate alarms" unit test below, but likely useful
      in other cases where [every] is synchronously followed by [advance]. *)
   let%bind () = run_queued_alarms () in
@@ -148,7 +147,7 @@ let advance_by_max_alarms_in_each_timing_wheel_interval ?wait_for t ~to_ =
   let run_queued_alarms () =
     (* Every time we want to run queued alarms we need to yield control back to the
        [Async.Scheduler] and [wait_for] any logic that is supposed to finish at this time
-       before advancing.  If no [wait_for] logic is specified we can simply yield control
+       before advancing. If no [wait_for] logic is specified we can simply yield control
        by invoking [yield t], which enqueues another job at the end of the scheduler job
        queue so alarm jobs have the opportunity to run before we advance. *)
     match wait_for with
@@ -175,7 +174,7 @@ let advance_by_max_alarms_in_each_timing_wheel_interval ?wait_for t ~to_ =
   in
   fire_past_alarms t;
   (* This first [run_queued_alarms] call allows [Clock_ns.every] the opportunity to run
-     its continuation deferreds so that they can reschedule alarms.  This is particularly
+     its continuation deferreds so that they can reschedule alarms. This is particularly
      useful in our "advance hits intermediate alarms" unit test below, but likely useful
      in other cases where [every] is synchronously followed by [advance]. *)
   let%bind () = run_queued_alarms () in
@@ -255,19 +254,19 @@ module Event = struct
     { mutable alarm : Job_or_event.t Alarm.t
     ; mutable fire : unit -> unit
     ; (* As long as [Ivar.is_empty fired], we have not yet committed to whether the event
-         will happen or be aborted.  When [Ivar.is_empty fired], the alarm may or may not
+         will happen or be aborted. When [Ivar.is_empty fired], the alarm may or may not
          be in the timing wheel -- if it isn't, then there's a job in Async's job queue
          that will fire the event, unless it is aborted before that job can run. *)
       fired : ('a, 'h) Fired.t Ivar.t
     ; (* [num_fires_to_skip] is used to reschedule events that have fired and entered the
-         Async job queue, but have not yet run.  Those jobs only run if [num_fires_to_skip
-         = 0], and otherwise just decrement it.  So, to reschedule an event in such a
-         state, we increment [num_fires_to_skip] and add a new alarm to the timing
-         wheel. *)
+         Async job queue, but have not yet run. Those jobs only run if
+         [num_fires_to_skip = 0], and otherwise just decrement it. So, to reschedule an
+         event in such a state, we increment [num_fires_to_skip] and add a new alarm to
+         the timing wheel. *)
       mutable num_fires_to_skip : int
     ; (* [scheduled_at] is the time at which [t] has most recently been scheduled to fire.
-         While [t.alarm] is still in the timing wheel, this is the same as [Alarm.at
-         t.alarm]. *)
+         While [t.alarm] is still in the timing wheel, this is the same as
+         [Alarm.at t.alarm]. *)
       mutable scheduled_at : Time_ns.t
     ; time_source : Synchronous_time_source0.t
     }
@@ -400,8 +399,8 @@ module Event = struct
       }
     in
     let fire () =
-      (* [fire] runs in an Async job.  The event may have been aborted after the job
-         was enqueued, so [fire] must check [fired]. *)
+      (* [fire] runs in an Async job. The event may have been aborted after the job was
+         enqueued, so [fire] must check [fired]. *)
       if Ivar.is_empty t.fired
       then
         if t.num_fires_to_skip > 0
@@ -566,11 +565,10 @@ let run_at_intervals ?start ?stop ?continue_on_error t interval f =
 let with_timeout t span d =
   let timeout = Event.after t span in
   choose
-    (* The code below does exhaustive case analysis in both [choice]s.  Because [timeout]
+    (* The code below does exhaustive case analysis in both [choice]s. Because [timeout]
        does not escape the scope of this function, certain cases should be impossible, and
-       are marked as such with exceptions.  We do not expect those exceptions to occur,
-       but if they do, it likely indicates a bug in [choose] rather than
-       [with_timeout]. *)
+       are marked as such with exceptions. We do not expect those exceptions to occur, but
+       if they do, it likely indicates a bug in [choose] rather than [with_timeout]. *)
     [ choice d (fun v ->
         (match Event.abort timeout () with
          (* [Previously_happened] can occur if both [d] and [wait] become determined at
@@ -629,11 +627,11 @@ let timing_wheel_has_event_at_or_before wheel time =
 
 let advance_directly_if_quiescent t ~to_ =
   let is_quiescent =
-    (* Since this function is intended to be just a fast case of [advance_by_alarms],
-       we want to make sure that the call to [Scheduler.yield ()] can be elided,
-       hence the [can_run_a_job] check.
+    (* Since this function is intended to be just a fast case of [advance_by_alarms], we
+       want to make sure that the call to [Scheduler.yield ()] can be elided, hence the
+       [can_run_a_job] check.
 
-       We're not checking epoll, and we're not checking the [external_jobs].  That is an
+       We're not checking epoll, and we're not checking the [external_jobs]. That is an
        observable difference, but since [advance_by_alarms ?wait_for:None] is already
        pretty broken when waiting for external events, it's not going to be meaningful.
     *)

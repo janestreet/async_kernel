@@ -297,7 +297,7 @@ let default_timing_wheel_config =
 
 let hardcoded_default =
   (* For [file_descr_watcher] and [max_num_open_file_descrs] we choose the default for the
-     common case that [epoll] is available.  There is some additional code in
+     common case that [epoll] is available. There is some additional code in
      [Async_unix.Config] that checks whether [epoll] is actually available, and if not,
      uses [select] and a smaller number of file descriptors. *)
   { abort_after_thread_pool_stuck_for = Some (sec 60.)
@@ -308,11 +308,11 @@ let hardcoded_default =
   ; io_uring_max_submission_entries =
       Some
         (Io_uring_max_submission_entries.create_exn
-           (* The default of 512 is motivated by a kernel bug/limitation where
-              the io_uring queue needed to be contiguous in physical memory. When using
-              1024 as the queue size, in conditions of fragmented free memory the
-              allocation would crash with OOM sometimes. The smaller queue size makes the
-              issue pretty much disappear. This is thought to be fixed in kernels >= 6.10
+           (* The default of 512 is motivated by a kernel bug/limitation where the
+              io_uring queue needed to be contiguous in physical memory. When using 1024
+              as the queue size, in conditions of fragmented free memory the allocation
+              would crash with OOM sometimes. The smaller queue size makes the issue
+              pretty much disappear. This is thought to be fixed in kernels >= 6.10
            *)
            512)
   ; io_uring_mode = Some Disabled
