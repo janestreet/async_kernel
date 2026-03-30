@@ -9,8 +9,16 @@ type 'a repr = 'a Types.Bvar.repr =
   }
 [@@deriving fields ~iterators:iter, sexp_of]
 
+include (
+  Scheduler1.Bvar :
+    module type of struct
+      include Scheduler1.Bvar
+    end
+    with type ('a, 'perm) t := ('a, 'perm) t
+     and type 'a repr := 'a repr)
+
 let invariant invariant_a _ t =
-  let repr = Types.Bvar.to_repr t in
+  let repr = to_repr t in
   Invariant.invariant repr [%sexp_of: _ repr] (fun () ->
     let check f = Invariant.check_field repr f in
     Fields_of_repr.iter
@@ -24,15 +32,13 @@ let invariant invariant_a _ t =
 ;;
 
 let sexp_of_t _ _ t =
-  let { has_any_waiters; ivar = _ } = Types.Bvar.to_repr t in
+  let { has_any_waiters; ivar = _ } = to_repr t in
   (* We don't show [ivar] because it's always empty. *)
   [%message (has_any_waiters : bool)]
 ;;
 
-include Scheduler1.Bvar
-
 let broadcast t a =
-  let repr = Types.Bvar.to_repr t in
+  let repr = to_repr t in
   if repr.has_any_waiters
   then (
     repr.has_any_waiters <- false;
@@ -41,12 +47,12 @@ let broadcast t a =
 ;;
 
 let wait t =
-  let repr = Types.Bvar.to_repr t in
+  let repr = to_repr t in
   repr.has_any_waiters <- true;
   Ivar.read repr.ivar
 ;;
 
 let has_any_waiters t =
-  let repr = Types.Bvar.to_repr t in
+  let repr = to_repr t in
   repr.has_any_waiters
 ;;

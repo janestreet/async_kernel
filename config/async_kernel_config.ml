@@ -5,6 +5,11 @@ open Poly
 let sec = Time_ns.Span.of_sec
 let concat = String.concat
 
+module Validated = struct
+  include Validated
+  module%template Make = Make [@modality portable]
+end
+
 module Epoll_max_ready_events = Validated.Make (struct
     include Int
 
@@ -158,7 +163,7 @@ module Io_uring_mode = struct
   let list = [ Disabled; Eventfd; If_available_eventfd; From_scheduler ]
 end
 
-type t =
+type%fuelproof t =
   { abort_after_thread_pool_stuck_for : Time_ns.Span.t option [@sexp.option]
   ; check_invariants : bool option [@sexp.option]
   ; detect_invalid_access_from_thread : bool option [@sexp.option]
@@ -183,7 +188,7 @@ type t =
 [@@deriving fields ~fields ~iterators:(map, fold), sexp]
 
 module Allow_extra_fields = struct
-  type nonrec t = t =
+  type%fuelproof nonrec t = t =
     { abort_after_thread_pool_stuck_for : Time_ns.Span.t option [@sexp.option]
     ; check_invariants : bool option [@sexp.option]
     ; detect_invalid_access_from_thread : bool option [@sexp.option]

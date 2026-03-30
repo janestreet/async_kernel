@@ -45,6 +45,9 @@ val read : 'a t -> 'a Deferred0.t
 (** [peek t] returns [Some v] iff [t] is full with value [v]. *)
 val peek : 'a t -> 'a option
 
+(** [peek_or_null t] is like [peek t] but returns an or_null to avoid allocating *)
+val peek_or_null : 'a t -> 'a or_null
+
 (** [value_exn t] returns [v] if [t] is full with value [v], and raises otherwise. *)
 val value_exn : 'a t -> 'a
 

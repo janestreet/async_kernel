@@ -4,4 +4,4 @@
    core_kernel.timing_wheel)
  (public_name async_kernel.config)
  (preprocess
-  (pps ppx_jane)))
+  (pps ppx_jane ppx_fuelproof)))

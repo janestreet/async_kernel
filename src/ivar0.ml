@@ -263,13 +263,15 @@ let sexp_of_t sexp_of_a t : Sexp.t =
   | Empty | Empty_one_handler _ | Empty_one_or_more_handlers _ -> Atom "Empty"
 ;;
 
-let peek t =
+let peek_or_null t =
   let t = squash t in
   match t.cell with
   | Indir _ -> assert false (* fulfilled by [squash] *)
-  | Full a -> Some a
-  | Empty | Empty_one_handler _ | Empty_one_or_more_handlers _ -> None
+  | Full a -> This a
+  | Empty | Empty_one_handler _ | Empty_one_or_more_handlers _ -> Null
 ;;
+
+let peek t = peek_or_null t |> Or_null.to_option
 
 let value t ~if_empty_then_failwith =
   let t = squash t in

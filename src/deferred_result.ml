@@ -13,7 +13,7 @@ let combine t1 t2 ~ok ~err =
   Result.combine t1 t2 ~ok ~err
 ;;
 
-include Monad.Make2 (struct
+include Monad.Make2 [@kind value_or_null mod maybe_null] (struct
     include T
 
     let return a = Deferred.return (Ok a)

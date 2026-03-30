@@ -15,6 +15,7 @@ val create : unit -> _ t
 val create_full : 'a -> 'a t
 val create_with_cell : ('a, Cell.any) Cell.t -> 'a t
 val peek : 'a t -> 'a option
+val peek_or_null : 'a t -> 'a or_null
 val value_exn : 'a t -> 'a
 val value : 'a t -> if_empty_then_failwith:string -> 'a
 val is_empty : _ t -> bool

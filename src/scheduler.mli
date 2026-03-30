@@ -32,7 +32,13 @@ val enqueue_job : t -> Job.t -> free_job:bool -> unit
 val free_job : t -> Job.t -> unit
 val main_execution_context : Execution_context.t
 val cycle_start : t -> Time_ns.t
-val run_cycle : t -> unit
+
+val run_cycle
+  :  ?additional_cycle_time:Time_ns.Span.t
+       (** Additional time to add to the reported async cycle time. *)
+  -> t
+  -> unit
+
 val run_cycles_until_no_jobs_remain : unit -> unit
 val has_upcoming_event : t -> bool
 val next_upcoming_event : t -> Time_ns.t option
