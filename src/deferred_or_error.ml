@@ -8,12 +8,16 @@ end
 
 (* Copied to [eager_deferred_or_error.ml]. There should be no diffs below this line. *)
 
-include (Deferred_result : Monad.S2 with type ('a, 'b) t := ('a, 'b) Deferred_result.t)
+include (
+  Deferred_result :
+    Monad.S2
+    [@kind value_or_null mod maybe_null]
+    with type ('a : value_or_null, 'b) t := ('a, 'b) Deferred_result.t)
 
-type 'a t = 'a Or_error.t Deferred.t
+type ('a : value_or_null) t = 'a Or_error.t Deferred.t
 
-include Applicative.Make (struct
-    type nonrec 'a t = 'a t
+include Applicative.Make [@kind value_or_null mod maybe_null] (struct
+    type nonrec ('a : value_or_null) t = 'a t
 
     let return = return
 

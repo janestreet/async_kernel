@@ -51,6 +51,24 @@ type 'a with_optional_monitor_name :=
 (** [create ()] returns a new monitor whose parent is the current monitor. *)
 val create : (unit -> t) with_optional_monitor_name
 
+(** [within_v_detached ~on_exn f] runs [f ()] in an execution context that is completely
+    detached from the caller's context, preventing the caller's execution context from
+    being kept alive by work spawned in [f]. Returns [None] if [f] raised synchronously,
+    [Some x] otherwise.
+
+    Exceptions raised in [f] or any background work it spawns are passed to [on_exn],
+    which runs under the detached context. [on_exn] runs in the [on_exn_context].
+
+    This is useful when a function returns synchronously but spawns long-running
+    background work. Using regular [within_v] would keep the caller's execution context
+    alive for the duration of that background work. *)
+val within_v_detached
+  : (on_exn:(exn -> unit)
+     -> on_exn_context:Execution_context.t
+     -> (unit -> 'a)
+     -> 'a option)
+      with_optional_monitor_name
+
 (** [name t] returns the name of the monitor, or a unique id if no name was supplied to
     [create]. *)
 val name : t -> Info.t

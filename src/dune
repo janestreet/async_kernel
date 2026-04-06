@@ -3,8 +3,8 @@
  (public_name async_kernel)
  (libraries async_kernel_config core core_kernel.moption
    core_kernel.pairing_heap core_kernel.sexp_hidden_in_test sexplib
-   core_kernel.thread_pool_cpu_affinity core_unix.time_stamp_counter
-   core_kernel.timing_wheel core_kernel.tuple_pool unique)
+   core_unix.time_stamp_counter core_kernel.timing_wheel
+   core_kernel.tuple_pool unique)
  (preprocess
   (pps ppx_jane))
  (ocamlopt_flags :standard -O3))

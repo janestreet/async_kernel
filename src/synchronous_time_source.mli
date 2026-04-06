@@ -33,10 +33,10 @@ include Invariant.S with type t := t
 
 (** [id t] returns a unique, consistent identifier which can be used e.g. as a map or hash
     table key. *)
-val id : _ T1.t -> Id.t
+val id : _ T1.t -> Id.t @@ portable
 [@@zero_alloc]
 
-val read_only : [> read ] T1.t -> t [@@zero_alloc]
+val read_only : [> read ] T1.t -> t @@ portable [@@zero_alloc]
 
 type callback = unit -> unit
 
@@ -56,19 +56,19 @@ val alarm_precision : [> read ] T1.t -> Time_ns.Span.t
 
 (** [is_wall_clock] reports whether this time source represents 'wall clock' time, or some
     alternate source of time. *)
-val is_wall_clock : [> read ] T1.t -> bool
+val is_wall_clock : [> read ] T1.t -> bool @@ portable
 [@@zero_alloc]
 
 (** The behavior of [now] is special for [wall_clock ()]; it always calls
     [Time_ns.now ()], so it can return times that the time source has not yet been
     advanced to. *)
-val now : [> read ] T1.t -> Time_ns.t
+val now : [> read ] T1.t -> Time_ns.t @@ portable
 [@@zero_alloc]
 
 (** Removes the special behavior of [now] for [wall_clock ()]; it always returns the
     timing wheel's notion of now, which means that the following inequality always holds:
     [timing_wheel_now () <= now ()]. *)
-val timing_wheel_now : [> read ] T1.t -> Time_ns.t
+val timing_wheel_now : [> read ] T1.t -> Time_ns.t @@ portable
 [@@zero_alloc]
 
 (** [run_at t at f] schedules an alarm that will run [f] during the next subsequent
@@ -97,14 +97,14 @@ val run_at_intervals
 
 (** [max_allowed_alarm_time t] returns the greatest [at] that can be supplied to [add].
     [max_allowed_alarm_time] is not constant; its value increases as [now t] increases. *)
-val max_allowed_alarm_time : [> read ] T1.t -> Time_ns.t
+val max_allowed_alarm_time : [> read ] T1.t -> Time_ns.t @@ portable
 [@@zero_alloc]
 
 (** [duration_of t f] invokes [f] and measures how long it takes for the call to finish. *)
 val duration_of : [> read ] T1.t -> (unit -> 'a) -> 'a * Time_ns.Span.t
 
 module Event : sig
-  type t [@@deriving sexp_of]
+  type t : value mod non_float [@@deriving sexp_of]
 
   include Invariant.S with type t := t
 
@@ -202,12 +202,12 @@ val wall_clock : unit -> t
 (** {2 For Scheduler Implementors} *)
 
 (** [length t] returns the number of alarms in the underlying [Timing_wheel]. *)
-val length : [> write ] T1.t -> int
+val length : [> write ] T1.t -> int @@ portable
 [@@zero_alloc]
 
 (** [has_next_alarm t] returns true if there are any alarms in the time source, either
     that have already fired and are waiting to run, or that are scheduled in the future. *)
-val has_next_alarm : t -> bool
+val has_next_alarm : t -> bool @@ portable
 [@@zero_alloc]
 
 (** [next_alarm_runs_at t] returns a time to which the clock can be advanced such that an
@@ -222,7 +222,7 @@ val has_next_alarm : t -> bool
 val next_alarm_runs_at : [> write ] T1.t -> Time_ns.t option
 
 (** Like [next_alarm_runs_at], but raises if [has_next_alarm t] is false. *)
-val next_alarm_runs_at_exn : [> write ] T1.t -> Time_ns.t
+val next_alarm_runs_at_exn : [> write ] T1.t -> Time_ns.t @@ portable
 [@@zero_alloc]
 
 val next_alarm_fires_at : [> write ] T1.t -> Time_ns.t option

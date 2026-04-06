@@ -76,6 +76,7 @@ module type S'_without_create = sig
   (** The current connection, if any. *)
   val current_connection : t -> conn option
 
+  val current_connection_or_null : t -> conn or_null
   val server_name : t -> string
 
   (** [close t] closes the current connection and stops it from trying to reconnect. After

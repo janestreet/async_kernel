@@ -1,3 +1,5 @@
+@@ portable
+
 (** Store debugging info per job, such as start and end time. This is cleared at the start
     of each cycle. Note that this doesn't differentiate between external jobs, normal
     jobs, and low priority jobs; they all get added to the queues in the order that

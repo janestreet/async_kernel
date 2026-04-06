@@ -1,6 +1,10 @@
 open! Core
 
-include Monad.S2 with type ('a, 'b) t = ('a, 'b) Result.t Deferred1.t (** @open *)
+include
+  Monad.S2
+  [@kind value_or_null mod maybe_null]
+  with type ('a : value_or_null, 'b) t = ('a, 'b) Result.t Deferred1.t
+(** @open *)
 
 val fail : 'err -> (_, 'err) t
 
@@ -11,7 +15,8 @@ val map_error : ('ok, 'error1) t -> f:('error1 -> 'error2) -> ('ok, 'error2) t
 
 (** [combine] waits on both inputs and combines their results using [Result.combine]. *)
 val combine
-  :  ('ok1, 'err) t
+  : ('ok1 : value_or_null) ('ok2 : value_or_null) ('ok3 : value_or_null) 'err.
+  ('ok1, 'err) t
   -> ('ok2, 'err) t
   -> ok:('ok1 -> 'ok2 -> 'ok3)
   -> err:('err -> 'err -> 'err)

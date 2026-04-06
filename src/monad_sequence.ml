@@ -14,7 +14,7 @@ type how =
         example, they differ in the [Or_error] monad). *)
   | `Max_concurrent_jobs of int
   ]
-[@@deriving sexp_of]
+[@@deriving sexp_of ~portable]
 
 module type S = sig
   type 'a monad

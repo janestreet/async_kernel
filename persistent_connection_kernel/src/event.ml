@@ -12,3 +12,9 @@ let log_level = function
   | Attempting_to_connect | Connected _ | Disconnected | Obtained_address _ -> `Info
   | Failed_to_connect _ -> `Error
 ;;
+
+let map_address t ~f =
+  match t with
+  | Obtained_address a -> Obtained_address (f a)
+  | (Attempting_to_connect | Connected _ | Disconnected | Failed_to_connect _) as t -> t
+;;

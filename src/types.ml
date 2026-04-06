@@ -42,16 +42,16 @@ end =
   Handler
 
 and Ivar : sig
-  type 'a t = { mutable cell : ('a, Cell.any) Cell.t }
+  type 'a t : value mod non_float = { mutable cell : ('a, Cell.any) Cell.t }
 
   module Immutable : sig
-    type 'a t = { cell : ('a, Cell.any) Cell.t }
+    type 'a t : value mod non_float = { cell : ('a, Cell.any) Cell.t }
   end
 end =
   Ivar
 
 and Deferred : sig
-  type +!'a t
+  type +!'a t : value mod non_float
 end =
   Deferred
 
@@ -101,9 +101,7 @@ and Stream : sig
 end =
   Stream
 
-(* We avoid using [module rec] to define [Bvar], so that [to_repr] and [of_repr] are
-   inlined. *)
-module Bvar : sig
+and Bvar : sig @@ portable
   type ('a, -'permission) t
 
   (** [repr] exists so that we may hide the implementation of a [Bvar.t], and then add a
@@ -114,8 +112,8 @@ module Bvar : sig
     ; mutable ivar : 'a Ivar.t
     }
 
-  val of_repr : 'a repr -> ('a, 'permission) t
-  val to_repr : ('a, 'permission) t -> 'a repr
+  external to_repr : ('a, _) t -> 'a repr = "%identity"
+  external of_repr : 'a repr -> ('a, _) t = "%identity"
 end = struct
   type 'a repr =
     { mutable has_any_waiters : bool
@@ -124,11 +122,12 @@ end = struct
 
   type ('a, 'permission) t = 'a repr
 
-  let to_repr t = t
-  let of_repr t = t
+  (* Using ['a repr -> 'a repr] in the struct ensures that the %identity is type-safe. *)
+  external to_repr : 'a repr -> 'a repr @@ portable = "%identity"
+  external of_repr : 'a repr -> 'a repr @@ portable = "%identity"
 end
 
-module rec Event : sig
+and Event : sig
   module Status : sig
     type t =
       | Fired
@@ -138,7 +137,7 @@ module rec Event : sig
   end
 
   module Option : sig
-    type t
+    type t : mutable_data
   end
 
   type t =

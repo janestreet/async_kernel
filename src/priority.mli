@@ -1,3 +1,5 @@
+@@ portable
+
 (** A job's priority determines when in an async cycle the job is run. A "cycle" runs a
     bounded number of [Normal] priority jobs followed by a bounded number of [Low]
     priority jobs. The bound is [Async_kernel_config.max_num_jobs_per_priority_per_cycle].

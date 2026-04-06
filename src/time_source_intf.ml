@@ -32,12 +32,13 @@ module type Time_source = sig
 
   (** [id t] returns a unique, consistent identifier which can be used e.g. as a map or
       hash table key. *)
-  val id : _ T1.t -> Id.t
+  val id : _ T1.t -> Id.t @@ portable
+  [@@zero_alloc]
 
   include Invariant.S with type t := t
 
   val invariant_with_jobs : job:Job.t Invariant.t -> t Invariant.t
-  val read_only : [> read ] T1.t -> t
+  val read_only : [> read ] T1.t -> t @@ portable [@@zero_alloc]
 
   (** Creates a new simulated time source. *)
   val create
@@ -57,13 +58,14 @@ module type Time_source = sig
   (** Accessors. [now (wall_clock ())] behaves specially; see [wall_clock] above. *)
 
   val alarm_precision : [> read ] T1.t -> Time_ns.Span.t
-  val is_wall_clock : [> read ] T1.t -> bool
+  val is_wall_clock : [> read ] T1.t -> bool @@ portable [@@zero_alloc]
   val next_alarm_fires_at : [> read ] T1.t -> Time_ns.t option
-  val now : [> read ] T1.t -> Time_ns.t
+  val now : [> read ] T1.t -> Time_ns.t @@ portable [@@zero_alloc]
 
   (** Removes the special behavior of [now] for [wall_clock]; it always returns the
       timing_wheel's notion of now. *)
-  val timing_wheel_now : [> read ] T1.t -> Time_ns.t
+  val timing_wheel_now : [> read ] T1.t -> Time_ns.t @@ portable
+  [@@zero_alloc]
 
   (** Instead of [advance_directly], you probably should use [advance_by_alarms].
       [advance_directly t ~to_] advances the clock directly to [to_], whereas
@@ -287,9 +289,11 @@ module type Time_source = sig
 
   (** [Time_source] and [Synchronous_time_source] are the same data structure and use the
       same underlying timing wheel. The types are freely interchangeable. *)
-  val of_synchronous : 'a Synchronous_time_source0.T1.t -> 'a T1.t
+  val of_synchronous : 'a Synchronous_time_source0.T1.t -> 'a T1.t @@ portable
+  [@@zero_alloc]
 
-  val to_synchronous : 'a T1.t -> 'a Synchronous_time_source0.T1.t
+  val to_synchronous : 'a T1.t -> 'a Synchronous_time_source0.T1.t @@ portable
+  [@@zero_alloc]
 
   (** Advance iff:
       - no alarms are scheduled up (and including) to that time point

@@ -42,10 +42,8 @@ let descriptions =
 let sexp_of_t t = [%sexp (descriptions t : Sexp.t list)]
 
 let next_id =
-  let r = ref 0 in
-  fun () ->
-    incr r;
-    !r
+  let r = Atomic.make 1 in
+  fun () -> Atomic.fetch_and_add r 1
 ;;
 
 let create_with_parent ~(here : [%call_pos]) ?info ?name parent =

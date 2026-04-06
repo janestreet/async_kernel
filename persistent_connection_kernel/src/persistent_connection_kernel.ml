@@ -95,6 +95,7 @@ module Make' (Conn_err : Connection_error) (Conn : Closable) = struct
       ; address_equal : 'address -> 'address -> bool
       ; sexp_of_address : 'address -> Sexp.t
       ; connect_context : (Connect_context.t[@sexp.opaque])
+      ; parent_monitor : (Monitor.t[@sexp.opaque])
       }
     [@@deriving sexp_of]
 
@@ -109,7 +110,11 @@ module Make' (Conn_err : Connection_error) (Conn : Closable) = struct
          | Failed_to_connect e -> Failed_to_connect e
          | Connected conn -> Connected conn
          | Disconnected -> Disconnected);
-      Event_handler.handle event t.event_handler
+      match Event_handler.handle event t.event_handler with
+      | exception exn ->
+        Monitor.send_exn t.parent_monitor exn;
+        return ()
+      | response -> response
     ;;
 
     (* Continue trying to connect until we are able to do so, in which case we return both
@@ -254,6 +259,7 @@ module Make' (Conn_err : Connection_error) (Conn : Closable) = struct
         ; address_equal = Address.equal
         ; sexp_of_address = Address.sexp_of_t
         ; connect_context = context
+        ; parent_monitor = Monitor.current ()
         }
       in
       (* this loop finishes once [close t] has been called, in which case it makes sure to
@@ -354,12 +360,13 @@ module Make' (Conn_err : Connection_error) (Conn : Closable) = struct
       loop ()
     ;;
 
-    let current_connection t =
-      match Deferred.peek (Ivar.read t.conn) with
-      | None | Some `Close_started -> None
-      | Some (`Ok conn) -> Some conn
+    let current_connection_or_null t =
+      match Ivar.peek_or_null t.conn with
+      | Null | This `Close_started -> Null
+      | This (`Ok conn) -> This conn
     ;;
 
+    let current_connection t = current_connection_or_null t |> Or_null.to_option
     let close_finished t = Ivar.read t.close_finished
     let is_closed t = Ivar.is_full t.close_started
 
@@ -382,23 +389,23 @@ module Make' (Conn_err : Connection_error) (Conn : Closable) = struct
     let connected_or_failed_to_connect_connection_closed = Error connection_closed_error
 
     let connected_or_failed_to_connect t =
-      match Ivar.peek t.abort with
-      | Some err -> return (Error err)
-      | None ->
-        if is_closed t
-        then return connected_or_failed_to_connect_connection_closed
-        else (
-          match current_connection t with
-          | Some x when not (Conn.is_closed x) -> return (Ok x)
-          | Some (_ : Conn.t) | None ->
-            Deferred.choose
-              [ choice (Ivar.read t.close_started) (fun () ->
-                  connected_or_failed_to_connect_connection_closed)
-              ; choice
-                  (Ivar.read t.next_connect_result)
-                  (Result.map_error ~f:Conn_error_or_exception.to_error)
-              ; choice (Ivar.read t.abort) (fun error -> Error error)
-              ])
+      match current_connection t with
+      | Some x when not (Conn.is_closed x) -> return (Ok x)
+      | Some (_ : Conn.t) | None ->
+        (match Ivar.peek t.abort with
+         | Some err -> return (Error err)
+         | None ->
+           if is_closed t
+           then return connected_or_failed_to_connect_connection_closed
+           else
+             Deferred.choose
+               [ choice (Ivar.read t.close_started) (fun () ->
+                   connected_or_failed_to_connect_connection_closed)
+               ; choice
+                   (Ivar.read t.next_connect_result)
+                   (Result.map_error ~f:Conn_error_or_exception.to_error)
+               ; choice (Ivar.read t.abort) (fun error -> Error error)
+               ])
     ;;
 
     let close_when_current_connection_is_closed t =
@@ -425,6 +432,7 @@ module Make' (Conn_err : Connection_error) (Conn : Closable) = struct
   let close (T t) = Poly.close t
   let server_name (T t) = Poly.server_name t
   let current_connection (T t) = Poly.current_connection t
+  let current_connection_or_null (T t) = Poly.current_connection_or_null t
   let connected_or_failed_to_connect (T t) = Poly.connected_or_failed_to_connect t
   let connected (T t) = Poly.connected t
 

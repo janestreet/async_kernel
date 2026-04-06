@@ -28,7 +28,7 @@ module Ivar = struct
 end
 
 module Bvar = struct
-  open Types.Bvar
+  include Types.Bvar
 
   let create () = of_repr { has_any_waiters = false; ivar = Ivar.create () }
 end

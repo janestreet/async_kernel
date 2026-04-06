@@ -1,3 +1,5 @@
+@@ portable
+
 open! Core
 open! Import
 
@@ -19,5 +21,4 @@ module Encapsulated : sig
        @ once
     -> a:'a Capsule.Initial.Data.t @ unique
     -> t @ once unique
-    @@ portable
 end

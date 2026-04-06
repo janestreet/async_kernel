@@ -1,3 +1,5 @@
+@@ portable
+
 (** The context in which an Async job runs. *)
 
 open! Core
@@ -13,7 +15,7 @@ type t = Types.Execution_context.t =
 
 include Invariant.S with type t := t
 
-val main : t
+val main : t @@ nonportable
 
 val create_like
   :  ?monitor:Monitor0.t

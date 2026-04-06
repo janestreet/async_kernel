@@ -75,11 +75,18 @@ let create ~(here : [%call_pos]) ?info ?name () =
 ;;
 
 module Monitor_exn = struct
+  (* The parts of [t] that are used in exception serialization. We extract only the
+     necessary parts to ensure thread-safety. *)
+  type monitor_thread_safe =
+    { name : Info.t @@ portable
+    ; here : Source_code_position.t
+    }
+
   type t =
     { exn : exn
     ; backtrace : Backtrace.t option
     ; backtrace_history : Backtrace.t list
-    ; monitor : Monitor.t
+    ; monitor : monitor_thread_safe
     }
 
   let backtrace t = t.backtrace
@@ -179,13 +186,11 @@ end
 exception Monitor_exn of Monitor_exn.t
 
 let () =
-  Sexplib.Conv.Exn_converter.add
-    [%extension_constructor Monitor_exn]
-    (Obj.magic_portable (function
-      | Monitor_exn t -> [%sexp "monitor.ml.Error" :: (t : Monitor_exn.t)]
-      | _ ->
-        (* Reaching this branch indicates a bug in sexplib. *)
-        assert false))
+  Sexplib.Conv.Exn_converter.add [%extension_constructor Monitor_exn] (function
+    | Monitor_exn t -> [%sexp "monitor.ml.Error" :: (t : Monitor_exn.t)]
+    | _ ->
+      (* Reaching this branch indicates a bug in sexplib. *)
+      assert false)
 ;;
 
 let extract_exn exn =
@@ -208,7 +213,12 @@ let send_exn t ?(backtrace = `Get) exn =
         | `This b -> Some b
       in
       let backtrace_history = (current_execution_context ()).backtrace_history in
-      Monitor_exn { Monitor_exn.exn; backtrace; backtrace_history; monitor = t }
+      Monitor_exn
+        { Monitor_exn.exn
+        ; backtrace
+        ; backtrace_history
+        ; monitor = { name = Info.portabilize t.name; here = t.here }
+        }
   in
   if Debug.monitor_send_exn then Debug.log "Monitor.send_exn" (t, exn) [%sexp_of: t * exn];
   let scheduler = Scheduler.t () in
@@ -324,6 +334,15 @@ let stream_iter stream ~f =
       f v
   in
   loop stream
+;;
+
+let within_v_detached ~(here : [%call_pos]) ?info ?name ~on_exn ~on_exn_context f =
+  let monitor = create_with_parent ~here ?info ?name None in
+  let exns = detach_and_get_error_stream monitor in
+  within_context on_exn_context (fun () ->
+    stream_iter exns ~f:on_exn;
+    f ())
+  |> Result.ok
 ;;
 
 (* An ['a Ok_and_exns.t] represents the output of a computation running in a detached

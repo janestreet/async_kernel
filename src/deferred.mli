@@ -7,7 +7,7 @@
 open! Core
 open! Import
 
-type +'a t = 'a Deferred1.t [@@deriving sexp_of]
+type +'a t : value mod non_float = 'a Deferred1.t [@@deriving sexp_of]
 
 include Invariant.S1 with type 'a t := 'a t
 

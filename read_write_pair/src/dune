@@ -3,4 +3,4 @@
  (public_name async_kernel.read_write_pair)
  (libraries core)
  (preprocess
-  (pps ppx_jane)))
+  (pps ppx_jane -compare-require-explicit-locality)))
