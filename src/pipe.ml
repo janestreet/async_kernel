@@ -776,6 +776,20 @@ let peek' t =
              None)))
 ;;
 
+let peek'_now t =
+  (* Should we [start_read] here by analogy with all the other reading functions?
+
+     Not clear. [peek] doesn't do that, and this function is a better [peek]. Since these
+     functions are not mutating, invariant checks are not so interesting. And since these
+     functions are cheap, the cost of extra loggig is comparatively more encumbering. So
+     let's not? *)
+  if not (is_empty t)
+  then `Ok (Queue.peek_exn t.buffer)
+  else if is_closed t
+  then `Eof
+  else `Nothing_available
+;;
+
 let read_if ?consumer t ~cond =
   match%map peek' t with
   | `Eof -> `Eof

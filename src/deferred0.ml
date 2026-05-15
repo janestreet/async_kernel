@@ -33,30 +33,33 @@ let of_ivar (type a) (ivar : a Ivar.t) : a t = Obj.magic ivar
 let to_ivar (type a) t : a Ivar.t = Obj.magic (t : a t)
 let invariant invariant_a t = Ivar.invariant invariant_a (to_ivar t)
 let sexp_of_t sexp_of_a t = Ivar.sexp_of_t sexp_of_a (to_ivar t)
-let peek t = Ivar.peek (to_ivar t)
-let return a = of_ivar (Ivar.create_full a)
-let is_determined t = Ivar.is_full (to_ivar t)
+let peek (type a) (t : a t) = Ivar.peek (to_ivar t)
+let return : 'a. 'a -> 'a t = fun a -> of_ivar (Ivar.create_full a)
+let is_determined (type a) (t : a t) = Ivar.is_full (to_ivar t)
 
-let value_exn t =
+let value_exn (type a) (t : a t) =
   Ivar.value
     (to_ivar t)
     ~if_empty_then_failwith:"Deferred.value_exn called on undetermined deferred"
 ;;
 
-let upon t f = Ivar.upon (to_ivar t) f
+let upon (type a) (t : a t) (f : a -> unit) = Ivar.upon (to_ivar t) f
 
-let create f =
+let create (type a) (f : a Ivar.t -> unit) =
   let result = Ivar.create () in
   f result;
   of_ivar result
 ;;
 
 (* don't use [create] here as it would allocate one more closure *)
-let bind t ~f =
+let bind (type a b) (t : a t) ~(f : a -> b t) : b t =
   let bind_result = Ivar.create () in
   upon t (fun a -> Ivar.connect ~bind_result ~bind_rhs:(to_ivar (f a)));
   of_ivar bind_result
 ;;
 
-let add_handler t f execution_context = Ivar.add_handler (to_ivar t) f execution_context
-let remove_handler t h = Ivar.remove_handler (to_ivar t) h
+let add_handler (type a) (t : a t) f execution_context =
+  Ivar.add_handler (to_ivar t) f execution_context
+;;
+
+let remove_handler (type a) (t : a t) h = Ivar.remove_handler (to_ivar t) h

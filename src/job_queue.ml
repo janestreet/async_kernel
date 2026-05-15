@@ -18,7 +18,7 @@ type t = Types.Job_queue.t =
        [jobs]. [enqueue] doubles the length of [jobs] if [jobs] is full. [jobs] never
        shrinks. [jobs] is somewhat like a [Core.Pool] specialized to 3-tuples; we don't
        use [Pool] because that implements a set, where [jobs] is a queue. *)
-    mutable jobs : (Obj.t A.t[@sexp.opaque])
+    mutable jobs : (Obj.Nullable.t A.t[@sexp.opaque])
   ; (* [mask] is [capacity t - 1], and is used for quickly computing [i mod (capacity t)].
        A special case when the job queue has capacity 0 is represented with [mask = -1].
        This value is not useful as a bit-mask, but we only use the bit-mask when there's
@@ -47,7 +47,7 @@ let invariant t : unit =
         (check (fun jobs ->
            for i = 0 to t.length - 1 do
              Execution_context.invariant
-               (Obj.Expert.obj (A.get jobs (offset t i)) : Execution_context.t)
+               (Obj.Nullable.Expert.obj (A.get jobs (offset t i)) : Execution_context.t)
            done))
       ~mask:
         (check (fun mask ->
@@ -65,7 +65,7 @@ let invariant t : unit =
            assert (length <= capacity t))))
 ;;
 
-let create_array ~capacity = A.create_obj_array ~len:(capacity * slots_per_elt)
+let create_array ~capacity = A.create_nullable_obj_array ~len:(capacity * slots_per_elt)
 
 let create () =
   (* We start with [capacity  = 0] so that the first job that is added calls [grow] and
@@ -114,12 +114,12 @@ let grow t =
 
 let set (type a) t i execution_context f a =
   let offset = offset t i in
-  A.unsafe_set t.jobs offset (Obj.repr (execution_context : Execution_context.t));
-  A.unsafe_set t.jobs (offset + 1) (Obj.repr (f : a -> unit));
-  A.unsafe_set t.jobs (offset + 2) (Obj.repr (a : a))
+  A.unsafe_set t.jobs offset (Obj.Nullable.repr (execution_context : Execution_context.t));
+  A.unsafe_set t.jobs (offset + 1) (Obj.Nullable.repr (f : a -> unit));
+  A.unsafe_set t.jobs (offset + 2) (Obj.Nullable.repr (a : a))
 ;;
 
-let enqueue t execution_context f a =
+let enqueue (type a) t execution_context f (a : a) =
   if t.length = capacity t then grow t;
   (* SAFETY: The use of [magic_many] is safe as we only call an enqueued function at most
      once. This is unfortunately not enforced by the compiler for the low level unboxed
@@ -177,10 +177,10 @@ let run_jobs (type a) t scheduler =
     do
       let this_job = offset t 0 in
       let execution_context : Execution_context.t =
-        Obj.Expert.obj (A.unsafe_get t.jobs this_job)
+        Obj.Nullable.Expert.obj (A.unsafe_get t.jobs this_job)
       in
-      let f : a -> unit = Obj.Expert.obj (A.unsafe_get t.jobs (this_job + 1)) in
-      let a : a = Obj.Expert.obj (A.unsafe_get t.jobs (this_job + 2)) in
+      let f : a -> unit = Obj.Nullable.Expert.obj (A.unsafe_get t.jobs (this_job + 1)) in
+      let a : a = Obj.Nullable.Expert.obj (A.unsafe_get t.jobs (this_job + 2)) in
       (* We clear out the job right now so that it isn't live at the next minor
          collection. We tried not doing this and saw significant (15% or so) performance
          hits due to spurious promotion. *)

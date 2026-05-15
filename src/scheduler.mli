@@ -2,7 +2,7 @@
 
 open! Core
 open! Import
-module Deferred = Deferred1
+module Deferred := Deferred1
 
 type t = Types.Scheduler.t [@@deriving sexp_of]
 

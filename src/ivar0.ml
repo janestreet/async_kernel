@@ -22,6 +22,7 @@ type 'a t = 'a Types.Ivar.t = { mutable cell : ('a, any) cell }
    edges are never part of a cycle. *)
 and ('a, 'b) cell = ('a, 'b) Types.Cell.t =
   | Empty_one_or_more_handlers :
+      'a.
       { (* [run] is mutable so we can set it to [ignore] when the handler is removed. This
            is used when we install a handler on a full ivar since it is immediately added
            to the scheduler. *)
@@ -33,11 +34,12 @@ and ('a, 'b) cell = ('a, 'b) Types.Cell.t =
       }
       -> ('a, [> `Empty_one_or_more_handlers ]) cell
   | Empty_one_handler :
+      'a.
       ('a -> unit) * Execution_context.t
       -> ('a, [> `Empty_one_handler ]) cell
-  | Empty : ('a, [> `Empty ]) cell
-  | Full : 'a -> ('a, [> `Full ]) cell
-  | Indir : 'a t -> ('a, [> `Indir ]) cell
+  | Empty : 'a. ('a, [> `Empty ]) cell
+  | Full : 'a. 'a -> ('a, [> `Full ]) cell
+  | Indir : 'a. 'a t -> ('a, [> `Indir ]) cell
 
 module Handler = struct
   type 'a t = ('a, [ `Empty_one_or_more_handlers ]) cell
@@ -50,7 +52,7 @@ module Handler = struct
   let set_prev (Empty_one_or_more_handlers t : _ t) x = t.prev <- x
   let set_next (Empty_one_or_more_handlers t : _ t) x = t.next <- x
 
-  let create run execution_context =
+  let create (type a) (run : a -> unit) execution_context : a t =
     (* An optimized implementation of:
 
        {[
@@ -74,7 +76,14 @@ module Handler = struct
     t
   ;;
 
-  let create2 run1 execution_context1 run2 execution_context2 =
+  let create2
+    (type a)
+    (run1 : a -> unit)
+    execution_context1
+    (run2 : a -> unit)
+    execution_context2
+    : a t
+    =
     (* An optimized implementation of:
 
        {[
@@ -144,7 +153,7 @@ module Handler = struct
     set_next t t
   ;;
 
-  let add t run execution_context =
+  let add (type a) (t : a t) (run : a -> unit) execution_context =
     let result =
       Empty_one_or_more_handlers { run; execution_context; prev = prev t; next = t }
     in
@@ -220,13 +229,15 @@ include Scheduler.Ivar
    [Indir]s starting with [t] and ensures that all [Indir]s along that chain are replaced
    with an [Indir] pointing to the end of the chain. *)
 let squash =
-  let rec follow indir t =
+  let rec follow : 'a. ('a, any) cell -> 'a ivar -> ('a, any) cell =
+    fun indir t ->
     (* [indir = Indir t] *)
     match t.cell with
     | Indir t' as indir' -> follow indir' t'
     | _ -> indir
   in
-  let rec update t indir =
+  let rec update : 'a. 'a ivar -> ('a, any) cell -> 'a ivar =
+    fun t indir ->
     match t.cell with
     | Indir t' ->
       t.cell <- indir;
@@ -255,7 +266,7 @@ let invariant a_invariant t =
   | Empty_one_or_more_handlers _ as handler -> Handler.invariant handler
 ;;
 
-let sexp_of_t sexp_of_a t : Sexp.t =
+let sexp_of_t (type a) (sexp_of_a : a -> Sexp.t) (t : a ivar) : Sexp.t =
   let t = squash t in
   match t.cell with
   | Indir _ -> assert false (* fulfilled by [squash] *)
@@ -271,7 +282,13 @@ let peek_or_null t =
   | Empty | Empty_one_handler _ | Empty_one_or_more_handlers _ -> Null
 ;;
 
-let peek t = peek_or_null t |> Or_null.to_option
+let peek t =
+  let t = squash t in
+  match t.cell with
+  | Indir _ -> assert false (* fulfilled by [squash] *)
+  | Full a -> Some a
+  | Empty | Empty_one_handler _ | Empty_one_or_more_handlers _ -> None
+;;
 
 let value t ~if_empty_then_failwith =
   let t = squash t in
@@ -294,7 +311,7 @@ let is_empty t =
 
 let is_full t = not (is_empty t)
 
-let fill_exn t v =
+let fill_exn (type a) (t : a t) (v : a) =
   let t = squash t in
   match t.cell with
   | Indir _ -> assert false (* fulfilled by [squash] *)
@@ -310,7 +327,7 @@ let fill_exn t v =
 
 let fill = fill_exn
 
-let remove_handler t (handler : _ Handler.t) =
+let remove_handler (type a) (t : a t) (handler : a Handler.t) =
   Handler.set_run handler ignore;
   let t = squash t in
   match t.cell with
@@ -330,7 +347,7 @@ let remove_handler t (handler : _ Handler.t) =
       Handler.unlink handler)
 ;;
 
-let add_handler t run execution_context =
+let add_handler (type a) (t : a t) run execution_context =
   let t = squash t in
   match t.cell with
   | Indir _ -> assert false (* fulfilled by [squash] *)
@@ -352,7 +369,7 @@ let add_handler t run execution_context =
     handler
 ;;
 
-let has_handlers t =
+let has_handlers (type a) (t : a t) =
   let t = squash t in
   match t.cell with
   | Indir _ -> assert false (* fulfilled by [squash] *)
@@ -360,7 +377,9 @@ let has_handlers t =
   | Empty | Full _ -> false
 ;;
 
-let upon' t run = add_handler t run Scheduler.(current_execution_context (t ()))
+let upon' (type a) (t : a t) run =
+  add_handler t run Scheduler.(current_execution_context (t ()))
+;;
 
 (* [upon] is conceptually the same as:
 
@@ -372,7 +391,7 @@ let upon' t run = add_handler t run Scheduler.(current_execution_context (t ()))
    is very widely used and is so much more common than [upon']. The below implementation
    avoids the use of the bag of handlers in the extremely common case of one handler for
    the deferred. *)
-let upon t run =
+let upon (type a) (t : a t) run =
   let scheduler = Scheduler.t () in
   let execution_context = Scheduler.current_execution_context scheduler in
   let t = squash t in

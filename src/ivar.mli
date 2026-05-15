@@ -4,6 +4,8 @@
     filled. An ivar is similar to an ['a option ref], except it is an error to fill an
     already full ivar. *)
 
+[@@@implicit_kind: 'a * 'a_nn]
+
 open! Core
 open! Import
 
@@ -46,10 +48,10 @@ val read : 'a t -> 'a Deferred0.t
 val peek : 'a t -> 'a option
 
 (** [peek_or_null t] is like [peek t] but returns an or_null to avoid allocating *)
-val peek_or_null : 'a t -> 'a or_null
+val peek_or_null : 'a_nn t -> 'a_nn or_null
 
 (** [value_exn t] returns [v] if [t] is full with value [v], and raises otherwise. *)
 val value_exn : 'a t -> 'a
 
 (** [has_handlers t] returns [true] if [t] has handlers waiting on [read t]. *)
-val has_handlers : _ t -> bool
+val has_handlers : 'a t -> bool
