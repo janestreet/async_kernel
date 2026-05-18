@@ -8,6 +8,7 @@ module Deferred_result = Eager_deferred_result
 
 module Monitor = struct
   let try_with ?(run = `Now) = Monitor.try_with ~run
+  let try_with_local = Monitor.try_with_local
 end
 
 (* Copied from [deferred_or_error.ml]. There should be no diffs below this line. *)
@@ -93,6 +94,12 @@ let ok_unit = return ()
 
 let try_with ?extract_exn ?run ?rest ~(here : [%call_pos]) ?name f =
   Deferred.map (Monitor.try_with ?extract_exn ?run ?rest ~here ?name f) ~f:(function
+    | Error exn -> Error (Error.of_exn exn)
+    | Ok _ as ok -> ok)
+;;
+
+let try_with_local ?extract_exn ?rest ~(here : [%call_pos]) ?name f =
+  Deferred.map (Monitor.try_with_local ?extract_exn ?rest ~here ?name f) ~f:(function
     | Error exn -> Error (Error.of_exn exn)
     | Ok _ as ok -> ok)
 ;;

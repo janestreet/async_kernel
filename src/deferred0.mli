@@ -1,5 +1,7 @@
 (** Internal to Async -- see {!Deferred} for the public API. *)
 
+[@@@implicit_kind: ('a : value_or_null) * ('b : value_or_null)]
+
 open! Core
 open! Import
 
@@ -12,7 +14,7 @@ val of_ivar : 'a Ivar0.t -> 'a t
 val create : ('a Ivar0.t -> unit) @ once -> 'a t
 val peek : 'a t -> 'a option
 val value_exn : 'a t -> 'a
-val is_determined : _ t -> bool
+val is_determined : 'a t -> bool
 val return : 'a -> 'a t
 val upon : 'a t -> ('a -> unit) -> unit
 val bind : 'a t -> f:('a -> 'b t) -> 'b t

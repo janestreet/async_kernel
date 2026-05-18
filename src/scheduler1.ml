@@ -11,10 +11,15 @@ let debug = Debug.scheduler
 module Ivar = struct
   open Types.Ivar
 
-  let create_with_cell cell = { cell }
-  let create () = create_with_cell Empty
+  let create_with_cell (type a : value_or_null) (cell : (a, Types.Cell.any) Types.Cell.t)
+    : a t
+    =
+    { cell }
+  ;;
 
-  let create_full (type a) (a : a) =
+  let create (type a : value_or_null) () : a t = create_with_cell Types.Cell.Empty
+
+  let create_full (type a : value_or_null) (a : a) =
     (* We allocate an immutable ivar and then cast it to a mutable ivar. The immutability
        allows OCaml to statically allocate the ivar if [a] is constant. This cast is safe
        because a full ivar is never mutated. We also believe that we will not trigger
@@ -207,7 +212,13 @@ let invariant t : unit =
 
 let free_job t job = Pool.free t.job_pool job
 
-let enqueue t (execution_context : Execution_context.t) (f @ once) a =
+let enqueue
+  (type a : value_or_null)
+  t
+  (execution_context : Execution_context.t)
+  (f @ once)
+  (a : a)
+  =
   (* If there's been an uncaught exn, we don't add the job, since we don't want any jobs
      to run once there's been an uncaught exn. *)
   if is_none t.uncaught_exn

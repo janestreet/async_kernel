@@ -21,23 +21,21 @@
     If you have to deal with a function that does not respect this idiom, you can use
     [Deferred.Or_error.try_with_join] to wrap its execution and enforce this property. *)
 
+[@@@implicit_kind: ('a : value_or_null) * ('a_nn : value)]
+
 open! Core
 open! Import
-module Deferred = Deferred1
+module Deferred := Deferred1
 
-type ('a : value_or_null) t = 'a Or_error.t Deferred.t
+type 'a t = 'a Or_error.t Deferred.t
 
 (** The applicative operations match the behavior of the applicative operations in
     [Or_error]. This means that [all] and [all_unit] are equivalent to [combine_errors]
     and [combine_errors_unit] respectively. *)
-include
-  Applicative.S
-  [@kind value_or_null mod maybe_null]
-  with type ('a : value_or_null) t := 'a t
+include Applicative.S [@kind value_or_null mod maybe_null] with type 'a t := 'a t
 
 (** [return x = Deferred.return (Ok x)] *)
-include
-  Monad.S [@kind value_or_null mod maybe_null] with type ('a : value_or_null) t := 'a t
+include Monad.S [@kind value_or_null mod maybe_null] with type 'a t := 'a t
 
 (** [fail error = Deferred.return (Error error)] *)
 val fail : Error.t -> _ t
@@ -55,7 +53,7 @@ val of_exn_result
 val error : string -> 'a -> ('a -> Sexp.t) -> _ t
 val error_s : Sexp.t -> _ t
 val error_string : string -> _ t
-val errorf : ('a, unit, string, _ t) format4 -> 'a
+val errorf : ('a_nn, unit, string, _ t) format4 -> 'a_nn
 val tag : 'a t -> tag:string -> 'a t
 val tag_s : 'a t -> tag:Sexp.t -> 'a t
 val tag_s_lazy : 'a t -> tag:Sexp.t Lazy.t -> 'a t
@@ -94,6 +92,15 @@ val try_with
   -> here:[%call_pos]
   -> ?name:string
   -> (unit -> 'a Deferred.t)
+  -> 'a t
+
+(** [try_with_local] is like [try_with] but always runs [f] now, so [f] can be local. *)
+val try_with_local
+  :  ?extract_exn:bool (** default is [false] *)
+  -> ?rest:[ `Log | `Raise | `Call of exn -> unit ] (** default is [`Raise] *)
+  -> here:[%call_pos]
+  -> ?name:string
+  -> (unit -> 'a Deferred.t) @ local
   -> 'a t
 
 val try_with_join

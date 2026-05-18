@@ -39,6 +39,15 @@ module type Eager_deferred_or_error = sig
     -> (unit -> 'a deferred)
     -> 'a t
 
+  (** [try_with_local] is like [try_with] but always runs [f] now, so [f] can be local. *)
+  val try_with_local
+    :  ?extract_exn:bool
+    -> ?rest:[ `Log | `Raise | `Call of exn -> unit ] (** default is [`Raise] *)
+    -> here:[%call_pos]
+    -> ?name:string
+    -> (unit -> 'a deferred) @ local
+    -> 'a t
+
   (** Note that [try_with_join f] is eager only when no exception is raised by [f]. *)
   val try_with_join
     :  ?extract_exn:bool

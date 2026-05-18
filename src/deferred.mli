@@ -4,6 +4,8 @@
     at some point become determined with value v, and will henceforth always be determined
     with value v. *)
 
+[@@@implicit_kind: ('a : value_or_null)]
+
 open! Core
 open! Import
 
@@ -73,10 +75,10 @@ val is_determined : 'a t -> bool
     In general, for deferreds that are allocated by [let%bind] to be garbage collected
     quickly, it is sufficient that the allocating bind be executed in tail-call position
     of the right-hand side of an outer bind. *)
-include Monad with type 'a t := 'a t
+include Base.Monad.S [@kind value_or_null mod maybe_null] with type 'a t := 'a t
 
 module Infix : sig
-  include Monad.Infix with type 'a t := 'a t
+  include Base.Monad.Infix [@kind value_or_null mod maybe_null] with type 'a t := 'a t
 
   val ( >>> ) : 'a t -> ('a -> unit) -> unit
 end

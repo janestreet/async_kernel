@@ -348,7 +348,7 @@ let within_v_detached ~(here : [%call_pos]) ?info ?name ~on_exn ~on_exn_context 
 (* An ['a Ok_and_exns.t] represents the output of a computation running in a detached
    monitor. *)
 module Ok_and_exns = struct
-  type 'a t =
+  type ('a : value_or_null) t =
     { ok : 'a Deferred.t
     ; exns : exn Stream.t
     }

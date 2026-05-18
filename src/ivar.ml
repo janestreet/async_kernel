@@ -6,10 +6,10 @@ let read = Deferred.of_ivar
 let fill_if_empty t v = if is_empty t then fill_exn t v
 
 include
-  Binable.Of_binable1_without_uuid [@alert "-legacy"]
+  Binable.Of_binable1_without_uuid [@kind.explicit value_or_null] [@alert "-legacy"]
     (Option)
     (struct
-      type nonrec 'a t = 'a t
+      type nonrec ('a : value_or_null) t = 'a t
 
       let to_binable t = peek t
 

@@ -466,7 +466,14 @@ val read_now
     [`Nothing_available] cases. *)
 val read_now_exn : ?consumer:Consumer.t -> 'a Reader.t -> 'a
 
+(** [peek] returns the next element if known, without consuming it. This conflates the two
+    very different situations: no value available yet, and Eof has been reached. See
+    [peek'_now] to distinguish those. *)
 val peek : 'a Reader.t -> 'a option
+
+(** [peek'_now] is like [read_now] except it does not remove the returned value from the
+    pipe. (it's also like [peek'], but without waiting) *)
+val peek'_now : 'a Reader.t -> [ `Eof | `Nothing_available | `Ok of 'a ]
 
 (** [ peek' ] is like [ read ] except it does not remove the returned value from the pipe *)
 val peek' : 'a Reader.t -> [ `Eof | `Ok of 'a ] Deferred.t

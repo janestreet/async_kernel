@@ -11,6 +11,8 @@ open! Core
 open! Import
 
 module rec Cell : sig
+  [@@@implicit_kind: ('a : value_or_null)]
+
   type any =
     [ `Empty
     | `Empty_one_handler
@@ -19,7 +21,7 @@ module rec Cell : sig
     | `Indir
     ]
 
-  type ('a, 'b) t =
+  type ('a : value_or_null, 'b) t =
     | Empty_one_or_more_handlers :
         { mutable run : 'a -> unit
         ; execution_context : Execution_context.t
@@ -37,12 +39,17 @@ end =
   Cell
 
 and Handler : sig
+  [@@@implicit_kind: ('a : value_or_null)]
+
   type 'a t = ('a, [ `Empty_one_or_more_handlers ]) Cell.t
 end =
   Handler
 
 and Ivar : sig
-  type 'a t : value mod non_float = { mutable cell : ('a, Cell.any) Cell.t }
+  [@@@implicit_kind: ('a : value_or_null)]
+
+  type ('a : value_or_null) t : value mod non_float =
+    { mutable cell : ('a, Cell.any) Cell.t }
 
   module Immutable : sig
     type 'a t : value mod non_float = { cell : ('a, Cell.any) Cell.t }
@@ -51,6 +58,8 @@ end =
   Ivar
 
 and Deferred : sig
+  [@@@implicit_kind: ('a : value_or_null)]
+
   type +!'a t : value mod non_float
 end =
   Deferred
@@ -185,7 +194,7 @@ and Job_queue : sig
   type t =
     { mutable num_jobs_run : int
     ; mutable jobs_left_this_cycle : int
-    ; mutable jobs : Obj.t Uniform_array.t
+    ; mutable jobs : Obj.Nullable.t Uniform_array.t
     ; mutable mask : int
     ; mutable front : int
     ; mutable length : int

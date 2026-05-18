@@ -39,7 +39,7 @@
     this problem. *)
 
 open! Core
-module Deferred = Deferred1
+module Deferred := Deferred1
 
 type t = Monitor0.t [@@deriving sexp_of]
 
@@ -152,20 +152,22 @@ val send_exn : t -> ?backtrace:[ `Get | `This of Backtrace.t ] -> exn -> unit
     exception raised by the computation. If [extract_exn = false], then the [exn] will
     include additional information, like the monitor and backtrace. *)
 val try_with
-  : (?extract_exn:bool (** default is [false] *)
-     -> ?run:[ `Now | `Schedule ] (** default is [`Now] *)
-     -> ?rest:[ `Log | `Raise | `Call of exn -> unit ] (** default is [`Raise] *)
-     -> (unit -> 'a Deferred.t)
-     -> ('a, exn) Result.t Deferred.t)
-      with_optional_monitor_name
+  : ('a : value_or_null).
+  (?extract_exn:bool (** default is [false] *)
+   -> ?run:[ `Now | `Schedule ] (** default is [`Now] *)
+   -> ?rest:[ `Log | `Raise | `Call of exn -> unit ] (** default is [`Raise] *)
+   -> (unit -> 'a Deferred.t)
+   -> ('a, exn) Result.t Deferred.t)
+    with_optional_monitor_name
 
 (** [try_with_local] is like [try_with] but always runs [f] now, so [f] can be local. *)
 val try_with_local
-  : (?extract_exn:bool (** default is [false] *)
-     -> ?rest:[ `Log | `Raise | `Call of exn -> unit ] (** default is [`Raise] *)
-     -> local_ (unit -> 'a Deferred.t)
-     -> ('a, exn) Result.t Deferred.t)
-      with_optional_monitor_name
+  : ('a : value_or_null).
+  (?extract_exn:bool (** default is [false] *)
+   -> ?rest:[ `Log | `Raise | `Call of exn -> unit ] (** default is [`Raise] *)
+   -> local_ (unit -> 'a Deferred.t)
+   -> ('a, exn) Result.t Deferred.t)
+    with_optional_monitor_name
 
 (** [try_with_or_error] is like [try_with] but returns ['a Or_error.t Deferred.t] instead
     of [('a,exn) Result.t Deferred.t]. More precisely:

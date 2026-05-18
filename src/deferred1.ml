@@ -7,10 +7,10 @@ include Deferred0
    accumulate handlers. *)
 let never () = Ivar.read (Ivar.create ())
 
-module M = Monad.Make (struct
+module M = Base.Monad.Make [@kind value_or_null mod maybe_null] (struct
     include Deferred0
 
-    let map t ~f =
+    let map (type (a : value_or_null) (b : value_or_null)) (t : a t) ~(f : a -> b) =
       (* We manually inline [Deferred.create] here, because the non-flambda compiler isn't
          able to optimize away the closure that would be be created. *)
       let result = Ivar.create () in
@@ -36,17 +36,17 @@ include M
    allocated. When compiling with flambda, the compiler inlines [return] and this manual
    rebinding would not help; we've decided to do it anyway so that non-flambda builds get
    the optimization. *)
-let return = Deferred0.return
+let return : ('a : value_or_null). 'a -> 'a t = Deferred0.return
 
 module Let_syntax = struct
   include M.Let_syntax
 
-  let return = Deferred0.return
+  let return : ('a : value_or_null). 'a -> 'a t = Deferred0.return
 
   module Let_syntax = struct
     include M.Let_syntax.Let_syntax
 
-    let return = Deferred0.return
+    let return : ('a : value_or_null). 'a -> 'a t = Deferred0.return
   end
 end
 
@@ -75,16 +75,20 @@ open Infix
 let don't_wait_for (_ : unit t) = ()
 
 module Choice = struct
-  type +'a t = T : 'b Deferred0.t * ('b -> 'a) -> 'a t
+  type (+'a : value_or_null) t =
+    | T : ('a : value_or_null) ('b : value_or_null). 'b Deferred0.t * ('b -> 'a) -> 'a t
 
   let map (T (t, f1)) ~f:f2 = T (t, fun x -> f2 (f1 x))
 end
 
 module Unregister = struct
   (* This representation saves 2n words for a list of n choices. *)
-  type 'r t =
-    | Nil : 'r t
-    | Cons : 'a Deferred0.t * ('a -> 'r) * 'a Deferred0.Handler.t * 'r t -> 'r t
+  type ('r : value_or_null) t =
+    | Nil : ('r : value_or_null). 'r t
+    | Cons :
+        ('a : value_or_null) ('r : value_or_null).
+        'a Deferred0.t * ('a -> 'r) * 'a Deferred0.Handler.t * 'r t
+        -> 'r t
 
   let rec process = function
     | Nil -> ()
@@ -135,7 +139,7 @@ let generic_choose choices =
     lazy
       (List.fold_right choices ~init:Unregister.Nil ~f:(fun (Choice.T (t, f)) acc ->
          Unregister.Cons (t, f, Deferred0.add_handler t ready execution_context, acc)))
-  and ready : 'a. 'a -> unit =
+  and ready : ('a : value_or_null). 'a -> unit =
     fun _ ->
     if Ivar.is_empty result
     then (
@@ -156,7 +160,7 @@ let choose2 a fa b fb =
   let execution_context = Scheduler.(current_execution_context (t ())) in
   let rec a_handler = lazy (Deferred0.add_handler a ready execution_context)
   and b_handler = lazy (Deferred0.add_handler b ready execution_context)
-  and ready : 'a. 'a -> unit =
+  and ready : ('a : value_or_null). 'a -> unit =
     fun _ ->
     if Ivar.is_empty result
     then (
