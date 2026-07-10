@@ -127,6 +127,11 @@ type exn += private Monitor_exn of Monitor_exn.t
     from the error (see discussion in [try_with]). *)
 val extract_exn : exn -> exn
 
+(** [report_uncaught_exn exn] reports [exn] as an uncaught exception, synchronously
+    causing the scheduler to stop running jobs. If [main] has not been [detach]ed,
+    [report_uncaught_exn exn] is equivalent to [send_exn main exn] *)
+val report_uncaught_exn : exn -> unit
+
 (** [has_seen_error t] returns true iff the monitor has ever seen an error. *)
 val has_seen_error : t -> bool
 

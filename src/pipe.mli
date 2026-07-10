@@ -69,8 +69,8 @@ val create_reader
     pipe, applies [f] to its reader end, and returns its writer end. [create_writer] calls
     [close_read] when the result of [f] becomes determined. If [f] raises, [create_writer]
     closes the pipe and raises the exception to the caller of [create_writer].
-    [create_writer] closes on exception, unlike [create_reader], because closing closing
-    the read end of a pipe is a signal to the writer that the consumer has failed. *)
+    [create_writer] closes on exception, unlike [create_reader], because closing the read
+    end of a pipe is a signal to the writer that the consumer has failed. *)
 val create_writer : ?size_budget:int -> ('a Reader.t -> unit Deferred.t) -> 'a Writer.t
 
 (** [create ()] creates a new pipe. It is preferable to use [create_reader] or

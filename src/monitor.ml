@@ -199,6 +199,13 @@ let extract_exn exn =
   | exn -> exn
 ;;
 
+let report_uncaught_exn exn =
+  (* Do not change this function to print the exception or to exit. Having the scheduler
+     raise an uncaught exception is the necessary behavior for programs that call
+     [Scheduler.go] and want to handle it. *)
+  Scheduler.(got_uncaught_exn (t ())) exn ((Atomic.get Async_kernel_config.task_id) ())
+;;
+
 let send_exn t ?(backtrace = `Get) exn =
   let exn =
     match exn with
@@ -235,13 +242,7 @@ let send_exn t ?(backtrace = `Get) exn =
         Scheduler.enqueue scheduler execution_context f exn);
       List.iter t.tails_for_all_errors ~f:(fun tail -> Tail.extend tail exn)
     | Parent parent -> loop parent
-    | Report_uncaught_exn ->
-      (* Do not change this branch to print the exception or to exit. Having the scheduler
-         raise an uncaught exception is the necessary behavior for programs that call
-         [Scheduler.go] and want to handle it. *)
-      Scheduler.(got_uncaught_exn (t ()))
-        exn
-        ((Atomic.get Async_kernel_config.task_id) ())
+    | Report_uncaught_exn -> report_uncaught_exn exn
   in
   loop t
 ;;

@@ -672,7 +672,12 @@ let run_fired_events t ~(send_exn : send_exn option) =
             running the callback (no need for the Happening_periodic_event state then).
             One reason we don't do that is that we don't want to automatically reschedule
             a periodic event if its callback raises. *)
-         (match event.callback () with
+         (match
+            (* If this is the scheduler's time source, and the scheduler got an uncaught
+               exn, then we don't want to run any more events. *)
+            if not (Scheduler0.is_dead t.scheduler && is_wall_clock t)
+            then event.callback ()
+          with
           | exception exn ->
             let backtrace = Backtrace.Exn.most_recent () in
             (match send_exn with

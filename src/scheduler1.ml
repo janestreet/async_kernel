@@ -305,7 +305,6 @@ let create () =
   t
 ;;
 
-let is_dead t = is_some t.uncaught_exn
 let set_check_access t f = t.check_access <- f
 
 let backtrace_of_first_job t =

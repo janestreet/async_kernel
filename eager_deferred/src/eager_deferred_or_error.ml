@@ -90,7 +90,7 @@ let find_map_ok l ~f =
           | Ok result -> `Finished (Ok result)))
 ;;
 
-let ok_unit = return ()
+let ok_unit = Deferred_result.ok_unit
 
 let try_with ?extract_exn ?run ?rest ~(here : [%call_pos]) ?name f =
   Deferred.map (Monitor.try_with ?extract_exn ?run ?rest ~here ?name f) ~f:(function

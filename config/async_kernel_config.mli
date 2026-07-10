@@ -91,7 +91,7 @@ module Io_uring_mode : sig
   [@@deriving sexp_of]
 end
 
-type%fuelproof t : value mod contended portable =
+type t : value mod contended portable =
   { abort_after_thread_pool_stuck_for : Time_ns.Span.t option
   ; check_invariants : bool option
   ; detect_invalid_access_from_thread : bool option

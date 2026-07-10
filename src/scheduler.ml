@@ -40,11 +40,11 @@ end = struct
   external magic_unwrap_capsule : ('a, 'k) Capsule.Data.t -> 'a @@ portable = "%identity"
 
   let external_jobs t =
-    Capsule.Expert.Data.inject { contended = (magic_unwrap_capsule t).external_jobs }
+    Capsule.Prim.Data.inject { contended = (magic_unwrap_capsule t).external_jobs }
   ;;
 
   let thread_safe_external_job_hook t =
-    Capsule.Expert.Data.inject (magic_unwrap_capsule t).thread_safe_external_job_hook
+    Capsule.Prim.Data.inject (magic_unwrap_capsule t).thread_safe_external_job_hook
   ;;
 end
 
@@ -164,14 +164,11 @@ let has_pending_external_jobs t =
 ;;
 
 let portable_enqueue_external_job t execution_context f a =
-  let external_jobs = t |> Project.external_jobs |> Capsule.Expert.Data.project in
+  let external_jobs = t |> Project.external_jobs |> Capsule.Prim.Data.project in
   let job = External_job.Encapsulated.create ~execution_context ~f ~a in
   Unique.Lockfree_single_consumer_queue.enqueue external_jobs.contended job;
   let thread_safe_external_job_hook =
-    t
-    |> Project.thread_safe_external_job_hook
-    |> Capsule.Expert.Data.project
-    |> Atomic.get
+    t |> Project.thread_safe_external_job_hook |> Capsule.Prim.Data.project |> Atomic.get
   in
   thread_safe_external_job_hook ()
 ;;
@@ -179,9 +176,9 @@ let portable_enqueue_external_job t execution_context f a =
 let[@inline] thread_safe_enqueue_external_job t execution_context f a =
   let execution_context = Capsule.Initial.Data.wrap execution_context in
   let f =
-    Capsule.Expert.Data.wrap_once ~access:Capsule.Initial.access (fun #(_, a) -> f a)
+    Capsule.Prim.Data.wrap_once ~access:Capsule.Initial.access (fun #(_, a) -> f a)
   in
-  let a = Capsule.Expert.Data.wrap_unique ~access:Capsule.Initial.access a in
+  let a = Capsule.Prim.Data.wrap_unique ~access:Capsule.Initial.access a in
   portable_enqueue_external_job (Capsule.Initial.Data.wrap t) execution_context f a
 ;;
 

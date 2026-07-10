@@ -46,6 +46,7 @@ val next_upcoming_event_exn : t -> Time_ns.t
 val event_precision : t -> Time_ns.Span.t
 val uncaught_exn : t -> Error.t option
 val uncaught_exn_unwrapped : t -> (Exn.t * Sexp.t) option
+val is_dead : t -> bool
 val num_pending_jobs : t -> int
 val num_jobs_run : t -> int
 val last_cycle_num_jobs : t -> int

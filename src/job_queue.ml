@@ -158,7 +158,7 @@ let[@inline] rec run_external_jobs t (scheduler : Scheduler.t) =
   | Null -> ()
   | This job ->
     let%tydi (External_job.T { execution_context; f; a }) =
-      Capsule.Expert.Data.unwrap_once_unique ~access:Capsule.Initial.access job
+      Capsule.Prim.Data.unwrap_once_unique ~access:Capsule.Initial.access job
     in
     run_job t scheduler execution_context (fun a -> f #(Capsule.Initial.access, a)) a;
     run_external_jobs t scheduler

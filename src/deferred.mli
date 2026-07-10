@@ -87,7 +87,7 @@ end
 val unit : unit t
 
 (** [never ()] returns a deferred that never becomes determined. *)
-val never : unit -> _ t
+val never : ('a : value_or_null). unit -> 'a t
 
 (** [both t1 t2] becomes determined after both [t1] and [t2] become determined. *)
 val both : 'a t -> 'b t -> ('a * 'b) t

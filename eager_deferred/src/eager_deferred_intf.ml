@@ -142,7 +142,7 @@ module type Eager_deferred1 = sig
       -> ('ok3, 'err) t
 
     module List :
-      Monad_sequence.S2_result
+      Monad_sequence.S2_sequential
       with type ('a, 'e) monad := ('a, 'e) t
       with type 'a t := 'a list
   end

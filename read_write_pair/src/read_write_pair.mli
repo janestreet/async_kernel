@@ -1,3 +1,5 @@
+@@ portable
+
 (** [Read_write] is like [Dirpair], except "buy/sell" has been changed to "read/write". *)
 
 open! Core
