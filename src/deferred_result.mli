@@ -23,8 +23,11 @@ val combine
   -> err:('err -> 'err -> 'err)
   -> ('ok3, 'err) t
 
+(** [ok_unit = return ()] *)
+val ok_unit : (unit, _) t
+
 module List :
-  Monad_sequence.S2_result
+  Monad_sequence.S2_sequential
   with type ('a, 'e) monad := ('a, 'e) t
   with type 'a t := 'a list
 

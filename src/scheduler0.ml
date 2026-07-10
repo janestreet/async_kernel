@@ -3,6 +3,7 @@ open! Import
 include Types.Scheduler
 
 let events t = t.time_source.events
+let is_dead t = is_some t.uncaught_exn
 
 let set_execution_context t execution_context =
   (* Avoid a caml_modify in most cases. *)

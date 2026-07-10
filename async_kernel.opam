@@ -16,11 +16,10 @@ depends: [
   "core_kernel"
   "core_unix"
   "parsexp"
-  "ppx_fuelproof"
   "ppx_jane"
   "sexplib"
   "unique"
-  "dune"          {>= "3.17.0"}
+  "dune"        {>= "3.17.0"}
 ]
 available: arch != "x86_32"
 synopsis: "Monadic concurrency library"

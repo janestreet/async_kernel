@@ -1331,30 +1331,49 @@ let of_sequence sequence =
   create_reader ~close_on_exception:false (fun writer ->
     let rec enqueue_n sequence i =
       if i <= 0
-      then sequence
+      then This sequence
       else (
         match Sequence.next sequence with
-        | None -> sequence
-        | Some (a, sequence) ->
-          decrease_reserved_space writer 1;
-          Queue.enqueue writer.buffer a;
-          enqueue_n sequence (i - 1))
+        | None -> Null
+        | Some (a, sequence) -> enqueue_n_pos a sequence i)
+    and enqueue_n_pos a sequence i =
+      (* There's no guarantee that [i] is positive here, but there's no invariant that
+         says we can't write beyond the size budget. In fact if this situation comes up,
+         it's preferable to write the element into the pipe rather than keeping it in the
+         closure, because that makes more elements accessible to the user code
+         synchronously ([read_now'] will give you exactly the elements we consumed from
+         the sequence) *)
+      decrease_reserved_space writer 1;
+      Queue.enqueue writer.buffer a;
+      enqueue_n sequence (i - 1)
     in
     let rec loop sequence =
-      if is_closed writer || Sequence.is_empty sequence
+      if is_closed writer
       then return ()
       else (
-        (* [size:0] here as we don't know the size of the sequence statically. We'll call
-           [decrease_reserved_space] as we go. (although realistically, it's impossible
-           for the user to reserve space in this pipe because you need a pipe writer for
-           that, but [of_sequence] returns a reader) *)
-        start_write writer ~size:0;
-        let sequence = enqueue_n sequence (1 + writer.size_budget - length writer) in
-        finish_write writer;
-        let%bind () = pushback writer in
-        loop sequence)
+        match sequence with
+        | Null -> return ()
+        | This sequence ->
+          (* We want to stop early if the sequence is empty, but [Sequence.is_empty]
+             effectively does the work of [Sequence.next] and throws it away. Instead of
+             throwing away the next computed element, we pass it straight to
+             [enqueue_n_pos] to make sure it's written into the pipe straight away. *)
+          (match Sequence.next sequence with
+           | None -> return ()
+           | Some (head, sequence_tail) ->
+             (* [size:0] here as we don't know the size of the sequence statically. We'll
+                call [decrease_reserved_space] as we go. (although realistically, it's
+                impossible for the user to reserve space in this pipe because you need a
+                pipe writer for that, but [of_sequence] returns a reader) *)
+             start_write writer ~size:0;
+             let sequence =
+               enqueue_n_pos head sequence_tail (1 + writer.size_budget - length writer)
+             in
+             finish_write writer;
+             let%bind () = pushback writer in
+             loop sequence))
     in
-    loop sequence)
+    loop (This sequence))
 ;;
 
 type 'a to_sequence_elt =

@@ -163,7 +163,7 @@ module Io_uring_mode = struct
   let list = [ Disabled; Eventfd; If_available_eventfd; From_scheduler ]
 end
 
-type%fuelproof t =
+type t =
   { abort_after_thread_pool_stuck_for : Time_ns.Span.t option [@sexp.option]
   ; check_invariants : bool option [@sexp.option]
   ; detect_invalid_access_from_thread : bool option [@sexp.option]
@@ -188,7 +188,7 @@ type%fuelproof t =
 [@@deriving fields ~fields ~iterators:(map, fold), sexp]
 
 module Allow_extra_fields = struct
-  type%fuelproof nonrec t = t =
+  type nonrec t = t =
     { abort_after_thread_pool_stuck_for : Time_ns.Span.t option [@sexp.option]
     ; check_invariants : bool option [@sexp.option]
     ; detect_invalid_access_from_thread : bool option [@sexp.option]

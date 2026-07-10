@@ -42,6 +42,8 @@ let rec repeat_until_finished state f =
     | `Finished state -> return state)
 ;;
 
+let ok_unit = return ()
+
 module List = struct
   open Let_syntax
 
@@ -64,6 +66,8 @@ module List = struct
     >>| List.rev
   ;;
 
+  let all ds = seqmapi ds ~f:(fun _ x -> x)
+  let all_unit ds = ignore_m (fold ds ~init:() ~f:(fun () d -> d))
   let iteri t ~f = foldi t ~init:() ~f:(fun i () x -> f i x)
   let mapi t ~f = seqmapi t ~f
   let filter_mapi t ~f = mapi t ~f >>| List.filter_opt
